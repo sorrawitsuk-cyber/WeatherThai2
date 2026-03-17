@@ -46,7 +46,6 @@ const getTempColor = (val) => {
   return { bg: '#e74c3c', text: '#fff' }; 
 };
 
-// ฟังก์ชันคำนวณดัชนีความร้อนและให้สีแจ้งเตือน
 const getHeatIndexAlert = (feelsLike) => {
   if (feelsLike >= 41) return { text: 'อันตราย (เสี่ยงฮีทสโตรก)', color: '#dc2626', bg: '#fee2e2', bar: '#ef4444', icon: '🥵' };
   if (feelsLike >= 32) return { text: 'เตือนภัย (เพลียแดด)', color: '#ea580c', bg: '#ffedd5', bar: '#f97316', icon: '😰' };
@@ -65,7 +64,6 @@ const extractProvince = (areaTH) => {
 // ==============================================================
 const createCustomMarker = (viewMode, value, level) => {
   let bg, textColor, displayValue;
-
   if (viewMode === 'aqi') {
     bg = getAqiDetails(value).color;
     textColor = (level >= 2 && level <= 4) ? '#222' : '#fff';
@@ -76,26 +74,10 @@ const createCustomMarker = (viewMode, value, level) => {
     textColor = tempInfo.text;
     displayValue = (value === 0 || isNaN(value) || value === null) ? '-' : value.toFixed(1);
   }
-
   return L.divIcon({
     className: 'custom-div-icon',
-    html: `
-      <div style="
-        background-color: ${bg}; 
-        width: 32px; height: 32px; 
-        border-radius: 50%; 
-        border: 2px solid white; 
-        box-shadow: 0 2px 5px rgba(0,0,0,0.4); 
-        display: flex; justify-content: center; align-items: center; 
-        color: ${textColor}; font-weight: bold; font-size: 11px;
-        font-family: 'Kanit', sans-serif;
-        transition: all 0.3s ease;
-      ">
-        ${displayValue}
-      </div>
-    `,
-    iconSize: [36, 36], 
-    iconAnchor: [18, 18] 
+    html: `<div style="background-color: ${bg}; width: 32px; height: 32px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.4); display: flex; justify-content: center; align-items: center; color: ${textColor}; font-weight: bold; font-size: 11px; font-family: 'Kanit', sans-serif; transition: all 0.3s ease;">${displayValue}</div>`,
+    iconSize: [36, 36], iconAnchor: [18, 18] 
   });
 };
 
@@ -114,9 +96,7 @@ function FitBounds({ stations, activeStation }) {
 function FlyToActiveStation({ activeStation }) {
   const map = useMap();
   useEffect(() => {
-    if (activeStation) {
-      map.flyTo([parseFloat(activeStation.lat), parseFloat(activeStation.long)], 13, { duration: 1.5 });
-    }
+    if (activeStation) map.flyTo([parseFloat(activeStation.lat), parseFloat(activeStation.long)], 13, { duration: 1.5 });
   }, [activeStation, map]);
   return null;
 }
@@ -128,17 +108,14 @@ export default function App() {
   const [allStations, setAllStations] = useState([]);
   const [filteredStations, setFilteredStations] = useState([]);
   const [provinces, setProvinces] = useState([]);
-  
   const [selectedProvince, setSelectedProvince] = useState('');
   const [selectedStationId, setSelectedStationId] = useState('');
   
   const [viewMode, setViewMode] = useState('aqi');
   const [stationTemps, setStationTemps] = useState({});
   const [activeStation, setActiveStation] = useState(null);
-  
   const [activeWeather, setActiveWeather] = useState(null); 
   const [activeForecast, setActiveForecast] = useState(null); 
-  
   const [loading, setLoading] = useState(true);
   const [lastUpdateText, setLastUpdateText] = useState('');
   
@@ -156,7 +133,6 @@ export default function App() {
         setAllStations(data.stations);
         const provs = [...new Set(data.stations.map(s => extractProvince(s.areaTH)))];
         setProvinces(provs.sort());
-
         if (data.stations.length > 0) {
           const updateDate = data.stations[0].AQILast?.date || '';
           const updateTime = data.stations[0].AQILast?.time || '';
@@ -174,7 +150,6 @@ export default function App() {
   const fetchAdvancedTemperatures = async (stations) => {
     const newTemps = {};
     const chunkSize = 40; 
-    
     for (let i = 0; i < stations.length; i += chunkSize) {
       const chunk = stations.slice(i, i + chunkSize);
       const lats = chunk.map(s => s.lat).join(',');
@@ -241,22 +216,19 @@ export default function App() {
 
       const fetchDetails = async () => {
         try {
-          // ดึงสภาพอากาศปัจจุบัน + กราฟพยากรณ์ความร้อน
-          const urlWeather = `https://api.open-meteo.com/v1/forecast?latitude=${activeStation.lat}&longitude=${activeStation.long}&current=temperature_2m,apparent_temperature,wind_speed_10m,wind_direction_10m&hourly=apparent_temperature&timezone=auto&forecast_days=2`;
+          // 1. ดึงข้อมูลพยากรณ์ความร้อนรายวัน (ล่วงหน้า 7 วัน)
+          const urlWeather = `https://api.open-meteo.com/v1/forecast?latitude=${activeStation.lat}&longitude=${activeStation.long}&current=temperature_2m,apparent_temperature,wind_speed_10m,wind_direction_10m&daily=apparent_temperature_max&timezone=auto&forecast_days=7`;
           const resW = await fetch(urlWeather);
           const wData = await resW.json();
           
           let heatForecastList = [];
-          if (wData.hourly) {
-            const nowTime = new Date().getTime();
-            let startIndex = wData.hourly.time.findIndex(tStr => new Date(tStr).getTime() >= nowTime);
-            if (startIndex === -1) startIndex = 0;
-            
-            for (let i = startIndex; i < wData.hourly.time.length && heatForecastList.length < 12; i += 2) {
-              const val = wData.hourly.apparent_temperature[i] || 0;
-              const tDate = new Date(wData.hourly.time[i]);
+          if (wData.daily && wData.daily.time) {
+            for (let i = 0; i < wData.daily.time.length; i++) {
+              const dateObj = new Date(wData.daily.time[i]);
+              const dayName = dateObj.toLocaleDateString('th-TH', { weekday: 'short' }); // แปลงเป็น จ. อ. พ.
+              const val = wData.daily.apparent_temperature_max[i] || 0;
               heatForecastList.push({
-                time: `${tDate.getHours().toString().padStart(2, '0')}:00`,
+                time: dayName,
                 val: Math.round(val),
                 colorInfo: getHeatIndexAlert(val) 
               });
@@ -273,26 +245,33 @@ export default function App() {
             });
           }
 
-          // ดึงพยากรณ์ PM2.5
-          const urlAqi = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${activeStation.lat}&longitude=${activeStation.long}&hourly=pm2_5&timezone=auto&forecast_days=2`;
+          // 2. ดึงพยากรณ์ PM2.5 (ดึงรายชั่วโมง 7 วัน แล้วหากรองค่าสูงสุดของแต่ละวัน)
+          const urlAqi = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${activeStation.lat}&longitude=${activeStation.long}&hourly=pm2_5&timezone=auto&forecast_days=7`;
           const resAqi = await fetch(urlAqi);
           const aData = await resAqi.json();
           
           if (aData && aData.hourly) {
-            const nowTime = new Date().getTime();
-            let startIndex = aData.hourly.time.findIndex(tStr => new Date(tStr).getTime() >= nowTime);
-            if (startIndex === -1) startIndex = 0;
-            
-            const pmForecastList = [];
-            for (let i = startIndex; i < aData.hourly.time.length && pmForecastList.length < 12; i += 2) {
-              const val = aData.hourly.pm2_5[i] || 0;
-              const tDate = new Date(aData.hourly.time[i]);
-              pmForecastList.push({
-                time: `${tDate.getHours().toString().padStart(2, '0')}:00`,
-                val: Math.round(val),
-                color: getPM25Color(val)
-              });
+            const dailyMax = {};
+            // วนลูปหาค่าฝุ่นสูงสุดในแต่ละวัน
+            for (let i = 0; i < aData.hourly.time.length; i++) {
+              const tStr = aData.hourly.time[i]; 
+              const datePart = tStr.split('T')[0]; // ตัดเอาแค่วันที่
+              const val = aData.hourly.pm2_5[i];
+              if (val !== null && val !== undefined) {
+                if (!dailyMax[datePart] || val > dailyMax[datePart]) {
+                  dailyMax[datePart] = val;
+                }
+              }
             }
+            
+            // แปลงข้อมูลเป็น Array สำหรับวาดกราฟ 7 แท่ง
+            const dates = Object.keys(dailyMax).sort().slice(0, 7);
+            const pmForecastList = dates.map(d => {
+              const dateObj = new Date(d);
+              const dayName = dateObj.toLocaleDateString('th-TH', { weekday: 'short' });
+              const val = Math.round(dailyMax[d]);
+              return { time: dayName, val: val, color: getPM25Color(val) };
+            });
             setActiveForecast(pmForecastList);
           }
         } catch (err) {
@@ -469,17 +448,11 @@ export default function App() {
                       
                       <div style={{ minHeight: '35px', display: 'flex', alignItems: 'center', marginTop: '10px' }}>
                         {isAqiMode ? (
-                          // ===================================
-                          // โหมด AQI: แสดงค่าฝุ่น
-                          // ===================================
                           <div style={{ display: 'flex', gap: '15px', fontSize: '0.85rem', color: '#555' }}>
                             <span>PM2.5: <strong style={{ color: getPM25Color(pm25Val), fontSize: '1rem' }}>{pm25Val}</strong></span>
                             <span>PM10: <strong style={{ color: getPM10Color(pm10Val), fontSize: '1rem' }}>{pm10Val}</strong></span>
                           </div>
                         ) : (
-                          // ===================================
-                          // โหมดอุณหภูมิ: แสดง Min/Max และ เทียบเมื่อวาน
-                          // ===================================
                           <div style={{ width: '100%' }}>
                             {tempObj ? (
                               <>
@@ -509,31 +482,27 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* ========================================================== */}
-                  {/* แผงข้อมูลเสริมเมื่อการ์ดนี้ถูกคลิก */}
-                  {/* ========================================================== */}
                   {isActive && (
                     <div style={{ borderTop: '1px solid #eee', marginTop: '15px', paddingTop: '15px' }}>
                       
                       {isAqiMode ? (
                         // ============================
-                        // Expanded: โหมด AQI (กราฟฝุ่น)
+                        // Expanded: โหมด AQI (กราฟฝุ่น 7 วัน)
                         // ============================
                         <div>
-                          <h5 style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#666', marginBottom: '10px' }}>📈 คาดการณ์ PM2.5 ล่วงหน้า 24 ชม.</h5>
+                          <h5 style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#666', marginBottom: '10px' }}>📈 คาดการณ์ PM2.5 สูงสุดล่วงหน้า 7 วัน</h5>
                           {activeForecast === null ? (
                             <p style={{ fontSize: '0.8rem', color: '#999', textAlign: 'center' }}>กำลังดึงข้อมูลพยากรณ์ฝุ่น...</p>
                           ) : (
-                            <div style={{ height: '90px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '3px', borderBottom: '1px solid #ddd', paddingBottom: '2px' }}>
+                            <div style={{ height: '90px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '4px', borderBottom: '1px solid #ddd', paddingBottom: '2px' }}>
                               {(() => {
-                                const maxVal = Math.max(...activeForecast.map(d => d.val)) + 15;
+                                const maxVal = Math.max(...activeForecast.map(d => d.val)) * 1.2 || 1; // เผื่อความสูง 20%
                                 return activeForecast.map((data, index) => {
-                                  const heightPercent = Math.max((data.val / maxVal) * 100, 5); 
+                                  const heightPercent = Math.max((data.val / maxVal) * 100, 2); 
                                   return (
-                                    /* ✅ ตรงนี้แก้ไข CSS ให้แท่งกราฟยืดขึ้นเต็มความสูง 100% แล้วครับ */
-                                    <div key={index} style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center', cursor: 'pointer' }} title={`เวลา ${data.time} = ${data.val} µg/m³`}>
-                                      <div style={{ width: '100%', height: `${heightPercent}%`, backgroundColor: data.color, borderRadius: '2px 2px 0 0', opacity: 0.85, transition: '0.3s' }}></div>
-                                      <span style={{ fontSize: '9px', color: '#999', marginTop: '4px', display: index % 2 === 0 ? 'block' : 'none' }}>{data.time.split(':')[0]}</span>
+                                    <div key={index} style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center', cursor: 'pointer' }} title={`${data.time}: ${data.val} µg/m³`}>
+                                      <div style={{ width: '100%', height: `${heightPercent}%`, backgroundColor: data.color, borderRadius: '4px 4px 0 0', opacity: 0.9, transition: '0.3s' }}></div>
+                                      <span style={{ fontSize: '10px', color: '#666', marginTop: '4px', fontWeight: 'bold' }}>{data.time}</span>
                                     </div>
                                   );
                                 });
@@ -543,7 +512,7 @@ export default function App() {
                         </div>
                       ) : (
                         // ============================
-                        // Expanded: โหมดอุณหภูมิ (Feels Like + กราฟความร้อน)
+                        // Expanded: โหมดอุณหภูมิ (Feels Like + กราฟความร้อน 7 วัน)
                         // ============================
                         <div>
                           {activeWeather === null ? (
@@ -577,18 +546,23 @@ export default function App() {
                                 })()}
                               </div>
 
-                              <h5 style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#666', marginBottom: '10px' }}>📈 คาดการณ์ความร้อน (Feels Like) ล่วงหน้า 24 ชม.</h5>
+                              <h5 style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#666', marginBottom: '10px' }}>📈 คาดการณ์ดัชนีความร้อนสูงสุดล่วงหน้า 7 วัน</h5>
                               {activeWeather.heatForecast && activeWeather.heatForecast.length > 0 && (
-                                <div style={{ height: '90px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '3px', borderBottom: '1px solid #ddd', paddingBottom: '2px' }}>
+                                <div style={{ height: '90px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '4px', borderBottom: '1px solid #ddd', paddingBottom: '2px' }}>
                                   {(() => {
-                                    const maxVal = Math.max(...activeWeather.heatForecast.map(d => d.val)) + 5;
+                                    const heatVals = activeWeather.heatForecast.map(d => d.val);
+                                    const minVal = Math.min(...heatVals);
+                                    const maxVal = Math.max(...heatVals);
+                                    // กำหนดจุดเริ่มต้นกราฟ (Baseline) ให้ต่ำกว่าค่าน้อยสุดเล็กน้อย เพื่อสร้างความแตกต่างให้แท่งกราฟ
+                                    const baseLine = Math.max(0, minVal - 5);
+                                    const range = (maxVal - baseLine) * 1.2 || 1; // เผื่อความสูง 20%
+                                    
                                     return activeWeather.heatForecast.map((data, index) => {
-                                      const heightPercent = Math.max((data.val / maxVal) * 100, 5); 
+                                      const heightPercent = Math.max(((data.val - baseLine) / range) * 100, 5); 
                                       return (
-                                        /* ✅ แก้ไข CSS กราฟให้เต็มกล่องเช่นเดียวกันครับ */
-                                        <div key={index} style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center', cursor: 'pointer' }} title={`รู้สึกเหมือน: ${data.val}°C`}>
-                                          <div style={{ width: '100%', height: `${heightPercent}%`, backgroundColor: data.colorInfo.bar, borderRadius: '2px 2px 0 0', opacity: 0.85, transition: '0.3s' }}></div>
-                                          <span style={{ fontSize: '9px', color: '#999', marginTop: '4px', display: index % 2 === 0 ? 'block' : 'none' }}>{data.time.split(':')[0]}</span>
+                                        <div key={index} style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center', cursor: 'pointer' }} title={`${data.time}: รู้สึกเหมือน ${data.val}°C`}>
+                                          <div style={{ width: '100%', height: `${heightPercent}%`, backgroundColor: data.colorInfo.bar, borderRadius: '4px 4px 0 0', opacity: 0.9, transition: '0.3s' }}></div>
+                                          <span style={{ fontSize: '10px', color: '#666', marginTop: '4px', fontWeight: 'bold' }}>{data.time}</span>
                                         </div>
                                       );
                                     });
