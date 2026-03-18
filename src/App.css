@@ -127,3 +127,12 @@ body, html { height: 100%; font-family: 'Kanit', sans-serif; overflow: hidden; }
 .card-aqi .lbl { font-size: 0.7rem; opacity: 0.9; }
 
 .loading-screen { display: flex; justify-content: center; align-items: center; height: 100vh; font-size: 1.5rem; color: #555; }
+
+/* ซ่อน Scrollbar สำหรับ WebKit/Blink (Chrome, Safari, iOS, Android) */
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.hide-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
