@@ -298,7 +298,7 @@ export default function App() {
 
   useEffect(() => {
     fetchAirQuality();
-    const intervalId = setInterval(() => { fetchAirQuality(true); }, 600000); 
+    const intervalId = setInterval(() => { fetchAirQuality(true); }, 1800000); 
     return () => clearInterval(intervalId);
   }, []);
 
