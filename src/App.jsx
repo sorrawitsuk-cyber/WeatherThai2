@@ -249,7 +249,8 @@ export default function App() {
 
   const fetchAdvancedTemperatures = async (stations) => {
     const newTemps = {};
-    const chunkSize = 35; 
+    // 🔻 1. ลดจำนวนสถานีต่อ 1 รอบลงเหลือ 25 สถานี (ป้องกัน URL ยาวเกินไป และลดโหลด API)
+    const chunkSize = 25; 
     
     for (let i = 0; i < stations.length; i += chunkSize) {
       const chunk = stations.slice(i, i + chunkSize);
@@ -259,7 +260,12 @@ export default function App() {
       try {
         const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,wind_direction_10m&daily=temperature_2m_max,temperature_2m_min,uv_index_max,precipitation_probability_max,wind_speed_10m_max&past_days=1&forecast_days=1&timezone=Asia%2FBangkok`;
         const res = await fetch(url);
-        if (!res.ok) continue; 
+        
+        // 🚨 2. ดักจับ Error ถ้าโดนบล็อก จะได้รู้ตัว
+        if (!res.ok) {
+          console.warn(`⚠️ Open-Meteo API Error: Status ${res.status} (โดนจำกัดการใช้งานชั่วคราว)`);
+          continue; 
+        }
         
         const weatherData = await res.json();
         const results = Array.isArray(weatherData) ? weatherData : [weatherData];
@@ -284,7 +290,8 @@ export default function App() {
       } catch (err) {
         console.error("Batch Temp fetch error", err);
       }
-      await new Promise(resolve => setTimeout(resolve, 300)); 
+      // ⏳ 3. เพิ่มเวลาหน่วง (Delay) เป็น 800 มิลลิวินาที (เกือบ 1 วินาที) ต่อการดึง 1 กลุ่ม
+      await new Promise(resolve => setTimeout(resolve, 800)); 
     }
     setStationTemps(prev => ({...prev, ...newTemps}));
   };
