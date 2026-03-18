@@ -230,7 +230,15 @@ export default function App() {
   const fetchAirQuality = async (isBackgroundLoad = false) => {
     if (!isBackgroundLoad) setLoading(true);
     try {
-      const response = await fetch('/api-air/services/getNewAQI_JSON.php');
+      // ✅ แก้ไขตรงนี้: เพิ่ม ?_t=เวลาปัจจุบัน และใส่ { cache: 'no-store' } เพื่อบังคับดึงข้อมูลใหม่เสมอ
+      const response = await fetch(`/api-air/services/getNewAQI_JSON.php?_t=${new Date().getTime()}`, {
+        cache: 'no-store',
+        headers: {
+          'Pragma': 'no-cache',
+          'Cache-Control': 'no-cache'
+        }
+      });
+      
       if (!response.ok) throw new Error('Network error');
       const data = await response.json();
       
@@ -252,7 +260,7 @@ export default function App() {
       if (!isBackgroundLoad) setLoading(false);
     }
   };
-
+  
   const fetchAdvancedTemperatures = async (stations) => {
     const newTemps = {};
     const chunkSize = 35; 
