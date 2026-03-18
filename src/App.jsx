@@ -81,24 +81,6 @@ const getWindColor = (val) => {
   return { bg: '#e74c3c', text: '#fff', bar: '#e74c3c', label: 'พายุ' };
 };
 
-// 🌤️ แปลงรหัส WMO Weather Code เป็นไอคอนและข้อความ
-const getWeatherIcon = (code) => {
-  if (code === undefined || code === null) return { icon: '❓', text: 'ไม่ทราบ' };
-  switch (true) {
-    case code === 0: return { icon: '☀️', text: 'ท้องฟ้าแจ่มใส' };
-    case code === 1: return { icon: '🌤️', text: 'แจ่มใสเป็นส่วนมาก' };
-    case code === 2: return { icon: '⛅', text: 'มีเมฆบางส่วน' };
-    case code === 3: return { icon: '☁️', text: 'มีเมฆมาก' };
-    case code === 45 || code === 48: return { icon: '🌫️', text: 'มีหมอก' };
-    case [51, 53, 55, 56, 57].includes(code): return { icon: '🌧️', text: 'ฝนปรอยๆ' };
-    case [61, 63, 65, 66, 67].includes(code): return { icon: '🌧️', text: 'ฝนตก' };
-    case [71, 73, 75, 77, 85, 86].includes(code): return { icon: '❄️', text: 'หิมะตก' };
-    case [80, 81, 82].includes(code): return { icon: '🌦️', text: 'ฝนตกเป็นหย่อมๆ' };
-    case [95, 96, 99].includes(code): return { icon: '⛈️', text: 'พายุฝนฟ้าคะนอง' };
-    default: return { icon: '🌤️', text: 'ปกติ' };
-  }
-};
-
 const extractProvince = (areaTH) => {
   if (!areaTH) return 'ไม่ระบุ';
   const parts = areaTH.split(',');
@@ -178,7 +160,6 @@ function FitBounds({ stations, activeStation }) {
     if (activeStation) return; 
     if (stations && stations.length > 0) {
       const bounds = L.latLngBounds(stations.map(s => [parseFloat(s.lat), parseFloat(s.long)]));
-      // ✅ ลด maxZoom และ Padding เพื่อให้ซูมเข้าจังหวัดได้พอดี
       map.fitBounds(bounds, { padding: [30, 30], maxZoom: 12 }); 
     }
   }, [stations, map, activeStation]);
@@ -263,8 +244,7 @@ export default function App() {
       const lons = chunk.map(s => s.long).join(',');
       
       try {
-        // ✅ เพิ่ม weather_code ในการดึงข้อมูล current
-        const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,wind_direction_10m,weather_code&daily=temperature_2m_max,temperature_2m_min,uv_index_max,precipitation_probability_max,wind_speed_10m_max&past_days=1&forecast_days=1&timezone=Asia%2FBangkok`;
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,wind_direction_10m&daily=temperature_2m_max,temperature_2m_min,uv_index_max,precipitation_probability_max,wind_speed_10m_max&past_days=1&forecast_days=1&timezone=Asia%2FBangkok`;
         const res = await fetch(url);
         if (!res.ok) continue; 
         
@@ -279,7 +259,6 @@ export default function App() {
               humidity: r.current.relative_humidity_2m,
               windSpeed: r.current.wind_speed_10m,
               windDir: r.current.wind_direction_10m, 
-              weatherCode: r.current.weather_code, // เก็บข้อมูลไอคอน
               tempMin: r.daily.temperature_2m_min[1],
               tempMax: r.daily.temperature_2m_max[1],
               tempYesterdayMax: r.daily.temperature_2m_max[0],
@@ -488,12 +467,8 @@ export default function App() {
                         <span style={{ fontSize: '1.2rem', color: aqiInfo.color === '#ffff00' ? '#d4b500' : aqiInfo.color, fontWeight: 'bold' }}>AQI: {aqiValue} ({aqiInfo.text})</span>
                       </div>
                       
-                      {/* ✅ อัปเดต Popup ให้มีไอคอนสภาพอากาศ และข้อมูลครบถ้วน */}
                       {tObj && (
                         <div style={{ marginTop: '10px', padding: '12px', backgroundColor: '#fff7e6', borderRadius: '8px', color: '#d35400', fontWeight: 'bold', fontSize: '0.85rem' }}>
-                          <div style={{ textAlign: 'center', marginBottom: '8px', fontSize: '1.1rem', color: '#333' }}>
-                            {getWeatherIcon(tObj.weatherCode).icon} <span style={{fontSize: '0.95rem'}}>{getWeatherIcon(tObj.weatherCode).text}</span>
-                          </div>
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', textAlign: 'left' }}>
                               <span>🌡️ {tObj.temp?.toFixed(1) || '-'} °C</span>
                               <span>🥵 รู้สึก: {tObj.feelsLike?.toFixed(1) || '-'} °C</span>
@@ -517,8 +492,16 @@ export default function App() {
         {/* Sidebar ขวา */}
         <div style={{ flex: 3, minWidth: '380px', maxWidth: '450px', backgroundColor: '#ffffff', height: '100%', display: 'flex', flexDirection: 'column', boxShadow: '-4px 0 15px rgba(0,0,0,0.05)', zIndex: 2 }}>
           <div style={{ padding: '15px 20px', background: isAqiMode ? '#fff' : isTempMode ? '#f0fdf4' : isUvMode ? '#fdf2f8' : isRainMode ? '#eff6ff' : isWindMode ? '#f8f9fa' : '#fffaf0', borderBottom: '1px solid #eee', transition: 'background 0.3s', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h2 style={{ fontSize: '1.1rem', color: '#2c3e50', margin: 0, fontWeight: 'bold' }}>
-              {isAqiMode ? 'ข้อมูลมลพิษ' : isTempMode ? 'ข้อมูลอุณหภูมิ' : isUvMode ? 'ดัชนีรังสี UV' : isRainMode ? 'โอกาสเกิดฝน' : isWindMode ? 'ความเร็วลม' : 'Heat Index (ดัชนีความร้อน)'} ({filteredStations.length})
+            <h2 style={{ fontSize: '1.1rem', color: '#2c3e50', margin: 0, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              {isAqiMode ? 'ข้อมูลมลพิษ (กรมควบคุมมลพิษ)' : 
+               isTempMode ? 'ข้อมูลอุณหภูมิ (Open-Meteo)' : 
+               isUvMode ? 'ดัชนีรังสี UV (Open-Meteo)' : 
+               isRainMode ? 'โอกาสเกิดฝน (Open-Meteo)' : 
+               isWindMode ? 'ความเร็วลม (Open-Meteo)' : 
+               'Heat Index (Open-Meteo)'} 
+               <span style={{fontSize: '0.85rem', fontWeight: 'normal', color: '#7f8c8d'}}>
+                 ({filteredStations.length} สถานี)
+               </span>
             </h2>
             <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
               <span style={{ fontSize: '0.8rem', color: '#666' }}>เรียง:</span>
@@ -572,9 +555,6 @@ export default function App() {
                           <div style={{ width: '100%' }}>
                             {tObj ? (
                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: '#666', fontWeight: 'bold' }}>
-                                {/* เพิ่มไอคอนสภาพอากาศข้างๆ ข้อมูล */}
-                                <span style={{ fontSize: '1.2rem', marginRight: '5px' }}>{getWeatherIcon(tObj.weatherCode).icon}</span>
-                                
                                 {isUvMode ? (
                                   <span style={{ color: getUvColor(tObj.uvMax).color }}>ระดับ: {getUvColor(tObj.uvMax).label}</span>
                                 ) : isRainMode ? (
