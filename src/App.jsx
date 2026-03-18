@@ -83,26 +83,18 @@ const getWindColor = (val) => {
 
 const extractProvince = (areaTH) => {
   if (!areaTH) return 'ไม่ระบุ';
-
-  // 1. ดักจับสถานีในกรุงเทพฯ (มักจะมีคำว่า กทม, กรุงเทพ หรือ เขต)
+  // ดักจับกรุงเทพ
   if (areaTH.includes('กรุงเทพ') || areaTH.includes('กทม') || areaTH.includes('เขต')) {
     return 'กรุงเทพมหานคร';
   }
-
   let province = areaTH;
-
-  // 2. ถ้าข้อมูลมีลูกน้ำ (,) ให้เอาคำหลังสุด (รูปแบบมาตรฐานของ Air4Thai)
   if (areaTH.includes(',')) {
     const parts = areaTH.split(',');
     province = parts[parts.length - 1];
-  } 
-  // 3. ถ้าไม่มีลูกน้ำ ลองใช้การเว้นวรรค ( ) แล้วเอาคำหลังสุด
-  else {
+  } else {
     const parts = areaTH.trim().split(/\s+/);
     province = parts[parts.length - 1];
   }
-
-  // 4. ทำความสะอาดข้อความ ตัดคำว่า "จ." ออก เพื่อไม่ให้ชื่อจังหวัดซ้ำซ้อน
   return province.replace(/^จ\./, '').trim();
 };
 
@@ -179,6 +171,7 @@ function FitBounds({ stations, activeStation }) {
     if (activeStation) return; 
     if (stations && stations.length > 0) {
       const bounds = L.latLngBounds(stations.map(s => [parseFloat(s.lat), parseFloat(s.long)]));
+      // ✅ ซูมเข้าจังหวัดได้พอดี
       map.fitBounds(bounds, { padding: [30, 30], maxZoom: 12 }); 
     }
   }, [stations, map, activeStation]);
@@ -230,7 +223,7 @@ export default function App() {
   const fetchAirQuality = async (isBackgroundLoad = false) => {
     if (!isBackgroundLoad) setLoading(true);
     try {
-      // ✅ แก้ไขตรงนี้: เพิ่ม ?_t=เวลาปัจจุบัน และใส่ { cache: 'no-store' } เพื่อบังคับดึงข้อมูลใหม่เสมอ
+      // ✅ แก้ปัญหา Cache ไม่อัปเดต
       const response = await fetch(`/api-air/services/getNewAQI_JSON.php?_t=${new Date().getTime()}`, {
         cache: 'no-store',
         headers: {
@@ -238,7 +231,6 @@ export default function App() {
           'Cache-Control': 'no-cache'
         }
       });
-      
       if (!response.ok) throw new Error('Network error');
       const data = await response.json();
       
@@ -260,7 +252,7 @@ export default function App() {
       if (!isBackgroundLoad) setLoading(false);
     }
   };
-  
+
   const fetchAdvancedTemperatures = async (stations) => {
     const newTemps = {};
     const chunkSize = 35; 
@@ -440,6 +432,7 @@ export default function App() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <label style={{ fontWeight: 'bold', color: '#2c3e50', fontSize: '0.95rem' }}>📍 สถานี:</label>
+          {/* ✅ ปลดล็อก disabled */}
           <select value={selectedStationId} onChange={(e) => { setSelectedStationId(e.target.value); const stat = allStations.find(s => s.stationID === e.target.value); if(stat) setActiveStation(stat); }} style={{ padding: '8px 15px', borderRadius: '8px', border: '1px solid #ccc', fontFamily: 'inherit', minWidth: '180px' }}>
             <option value="">-- เลือกสถานี --</option>
             {filteredStations.map(station => (<option key={station.stationID} value={station.stationID}>{station.nameTH}</option>))}
@@ -519,16 +512,8 @@ export default function App() {
         {/* Sidebar ขวา */}
         <div style={{ flex: 3, minWidth: '380px', maxWidth: '450px', backgroundColor: '#ffffff', height: '100%', display: 'flex', flexDirection: 'column', boxShadow: '-4px 0 15px rgba(0,0,0,0.05)', zIndex: 2 }}>
           <div style={{ padding: '15px 20px', background: isAqiMode ? '#fff' : isTempMode ? '#f0fdf4' : isUvMode ? '#fdf2f8' : isRainMode ? '#eff6ff' : isWindMode ? '#f8f9fa' : '#fffaf0', borderBottom: '1px solid #eee', transition: 'background 0.3s', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h2 style={{ fontSize: '1.1rem', color: '#2c3e50', margin: 0, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              {isAqiMode ? 'ข้อมูลมลพิษ (กรมควบคุมมลพิษ)' : 
-               isTempMode ? 'ข้อมูลอุณหภูมิ (Open-Meteo)' : 
-               isUvMode ? 'ดัชนีรังสี UV (Open-Meteo)' : 
-               isRainMode ? 'โอกาสเกิดฝน (Open-Meteo)' : 
-               isWindMode ? 'ความเร็วลม (Open-Meteo)' : 
-               'Heat Index (Open-Meteo)'} 
-               <span style={{fontSize: '0.85rem', fontWeight: 'normal', color: '#7f8c8d'}}>
-                 ({filteredStations.length} สถานี)
-               </span>
+            <h2 style={{ fontSize: '1.1rem', color: '#2c3e50', margin: 0, fontWeight: 'bold' }}>
+              {isAqiMode ? 'ข้อมูลมลพิษ' : isTempMode ? 'ข้อมูลอุณหภูมิ' : isUvMode ? 'ดัชนีรังสี UV' : isRainMode ? 'โอกาสเกิดฝน' : isWindMode ? 'ความเร็วลม' : 'Heat Index (ดัชนีความร้อน)'} ({filteredStations.length})
             </h2>
             <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
               <span style={{ fontSize: '0.8rem', color: '#666' }}>เรียง:</span>
