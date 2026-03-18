@@ -164,15 +164,23 @@ const createCustomMarker = (viewMode, value, level, extraData) => {
   });
 };
 
-function FitBounds({ stations, activeStation }) {
+// 🛠️ แก้ไข FitBounds ให้ซูมพอดีหน้าแรก และซูมเจาะจงเวลาเลือกจังหวัด
+function FitBounds({ stations, activeStation, selectedProvince }) {
   const map = useMap();
   useEffect(() => {
     if (activeStation) return; 
     if (stations && stations.length > 0) {
-      const bounds = L.latLngBounds(stations.map(s => [parseFloat(s.lat), parseFloat(s.long)]));
-      map.fitBounds(bounds, { padding: [30, 30], maxZoom: 12 }); 
+      // ถ้าไม่ได้เลือกจังหวัด (หน้าแรก) ให้ซูมจุดศูนย์กลางประเทศไทยระดับ 6
+      if (!selectedProvince) {
+        map.flyTo([13.5, 101.0], 6, { duration: 1.5 });
+      } 
+      // ถ้าเลือกจังหวัด ให้คำนวณกรอบแล้วซูมเข้าไปให้พอดี
+      else {
+        const bounds = L.latLngBounds(stations.map(s => [parseFloat(s.lat), parseFloat(s.long)]));
+        map.fitBounds(bounds, { padding: [20, 20], maxZoom: 12 }); 
+      }
     }
-  }, [stations, map, activeStation]);
+  }, [stations, map, activeStation, selectedProvince]);
   return null;
 }
 
@@ -415,16 +423,51 @@ export default function App() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: '#f1f5f9', fontFamily: "'Kanit', sans-serif" }}>
       
-      {/* 🚀 1. Header แบบ Dashboard ระดับมืออาชีพ */}
-      <header style={{ backgroundColor: '#1e293b', color: '#fff', padding: '12px 25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 4px 10px rgba(0,0,0,0.1)', zIndex: 1000 }}>
+      {/* 🚀 1. Header (ดีไซน์ใหม่) ฝัง Filter ไว้ด้านในเลย */}
+      <header style={{ 
+        background: 'linear-gradient(135deg, #0ea5e9 0%, #3b82f6 100%)', 
+        color: '#fff', 
+        padding: '12px 25px', 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        boxShadow: '0 4px 10px rgba(0,0,0,0.1)', 
+        zIndex: 1000 
+      }}>
+        {/* โลโก้ และ ชื่อ */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-          <span style={{ fontSize: '2rem' }}>🇹🇭</span>
+          <div style={{ fontSize: '1.8rem', background: '#fff', borderRadius: '50%', padding: '5px', width: '45px', height: '45px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 5px rgba(0,0,0,0.15)' }}>
+            🌤️
+          </div>
           <div>
-            <h1 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 'bold', letterSpacing: '0.5px' }}>Thailand Environment Dashboard</h1>
-            <p style={{ margin: 0, fontSize: '0.8rem', color: '#cbd5e1' }}>ระบบเฝ้าระวังคุณภาพอากาศและสภาพอากาศแบบเรียลไทม์</p>
+            <h1 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 'bold', letterSpacing: '0.5px', textShadow: '1px 1px 2px rgba(0,0,0,0.2)' }}>Thailand Environment Dashboard</h1>
+            <p style={{ margin: 0, fontSize: '0.8rem', color: '#e0f2fe' }}>ระบบเฝ้าระวังคุณภาพและสภาพอากาศ</p>
           </div>
         </div>
-        <div style={{ fontSize: '0.85rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#334155', padding: '6px 12px', borderRadius: '20px' }}>
+
+        {/* ตัวกรองจังหวัดและสถานี (ย้ายมาอยู่ใน Header) */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', backgroundColor: 'rgba(255,255,255,0.15)', padding: '8px 20px', borderRadius: '12px', backdropFilter: 'blur(5px)', border: '1px solid rgba(255,255,255,0.3)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <label style={{ fontWeight: 'bold', color: '#fff', fontSize: '0.9rem', textShadow: '1px 1px 2px rgba(0,0,0,0.2)' }}>🗺️ จังหวัด:</label>
+            <select value={selectedProvince} onChange={(e) => { setSelectedProvince(e.target.value); setSelectedStationId(''); setActiveStation(null); }} style={{ padding: '6px 12px', borderRadius: '6px', border: 'none', color: '#1e293b', minWidth: '160px', outline: 'none', cursor: 'pointer' }}>
+              <option value="">-- ทุกจังหวัด --</option>
+              {provinces.map(prov => (<option key={prov} value={prov}>{prov}</option>))}
+            </select>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <label style={{ fontWeight: 'bold', color: '#fff', fontSize: '0.9rem', textShadow: '1px 1px 2px rgba(0,0,0,0.2)' }}>📍 สถานี:</label>
+            <select value={selectedStationId} onChange={(e) => { setSelectedStationId(e.target.value); const stat = allStations.find(s => s.stationID === e.target.value); if(stat) setActiveStation(stat); }} style={{ padding: '6px 12px', borderRadius: '6px', border: 'none', color: '#1e293b', minWidth: '160px', outline: 'none', cursor: 'pointer' }}>
+              <option value="">-- เลือกสถานี --</option>
+              {filteredStations.map(station => (<option key={station.stationID} value={station.stationID}>{station.nameTH}</option>))}
+            </select>
+          </div>
+          <button onClick={handleReset} style={{ padding: '6px 16px', backgroundColor: '#ffffff', color: '#0ea5e9', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+            🏠 หน้าแรก
+          </button>
+        </div>
+
+        {/* เวลาอัปเดต */}
+        <div style={{ fontSize: '0.85rem', color: '#e0f2fe', display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: 'rgba(0,0,0,0.15)', padding: '6px 12px', borderRadius: '20px' }}>
           <span style={{ fontSize: '1rem' }}>⏱️</span>
           อัปเดตล่าสุด: <strong style={{ color: '#fff' }}>{lastUpdateText || 'กำลังโหลด...'}</strong>
         </div>
@@ -433,93 +476,66 @@ export default function App() {
       {/* Main Content Area */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden', padding: '15px', gap: '15px' }}>
         
-        {/* Left Column (Filters + Map) */}
-        <div style={{ flex: 7, display: 'flex', flexDirection: 'column', gap: '15px', minWidth: 0 }}>
+        {/* Left Column (Map) */}
+        <div style={{ flex: 7, borderRadius: '12px', overflow: 'hidden', position: 'relative', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0' }}>
           
-          {/* 🚀 2. Control Bar (ตัวกรองพอดีกับแผนที่) */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#ffffff', padding: '12px 20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <label style={{ fontWeight: 'bold', color: '#475569', fontSize: '0.9rem' }}>🗺️ จังหวัด:</label>
-                <select value={selectedProvince} onChange={(e) => { setSelectedProvince(e.target.value); setSelectedStationId(''); setActiveStation(null); }} style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontFamily: 'inherit', minWidth: '180px', outline: 'none' }}>
-                  <option value="">-- ทุกจังหวัด --</option>
-                  {provinces.map(prov => (<option key={prov} value={prov}>{prov}</option>))}
-                </select>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <label style={{ fontWeight: 'bold', color: '#475569', fontSize: '0.9rem' }}>📍 สถานี:</label>
-                <select value={selectedStationId} onChange={(e) => { setSelectedStationId(e.target.value); const stat = allStations.find(s => s.stationID === e.target.value); if(stat) setActiveStation(stat); }} style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontFamily: 'inherit', minWidth: '200px', outline: 'none' }}>
-                  <option value="">-- เลือกสถานี --</option>
-                  {filteredStations.map(station => (<option key={station.stationID} value={station.stationID}>{station.nameTH}</option>))}
-                </select>
-              </div>
-            </div>
-            <button onClick={handleReset} style={{ padding: '6px 16px', backgroundColor: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', transition: '0.2s' }} onMouseOver={(e) => e.target.style.backgroundColor = '#e2e8f0'} onMouseOut={(e) => e.target.style.backgroundColor = '#f1f5f9'}>
-              🏠 หน้าแรก
-            </button>
+          {/* Mode Buttons (Floating inside map) */}
+          <div style={{ position: 'absolute', top: '15px', right: '15px', zIndex: 500, background: 'rgba(255,255,255,0.9)', padding: '5px', borderRadius: '30px', boxShadow: '0 4px 15px rgba(0,0,0,0.15)', display: 'flex', gap: '5px', backdropFilter: 'blur(4px)' }}>
+            <button onClick={() => handleViewModeChange('aqi')} style={{ padding: '6px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem', backgroundColor: isAqiMode ? '#0ea5e9' : 'transparent', color: isAqiMode ? '#fff' : '#64748b' }}>☁️ AQI</button>
+            <button onClick={() => handleViewModeChange('temp')} style={{ padding: '6px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem', backgroundColor: isTempMode ? '#22c55e' : 'transparent', color: isTempMode ? '#fff' : '#64748b' }}>🌡️ อุณหภูมิ</button>
+            <button onClick={() => handleViewModeChange('heat')} style={{ padding: '6px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem', backgroundColor: isHeatMode ? '#f97316' : 'transparent', color: isHeatMode ? '#fff' : '#64748b' }}>🥵 Heat Index</button>
+            <button onClick={() => handleViewModeChange('uv')} style={{ padding: '6px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem', backgroundColor: isUvMode ? '#a855f7' : 'transparent', color: isUvMode ? '#fff' : '#64748b' }}>☀️ UV</button>
+            <button onClick={() => handleViewModeChange('rain')} style={{ padding: '6px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem', backgroundColor: isRainMode ? '#3b82f6' : 'transparent', color: isRainMode ? '#fff' : '#64748b' }}>🌧️ ฝน</button>
+            <button onClick={() => handleViewModeChange('wind')} style={{ padding: '6px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem', backgroundColor: isWindMode ? '#475569' : 'transparent', color: isWindMode ? '#fff' : '#64748b' }}>🌬️ ลม</button>
           </div>
 
-          {/* Map Container */}
-          <div style={{ flex: 1, borderRadius: '12px', overflow: 'hidden', position: 'relative', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0' }}>
-            
-            {/* Mode Buttons (Floating inside map) */}
-            <div style={{ position: 'absolute', top: '15px', right: '15px', zIndex: 500, background: 'rgba(255,255,255,0.9)', padding: '5px', borderRadius: '30px', boxShadow: '0 4px 15px rgba(0,0,0,0.15)', display: 'flex', gap: '5px', backdropFilter: 'blur(4px)' }}>
-              <button onClick={() => handleViewModeChange('aqi')} style={{ padding: '6px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem', backgroundColor: isAqiMode ? '#0ea5e9' : 'transparent', color: isAqiMode ? '#fff' : '#64748b' }}>☁️ AQI</button>
-              <button onClick={() => handleViewModeChange('temp')} style={{ padding: '6px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem', backgroundColor: isTempMode ? '#22c55e' : 'transparent', color: isTempMode ? '#fff' : '#64748b' }}>🌡️ อุณหภูมิ</button>
-              <button onClick={() => handleViewModeChange('heat')} style={{ padding: '6px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem', backgroundColor: isHeatMode ? '#f97316' : 'transparent', color: isHeatMode ? '#fff' : '#64748b' }}>🥵 Heat Index</button>
-              <button onClick={() => handleViewModeChange('uv')} style={{ padding: '6px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem', backgroundColor: isUvMode ? '#a855f7' : 'transparent', color: isUvMode ? '#fff' : '#64748b' }}>☀️ UV</button>
-              <button onClick={() => handleViewModeChange('rain')} style={{ padding: '6px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem', backgroundColor: isRainMode ? '#3b82f6' : 'transparent', color: isRainMode ? '#fff' : '#64748b' }}>🌧️ ฝน</button>
-              <button onClick={() => handleViewModeChange('wind')} style={{ padding: '6px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem', backgroundColor: isWindMode ? '#475569' : 'transparent', color: isWindMode ? '#fff' : '#64748b' }}>🌬️ ลม</button>
-            </div>
+          <MapContainer center={[13.5, 101.0]} zoom={6} style={{ height: '100%', width: '100%', backgroundColor: '#bae6fd', zIndex: 1 }}>
+            <TileLayer attribution='&copy; OpenStreetMap' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+            <FitBounds stations={filteredStations} activeStation={activeStation} selectedProvince={selectedProvince} />
+            <FlyToActiveStation activeStation={activeStation} />
 
-            <MapContainer center={[13.0, 100.0]} zoom={6} style={{ height: '100%', width: '100%', backgroundColor: '#bae6fd', zIndex: 1 }}>
-              <TileLayer attribution='&copy; OpenStreetMap' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-              <FitBounds stations={filteredStations} activeStation={activeStation} />
-              <FlyToActiveStation activeStation={activeStation} />
+            {filteredStations.map((station) => {
+              const aqiValue = station.AQILast?.AQI?.aqi || 0;
+              const tObj = stationTemps[station.stationID];
+              const aqiInfo = getAqiDetails(aqiValue);
+              
+              let markerVal = null;
+              if (isAqiMode) markerVal = aqiValue;
+              else if (isTempMode) markerVal = tObj?.temp;
+              else if (isHeatMode) markerVal = tObj?.feelsLike;
+              else if (isUvMode) markerVal = tObj?.uvMax;
+              else if (isRainMode) markerVal = tObj?.rainProb;
+              else if (isWindMode) markerVal = tObj?.windSpeed;
 
-              {filteredStations.map((station) => {
-                const aqiValue = station.AQILast?.AQI?.aqi || 0;
-                const tObj = stationTemps[station.stationID];
-                const aqiInfo = getAqiDetails(aqiValue);
-                
-                let markerVal = null;
-                if (isAqiMode) markerVal = aqiValue;
-                else if (isTempMode) markerVal = tObj?.temp;
-                else if (isHeatMode) markerVal = tObj?.feelsLike;
-                else if (isUvMode) markerVal = tObj?.uvMax;
-                else if (isRainMode) markerVal = tObj?.rainProb;
-                else if (isWindMode) markerVal = tObj?.windSpeed;
-
-                return (
-                  <Marker key={station.stationID} position={[parseFloat(station.lat), parseFloat(station.long)]} icon={createCustomMarker(viewMode, markerVal, aqiInfo.level, tObj)} ref={(ref) => markerRefs.current[station.stationID] = ref} eventHandlers={{ click: () => setActiveStation(station) }}>
-                    <Popup minWidth={260}>
-                      <div style={{ textAlign: 'center', fontFamily: 'Kanit' }}>
-                        <strong style={{ fontSize: '1.1rem' }}>{station.nameTH}</strong><br/>
-                        <div style={{ margin: '10px 0', padding: '10px', backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
-                          <span style={{ fontSize: '1.2rem', color: aqiInfo.color === '#ffff00' ? '#d4b500' : aqiInfo.color, fontWeight: 'bold' }}>AQI: {aqiValue} ({aqiInfo.text})</span>
-                        </div>
-                        
-                        {tObj && (
-                          <div style={{ marginTop: '10px', padding: '12px', backgroundColor: '#f1f5f9', borderRadius: '8px', color: '#334155', fontWeight: 'bold', fontSize: '0.85rem' }}>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', textAlign: 'left' }}>
-                                <span>🌡️ {tObj.temp?.toFixed(1) || '-'} °C</span>
-                                <span>🥵 รู้สึก: {tObj.feelsLike?.toFixed(1) || '-'} °C</span>
-                                <span style={{color: '#0ea5e9'}}>💧 ชื้น: {tObj.humidity || '-'}%</span>
-                                <span style={{color: '#0ea5e9'}}>🌧️ ฝน: {tObj.rainProb || '0'}%</span>
-                                <span style={{color: '#a855f7'}}>☀️ UV: {tObj.uvMax || '-'}</span>
-                                <span style={{color: '#475569', display: 'flex', alignItems: 'center', gap: '2px'}}>
-                                  🌬️ ลม: {tObj.windSpeed || '-'} <span style={{ transform: `rotate(${tObj.windDir}deg)`, display: 'inline-block' }}>↓</span>
-                                </span>
-                            </div>
-                          </div>
-                        )}
+              return (
+                <Marker key={station.stationID} position={[parseFloat(station.lat), parseFloat(station.long)]} icon={createCustomMarker(viewMode, markerVal, aqiInfo.level, tObj)} ref={(ref) => markerRefs.current[station.stationID] = ref} eventHandlers={{ click: () => setActiveStation(station) }}>
+                  <Popup minWidth={260}>
+                    <div style={{ textAlign: 'center', fontFamily: 'Kanit' }}>
+                      <strong style={{ fontSize: '1.1rem' }}>{station.nameTH}</strong><br/>
+                      <div style={{ margin: '10px 0', padding: '10px', backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
+                        <span style={{ fontSize: '1.2rem', color: aqiInfo.color === '#ffff00' ? '#d4b500' : aqiInfo.color, fontWeight: 'bold' }}>AQI: {aqiValue} ({aqiInfo.text})</span>
                       </div>
-                    </Popup>
-                  </Marker>
-                );
-              })}
-            </MapContainer>
-          </div>
+                      
+                      {tObj && (
+                        <div style={{ marginTop: '10px', padding: '12px', backgroundColor: '#f1f5f9', borderRadius: '8px', color: '#334155', fontWeight: 'bold', fontSize: '0.85rem' }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', textAlign: 'left' }}>
+                              <span>🌡️ {tObj.temp?.toFixed(1) || '-'} °C</span>
+                              <span>🥵 รู้สึก: {tObj.feelsLike?.toFixed(1) || '-'} °C</span>
+                              <span style={{color: '#0ea5e9'}}>💧 ชื้น: {tObj.humidity || '-'}%</span>
+                              <span style={{color: '#0ea5e9'}}>🌧️ ฝน: {tObj.rainProb || '0'}%</span>
+                              <span style={{color: '#a855f7'}}>☀️ UV: {tObj.uvMax || '-'}</span>
+                              <span style={{color: '#475569', display: 'flex', alignItems: 'center', gap: '2px'}}>
+                                🌬️ ลม: {tObj.windSpeed || '-'} <span style={{ transform: `rotate(${tObj.windDir}deg)`, display: 'inline-block' }}>↓</span>
+                              </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </Popup>
+                </Marker>
+              );
+            })}
+          </MapContainer>
         </div>
 
         {/* 🚀 3. Right Column (Sidebar) */}
@@ -586,7 +602,7 @@ export default function App() {
                                   <>
                                     <span style={{color: '#0ea5e9'}}>💧 ความชื้น: {tObj.humidity}%</span>
                                     <span style={{color: '#cbd5e1'}}>|</span>
-                                    <span style={{color: '#0ea5e9'}}>แนวโน้ม: {getRainColor(tObj.rainProb).label}</span>
+                                    <span style={{color: '#0ea5e9'}}>คาดการณ์: {getRainColor(tObj.rainProb).label}</span>
                                   </>
                                 ) : isWindMode ? (
                                   <>
