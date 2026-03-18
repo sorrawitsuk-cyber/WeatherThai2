@@ -110,7 +110,6 @@ const createCustomMarker = (viewMode, value, level) => {
     displayValue = (value === null || isNaN(value)) ? '-' : `${Math.round(value)}%`;
   }
 
-  // ปรับขนาดฟอนต์ให้เล็กลงถ้ายาวไป (เช่น 100%)
   const fontSize = String(displayValue).length > 2 ? '9px' : '11px';
 
   return L.divIcon({
@@ -215,7 +214,6 @@ export default function App() {
     }
   };
 
-  // ดึงข้อมูล 5 มิติ (Temp, Heat, Humid, Rain, UV) แบบรวดเดียวสำหรับทุกสถานี
   const fetchAdvancedTemperatures = async (stations) => {
     const newTemps = {};
     const chunkSize = 35; 
@@ -262,7 +260,6 @@ export default function App() {
     return () => clearInterval(intervalId);
   }, []);
 
-  // ระบบเรียงลำดับ
   useEffect(() => {
     let result = [...allStations];
     if (selectedProvince) result = result.filter(s => extractProvince(s.areaTH) === selectedProvince);
@@ -294,7 +291,6 @@ export default function App() {
     setFilteredStations(result);
   }, [selectedProvince, selectedStationId, allStations, viewMode, sortOrder, stationTemps]);
 
-  // ดึงกราฟพยากรณ์ล่วงหน้า 7 วัน (เมื่อคลิกการ์ด)
   useEffect(() => {
     if (activeStation) {
       if (cardRefs.current[activeStation.stationID]) {
@@ -412,7 +408,8 @@ export default function App() {
           <div style={{ position: 'absolute', top: '15px', right: '15px', zIndex: 1000, background: '#fff', padding: '4px', borderRadius: '30px', boxShadow: '0 4px 15px rgba(0,0,0,0.1)', display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
             <button onClick={() => handleViewModeChange('aqi')} style={{ padding: '8px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: isAqiMode ? '#0984e3' : 'transparent', color: isAqiMode ? '#fff' : '#666' }}>☁️ AQI</button>
             <button onClick={() => handleViewModeChange('temp')} style={{ padding: '8px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: isTempMode ? '#2ecc71' : 'transparent', color: isTempMode ? '#fff' : '#666' }}>🌡️ อุณหภูมิ</button>
-            <button onClick={() => handleViewModeChange('heat')} style={{ padding: '8px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: isHeatMode ? '#e67e22' : 'transparent', color: isHeatMode ? '#fff' : '#666' }}>🥵 ความร้อน</button>
+            {/* แก้ไขชื่อปุ่มเป็น Heat Index ให้ชัดเจน */}
+            <button onClick={() => handleViewModeChange('heat')} style={{ padding: '8px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: isHeatMode ? '#e67e22' : 'transparent', color: isHeatMode ? '#fff' : '#666' }}>🥵 Heat Index</button>
             <button onClick={() => handleViewModeChange('uv')} style={{ padding: '8px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: isUvMode ? '#9b59b6' : 'transparent', color: isUvMode ? '#fff' : '#666' }}>☀️ UV</button>
             <button onClick={() => handleViewModeChange('rain')} style={{ padding: '8px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: isRainMode ? '#0984e3' : 'transparent', color: isRainMode ? '#fff' : '#666' }}>🌧️ ฝน</button>
           </div>
@@ -443,7 +440,6 @@ export default function App() {
                         <span style={{ fontSize: '1.2rem', color: aqiInfo.color === '#ffff00' ? '#d4b500' : aqiInfo.color, fontWeight: 'bold' }}>AQI: {aqiValue} ({aqiInfo.text})</span>
                       </div>
                       
-                      {/* Popup อัจฉริยะแบบใหม่: โชว์ข้อมูลรวมไม่ต้องรอโหลด */}
                       {tObj && (
                         <div style={{ marginTop: '10px', padding: '12px', backgroundColor: '#fff7e6', borderRadius: '8px', color: '#d35400', fontWeight: 'bold', fontSize: '0.85rem' }}>
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', textAlign: 'left' }}>
@@ -468,7 +464,8 @@ export default function App() {
         <div style={{ flex: 3, minWidth: '380px', maxWidth: '450px', backgroundColor: '#ffffff', height: '100%', display: 'flex', flexDirection: 'column', boxShadow: '-4px 0 15px rgba(0,0,0,0.05)', zIndex: 2 }}>
           <div style={{ padding: '15px 20px', background: isAqiMode ? '#fff' : isTempMode ? '#f0fdf4' : isUvMode ? '#fdf2f8' : isRainMode ? '#eff6ff' : '#fffaf0', borderBottom: '1px solid #eee', transition: 'background 0.3s', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h2 style={{ fontSize: '1.1rem', color: '#2c3e50', margin: 0, fontWeight: 'bold' }}>
-              {isAqiMode ? 'ข้อมูลมลพิษ' : isTempMode ? 'ข้อมูลอุณหภูมิ' : isUvMode ? 'ดัชนีรังสี UV' : isRainMode ? 'โอกาสเกิดฝน' : 'ดัชนีความร้อน'} ({filteredStations.length})
+              {/* เปลี่ยนหัวข้อเป็น Heat Index ให้ชัดเจน */}
+              {isAqiMode ? 'ข้อมูลมลพิษ' : isTempMode ? 'ข้อมูลอุณหภูมิ' : isUvMode ? 'ดัชนีรังสี UV' : isRainMode ? 'โอกาสเกิดฝน' : 'Heat Index (ดัชนีความร้อน)'} ({filteredStations.length})
             </h2>
             <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
               <span style={{ fontSize: '0.8rem', color: '#666' }}>เรียง:</span>
@@ -573,7 +570,8 @@ export default function App() {
                           {activeWeather === null ? <p style={{ fontSize: '0.8rem', color: '#999', textAlign: 'center' }}>กำลังโหลดข้อมูลพยากรณ์...</p> : (
                             <>
                               <h5 style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#666', marginBottom: '5px' }}>
-                                📈 คาดการณ์{isUvMode ? ' UV สูงสุด' : isRainMode ? 'โอกาสเกิดฝน' : isHeatMode ? 'ความร้อนสูงสุด' : 'อุณหภูมิสูงสุด'} 7 วัน
+                                {/* อัปเดตชื่อกราฟให้สอดคล้องกัน */}
+                                📈 คาดการณ์{isUvMode ? ' UV สูงสุด' : isRainMode ? 'โอกาสเกิดฝน' : isHeatMode ? ' Heat Index สูงสุด' : 'อุณหภูมิสูงสุด'} 7 วัน
                               </h5>
                               <div style={{ height: '110px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '6px', paddingTop: '10px' }}>
                                 {(() => {
