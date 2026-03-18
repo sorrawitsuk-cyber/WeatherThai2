@@ -162,7 +162,8 @@ function FitBounds({ stations, activeStation }) {
     if (activeStation) return; 
     if (stations && stations.length > 0) {
       const bounds = L.latLngBounds(stations.map(s => [parseFloat(s.lat), parseFloat(s.long)]));
-      map.fitBounds(bounds, { padding: [50, 50], maxZoom: 10 });
+      // 👇 ปรับ maxZoom เป็น 12 (หรือ 13) และลด padding ลงเหลือ 30 ให้กระชับขึ้น
+      map.fitBounds(bounds, { padding: [30, 30], maxZoom: 12 }); 
     }
   }, [stations, map, activeStation]);
   return null;
