@@ -38,12 +38,12 @@ const getPM10Color = (val) => {
 };
 
 const getTempColor = (val) => {
-  if (isNaN(val) || val === null) return { bg: '#cccccc', text: '#333' };
-  if (val < 27) return { bg: '#3498db', text: '#fff' }; 
-  if (val <= 32) return { bg: '#2ecc71', text: '#222' }; 
-  if (val <= 35) return { bg: '#f1c40f', text: '#222' }; 
-  if (val <= 38) return { bg: '#e67e22', text: '#fff' }; 
-  return { bg: '#e74c3c', text: '#fff' }; 
+  if (isNaN(val) || val === null) return { bg: '#cccccc', text: '#333', bar: '#cccccc' };
+  if (val < 27) return { bg: '#3498db', text: '#fff', bar: '#3498db' }; 
+  if (val <= 32) return { bg: '#2ecc71', text: '#222', bar: '#2ecc71' }; 
+  if (val <= 35) return { bg: '#f1c40f', text: '#222', bar: '#f1c40f' }; 
+  if (val <= 38) return { bg: '#e67e22', text: '#fff', bar: '#e67e22' }; 
+  return { bg: '#e74c3c', text: '#fff', bar: '#e74c3c' }; 
 };
 
 const getHeatIndexAlert = (feelsLike) => {
@@ -69,10 +69,16 @@ const createCustomMarker = (viewMode, value, level) => {
     bg = getAqiDetails(value).color;
     textColor = (level >= 2 && level <= 4) ? '#222' : '#fff';
     displayValue = (value === 0 || isNaN(value)) ? '-' : value;
-  } else {
+  } else if (viewMode === 'temp') {
     const tempInfo = getTempColor(value);
     bg = tempInfo.bg;
     textColor = tempInfo.text;
+    displayValue = (value === 0 || isNaN(value) || value === null) ? '-' : value.toFixed(1);
+  } else {
+    // โหมดดัชนีความร้อน (Heat Index)
+    const heatInfo = getHeatIndexAlert(value);
+    bg = value ? heatInfo.bar : '#cccccc';
+    textColor = '#fff'; // สีขาวเสมอเพื่อให้อ่านง่ายบนสีเข้ม
     displayValue = (value === 0 || isNaN(value) || value === null) ? '-' : value.toFixed(1);
   }
 
@@ -131,7 +137,10 @@ export default function App() {
   const [selectedProvince, setSelectedProvince] = useState('');
   const [selectedStationId, setSelectedStationId] = useState('');
   
+  // สถานะ 3 โหมด (aqi, temp, heat) และระบบเรียงลำดับ (desc, asc)
   const [viewMode, setViewMode] = useState('aqi');
+  const [sortOrder, setSortOrder] = useState('desc'); // ค่าเริ่มต้นให้มากไปน้อย
+  
   const [stationTemps, setStationTemps] = useState({});
   const [activeStation, setActiveStation] = useState(null);
   
@@ -143,6 +152,16 @@ export default function App() {
   
   const cardRefs = useRef({});
   const markerRefs = useRef({});
+
+  // ฟังก์ชันเปลี่ยนโหมด พร้อมตั้งค่าการเรียงลำดับอัตโนมัติ
+  const handleViewModeChange = (mode) => {
+    setViewMode(mode);
+    if (mode === 'temp') {
+      setSortOrder('asc'); // อุณหภูมิ: ต่ำสุดไปสูงสุด (น้อยไปมาก)
+    } else {
+      setSortOrder('desc'); // AQI และ Heat Index: สูงสุดไปต่ำสุด (มากไปน้อย)
+    }
+  };
 
   const fetchAirQuality = async (isBackgroundLoad = false) => {
     if (!isBackgroundLoad) setLoading(true);
@@ -170,6 +189,7 @@ export default function App() {
     }
   };
 
+  // ดึงข้อมูลความร้อนให้ครบถ้วนเพื่อใช้แสดงบนแผนที่และลิสต์
   const fetchAdvancedTemperatures = async (stations) => {
     const newTemps = {};
     const chunkSize = 35; 
@@ -180,7 +200,7 @@ export default function App() {
       const lons = chunk.map(s => s.long).join(',');
       
       try {
-        const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&current=temperature_2m&daily=temperature_2m_max,temperature_2m_min&past_days=1&forecast_days=1&timezone=Asia%2FBangkok`;
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&current=temperature_2m,apparent_temperature&daily=temperature_2m_max,temperature_2m_min&past_days=1&forecast_days=1&timezone=Asia%2FBangkok`;
         const res = await fetch(url);
         if (!res.ok) continue; 
         
@@ -188,10 +208,10 @@ export default function App() {
         const results = Array.isArray(weatherData) ? weatherData : [weatherData];
         
         results.forEach((r, idx) => {
-          if (r && (r.current || r.current_weather) && r.daily) {
-            const currentTemp = r.current ? r.current.temperature_2m : r.current_weather.temperature;
+          if (r && r.current && r.daily) {
             newTemps[chunk[idx].stationID] = {
-              temp: currentTemp,
+              temp: r.current.temperature_2m,
+              feelsLike: r.current.apparent_temperature,
               tempMin: r.daily.temperature_2m_min[1],
               tempMax: r.daily.temperature_2m_max[1],
               tempYesterdayMax: r.daily.temperature_2m_max[0]
@@ -201,7 +221,7 @@ export default function App() {
       } catch (err) {
         console.error("Batch Temp fetch error", err);
       }
-      await new Promise(resolve => setTimeout(resolve, 300));
+      await new Promise(resolve => setTimeout(resolve, 300)); // กัน API บล็อก
     }
     setStationTemps(prev => ({...prev, ...newTemps}));
   };
@@ -212,25 +232,40 @@ export default function App() {
     return () => clearInterval(intervalId);
   }, []);
 
+  // ระบบกรองและเรียงลำดับ (Filter & Sort Logic)
   useEffect(() => {
     let result = [...allStations];
     if (selectedProvince) result = result.filter(s => extractProvince(s.areaTH) === selectedProvince);
     if (selectedStationId) result = result.filter(s => s.stationID === selectedStationId);
     
     result.sort((a, b) => {
+      let valA, valB;
       if (viewMode === 'aqi') {
-        const aqiA = Number(a.AQILast?.AQI?.aqi) || 0;
-        const aqiB = Number(b.AQILast?.AQI?.aqi) || 0;
-        return aqiB - aqiA; 
-      } else {
-        const tempA = stationTemps[a.stationID]?.temp || -99;
-        const tempB = stationTemps[b.stationID]?.temp || -99;
-        return tempB - tempA;
+        valA = Number(a.AQILast?.AQI?.aqi);
+        valB = Number(b.AQILast?.AQI?.aqi);
+      } else if (viewMode === 'temp') {
+        valA = stationTemps[a.stationID]?.temp;
+        valB = stationTemps[b.stationID]?.temp;
+      } else if (viewMode === 'heat') {
+        valA = stationTemps[a.stationID]?.feelsLike;
+        valB = stationTemps[b.stationID]?.feelsLike;
       }
+
+      // ดันสถานีที่ไม่มีข้อมูลไปไว้ล่างสุดเสมอ
+      const isValidA = valA !== undefined && valA !== null && !isNaN(valA) && valA !== 0;
+      const isValidB = valB !== undefined && valB !== null && !isNaN(valB) && valB !== 0;
+
+      if (!isValidA && isValidB) return 1; 
+      if (isValidA && !isValidB) return -1;
+      if (!isValidA && !isValidB) return 0;
+
+      // เรียงตามที่เลือก (asc/desc)
+      return sortOrder === 'desc' ? valB - valA : valA - valB;
     });
     setFilteredStations(result);
-  }, [selectedProvince, selectedStationId, allStations, viewMode, stationTemps]);
+  }, [selectedProvince, selectedStationId, allStations, viewMode, sortOrder, stationTemps]);
 
+  // โหลดข้อมูลเจาะลึกเมื่อคลิกสถานี
   useEffect(() => {
     if (activeStation) {
       if (cardRefs.current[activeStation.stationID]) {
@@ -244,29 +279,35 @@ export default function App() {
 
       const fetchDetails = async () => {
         try {
-          // =========================================================
-          // 1. ดึงข้อมูลอุณหภูมิปัจจุบัน + พยากรณ์ดัชนีความร้อนสูงสุดรายวัน 7 วัน (Daily Max)
-          // =========================================================
-          const urlWeather = `https://api.open-meteo.com/v1/forecast?latitude=${activeStation.lat}&longitude=${activeStation.long}&current=temperature_2m,apparent_temperature,wind_speed_10m,wind_direction_10m&daily=apparent_temperature_max&timezone=auto&forecast_days=7`;
+          // ดึงพยากรณ์อุณหภูมิและดัชนีความร้อนล่วงหน้า 7 วัน (Daily Max)
+          const urlWeather = `https://api.open-meteo.com/v1/forecast?latitude=${activeStation.lat}&longitude=${activeStation.long}&current=temperature_2m,apparent_temperature,wind_speed_10m,wind_direction_10m&daily=temperature_2m_max,apparent_temperature_max&timezone=auto&forecast_days=7`;
           const resW = await fetch(urlWeather);
           const wData = await resW.json();
           
+          let tempForecastList = [];
           let heatForecastList = [];
+
           if (wData.daily && wData.daily.time) {
             for (let i = 0; i < wData.daily.time.length; i++) {
-              const val = wData.daily.apparent_temperature_max[i] || 0;
+              const tempMaxVal = wData.daily.temperature_2m_max[i] || 0;
+              const heatMaxVal = wData.daily.apparent_temperature_max[i] || 0;
               const tDate = new Date(wData.daily.time[i]);
               
-              // ทำฉลากชื่อวัน
               const days = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'];
               let timeLabel = days[tDate.getDay()];
               if (i === 0) timeLabel = 'วันนี้';
               else if (i === 1) timeLabel = 'พรุ่งนี้';
 
+              tempForecastList.push({
+                time: timeLabel,
+                val: Math.round(tempMaxVal),
+                colorInfo: getTempColor(tempMaxVal)
+              });
+
               heatForecastList.push({
                 time: timeLabel,
-                val: Math.round(val),
-                colorInfo: getHeatIndexAlert(val)
+                val: Math.round(heatMaxVal),
+                colorInfo: getHeatIndexAlert(heatMaxVal)
               });
             }
           }
@@ -277,13 +318,12 @@ export default function App() {
               feelsLike: wData.current.apparent_temperature,
               windSpeed: wData.current.wind_speed_10m,
               windDir: wData.current.wind_direction_10m,
+              tempForecast: tempForecastList,
               heatForecast: heatForecastList
             });
           }
 
-          // =========================================================
-          // 2. ดึงพยากรณ์ PM2.5 ล่วงหน้า 72 ชั่วโมง (ทีละ 3 ชม. = 24 จุด) + Calibration
-          // =========================================================
+          // ดึงพยากรณ์ฝุ่น PM2.5 72 ชม. (กราฟแท่ง)
           const urlAqi = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${activeStation.lat}&longitude=${activeStation.long}&hourly=pm2_5&timezone=auto&forecast_days=4`;
           const resAqi = await fetch(urlAqi);
           const aData = await resAqi.json();
@@ -332,6 +372,10 @@ export default function App() {
   };
 
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', fontSize: '1.5rem', color: '#555' }}>กำลังโหลดข้อมูลสถานีทั่วประเทศ...</div>;
+
+  const isAqiMode = viewMode === 'aqi';
+  const isTempMode = viewMode === 'temp';
+  const isHeatMode = viewMode === 'heat';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: '#f4f6f9', fontFamily: "'Kanit', sans-serif" }}>
@@ -394,18 +438,19 @@ export default function App() {
         {/* ------------------------------------------- */}
         <div style={{ flex: 7, height: '100%', position: 'relative', zIndex: 1 }}>
           <div style={{ position: 'absolute', top: '15px', right: '15px', zIndex: 1000, background: '#fff', padding: '4px', borderRadius: '30px', boxShadow: '0 4px 15px rgba(0,0,0,0.1)', display: 'flex', gap: '5px' }}>
+            {/* ปุ่ม 3 โหมด */}
             <button 
-              onClick={() => setViewMode('aqi')}
-              style={{ padding: '8px 16px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', transition: '0.3s', backgroundColor: viewMode === 'aqi' ? '#0984e3' : 'transparent', color: viewMode === 'aqi' ? '#fff' : '#666' }}
-            >
-              ☁️ AQI
-            </button>
+              onClick={() => handleViewModeChange('aqi')}
+              style={{ padding: '8px 16px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', transition: '0.3s', backgroundColor: isAqiMode ? '#0984e3' : 'transparent', color: isAqiMode ? '#fff' : '#666' }}
+            >☁️ AQI</button>
             <button 
-              onClick={() => setViewMode('temp')}
-              style={{ padding: '8px 16px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', transition: '0.3s', backgroundColor: viewMode === 'temp' ? '#e67e22' : 'transparent', color: viewMode === 'temp' ? '#fff' : '#666' }}
-            >
-              🌡️ อุณหภูมิ
-            </button>
+              onClick={() => handleViewModeChange('temp')}
+              style={{ padding: '8px 16px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', transition: '0.3s', backgroundColor: isTempMode ? '#2ecc71' : 'transparent', color: isTempMode ? '#fff' : '#666' }}
+            >🌡️ อุณหภูมิ</button>
+            <button 
+              onClick={() => handleViewModeChange('heat')}
+              style={{ padding: '8px 16px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', transition: '0.3s', backgroundColor: isHeatMode ? '#e67e22' : 'transparent', color: isHeatMode ? '#fff' : '#666' }}
+            >🥵 ดัชนีความร้อน</button>
           </div>
 
           <MapContainer center={[13.0, 100.0]} zoom={6} style={{ height: '100%', width: '100%', backgroundColor: '#aad3df' }}>
@@ -415,8 +460,15 @@ export default function App() {
 
             {filteredStations.map((station) => {
               const aqiValue = station.AQILast?.AQI?.aqi || 0;
+              const tempValue = stationTemps[station.stationID]?.temp || null;
+              const heatValue = stationTemps[station.stationID]?.feelsLike || null;
+              
               const aqiInfo = getAqiDetails(aqiValue);
-              const markerValue = viewMode === 'aqi' ? aqiValue : (stationTemps[station.stationID]?.temp || null);
+              
+              let markerValue = null;
+              if (isAqiMode) markerValue = aqiValue;
+              else if (isTempMode) markerValue = tempValue;
+              else if (isHeatMode) markerValue = heatValue;
 
               return (
                 <Marker 
@@ -464,10 +516,24 @@ export default function App() {
         {/* Sidebar (ขวา) */}
         {/* ------------------------------------------- */}
         <div style={{ flex: 3, minWidth: '380px', maxWidth: '450px', backgroundColor: '#ffffff', height: '100%', display: 'flex', flexDirection: 'column', boxShadow: '-4px 0 15px rgba(0,0,0,0.05)', zIndex: 2 }}>
-          <div style={{ padding: '20px', background: viewMode === 'aqi' ? '#fff' : '#fffaf0', borderBottom: '1px solid #eee', transition: 'background 0.3s' }}>
-            <h2 style={{ fontSize: '1.2rem', color: '#2c3e50', margin: 0, fontWeight: 'bold' }}>
-              {viewMode === 'aqi' ? `มลพิษสูงสุด (${filteredStations.length})` : `อุณหภูมิสูงสุด (${filteredStations.length})`}
+          
+          {/* หัวข้อ Sidebar + ตัวกรองเรียงลำดับ */}
+          <div style={{ padding: '15px 20px', background: isAqiMode ? '#fff' : isTempMode ? '#f0fdf4' : '#fffaf0', borderBottom: '1px solid #eee', transition: 'background 0.3s', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h2 style={{ fontSize: '1.1rem', color: '#2c3e50', margin: 0, fontWeight: 'bold' }}>
+              {isAqiMode ? 'ข้อมูลมลพิษ' : isTempMode ? 'ข้อมูลอุณหภูมิ' : 'ดัชนีความร้อน'} ({filteredStations.length})
             </h2>
+            
+            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <span style={{ fontSize: '0.8rem', color: '#666' }}>เรียง:</span>
+              <select 
+                value={sortOrder}
+                onChange={(e) => setSortOrder(e.target.value)}
+                style={{ padding: '4px 8px', borderRadius: '6px', border: '1px solid #ddd', fontSize: '0.85rem', cursor: 'pointer', outline: 'none', backgroundColor: '#fff', fontWeight: 'bold', color: '#444' }}
+              >
+                <option value="desc">⬇️ มากไปน้อย</option>
+                <option value="asc">⬆️ น้อยไปมาก</option>
+              </select>
+            </div>
           </div>
 
           <div style={{ flex: 1, overflowY: 'auto', padding: '15px', scrollBehavior: 'smooth' }}>
@@ -478,13 +544,29 @@ export default function App() {
               
               const tempObj = stationTemps[station.stationID];
               const currentTemp = tempObj ? tempObj.temp : null;
+              const feelsLike = tempObj ? tempObj.feelsLike : null;
               
-              const isAqiMode = viewMode === 'aqi';
-              const displayMainVal = isAqiMode ? aqiValue : (currentTemp !== null ? currentTemp.toFixed(1) : '-');
-              const boxColorInfo = isAqiMode ? { bg: aqiInfo.color, text: aqiInfo.level === 3 ? '#000' : '#fff' } : getTempColor(currentTemp);
-
               const pm25Val = station.AQILast?.PM25?.value || '-';
               const pm10Val = station.AQILast?.PM10?.value || '-';
+
+              // คำนวณค่าตัวเลขหลักและสีกล่องขวามือ ตาม Mode ที่เลือก
+              let displayMainVal = '-';
+              let unitLabel = '';
+              let boxBgColor = '#ccc';
+              
+              if (isAqiMode) {
+                displayMainVal = aqiValue;
+                unitLabel = 'AQI';
+                boxBgColor = aqiInfo.color;
+              } else if (isTempMode) {
+                displayMainVal = currentTemp !== null ? currentTemp.toFixed(1) : '-';
+                unitLabel = '°C';
+                boxBgColor = getTempColor(currentTemp).bar;
+              } else if (isHeatMode) {
+                displayMainVal = feelsLike !== null ? feelsLike.toFixed(1) : '-';
+                unitLabel = '°C';
+                boxBgColor = feelsLike !== null ? getHeatIndexAlert(feelsLike).bar : '#ccc';
+              }
 
               return (
                 <div 
@@ -492,7 +574,7 @@ export default function App() {
                   style={{ 
                     display: 'flex', flexDirection: 'column',
                     background: isActive ? '#f8fbff' : '#fff', border: isActive ? '1px solid #007bff' : '1px solid #eee', 
-                    borderLeft: `6px solid ${boxColorInfo.bg}`, borderRadius: '10px', padding: '15px', marginBottom: '15px', 
+                    borderLeft: `6px solid ${boxBgColor}`, borderRadius: '10px', padding: '15px', marginBottom: '15px', 
                     cursor: 'pointer', transition: 'all 0.2s ease', boxShadow: isActive ? '0 5px 15px rgba(0,123,255,0.1)' : '0 2px 5px rgba(0,0,0,0.02)'
                   }}
                 >
@@ -531,9 +613,9 @@ export default function App() {
                       </div>
                     </div>
 
-                    <div style={{ backgroundColor: boxColorInfo.bg, color: boxColorInfo.text, minWidth: '65px', height: '65px', borderRadius: '12px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', flexShrink: 0 }}>
+                    <div style={{ backgroundColor: boxBgColor, color: isAqiMode && aqiInfo.level === 3 ? '#000' : '#fff', minWidth: '65px', height: '65px', borderRadius: '12px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', flexShrink: 0 }}>
                       <span style={{ fontSize: '1.4rem', fontWeight: 'bold', lineHeight: 1 }}>{displayMainVal}</span>
-                      <span style={{ fontSize: '0.7rem', opacity: 0.9, marginTop: '2px', fontWeight: 'bold' }}>{isAqiMode ? 'AQI' : '°C'}</span>
+                      <span style={{ fontSize: '0.7rem', opacity: 0.9, marginTop: '2px', fontWeight: 'bold' }}>{unitLabel}</span>
                     </div>
                   </div>
 
@@ -542,7 +624,7 @@ export default function App() {
                       
                       {isAqiMode ? (
                         // ============================
-                        // โหมด AQI: กราฟแท่ง 72 ชม. (มีตัวเลขบนหัว)
+                        // โหมด AQI: กราฟแท่ง 72 ชม. (พร้อมตัวเลขบนหัว)
                         // ============================
                         <div>
                           <h5 style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#666', marginBottom: '5px' }}>📈 แนวโน้ม PM2.5 ล่วงหน้า 72 ชม.</h5>
@@ -556,13 +638,10 @@ export default function App() {
                                   const heightPercent = Math.max((data.val / maxVal) * 100, 5); 
                                   return (
                                     <div key={index} style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center', cursor: 'pointer' }} title={`เวลา ${data.time} = ${data.val} µg/m³`}>
-                                      {/* ตัวเลขบนหัวแท่ง */}
                                       <span style={{ fontSize: '8.5px', color: '#555', marginBottom: '3px', fontWeight: 'bold', letterSpacing: '-0.5px' }}>
                                         {data.val}
                                       </span>
-                                      {/* แท่งสี */}
                                       <div style={{ width: '100%', height: `${heightPercent}%`, backgroundColor: data.color, borderRadius: '2px 2px 0 0', opacity: 0.85, transition: '0.3s' }}></div>
-                                      {/* เวลาด้านล่าง (โชว์แบบเว้นระยะเพื่อไม่ให้รก) */}
                                       <div style={{ fontSize: '8px', color: '#999', marginTop: '4px', height: '12px', display: 'flex', alignItems: 'center' }}>
                                         {index % 3 === 0 ? data.time : ''}
                                       </div>
@@ -575,7 +654,7 @@ export default function App() {
                         </div>
                       ) : (
                         // ============================
-                        // โหมดอุณหภูมิ: กราฟแท่งความร้อน 7 วัน (Daily Max)
+                        // โหมดอุณหภูมิ / ความร้อน: โชว์ข้อมูลปัจจุบัน และกราฟแท่ง 7 วัน (Daily Max)
                         // ============================
                         <div>
                           {activeWeather === null ? (
@@ -584,7 +663,7 @@ export default function App() {
                             <p style={{ fontSize: '0.8rem', color: 'red', textAlign: 'center' }}>ดึงข้อมูลล้มเหลว</p>
                           ) : (
                             <>
-                              <div style={{ backgroundColor: '#fff7e6', borderRadius: '8px', padding: '12px', border: '1px solid #ffedd5', marginBottom: '15px' }}>
+                              <div style={{ backgroundColor: isHeatMode ? '#fff7e6' : '#f0fdf4', borderRadius: '8px', padding: '12px', border: `1px solid ${isHeatMode ? '#ffedd5' : '#dcfce7'}`, marginBottom: '15px' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.9rem', fontWeight: 'bold', color: '#4b5563', marginBottom: '10px' }}>
                                   <span>🌡️ ปัจจุบัน {activeWeather.temp} °C</span>
                                   <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -609,22 +688,25 @@ export default function App() {
                                 })()}
                               </div>
 
-                              <h5 style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#666', marginBottom: '5px' }}>📈 คาดการณ์ความร้อนสูงสุด (Feels Like) 7 วัน</h5>
-                              {activeWeather.heatForecast && activeWeather.heatForecast.length > 0 && (
+                              <h5 style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#666', marginBottom: '5px' }}>
+                                📈 คาดการณ์{isHeatMode ? 'ความร้อนสูงสุด (Feels Like)' : 'อุณหภูมิสูงสุด'} 7 วัน
+                              </h5>
+                              
+                              {activeWeather.heatForecast && activeWeather.tempForecast && (
                                 <div style={{ height: '110px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '6px', paddingTop: '10px' }}>
                                   {(() => {
-                                    const maxVal = Math.max(...activeWeather.heatForecast.map(d => d.val)) + 5;
-                                    return activeWeather.heatForecast.map((data, index) => {
+                                    // เลือกว่าจะโชว์ข้อมูลกราฟชุดไหน (อุณหภูมิ หรือ ความร้อน)
+                                    const forecastData = isHeatMode ? activeWeather.heatForecast : activeWeather.tempForecast;
+                                    const maxVal = Math.max(...forecastData.map(d => d.val)) + 5;
+                                    
+                                    return forecastData.map((data, index) => {
                                       const heightPercent = Math.max((data.val / maxVal) * 100, 5); 
                                       return (
                                         <div key={index} style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center', height: '100%' }}>
-                                          {/* ตัวเลขบนหัวแท่ง */}
-                                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: data.colorInfo.color, marginBottom: '4px' }}>
+                                          <span style={{ fontSize: '11px', fontWeight: 'bold', color: isHeatMode ? data.colorInfo.color : '#333', marginBottom: '4px' }}>
                                             {data.val}°
                                           </span>
-                                          {/* แท่งสี */}
-                                          <div title={`${data.time}: รู้สึกเหมือน ${data.val}°C`} style={{ width: '100%', height: `${heightPercent}%`, backgroundColor: data.colorInfo.bar, borderRadius: '4px 4px 0 0', cursor: 'pointer', transition: 'height 0.3s ease' }}></div>
-                                          {/* ชื่อวัน */}
+                                          <div title={`${data.time}: ${data.val}°C`} style={{ width: '100%', height: `${heightPercent}%`, backgroundColor: data.colorInfo.bar, borderRadius: '4px 4px 0 0', cursor: 'pointer', transition: 'height 0.3s ease' }}></div>
                                           <div style={{ fontSize: '11px', color: index <= 1 ? '#0984e3' : '#666', marginTop: '6px', fontWeight: index <= 1 ? 'bold' : 'normal' }}>
                                             {data.time}
                                           </div>
