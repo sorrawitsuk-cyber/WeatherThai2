@@ -134,7 +134,8 @@ const extractProvince = (areaTH) => {
     const parts = areaTH.trim().split(/\s+/);
     province = parts[parts.length - 1];
   }
-  return province.replace(/^จ\./, '').trim();
+  // 🚀 ตัดคำว่า "จ." และ "จังหวัด" ออกให้หมด แล้วลบช่องว่างหน้าหลัง
+  return province.replace(/^(จ\.|จังหวัด)/, '').trim();
 };
 
 const legendData = {
@@ -348,7 +349,8 @@ export default function App() {
       if (data && data.stations) {
         setAllStations(data.stations);
         const provs = [...new Set(data.stations.map(s => extractProvince(s.areaTH)))];
-        setProvinces(provs.sort());
+        // 🚀 สั่งให้เรียงลำดับจังหวัด ก-ฮ ตามพจนานุกรมไทย
+        setProvinces(provs.sort((a, b) => a.localeCompare(b, 'th')));
 
         if (data.stations.length > 0) {
           const updateDate = data.stations[0].AQILast?.date || '';
@@ -606,7 +608,12 @@ export default function App() {
             <label style={{ fontWeight: 'bold', color: '#fff', fontSize: '0.95rem' }}>📍 สถานี:</label>
             <select value={selectedStationId} onChange={(e) => { setSelectedStationId(e.target.value); const stat = allStations.find(s => s.stationID === e.target.value); if(stat) {setActiveStation(stat); setShowRadar(false);} }} style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.95rem', minWidth: '180px', outline: 'none', cursor: 'pointer' }}>
               <option value="">-- เลือกสถานี --</option>
-              {filteredStations.map(station => (<option key={station.stationID} value={station.stationID}>{station.nameTH}</option>))}
+              {/* 🚀 สั่งให้เรียงชื่อสถานี ก-ฮ */}
+              {filteredStations
+                .slice() 
+                .sort((a, b) => a.nameTH.localeCompare(b.nameTH, 'th'))
+                .map(station => (<option key={station.stationID} value={station.stationID}>{station.nameTH}</option>))
+              }
             </select>
           </div>
           
