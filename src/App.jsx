@@ -439,7 +439,7 @@ export default function App() {
         cardRefs.current[activeStation.stationID].scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
       const marker = markerRefs.current[activeStation.stationID];
-      if (marker) marker.openPopup();
+      if (marker && !showRadar) marker.openPopup(); // 🚀 ไม่ต้องเด้ง Popup ทับถ้าดูเรดาร์อยู่
 
       setActiveWeather(null); 
       setActiveForecast(null);
@@ -500,12 +500,13 @@ export default function App() {
       };
       fetchDetails();
     }
-  }, [activeStation]);
+  }, [activeStation, showRadar]); // 🚀 อัปเดต Effect ให้เชื่อมกับตัวแปร showRadar
 
   const handleReset = () => {
     setSelectedProvince('');
     setSelectedStationId('');
     setActiveStation(null);
+    setShowRadar(false); // 🚀 รีเซ็ตหน้าแรก ปิดเรดาร์ด้วย
   };
 
   const handleFindNearest = () => {
@@ -534,6 +535,7 @@ export default function App() {
           setSelectedProvince(extractProvince(nearestStation.areaTH));
           setSelectedStationId(nearestStation.stationID);
           setActiveStation(nearestStation);
+          setShowRadar(false); // 🚀 ค้นหาใกล้ฉัน ก็ปิดเรดาร์ด้วย
         }
         setLocating(false);
       },
@@ -577,18 +579,19 @@ export default function App() {
         <div className="hide-scrollbar" style={{ display: 'flex', alignItems: 'center', gap: '15px', backgroundColor: 'rgba(255,255,255,0.15)', padding: '8px 20px', borderRadius: '12px', backdropFilter: 'blur(5px)', border: '1px solid rgba(255,255,255,0.3)', overflowX: 'auto', whiteSpace: 'nowrap', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <label style={{ fontWeight: 'bold', color: '#fff', fontSize: '0.95rem' }}>🗺️ จังหวัด:</label>
-            <select value={selectedProvince} onChange={(e) => { setSelectedProvince(e.target.value); setSelectedStationId(''); setActiveStation(null); }} style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.95rem', minWidth: '160px', outline: 'none', cursor: 'pointer' }}>
+            <select value={selectedProvince} onChange={(e) => { setSelectedProvince(e.target.value); setSelectedStationId(''); setActiveStation(null); setShowRadar(false); }} style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.95rem', minWidth: '160px', outline: 'none', cursor: 'pointer' }}>
               <option value="">-- ทุกจังหวัด --</option>
               {provinces.map(prov => (<option key={prov} value={prov}>{prov}</option>))}
             </select>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <label style={{ fontWeight: 'bold', color: '#fff', fontSize: '0.95rem' }}>📍 สถานี:</label>
-            <select value={selectedStationId} onChange={(e) => { setSelectedStationId(e.target.value); const stat = allStations.find(s => s.stationID === e.target.value); if(stat) setActiveStation(stat); }} style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.95rem', minWidth: '180px', outline: 'none', cursor: 'pointer' }}>
+            <select value={selectedStationId} onChange={(e) => { setSelectedStationId(e.target.value); const stat = allStations.find(s => s.stationID === e.target.value); if(stat) {setActiveStation(stat); setShowRadar(false);} }} style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.95rem', minWidth: '180px', outline: 'none', cursor: 'pointer' }}>
               <option value="">-- เลือกสถานี --</option>
               {filteredStations.map(station => (<option key={station.stationID} value={station.stationID}>{station.nameTH}</option>))}
             </select>
           </div>
+          
           <button onClick={handleReset} style={{ padding: '8px 16px', backgroundColor: '#ffffff', color: '#0ea5e9', border: 'none', borderRadius: '8px', fontSize: '0.95rem', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}>
             🏠 หน้าแรก
           </button>
@@ -619,11 +622,10 @@ export default function App() {
             
             <div style={{ width: '2px', height: '20px', backgroundColor: borderColor, margin: '0 4px' }}></div>
             <button onClick={toggleRadar} style={{ padding: '6px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem', backgroundColor: showRadar ? '#ef4444' : 'transparent', color: showRadar ? '#fff' : subTextColor, boxShadow: showRadar ? '0 2px 8px rgba(239,68,68,0.4)' : 'none', transition: '0.2s' }}>
-              📡 เรดาร์ฝน
+              {showRadar ? '📡 ปิดเรดาร์' : '📡 เรดาร์ฝน'}
             </button>
           </div>
 
-          {/* 📍 ปุ่มค้นหาสถานีใกล้ฉัน (แบบ Google Maps ลอยบนแผนที่) */}
           <button 
             onClick={handleFindNearest} 
             disabled={locating}
@@ -651,19 +653,21 @@ export default function App() {
             {locating ? '⏳' : '🎯'}
           </button>
 
-          <div style={{ position: 'absolute', bottom: '25px', left: '15px', zIndex: 500, background: darkMode ? 'rgba(30,41,59,0.95)' : 'rgba(255,255,255,0.95)', padding: '12px', borderRadius: '10px', boxShadow: '0 4px 15px rgba(0,0,0,0.1)', backdropFilter: 'blur(4px)', border: `1px solid ${borderColor}` }}>
-            <h4 style={{ margin: '0 0 8px 0', fontSize: '0.85rem', color: textColor, fontWeight: 'bold' }}>
-              {legendData[viewMode].title}
-            </h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-              {legendData[viewMode].items.map((item, idx) => (
-                <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ width: '14px', height: '14px', backgroundColor: item.color, borderRadius: '50%', border: '1px solid rgba(0,0,0,0.1)' }}></span>
-                  <span style={{ fontSize: '0.8rem', color: subTextColor, fontWeight: '500' }}>{item.label}</span>
-                </div>
-              ))}
+          {!showRadar && (
+            <div style={{ position: 'absolute', bottom: '25px', left: '15px', zIndex: 500, background: darkMode ? 'rgba(30,41,59,0.95)' : 'rgba(255,255,255,0.95)', padding: '12px', borderRadius: '10px', boxShadow: '0 4px 15px rgba(0,0,0,0.1)', backdropFilter: 'blur(4px)', border: `1px solid ${borderColor}` }}>
+              <h4 style={{ margin: '0 0 8px 0', fontSize: '0.85rem', color: textColor, fontWeight: 'bold' }}>
+                {legendData[viewMode].title}
+              </h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                {legendData[viewMode].items.map((item, idx) => (
+                  <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ width: '14px', height: '14px', backgroundColor: item.color, borderRadius: '50%', border: '1px solid rgba(0,0,0,0.1)' }}></span>
+                    <span style={{ fontSize: '0.8rem', color: subTextColor, fontWeight: '500' }}>{item.label}</span>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           <MapContainer center={[13.5, 101.0]} zoom={6} style={{ height: '100%', width: '100%', backgroundColor: darkMode ? '#1a202c' : '#bae6fd', zIndex: 1 }}>
             <TileLayer 
@@ -677,14 +681,15 @@ export default function App() {
                 opacity={0.65}
                 attribution='&copy; <a href="https://rainviewer.com">RainViewer</a>'
                 zIndex={10}
-                maxNativeZoom={12}
+                maxNativeZoom={12} // 🚀 ยืดภาพเมื่อซูมลึก ป้องกันเออเรอร์กล่องเทา
               />
             )}
 
             <FitBounds stations={filteredStations} activeStation={activeStation} selectedProvince={selectedProvince} />
             <FlyToActiveStation activeStation={activeStation} />
 
-            {filteredStations.map((station) => {
+            {/* 🚀 ซ่อนหมุดทั้งหมดเมื่อเปิดโหมดเรดาร์ */}
+            {!showRadar && filteredStations.map((station) => {
               const pm25Value = Number(station.AQILast?.PM25?.value); 
               const tObj = stationTemps[station.stationID];
               
@@ -785,7 +790,7 @@ export default function App() {
               else if (isUvMode) healthAdvice = getUvHealthAdvice(tObj?.uvMax);
 
               return (
-                <div key={station.stationID} ref={el => cardRefs.current[station.stationID] = el} onClick={() => setActiveStation(station)}
+                <div key={station.stationID} ref={el => cardRefs.current[station.stationID] = el} onClick={() => { setActiveStation(station); setShowRadar(false); }}
                   style={{ display: 'flex', flexDirection: 'column', background: isActive ? (darkMode ? '#334155' : '#f8fafc') : cardBg, border: isActive ? '1px solid #3b82f6' : `1px solid ${borderColor}`, borderLeft: `6px solid ${boxBgColor}`, borderRadius: '10px', padding: '15px', marginBottom: '15px', cursor: 'pointer', transition: 'all 0.2s ease', boxShadow: isActive ? '0 4px 10px rgba(0,0,0,0.1)' : '0 1px 3px rgba(0,0,0,0.02)' }}>
                   
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%' }}>
