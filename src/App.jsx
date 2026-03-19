@@ -239,6 +239,20 @@ function FlyToActiveStation({ activeStation }) {
   return null;
 }
 
+// 🚀 ฟังก์ชันควบคุมแผนที่เมื่อเปิดเรดาร์ (บังคับ Zoom Out)
+function RadarMapHandler({ showRadar }) {
+  const map = useMap();
+  useEffect(() => {
+    if (showRadar) {
+      // ถ้าซูมลึกกว่าระดับ 8 ให้ถอยออกมาระดับ 6 เพื่อให้เห็นกลุ่มฝนภาพกว้าง
+      if (map.getZoom() > 8) {
+        map.flyTo([13.5, 101.0], 6, { duration: 1.2 });
+      }
+    }
+  }, [showRadar, map]);
+  return null;
+}
+
 function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
   var R = 6371; 
   var dLat = deg2rad(lat2-lat1);  
@@ -297,10 +311,14 @@ export default function App() {
   const cardRefs = useRef({});
   const markerRefs = useRef({});
 
+  // 🚀 ฟังก์ชันเปลี่ยนโหมด (PM2.5, อุณหภูมิ, ฯลฯ)
   const handleViewModeChange = (mode) => {
     setViewMode(mode);
     if (mode === 'temp') setSortOrder('asc'); 
     else setSortOrder('desc'); 
+    
+    // 🔥 ปิดเรดาร์ทิ้งอัตโนมัติเมื่อกดเปลี่ยนโหมด
+    setShowRadar(false);
   };
 
   const toggleRadar = async () => {
@@ -439,7 +457,7 @@ export default function App() {
         cardRefs.current[activeStation.stationID].scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
       const marker = markerRefs.current[activeStation.stationID];
-      if (marker && !showRadar) marker.openPopup(); // 🚀 ไม่ต้องเด้ง Popup ทับถ้าดูเรดาร์อยู่
+      if (marker && !showRadar) marker.openPopup(); 
 
       setActiveWeather(null); 
       setActiveForecast(null);
@@ -500,13 +518,13 @@ export default function App() {
       };
       fetchDetails();
     }
-  }, [activeStation, showRadar]); // 🚀 อัปเดต Effect ให้เชื่อมกับตัวแปร showRadar
+  }, [activeStation, showRadar]);
 
   const handleReset = () => {
     setSelectedProvince('');
     setSelectedStationId('');
     setActiveStation(null);
-    setShowRadar(false); // 🚀 รีเซ็ตหน้าแรก ปิดเรดาร์ด้วย
+    setShowRadar(false); 
   };
 
   const handleFindNearest = () => {
@@ -535,7 +553,7 @@ export default function App() {
           setSelectedProvince(extractProvince(nearestStation.areaTH));
           setSelectedStationId(nearestStation.stationID);
           setActiveStation(nearestStation);
-          setShowRadar(false); // 🚀 ค้นหาใกล้ฉัน ก็ปิดเรดาร์ด้วย
+          setShowRadar(false); 
         }
         setLocating(false);
       },
@@ -653,6 +671,7 @@ export default function App() {
             {locating ? '⏳' : '🎯'}
           </button>
 
+          {/* ซ่อนกล่องอธิบายสีของหมุด เมื่อเปิดเรดาร์ */}
           {!showRadar && (
             <div style={{ position: 'absolute', bottom: '25px', left: '15px', zIndex: 500, background: darkMode ? 'rgba(30,41,59,0.95)' : 'rgba(255,255,255,0.95)', padding: '12px', borderRadius: '10px', boxShadow: '0 4px 15px rgba(0,0,0,0.1)', backdropFilter: 'blur(4px)', border: `1px solid ${borderColor}` }}>
               <h4 style={{ margin: '0 0 8px 0', fontSize: '0.85rem', color: textColor, fontWeight: 'bold' }}>
@@ -681,12 +700,15 @@ export default function App() {
                 opacity={0.65}
                 attribution='&copy; <a href="https://rainviewer.com">RainViewer</a>'
                 zIndex={10}
-                maxNativeZoom={12} // 🚀 ยืดภาพเมื่อซูมลึก ป้องกันเออเรอร์กล่องเทา
+                maxNativeZoom={12} // 🚀 ป้องกันกล่องเทา เมื่อเผลอซูมลึกตอนดูเรดาร์
               />
             )}
 
             <FitBounds stations={filteredStations} activeStation={activeStation} selectedProvince={selectedProvince} />
             <FlyToActiveStation activeStation={activeStation} />
+            
+            {/* 🚀 เรียกใช้ Component เพื่อควบคุมซูมแผนที่ตอนเปิดเรดาร์ */}
+            <RadarMapHandler showRadar={showRadar} />
 
             {/* 🚀 ซ่อนหมุดทั้งหมดเมื่อเปิดโหมดเรดาร์ */}
             {!showRadar && filteredStations.map((station) => {
