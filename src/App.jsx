@@ -267,6 +267,11 @@ export default function App() {
   const [showRadar, setShowRadar] = useState(false);
   const [radarTime, setRadarTime] = useState(null);
 
+  // 🚀 สเตทสำหรับ "กราฟจิ๋วในการ์ด"
+  const [activeWeather, setActiveWeather] = useState(null); 
+  const [activeForecast, setActiveForecast] = useState(null); 
+
+  // 📊 สเตทสำหรับ Dashboard ล่าง
   const [dashHistory, setDashHistory] = useState([]);
   const [dashForecast, setDashForecast] = useState([]);
   const [dashLoading, setDashLoading] = useState(false);
@@ -338,9 +343,7 @@ export default function App() {
           if (r && r.current && r.daily) {
             newTemps[chunk[idx].stationID] = {
               temp: r.current.temperature_2m, feelsLike: r.current.apparent_temperature, humidity: r.current.relative_humidity_2m, windSpeed: r.current.wind_speed_10m, windDir: r.current.wind_direction_10m, weatherCode: r.current.weather_code,
-              tempMin: r.daily.temperature_2m_min[1], tempMax: r.daily.temperature_2m_max[1], heatMin: r.daily.apparent_temperature_min[1], heatMax: r.daily.apparent_temperature_max[1], tempYesterdayMax: r.daily.temperature_2m_max[0], 
-              uvMax: r.daily.uv_index_max ? (r.daily.uv_index_max[1] || 0) : 0, 
-              rainProb: r.daily.precipitation_probability_max[1], windMax: r.daily.wind_speed_10m_max[1] 
+              tempMin: r.daily.temperature_2m_min[1], tempMax: r.daily.temperature_2m_max[1], heatMin: r.daily.apparent_temperature_min[1], heatMax: r.daily.apparent_temperature_max[1], tempYesterdayMax: r.daily.temperature_2m_max[0], uvMax: r.daily.uv_index_max ? (r.daily.uv_index_max[1] || 0) : 0, rainProb: r.daily.precipitation_probability_max[1], windMax: r.daily.wind_speed_10m_max[1] 
             };
           }
         });
@@ -377,11 +380,57 @@ export default function App() {
     setFilteredStations(result);
   }, [selectedProvince, selectedStationId, allStations, viewMode, sortOrder, stationTemps]);
 
+  // 🚀 ฟังก์ชันดึงข้อมูล "กราฟในการ์ด" แบบเฉพาะเจาะจง (ทำงานแยกกับ Dashboard ล่าง)
   useEffect(() => {
     if (activeStation) {
       if (cardRefs.current[activeStation.stationID]) cardRefs.current[activeStation.stationID].scrollIntoView({ behavior: 'smooth', block: 'center' });
       const marker = markerRefs.current[activeStation.stationID];
       if (marker && !showRadar) marker.openPopup(); 
+
+      setActiveWeather(null); 
+      setActiveForecast(null);
+
+      const fetchCardDetails = async () => {
+        try {
+          const urlWeather = `https://api.open-meteo.com/v1/forecast?latitude=${activeStation.lat}&longitude=${activeStation.long}&daily=temperature_2m_max,apparent_temperature_max,uv_index_max,precipitation_probability_max,wind_speed_10m_max&timezone=auto&forecast_days=7`;
+          const resW = await fetch(urlWeather);
+          const wData = await resW.json();
+          let tempF = [], heatF = [], uvF = [], rainF = [], windF = [];
+          if (wData.daily && wData.daily.time) {
+            for (let i = 0; i < wData.daily.time.length; i++) {
+              const tDate = new Date(wData.daily.time[i]);
+              const days = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'];
+              let timeLabel = i === 0 ? 'วันนี้' : i === 1 ? 'พรุ่งนี้' : days[tDate.getDay()];
+              tempF.push({ time: timeLabel, val: Math.round(wData.daily.temperature_2m_max[i] || 0), colorInfo: getTempColor(wData.daily.temperature_2m_max[i]) });
+              heatF.push({ time: timeLabel, val: Math.round(wData.daily.apparent_temperature_max[i] || 0), colorInfo: getHeatIndexAlert(wData.daily.apparent_temperature_max[i]) });
+              uvF.push({ time: timeLabel, val: Math.round(wData.daily.uv_index_max[i] || 0), colorInfo: getUvColor(wData.daily.uv_index_max[i]) });
+              rainF.push({ time: timeLabel, val: Math.round(wData.daily.precipitation_probability_max[i] || 0), colorInfo: getRainColor(wData.daily.precipitation_probability_max[i]) });
+              windF.push({ time: timeLabel, val: Math.round(wData.daily.wind_speed_10m_max[i] || 0), colorInfo: getWindColor(wData.daily.wind_speed_10m_max[i]) });
+            }
+          }
+          setActiveWeather({ tempForecast: tempF, heatForecast: heatF, uvForecast: uvF, rainForecast: rainF, windForecast: windF });
+
+          const urlAqi = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${activeStation.lat}&longitude=${activeStation.long}&hourly=pm2_5&timezone=auto&forecast_days=4`;
+          const resAqi = await fetch(urlAqi);
+          const aData = await resAqi.json();
+          
+          if (aData && aData.hourly) {
+            const nowTime = new Date().getTime();
+            let startIndex = aData.hourly.time.findIndex(tStr => new Date(tStr).getTime() >= nowTime);
+            if (startIndex === -1) startIndex = 0;
+            const currentRealPm25 = Number(activeStation.AQILast?.PM25?.value);
+            let offset = (!isNaN(currentRealPm25) && aData.hourly.pm2_5[startIndex] !== undefined) ? currentRealPm25 - aData.hourly.pm2_5[startIndex] : 0;
+            const pmForecastList = [];
+            // ดึงข้อมูลราย 3 ชม. ล่วงหน้า 72 ชม. (24 แท่ง)
+            for (let i = startIndex; i < aData.hourly.time.length && pmForecastList.length < 24; i += 3) {
+              let calibratedVal = Math.max(0, (aData.hourly.pm2_5[i] || 0) + offset);
+              pmForecastList.push({ time: `${new Date(aData.hourly.time[i]).getHours().toString().padStart(2, '0')}`, val: Math.round(calibratedVal), color: getPM25Color(calibratedVal) });
+            }
+            setActiveForecast(pmForecastList);
+          }
+        } catch (err) { console.error("Fetch card detail error", err); setActiveWeather('error'); }
+      };
+      fetchCardDetails();
     }
   }, [activeStation, showRadar]);
 
@@ -411,7 +460,7 @@ export default function App() {
           let dateStr = dateObj.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
           let dayName = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'][dateObj.getDay()];
 
-          let avgPm25 = 0; // เปลี่ยนจาก null เป็น 0 ป้องกันกราฟ error
+          let avgPm25 = 0; 
           if (dataA.hourly && dataA.hourly.pm2_5) {
             const startIdx = i * 24;
             const hours = dataA.hourly.pm2_5.slice(startIdx, startIdx + 24).filter(v => v !== null);
@@ -605,14 +654,12 @@ export default function App() {
               const pm25Value = Number(station.AQILast?.PM25?.value); const aqiValue = station.AQILast?.AQI?.aqi || '--'; const aqiInfo = getAqiDetails(station.AQILast?.AQI?.aqi);
               const isActive = activeStation?.stationID === station.stationID; const tObj = stationTemps[station.stationID];
               let displayMainVal = '-', unitLabel = '', boxBgColor = '#ccc';
-              
               if (isPm25Mode) { displayMainVal = isNaN(pm25Value) ? '-' : pm25Value; unitLabel = 'µg/m³'; boxBgColor = getPM25Color(pm25Value); }
               else if (isTempMode) { displayMainVal = tObj?.temp !== undefined ? tObj.temp.toFixed(1) : '-'; unitLabel = '°C'; boxBgColor = getTempColor(tObj?.temp).bar; }
               else if (isHeatMode) { displayMainVal = tObj?.feelsLike !== undefined ? tObj.feelsLike.toFixed(1) : '-'; unitLabel = '°C'; boxBgColor = tObj ? getHeatIndexAlert(tObj.feelsLike).bar : '#ccc'; }
               else if (isUvMode) { displayMainVal = tObj?.uvMax !== undefined ? tObj.uvMax : '-'; unitLabel = 'UV'; boxBgColor = tObj ? getUvColor(tObj.uvMax).bar : '#ccc'; }
               else if (isRainMode) { displayMainVal = tObj?.rainProb !== undefined ? `${tObj.rainProb}%` : '-'; unitLabel = 'ตก'; boxBgColor = tObj ? getRainColor(tObj.rainProb).bar : '#ccc'; }
               else if (isWindMode) { displayMainVal = tObj?.windSpeed !== undefined ? tObj.windSpeed : '-'; unitLabel = 'km/h'; boxBgColor = tObj ? getWindColor(tObj.windSpeed).bar : '#ccc'; }
-              
               let healthAdvice = null;
               if (isPm25Mode) healthAdvice = getPM25HealthAdvice(pm25Value); else if (isHeatMode) healthAdvice = getHeatHealthAdvice(tObj?.feelsLike); else if (isUvMode) healthAdvice = getUvHealthAdvice(tObj?.uvMax);
 
@@ -629,7 +676,6 @@ export default function App() {
                           <div style={{ width: '100%' }}>
                             {tObj ? (
                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: subTextColor, fontWeight: 'bold' }}>
-                                {/* 🚀 แก้ไขโค้ดส่วนของ span color ที่ทำให้เจอหน้าจอขาวใน UV โหมดให้ปลอดภัย 100% */}
                                 {isUvMode ? (<span style={{ color: getUvColor(tObj?.uvMax).bar }}>ระดับ: {getUvColor(tObj?.uvMax).label}</span>) 
                                 : isRainMode ? (<><span style={{color: '#0ea5e9'}}>💧 ชื้น: {tObj.humidity}%</span><span style={{color: darkMode ? '#475569' : '#cbd5e1'}}>|</span><span style={{color: '#0ea5e9'}}>{getRainColor(tObj.rainProb).label}</span></>) 
                                 : isHeatMode ? (<><span><span style={{color: '#3b82f6'}}>●</span>ต่ำ {tObj.heatMin?.toFixed(1)}°</span><span style={{color: darkMode ? '#475569' : '#cbd5e1'}}>|</span><span><span style={{color: '#ef4444'}}>●</span>สูง {tObj.heatMax?.toFixed(1)}°</span></>) 
@@ -645,9 +691,67 @@ export default function App() {
                       <span style={{ fontSize: '1.3rem', fontWeight: 'bold', lineHeight: 1 }}>{displayMainVal}</span><span style={{ fontSize: '0.65rem', opacity: 0.9, marginTop: '2px', fontWeight: 'bold' }}>{unitLabel}</span>
                     </div>
                   </div>
+                  
                   {healthAdvice && (isActive || healthAdvice.icon === "🚨" || healthAdvice.icon === "🚑" || healthAdvice.icon === "⛔") && (
                     <div style={{ marginTop: '12px', padding: '10px', backgroundColor: darkMode ? '#334155' : '#f8fafc', borderRadius: '8px', border: `1px dashed ${boxBgColor}`, display: 'flex', gap: '8px', alignItems: 'flex-start' }}><span style={{ fontSize: '1.2rem' }}>{healthAdvice.icon}</span><span style={{ fontSize: '0.8rem', color: textColor, lineHeight: 1.4 }}>{healthAdvice.text}</span></div>
                   )}
+
+                  {/* 🚀 กราฟแท่งจิ๋วพยากรณ์ล่วงหน้า (กลับมาแล้ว!) */}
+                  {isActive && (
+                    <div style={{ borderTop: `1px solid ${borderColor}`, marginTop: '15px', paddingTop: '15px' }}>
+                      {isPm25Mode ? (
+                        <div>
+                          <h5 style={{ fontSize: '0.85rem', fontWeight: 'bold', color: subTextColor, marginBottom: '5px' }}>📈 แนวโน้ม PM2.5 ล่วงหน้า 72 ชม.</h5>
+                          {activeForecast === null ? <p style={{ fontSize: '0.8rem', color: subTextColor, textAlign: 'center' }}>กำลังโหลด...</p> : (
+                            <div style={{ height: '120px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '2px', paddingTop: '10px' }}>
+                              {activeForecast.map((data, index) => {
+                                const heightPercent = Math.max((data.val / (Math.max(...activeForecast.map(d => d.val)) + 15)) * 100, 5); 
+                                return (
+                                  <div key={index} style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center' }} title={`${data.time} น. = ${data.val} µg/m³`}>
+                                    <span style={{ fontSize: '8.5px', color: subTextColor, marginBottom: '3px', fontWeight: 'bold' }}>{data.val}</span>
+                                    <div style={{ width: '100%', height: `${heightPercent}%`, backgroundColor: data.color, borderRadius: '2px 2px 0 0', opacity: 0.9 }}></div>
+                                    <div style={{ fontSize: '8px', color: subTextColor, marginTop: '4px', height: '12px' }}>{index % 3 === 0 ? data.time : ''}</div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div>
+                          {activeWeather === null ? <p style={{ fontSize: '0.8rem', color: subTextColor, textAlign: 'center' }}>กำลังโหลดข้อมูลพยากรณ์...</p> : (
+                            <>
+                              <h5 style={{ fontSize: '0.85rem', fontWeight: 'bold', color: subTextColor, marginBottom: '5px' }}>
+                                📈 คาดการณ์{isUvMode ? ' UV สูงสุด' : isRainMode ? 'โอกาสเกิดฝน' : isHeatMode ? ' Heat Index สูงสุด' : isWindMode ? 'ความเร็วลมสูงสุด' : 'อุณหภูมิสูงสุด'} 7 วัน
+                              </h5>
+                              <div style={{ height: '110px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '6px', paddingTop: '10px' }}>
+                                {(() => {
+                                  let forecastData = isHeatMode ? activeWeather.heatForecast : isUvMode ? activeWeather.uvForecast : isRainMode ? activeWeather.rainForecast : isWindMode ? activeWeather.windForecast : activeWeather.tempForecast;
+                                  if(!forecastData) return null;
+                                  const maxVal = Math.max(...forecastData.map(d => d.val)) + (isRainMode ? 10 : 5);
+                                  return forecastData.map((data, index) => {
+                                    const heightPercent = Math.max((data.val / maxVal) * 100, 5); 
+                                    return (
+                                      <div key={index} style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center', height: '100%' }}>
+                                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: data.colorInfo.color || subTextColor, marginBottom: '4px' }}>
+                                          {data.val}{isRainMode ? '%' : isTempMode || isHeatMode ? '°' : ''}
+                                        </span>
+                                        <div title={`${data.time}: ${data.val}`} style={{ width: '100%', height: `${heightPercent}%`, backgroundColor: data.colorInfo.bar, borderRadius: '4px 4px 0 0' }}></div>
+                                        <div style={{ fontSize: '11px', color: index <= 1 ? '#0ea5e9' : subTextColor, marginTop: '6px', fontWeight: index <= 1 ? 'bold' : 'normal' }}>
+                                          {data.time}
+                                        </div>
+                                      </div>
+                                    );
+                                  });
+                                })()}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                 </div>
               );
             })}
@@ -704,7 +808,6 @@ export default function App() {
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#334155' : '#e2e8f0'} />
                         <XAxis dataKey="date" stroke={subTextColor} fontSize={11} tickMargin={10} />
-                        {/* 🚀 ลบ domain=['auto','auto'] ทิ้งไปเพื่อป้องกันบั๊กหน้าจอขาว */}
                         <YAxis stroke={subTextColor} fontSize={11} />
                         <Tooltip contentStyle={{ backgroundColor: cardBg, borderColor: borderColor, color: textColor, borderRadius: '8px' }} formatter={(val) => [val, activeChart.name]} />
                         <Legend wrapperStyle={{ paddingTop: '15px' }} />
@@ -714,8 +817,7 @@ export default function App() {
                       <LineChart data={dashHistory} margin={{ top: 5, right: 10, bottom: 5, left: -20 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#334155' : '#e2e8f0'} />
                         <XAxis dataKey="date" stroke={subTextColor} fontSize={11} tickMargin={10} />
-                        {/* 🚀 ลบ domain=['auto','auto'] ทิ้งไปเพื่อป้องกันบั๊กหน้าจอขาว */}
-                        <YAxis stroke={subTextColor} fontSize={11} />
+                        <YAxis stroke={subTextColor} fontSize={11} domain={['auto', 'auto']} />
                         <Tooltip contentStyle={{ backgroundColor: cardBg, borderColor: borderColor, color: textColor, borderRadius: '8px' }} formatter={(val) => [val, activeChart.name]} />
                         <Legend wrapperStyle={{ paddingTop: '15px' }} />
                         <Line type="monotone" dataKey={activeChart.key} name={`ปีนี้ (${activeChart.unit})`} stroke={activeChart.color} strokeWidth={3} activeDot={{ r: 6 }} />
@@ -752,8 +854,7 @@ export default function App() {
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#334155' : '#e2e8f0'} />
                         <XAxis dataKey="date" stroke={subTextColor} fontSize={11} tickMargin={10} />
-                        {/* 🚀 ลบ domain=['auto','auto'] ทิ้งไปเพื่อป้องกันบั๊กหน้าจอขาว */}
-                        <YAxis stroke={subTextColor} fontSize={11} />
+                        <YAxis stroke={subTextColor} fontSize={11} domain={['auto', 'auto']} />
                         <Tooltip contentStyle={{ backgroundColor: cardBg, borderColor: borderColor, color: textColor, borderRadius: '8px' }} labelFormatter={(l, p) => (p && p.length > 0 && p[0].payload) ? p[0].payload.dayName : l} formatter={(val) => [val, activeChart.name]} />
                         <Legend wrapperStyle={{ paddingTop: '15px' }} />
                         <Area type="monotone" dataKey={activeChart.key} name={`พยากรณ์ ${activeChart.unit}`} stroke={activeChart.color} strokeWidth={3} fillOpacity={1} fill="url(#colorFore)" />
