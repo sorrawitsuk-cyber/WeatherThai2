@@ -2,19 +2,19 @@ import React, { useState, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import './App.css';
 
 // ==============================================================
-// 1. ฟังก์ชันคำนวณสีและข้อความตามเกณฑ์ต่างๆ
+// 1. ฟังก์ชันคำนวณสีและข้อความ
 // ==============================================================
 const getAqiDetails = (aqiValue) => {
   const aqi = Number(aqiValue);
   if (isNaN(aqi) || aqi === 0) return { color: '#cccccc', text: 'ไม่มีข้อมูล', level: 0 };
   if (aqi <= 25) return { color: '#00b0f0', text: 'คุณภาพอากาศดีมาก', level: 1 };
   if (aqi <= 50) return { color: '#92d050', text: 'คุณภาพอากาศดี', level: 2 };
-  if (aqi <= 100) return { color: '#ffff00', text: 'คุณภาพอากาศปานกลาง', level: 3 };
-  if (aqi <= 200) return { color: '#ffc000', text: 'เริ่มมีผลกระทบต่อสุขภาพ', level: 4 };
+  if (aqi <= 100) return { color: '#ffff00', text: 'ปานกลาง', level: 3 };
+  if (aqi <= 200) return { color: '#ffc000', text: 'เริ่มมีผลกระทบฯ', level: 4 };
   return { color: '#ff0000', text: 'มีผลกระทบต่อสุขภาพ', level: 5 };
 };
 
@@ -69,6 +69,14 @@ const getUvColor = (val) => {
   if (val <= 7) return { bg: '#e67e22', text: '#fff', bar: '#e67e22', label: 'สูง (High)' };
   if (val <= 10) return { bg: '#e74c3c', text: '#fff', bar: '#e74c3c', label: 'สูงมาก (V.High)' };
   return { bg: '#9b59b6', text: '#fff', bar: '#9b59b6', label: 'อันตราย (Extreme)' };
+};
+
+const getUvHealthAdvice = (val) => {
+  if (isNaN(val) || val === null) return null;
+  if (val > 10) return { text: "หลีกเลี่ยงการออกแดดเด็ดขาด ผิวหนังและดวงตาอาจไหม้ได้ในเวลาไม่กี่นาที", icon: "⛔" };
+  if (val >= 8) return { text: "ควรอยู่ในที่ร่ม หากต้องออกแดดต้องทาครีมกันแดด SPF50+ ใส่เสื้อแขนยาว หมวก และแว่นตากันแดด", icon: "☂️" };
+  if (val >= 6) return { text: "ควรทาครีมกันแดด สวมหมวก หรือกางร่มเมื่อออกแดด", icon: "🧢" };
+  return null;
 };
 
 const getRainColor = (val) => {
@@ -252,7 +260,6 @@ export default function App() {
   const [radarTime, setRadarTime] = useState(null);
   const [currentPage, setCurrentPage] = useState('map');
 
-  // 📊 สเตทสำหรับหน้า Analytics
   const [analyticsData, setAnalyticsData] = useState([]);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
@@ -417,27 +424,29 @@ export default function App() {
     }
   }, [activeStation, showRadar, currentPage]);
 
-  // 📊 ฟังก์ชันดึงข้อมูลสถิติย้อนหลัง (1 สัปดาห์ ปีนี้เทียบปีที่แล้ว)
+  // 📊 ฟังก์ชันดึงข้อมูลสถิติย้อนหลัง 14 วัน (อุณหภูมิปีนี้เทียบปีที่แล้ว + PM2.5 ย้อนหลัง)
   const fetchHistoricalAnalytics = async (station) => {
     if (!station) return;
     setAnalyticsLoading(true);
     try {
       const today = new Date();
+      // คำนวณช่วงเวลา 14 วันที่ผ่านมาของปีนี้
       const endStr = today.toISOString().split('T')[0];
-      const start = new Date(); start.setDate(today.getDate() - 7);
+      const start = new Date(); start.setDate(today.getDate() - 14);
       const startStr = start.toISOString().split('T')[0];
 
+      // คำนวณช่วงเวลาเดียวกันของปีที่แล้ว
       const lyEnd = new Date(); lyEnd.setFullYear(today.getFullYear() - 1);
       const lyEndStr = lyEnd.toISOString().split('T')[0];
-      const lyStart = new Date(); lyStart.setFullYear(today.getFullYear() - 1); lyStart.setDate(lyStart.getDate() - 7);
+      const lyStart = new Date(); lyStart.setFullYear(today.getFullYear() - 1); lyStart.setDate(lyStart.getDate() - 14);
       const lyStartStr = lyStart.toISOString().split('T')[0];
 
-      // ดึงอุณหภูมิปีนี้และปีที่แล้ว
-      const resThisYear = await fetch(`https://archive-api.open-meteo.com/v1/archive?latitude=${station.lat}&longitude=${station.long}&start_date=${startStr}&end_date=${endStr}&daily=temperature_2m_max&timezone=Asia%2FBangkok`);
+      // ดึงอุณหภูมิปีนี้ (ใช้ Forecast API เพื่อความสดใหม่)
+      const resThisYear = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${station.lat}&longitude=${station.long}&daily=temperature_2m_max&past_days=14&forecast_days=1&timezone=Asia%2FBangkok`);
+      // ดึงอุณหภูมิปีที่แล้ว (ใช้ Archive API)
       const resLastYear = await fetch(`https://archive-api.open-meteo.com/v1/archive?latitude=${station.lat}&longitude=${station.long}&start_date=${lyStartStr}&end_date=${lyEndStr}&daily=temperature_2m_max&timezone=Asia%2FBangkok`);
-      
-      // ดึง PM2.5 ย้อนหลัง 7 วัน (ดึงข้ามปีไม่ได้ในแพ็กเกจฟรี เลยใช้แค่ของ 7 วันล่าสุด)
-      const resPm25 = await fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${station.lat}&longitude=${station.long}&hourly=pm2_5&past_days=7&timezone=Asia%2FBangkok`);
+      // ดึง PM2.5 ย้อนหลัง 14 วัน (ฟรีสูงสุดของ Open-Meteo)
+      const resPm25 = await fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${station.lat}&longitude=${station.long}&hourly=pm2_5&past_days=14&forecast_days=1&timezone=Asia%2FBangkok`);
 
       const dataTY = await resThisYear.json();
       const dataLY = await resLastYear.json();
@@ -445,12 +454,13 @@ export default function App() {
 
       let mergedData = [];
       if (dataTY.daily && dataLY.daily) {
+        // วนลูปตามจำนวนวันที่ดึงมาได้ (ประมาณ 14-15 วัน)
         for (let i = 0; i < dataTY.daily.time.length; i++) {
           let dateStr = new Date(dataTY.daily.time[i]).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
           let avgPm25 = 0;
           
           if (dataPm.hourly) {
-            // คำนวณค่าเฉลี่ยฝุ่นของวันนั้น
+            // คำนวณค่าเฉลี่ยฝุ่นของวันนั้นๆ
             const dayStartIndex = i * 24;
             const dayPmData = dataPm.hourly.pm2_5.slice(dayStartIndex, dayStartIndex + 24).filter(v => v !== null);
             avgPm25 = dayPmData.length > 0 ? (dayPmData.reduce((a, b) => a + b, 0) / dayPmData.length) : 0;
@@ -458,9 +468,9 @@ export default function App() {
 
           mergedData.push({
             date: dateStr,
-            tempThisYear: dataTY.daily.temperature_2m_max[i] || 0,
-            tempLastYear: dataLY.daily.temperature_2m_max[i] || 0,
-            pm25: Math.round(avgPm25)
+            tempThisYear: dataTY.daily.temperature_2m_max[i] || null,
+            tempLastYear: dataLY.daily.temperature_2m_max[i] || null,
+            pm25: avgPm25 > 0 ? Math.round(avgPm25) : null
           });
         }
       }
@@ -472,7 +482,6 @@ export default function App() {
     }
   };
 
-  // ดึงข้อมูลสถิติทันทีเมื่อสลับมาหน้า Analytics
   useEffect(() => {
     if (currentPage === 'analytics') {
       const stationToFetch = activeStation || allStations[0];
@@ -484,11 +493,7 @@ export default function App() {
   }, [currentPage, activeStation, allStations]);
 
   const handleReset = () => {
-    setSelectedProvince('');
-    setSelectedStationId('');
-    setActiveStation(null);
-    setShowRadar(false); 
-    setCurrentPage('map'); 
+    setSelectedProvince(''); setSelectedStationId(''); setActiveStation(null); setShowRadar(false); setCurrentPage('map'); 
   };
 
   const handleFindNearest = () => {
@@ -520,46 +525,62 @@ export default function App() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: themeBg, fontFamily: "'Kanit', sans-serif", transition: 'background-color 0.3s' }}>
       
-      {/* HEADER */}
-      <header style={{ background: darkMode ? 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)' : 'linear-gradient(135deg, #0ea5e9 0%, #3b82f6 100%)', color: '#fff', padding: '12px 25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 4px 10px rgba(0,0,0,0.1)', zIndex: 1000, flexWrap: 'wrap', gap: '10px' }}>
+      {/* ======================= HEADER ======================= */}
+      <header style={{ background: darkMode ? 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)' : 'linear-gradient(135deg, #0ea5e9 0%, #3b82f6 100%)', color: '#fff', padding: '12px 25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 4px 10px rgba(0,0,0,0.1)', zIndex: 1000, flexWrap: 'wrap', gap: '15px' }}>
+        
+        {/* ฝั่งซ้าย: โลโก้ ชื่อ และเวลาอัปเดตแอบอยู่ด้านล่าง */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-          <div style={{ fontSize: '1.8rem', background: '#fff', borderRadius: '50%', padding: '5px', width: '45px', height: '45px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 5px rgba(0,0,0,0.15)' }}>{darkMode ? '🌙' : '🌤️'}</div>
-          <div><h1 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 'bold', textShadow: '1px 1px 2px rgba(0,0,0,0.2)' }}>Thailand Environment Dashboard</h1><p style={{ margin: 0, fontSize: '0.8rem', color: '#cbd5e1' }}>ระบบเฝ้าระวังคุณภาพและสภาพอากาศ</p></div>
-        </div>
-
-        {/* 🚀 ย่อขนาด Dropdown เพื่อให้เหลือพื้นที่สำหรับเมนูอื่นๆ */}
-        <div className="hide-scrollbar" style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: 'rgba(255,255,255,0.15)', padding: '6px 15px', borderRadius: '12px', backdropFilter: 'blur(5px)', border: '1px solid rgba(255,255,255,0.3)', overflowX: 'auto', whiteSpace: 'nowrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <label style={{ fontWeight: 'bold', color: '#fff', fontSize: '0.9rem' }}>🗺️</label>
-            <select value={selectedProvince} onChange={(e) => { setSelectedProvince(e.target.value); setSelectedStationId(''); setActiveStation(null); setShowRadar(false); }} style={{ padding: '6px 10px', borderRadius: '6px', border: 'none', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.9rem', maxWidth: '120px', outline: 'none', cursor: 'pointer' }}>
-              <option value="">ทุกจังหวัด</option>{provinces.map(prov => (<option key={prov} value={prov}>{prov}</option>))}
-            </select>
+          <div style={{ fontSize: '1.8rem', background: '#fff', borderRadius: '50%', padding: '5px', width: '48px', height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 5px rgba(0,0,0,0.15)' }}>
+            {darkMode ? '🌙' : '🌤️'}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <label style={{ fontWeight: 'bold', color: '#fff', fontSize: '0.9rem' }}>📍</label>
-            <select value={selectedStationId} onChange={(e) => { setSelectedStationId(e.target.value); const stat = allStations.find(s => s.stationID === e.target.value); if(stat) {setActiveStation(stat); setShowRadar(false);} }} style={{ padding: '6px 10px', borderRadius: '6px', border: 'none', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.9rem', maxWidth: '150px', outline: 'none', cursor: 'pointer' }}>
-              <option value="">เลือกสถานี</option>
-              {filteredStations.slice().sort((a, b) => a.nameTH.localeCompare(b.nameTH, 'th')).map(station => (<option key={station.stationID} value={station.stationID}>{station.nameTH}</option>))}
-            </select>
+          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+            <h1 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 'bold', letterSpacing: '0.5px', textShadow: '1px 1px 2px rgba(0,0,0,0.2)' }}>Thailand Environment Dashboard</h1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
+              <p style={{ margin: 0, fontSize: '0.8rem', color: '#cbd5e1' }}>ระบบเฝ้าระวังคุณภาพอากาศ</p>
+              <span style={{ color: '#94a3b8', fontSize: '0.8rem' }}>|</span>
+              <p style={{ margin: 0, fontSize: '0.8rem', color: '#e0f2fe', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span>⏱️</span> อัปเดต: <strong style={{ color: '#fff' }}>{lastUpdateText || 'กำลังโหลด...'}</strong>
+              </p>
+            </div>
           </div>
         </div>
 
-        {/* 🚀 ย้ายโซนนี้มาอยู่ขวาสุด เพื่อความเรียบร้อย */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-          <div style={{ display: 'flex', backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: '20px', padding: '4px' }}>
-            <button onClick={() => setCurrentPage('map')} style={{ padding: '6px 12px', borderRadius: '16px', border: 'none', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem', backgroundColor: currentPage === 'map' ? '#fff' : 'transparent', color: currentPage === 'map' ? '#0ea5e9' : '#fff', transition: '0.3s' }}>🗺️ แผนที่</button>
-            <button onClick={() => setCurrentPage('analytics')} style={{ padding: '6px 12px', borderRadius: '16px', border: 'none', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem', backgroundColor: currentPage === 'analytics' ? '#fff' : 'transparent', color: currentPage === 'analytics' ? '#0ea5e9' : '#fff', transition: '0.3s' }}>📊 สถิติ</button>
-          </div>
+        {/* ฝั่งขวา: เมนูจัดการ ควบคุมการเรียงลำดับให้สวยงาม */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', justifyContent: 'flex-end', flex: 1 }}>
           
-          <div style={{ fontSize: '0.8rem', color: '#e0f2fe', display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: 'rgba(0,0,0,0.2)', padding: '6px 10px', borderRadius: '20px' }}>
-            <span>⏱️</span> <strong style={{ color: '#fff' }}>{lastUpdateText || 'กำลังโหลด...'}</strong>
+          {/* Navigation สลับหน้าจอ */}
+          <div style={{ display: 'flex', backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: '25px', padding: '4px' }}>
+            <button onClick={() => setCurrentPage('map')} style={{ padding: '8px 16px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.9rem', backgroundColor: currentPage === 'map' ? '#fff' : 'transparent', color: currentPage === 'map' ? '#0ea5e9' : '#fff', transition: '0.3s', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              🗺️ แผนที่
+            </button>
+            <button onClick={() => setCurrentPage('analytics')} style={{ padding: '8px 16px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.9rem', backgroundColor: currentPage === 'analytics' ? '#fff' : 'transparent', color: currentPage === 'analytics' ? '#0ea5e9' : '#fff', transition: '0.3s', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              📊 สถิติย้อนหลัง
+            </button>
           </div>
-          <button onClick={() => setDarkMode(!darkMode)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{darkMode ? '☀️' : '🌙'}</button>
+
+          {/* กล่องเลือกตัวกรองแบบ Capsule (แสดงเฉพาะหน้า Map) */}
+          {currentPage === 'map' && (
+            <div className="hide-scrollbar" style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: 'rgba(255,255,255,0.15)', padding: '6px 12px', borderRadius: '25px', backdropFilter: 'blur(5px)', border: '1px solid rgba(255,255,255,0.3)' }}>
+              <select value={selectedProvince} onChange={(e) => { setSelectedProvince(e.target.value); setSelectedStationId(''); setActiveStation(null); setShowRadar(false); }} style={{ padding: '8px 12px', borderRadius: '20px', border: 'none', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.9rem', minWidth: '160px', outline: 'none', cursor: 'pointer', fontWeight: '500', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}>
+                <option value="">🗺️ ทุกจังหวัด</option>
+                {provinces.map(prov => (<option key={prov} value={prov}>{prov}</option>))}
+              </select>
+              
+              <select value={selectedStationId} onChange={(e) => { setSelectedStationId(e.target.value); const stat = allStations.find(s => s.stationID === e.target.value); if(stat) {setActiveStation(stat); setShowRadar(false);} }} style={{ padding: '8px 12px', borderRadius: '20px', border: 'none', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.9rem', minWidth: '220px', outline: 'none', cursor: 'pointer', fontWeight: '500', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}>
+                <option value="">📍 เลือกสถานี...</option>
+                {filteredStations.slice().sort((a, b) => a.nameTH.localeCompare(b.nameTH, 'th')).map(station => (<option key={station.stationID} value={station.stationID}>{station.nameTH}</option>))}
+              </select>
+            </div>
+          )}
+
+          {/* ปุ่ม Dark Mode */}
+          <button onClick={() => setDarkMode(!darkMode)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '50%', width: '40px', height: '40px', cursor: 'pointer', fontSize: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: '0.3s' }} title="สลับโหมดมืด/สว่าง">
+            {darkMode ? '☀️' : '🌙'}
+          </button>
         </div>
       </header>
 
-
-      {/* BODY CONTENT */}
+      {/* ======================= BODY CONTENT ======================= */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden', padding: '15px', gap: '15px', flexDirection: window.innerWidth < 768 ? 'column' : 'row' }}>
         
         {currentPage === 'map' ? (
@@ -692,31 +713,31 @@ export default function App() {
             
             <div style={{ marginBottom: '20px', borderBottom: `1px solid ${borderColor}`, paddingBottom: '15px' }}>
               <h2 style={{ fontSize: '1.5rem', color: textColor, margin: '0 0 5px 0', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                📊 สถิติย้อนหลัง (Analytics)
+                📊 สถิติย้อนหลัง (14 วันล่าสุด)
               </h2>
               <p style={{ margin: 0, color: subTextColor, fontSize: '0.9rem' }}>
-                เปรียบเทียบข้อมูลอุณหภูมิ <strong style={{color: '#0ea5e9'}}>ปีนี้ เทียบกับ ปีที่แล้ว</strong> และดูแนวโน้ม <strong style={{color: '#f97316'}}>ฝุ่น PM2.5 ย้อนหลัง 7 วัน</strong> ของสถานี <b>{activeStation ? activeStation.nameTH : (allStations[0] ? allStations[0].nameTH : 'กำลังโหลด...')}</b>
+                วิเคราะห์ข้อมูลของสถานี: <strong style={{color: '#0ea5e9'}}>{activeStation ? activeStation.nameTH : (allStations[0] ? allStations[0].nameTH : 'กำลังโหลด...')}</strong>
               </p>
             </div>
 
             {analyticsLoading ? (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '300px', color: subTextColor }}>
-                <span style={{ fontSize: '2rem', marginBottom: '10px' }}>⏳</span>กำลังดึงข้อมูลสถิติย้อนหลังจาก Open-Meteo Archive...
+                <span style={{ fontSize: '2rem', marginBottom: '10px' }}>⏳</span>กำลังวิเคราะห์ข้อมูลจากดาวเทียม...
               </div>
             ) : analyticsData.length > 0 ? (
               <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth < 1024 ? '1fr' : '1fr 1fr', gap: '20px' }}>
                 
                 {/* กราฟที่ 1: อุณหภูมิเปรียบเทียบ ปีนี้ vs ปีที่แล้ว */}
                 <div style={{ backgroundColor: darkMode ? '#0f172a' : '#f8fafc', padding: '20px', borderRadius: '12px', border: `1px solid ${borderColor}` }}>
-                  <h3 style={{ fontSize: '1.1rem', color: textColor, marginBottom: '15px', textAlign: 'center' }}>🌡️ อุณหภูมิสูงสุด: ปีนี้ vs ปีที่แล้ว (7 วันล่าสุด)</h3>
+                  <h3 style={{ fontSize: '1.1rem', color: textColor, marginBottom: '15px', textAlign: 'center' }}>🌡️ อุณหภูมิสูงสุด: ปีนี้ vs ช่วงเดียวกันของปีที่แล้ว</h3>
                   <div style={{ width: '100%', height: '300px' }}>
                     <ResponsiveContainer>
                       <LineChart data={analyticsData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#334155' : '#e2e8f0'} />
-                        <XAxis dataKey="date" stroke={subTextColor} fontSize={12} />
+                        <XAxis dataKey="date" stroke={subTextColor} fontSize={12} tickMargin={10} />
                         <YAxis stroke={subTextColor} fontSize={12} domain={['auto', 'auto']} />
-                        <Tooltip contentStyle={{ backgroundColor: cardBg, borderColor: borderColor, color: textColor }} />
-                        <Legend wrapperStyle={{ paddingTop: '10px' }} />
+                        <Tooltip contentStyle={{ backgroundColor: cardBg, borderColor: borderColor, color: textColor, borderRadius: '8px' }} />
+                        <Legend wrapperStyle={{ paddingTop: '20px' }} />
                         <Line type="monotone" dataKey="tempThisYear" name="ปีนี้ (°C)" stroke="#ef4444" strokeWidth={3} activeDot={{ r: 8 }} />
                         <Line type="monotone" dataKey="tempLastYear" name="ปีที่แล้ว (°C)" stroke="#94a3b8" strokeWidth={2} strokeDasharray="5 5" />
                       </LineChart>
@@ -726,20 +747,26 @@ export default function App() {
 
                 {/* กราฟที่ 2: แนวโน้มฝุ่น PM2.5 */}
                 <div style={{ backgroundColor: darkMode ? '#0f172a' : '#f8fafc', padding: '20px', borderRadius: '12px', border: `1px solid ${borderColor}` }}>
-                  <h3 style={{ fontSize: '1.1rem', color: textColor, marginBottom: '15px', textAlign: 'center' }}>☁️ ค่าเฉลี่ยฝุ่น PM2.5 ย้อนหลัง 7 วัน</h3>
+                  <h3 style={{ fontSize: '1.1rem', color: textColor, marginBottom: '15px', textAlign: 'center' }}>☁️ แนวโน้มฝุ่น PM2.5 ย้อนหลัง 14 วัน</h3>
                   <div style={{ width: '100%', height: '300px' }}>
                     <ResponsiveContainer>
-                      <BarChart data={analyticsData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                      <AreaChart data={analyticsData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                        <defs>
+                          <linearGradient id="colorPm" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.8}/>
+                            <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
+                          </linearGradient>
+                        </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#334155' : '#e2e8f0'} />
-                        <XAxis dataKey="date" stroke={subTextColor} fontSize={12} />
+                        <XAxis dataKey="date" stroke={subTextColor} fontSize={12} tickMargin={10} />
                         <YAxis stroke={subTextColor} fontSize={12} />
-                        <Tooltip contentStyle={{ backgroundColor: cardBg, borderColor: borderColor, color: textColor }} />
-                        <Legend wrapperStyle={{ paddingTop: '10px' }} />
-                        <Bar dataKey="pm25" name="PM2.5 (µg/m³)" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-                      </BarChart>
+                        <Tooltip contentStyle={{ backgroundColor: cardBg, borderColor: borderColor, color: textColor, borderRadius: '8px' }} />
+                        <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                        <Area type="monotone" dataKey="pm25" name="ค่าเฉลี่ย PM2.5 (µg/m³)" stroke="#d97706" strokeWidth={2} fillOpacity={1} fill="url(#colorPm)" />
+                      </AreaChart>
                     </ResponsiveContainer>
                   </div>
-                  <p style={{ fontSize: '0.75rem', color: subTextColor, textAlign: 'center', marginTop: '10px' }}>*ข้อจำกัด API ฟรี: ข้อมูลฝุ่นดึงย้อนหลังได้ 7-30 วัน ไม่สามารถเทียบปีต่อปีได้</p>
+                  <p style={{ fontSize: '0.75rem', color: subTextColor, textAlign: 'center', marginTop: '15px' }}>* ข้อมูลฝุ่นดึงย้อนหลังได้สูงสุดตามโควต้า API ฟรี</p>
                 </div>
 
               </div>
