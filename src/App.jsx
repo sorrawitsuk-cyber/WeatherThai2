@@ -306,21 +306,40 @@ export default function App() {
     setShowRadar(!showRadar);
   };
 
+  // 🚀 ฟังก์ชันดึงข้อมูลจาก Firebase (โหลดรวดเดียว 180 สถานีใน 0.1 วินาที!)
   const fetchAirQuality = async (isBackgroundLoad = false) => {
     if (!isBackgroundLoad) setLoading(true);
     try {
-      const response = await fetch(`/api-air/services/getNewAQI_JSON.php?_t=${new Date().getTime()}`, { cache: 'no-store' });
-      if (!response.ok) throw new Error('Network error');
-      const data = await response.json();
+      // ยิง API ไปที่โกดัง Firebase ของเราโดยตรง
+      const PROJECT_ID = "thai-env-dashboard"; 
+      const url = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents/weatherData/latest`;
       
-      if (data && data.stations) {
-        setAllStations(data.stations);
-        setProvinces([...new Set(data.stations.map(s => extractProvince(s.areaTH)))].sort((a, b) => a.localeCompare(b, 'th')));
-        if (data.stations.length > 0) setLastUpdateText(`${data.stations[0].AQILast?.date || ''} เวลา ${data.stations[0].AQILast?.time || ''} น.`);
-        fetchAdvancedTemperatures(data.stations);
+      const response = await fetch(url, { cache: 'no-store' });
+      if (!response.ok) throw new Error('Network error');
+      
+      const rawData = await response.json();
+      
+      // แกะกล่องข้อมูล JSON ที่บอท Apps Script แพ็คไว้ให้
+      const payloadString = rawData.fields.jsonData.stringValue;
+      const parsedData = JSON.parse(payloadString);
+      
+      const stations = parsedData.stations;
+      const weather = parsedData.weather;
+      
+      if (stations && stations.length > 0) {
+        // อัปเดตข้อมูลฝุ่นและสถานี
+        setAllStations(stations);
+        setProvinces([...new Set(stations.map(s => extractProvince(s.areaTH)))].sort((a, b) => a.localeCompare(b, 'th')));
+        setLastUpdateText(`${stations[0].AQILast?.date || ''} เวลา ${stations[0].AQILast?.time || ''} น.`);
+        
+        // อัปเดตสภาพอากาศรวดเดียวจบ!
+        setStationTemps(weather); 
       }
-    } catch (err) { console.error("Fetch error:", err); } 
-    finally { if (!isBackgroundLoad) setLoading(false); }
+    } catch (err) { 
+      console.error("Fetch error:", err); 
+    } finally { 
+      if (!isBackgroundLoad) setLoading(false); 
+    }
   };
 
   const fetchAdvancedTemperatures = async (stations) => {
