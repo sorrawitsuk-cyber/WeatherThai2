@@ -131,9 +131,9 @@ const extractProvince = (areaTH) => {
 const legendData = {
   pm25: { title: 'ระดับ PM2.5 (µg/m³)', items: [{ color: '#00b0f0', label: '0-15.0 (ดีมาก)' },{ color: '#92d050', label: '15.1-25.0 (ดี)' },{ color: '#ffff00', label: '25.1-37.5 (ปานกลาง)' },{ color: '#ffc000', label: '37.6-75.0 (เริ่มมีผลกระทบฯ)' },{ color: '#ff0000', label: '> 75.0 (มีผลกระทบฯ)' }]},
   temp: { title: 'อุณหภูมิ (°C)', items: [{ color: '#3498db', label: '< 27 (เย็นสบาย)' },{ color: '#2ecc71', label: '27-32 (ปกติ)' },{ color: '#f1c40f', label: '33-35 (ร้อน)' },{ color: '#e67e22', label: '36-38 (ร้อนมาก)' },{ color: '#e74c3c', label: '> 38 (ร้อนจัด)' }]},
-  heat: { title: 'Heat Index (°C)', items: [{ color: '#22c55e', label: '< 27 (ปกติ)' },{ color: '#eab308', label: '27-31 (เฝ้าระวัง)' },{ color: '#f97316', label: '32-40 (เตือนภัย)' },{ color: '#ef4444', label: '> 41 (อันตราย)' }]},
+  heat: { title: 'Heat Index (°C)', items: [{ color: '#22c55e', label: '< 27 (ปกติ)' },{ color: '#eab308', label: '27-31 (เฝ้าระวัง)' },{ color: '#f97316', label: '32-40 (เตือนภัยเพลียแดด)' },{ color: '#ef4444', label: '> 41 (อันตรายเสี่ยงฮีทสโตรก)' }]},
   uv: { title: 'รังสี UV', items: [{ color: '#2ecc71', label: '0-2 (ต่ำ)' },{ color: '#f1c40f', label: '3-5 (ปานกลาง)' },{ color: '#e67e22', label: '6-7 (สูง)' },{ color: '#e74c3c', label: '8-10 (สูงมาก)' },{ color: '#9b59b6', label: '> 10 (อันตราย)' }]},
-  rain: { title: 'โอกาสเกิดฝน (%)', items: [{ color: '#95a5a6', label: '0 (ไม่มีฝน)' },{ color: '#74b9ff', label: '1-30 (โอกาสต่ำ)' },{ color: '#0984e3', label: '31-60 (ปานกลาง)' },{ color: '#273c75', label: '61-80 (โอกาสสูง)' },{ color: '#192a56', label: '> 80 (ตกหนัก)' }]},
+  rain: { title: 'โอกาสเกิดฝน (%)', items: [{ color: '#95a5a6', label: '0 (ไม่มีฝน)' },{ color: '#74b9ff', label: '1-30 (โอกาสต่ำ)' },{ color: '#0984e3', label: '31-60 (โอกาสปานกลาง)' },{ color: '#273c75', label: '61-80 (โอกาสสูง)' },{ color: '#192a56', label: '> 80 (โอกาสสูงมาก)' }]},
   wind: { title: 'ความเร็วลม (km/h)', items: [{ color: '#00b0f0', label: '0-10 (ลมอ่อน)' },{ color: '#2ecc71', label: '11-25 (ลมปานกลาง)' },{ color: '#f1c40f', label: '26-40 (ลมแรง)' },{ color: '#e67e22', label: '41-60 (ลมแรงมาก)' },{ color: '#e74c3c', label: '> 60 (พายุ)' }]}
 };
 
@@ -262,6 +262,7 @@ export default function App() {
 
   const [analyticsData, setAnalyticsData] = useState([]);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [analyticsTitle, setAnalyticsTitle] = useState('ภาพรวมทั้งประเทศ'); // 🚀 State สำหรับชื่อหัวข้อกราฟ
 
   useEffect(() => {
     localStorage.setItem('darkMode', darkMode);
@@ -424,29 +425,24 @@ export default function App() {
     }
   }, [activeStation, showRadar, currentPage]);
 
-  // 📊 ฟังก์ชันดึงข้อมูลสถิติย้อนหลัง 14 วัน (อุณหภูมิปีนี้เทียบปีที่แล้ว + PM2.5 ย้อนหลัง)
-  const fetchHistoricalAnalytics = async (station) => {
-    if (!station) return;
+  // 📊 ฟังก์ชันดึงข้อมูลสถิติย้อนหลัง 14 วัน โดยรับค่า Lat, Lon แทนที่จะบังคับรับเป็น Station Object
+  const fetchHistoricalAnalytics = async (lat, lon, titleText) => {
+    setAnalyticsTitle(titleText);
     setAnalyticsLoading(true);
     try {
       const today = new Date();
-      // คำนวณช่วงเวลา 14 วันที่ผ่านมาของปีนี้
       const endStr = today.toISOString().split('T')[0];
       const start = new Date(); start.setDate(today.getDate() - 14);
       const startStr = start.toISOString().split('T')[0];
 
-      // คำนวณช่วงเวลาเดียวกันของปีที่แล้ว
       const lyEnd = new Date(); lyEnd.setFullYear(today.getFullYear() - 1);
       const lyEndStr = lyEnd.toISOString().split('T')[0];
       const lyStart = new Date(); lyStart.setFullYear(today.getFullYear() - 1); lyStart.setDate(lyStart.getDate() - 14);
       const lyStartStr = lyStart.toISOString().split('T')[0];
 
-      // ดึงอุณหภูมิปีนี้ (ใช้ Forecast API เพื่อความสดใหม่)
-      const resThisYear = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${station.lat}&longitude=${station.long}&daily=temperature_2m_max&past_days=14&forecast_days=1&timezone=Asia%2FBangkok`);
-      // ดึงอุณหภูมิปีที่แล้ว (ใช้ Archive API)
-      const resLastYear = await fetch(`https://archive-api.open-meteo.com/v1/archive?latitude=${station.lat}&longitude=${station.long}&start_date=${lyStartStr}&end_date=${lyEndStr}&daily=temperature_2m_max&timezone=Asia%2FBangkok`);
-      // ดึง PM2.5 ย้อนหลัง 14 วัน (ฟรีสูงสุดของ Open-Meteo)
-      const resPm25 = await fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${station.lat}&longitude=${station.long}&hourly=pm2_5&past_days=14&forecast_days=1&timezone=Asia%2FBangkok`);
+      const resThisYear = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max&past_days=14&forecast_days=1&timezone=Asia%2FBangkok`);
+      const resLastYear = await fetch(`https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${lyStartStr}&end_date=${lyEndStr}&daily=temperature_2m_max&timezone=Asia%2FBangkok`);
+      const resPm25 = await fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&hourly=pm2_5&past_days=14&forecast_days=1&timezone=Asia%2FBangkok`);
 
       const dataTY = await resThisYear.json();
       const dataLY = await resLastYear.json();
@@ -454,18 +450,14 @@ export default function App() {
 
       let mergedData = [];
       if (dataTY.daily && dataLY.daily) {
-        // วนลูปตามจำนวนวันที่ดึงมาได้ (ประมาณ 14-15 วัน)
         for (let i = 0; i < dataTY.daily.time.length; i++) {
           let dateStr = new Date(dataTY.daily.time[i]).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
           let avgPm25 = 0;
-          
           if (dataPm.hourly) {
-            // คำนวณค่าเฉลี่ยฝุ่นของวันนั้นๆ
             const dayStartIndex = i * 24;
             const dayPmData = dataPm.hourly.pm2_5.slice(dayStartIndex, dayStartIndex + 24).filter(v => v !== null);
             avgPm25 = dayPmData.length > 0 ? (dayPmData.reduce((a, b) => a + b, 0) / dayPmData.length) : 0;
           }
-
           mergedData.push({
             date: dateStr,
             tempThisYear: dataTY.daily.temperature_2m_max[i] || null,
@@ -475,22 +467,32 @@ export default function App() {
         }
       }
       setAnalyticsData(mergedData);
-    } catch (error) {
-      console.error("Analytics fetch error:", error);
-    } finally {
-      setAnalyticsLoading(false);
-    }
+    } catch (error) { console.error("Analytics fetch error:", error); } 
+    finally { setAnalyticsLoading(false); }
   };
 
+  // 🚀 Logic ควบคุมข้อมูลในหน้า Analytics (ถ้าไม่เลือกสถานี ให้แสดงค่าเฉลี่ยประเทศ/จังหวัด)
   useEffect(() => {
     if (currentPage === 'analytics') {
-      const stationToFetch = activeStation || allStations[0];
-      if (stationToFetch) {
-        if(!activeStation) setActiveStation(stationToFetch);
-        fetchHistoricalAnalytics(stationToFetch);
+      if (activeStation) {
+        fetchHistoricalAnalytics(activeStation.lat, activeStation.long, `สถานี${activeStation.nameTH} (${extractProvince(activeStation.areaTH)})`);
+      } else if (selectedProvince) {
+        const provStations = allStations.filter(s => extractProvince(s.areaTH) === selectedProvince);
+        if (provStations.length > 0) {
+          const avgLat = provStations.reduce((sum, s) => sum + parseFloat(s.lat), 0) / provStations.length;
+          const avgLon = provStations.reduce((sum, s) => sum + parseFloat(s.long), 0) / provStations.length;
+          fetchHistoricalAnalytics(avgLat, avgLon, `ค่าเฉลี่ยรวม จังหวัด${selectedProvince}`);
+        }
+      } else {
+        if (allStations.length > 0) {
+          // ใช้จุดกึ่งกลางของทุกสถานีเพื่อคำนวณเป็น "ค่าเฉลี่ยระดับประเทศ"
+          const avgLat = allStations.reduce((sum, s) => sum + parseFloat(s.lat), 0) / allStations.length;
+          const avgLon = allStations.reduce((sum, s) => sum + parseFloat(s.long), 0) / allStations.length;
+          fetchHistoricalAnalytics(avgLat, avgLon, 'ค่าเฉลี่ยภาพรวมทั้งประเทศ');
+        }
       }
     }
-  }, [currentPage, activeStation, allStations]);
+  }, [currentPage, activeStation, selectedProvince, allStations]);
 
   const handleReset = () => {
     setSelectedProvince(''); setSelectedStationId(''); setActiveStation(null); setShowRadar(false); setCurrentPage('map'); 
@@ -525,60 +527,62 @@ export default function App() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: themeBg, fontFamily: "'Kanit', sans-serif", transition: 'background-color 0.3s' }}>
       
-      {/* ======================= HEADER ======================= */}
+      {/* ======================= HEADER 4.0 (Pro Layout) ======================= */}
       <header style={{ background: darkMode ? 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)' : 'linear-gradient(135deg, #0ea5e9 0%, #3b82f6 100%)', color: '#fff', padding: '12px 25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 4px 10px rgba(0,0,0,0.1)', zIndex: 1000, flexWrap: 'wrap', gap: '15px' }}>
         
-        {/* ฝั่งซ้าย: โลโก้ ชื่อ และเวลาอัปเดตแอบอยู่ด้านล่าง */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+        {/* 1. ส่วนซ้าย: โลโก้ + ชื่อเว็บ */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flex: window.innerWidth > 1024 ? 1 : 'auto' }}>
           <div style={{ fontSize: '1.8rem', background: '#fff', borderRadius: '50%', padding: '5px', width: '48px', height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 5px rgba(0,0,0,0.15)' }}>
             {darkMode ? '🌙' : '🌤️'}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
             <h1 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 'bold', letterSpacing: '0.5px', textShadow: '1px 1px 2px rgba(0,0,0,0.2)' }}>Thailand Environment Dashboard</h1>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
-              <p style={{ margin: 0, fontSize: '0.8rem', color: '#cbd5e1' }}>ระบบเฝ้าระวังคุณภาพอากาศ</p>
-              <span style={{ color: '#94a3b8', fontSize: '0.8rem' }}>|</span>
-              <p style={{ margin: 0, fontSize: '0.8rem', color: '#e0f2fe', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span>⏱️</span> อัปเดต: <strong style={{ color: '#fff' }}>{lastUpdateText || 'กำลังโหลด...'}</strong>
-              </p>
+            <p style={{ margin: 0, fontSize: '0.8rem', color: '#cbd5e1' }}>ระบบเฝ้าระวังคุณภาพอากาศและสภาพอากาศ</p>
+          </div>
+        </div>
+
+        {/* 2. ส่วนกลาง: ตัวกรองจังหวัด/สถานี (แสดงตรงกลางให้เด่นชัด และกว้างพอดี) */}
+        <div style={{ display: 'flex', justifyContent: 'center', flex: window.innerWidth > 1024 ? 1.5 : 'auto' }}>
+          <div className="hide-scrollbar" style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: 'rgba(255,255,255,0.15)', padding: '6px 15px', borderRadius: '30px', backdropFilter: 'blur(5px)', border: '1px solid rgba(255,255,255,0.3)', overflowX: 'auto', whiteSpace: 'nowrap', width: '100%', maxWidth: '600px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
+              <label style={{ fontWeight: 'bold', color: '#fff', fontSize: '0.9rem' }}>🗺️</label>
+              <select value={selectedProvince} onChange={(e) => { setSelectedProvince(e.target.value); setSelectedStationId(''); setActiveStation(null); setShowRadar(false); }} style={{ padding: '8px 12px', borderRadius: '20px', border: 'none', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.95rem', width: '100%', minWidth: '150px', outline: 'none', cursor: 'pointer', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}>
+                <option value="">ทุกจังหวัด</option>{provinces.map(prov => (<option key={prov} value={prov}>{prov}</option>))}
+              </select>
+            </div>
+            <div style={{ width: '2px', height: '20px', backgroundColor: 'rgba(255,255,255,0.3)', margin: '0 5px' }}></div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1.5 }}>
+              <label style={{ fontWeight: 'bold', color: '#fff', fontSize: '0.9rem' }}>📍</label>
+              <select value={selectedStationId} onChange={(e) => { setSelectedStationId(e.target.value); const stat = allStations.find(s => s.stationID === e.target.value); if(stat) {setActiveStation(stat); setShowRadar(false);} }} style={{ padding: '8px 12px', borderRadius: '20px', border: 'none', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.95rem', width: '100%', minWidth: '220px', outline: 'none', cursor: 'pointer', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}>
+                <option value="">-- เลือกสถานี --</option>
+                {filteredStations.slice().sort((a, b) => a.nameTH.localeCompare(b.nameTH, 'th')).map(station => (<option key={station.stationID} value={station.stationID}>{station.nameTH}</option>))}
+              </select>
             </div>
           </div>
         </div>
 
-        {/* ฝั่งขวา: เมนูจัดการ ควบคุมการเรียงลำดับให้สวยงาม */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', justifyContent: 'flex-end', flex: 1 }}>
+        {/* 3. ส่วนขวา: Tab สลับหน้า, เวลา, Dark Mode */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', justifyContent: 'flex-end', flex: window.innerWidth > 1024 ? 1 : 'auto', flexWrap: 'wrap' }}>
           
-          {/* Navigation สลับหน้าจอ */}
           <div style={{ display: 'flex', backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: '25px', padding: '4px' }}>
-            <button onClick={() => setCurrentPage('map')} style={{ padding: '8px 16px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.9rem', backgroundColor: currentPage === 'map' ? '#fff' : 'transparent', color: currentPage === 'map' ? '#0ea5e9' : '#fff', transition: '0.3s', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <button onClick={() => setCurrentPage('map')} style={{ padding: '6px 16px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem', backgroundColor: currentPage === 'map' ? '#fff' : 'transparent', color: currentPage === 'map' ? '#0ea5e9' : '#fff', transition: '0.3s', display: 'flex', alignItems: 'center', gap: '6px' }}>
               🗺️ แผนที่
             </button>
-            <button onClick={() => setCurrentPage('analytics')} style={{ padding: '8px 16px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.9rem', backgroundColor: currentPage === 'analytics' ? '#fff' : 'transparent', color: currentPage === 'analytics' ? '#0ea5e9' : '#fff', transition: '0.3s', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              📊 สถิติย้อนหลัง
+            <button onClick={() => setCurrentPage('analytics')} style={{ padding: '6px 16px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem', backgroundColor: currentPage === 'analytics' ? '#fff' : 'transparent', color: currentPage === 'analytics' ? '#0ea5e9' : '#fff', transition: '0.3s', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              📊 สถิติ
             </button>
           </div>
+          
+          <div style={{ fontSize: '0.8rem', color: '#e0f2fe', display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: 'rgba(0,0,0,0.2)', padding: '8px 12px', borderRadius: '20px' }}>
+            <span>⏱️</span> <span style={{display: window.innerWidth < 768 ? 'none' : 'inline'}}>อัปเดต: </span><strong style={{ color: '#fff' }}>{lastUpdateText || '...'}</strong>
+          </div>
 
-          {/* กล่องเลือกตัวกรองแบบ Capsule (แสดงเฉพาะหน้า Map) */}
-          {currentPage === 'map' && (
-            <div className="hide-scrollbar" style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: 'rgba(255,255,255,0.15)', padding: '6px 12px', borderRadius: '25px', backdropFilter: 'blur(5px)', border: '1px solid rgba(255,255,255,0.3)' }}>
-              <select value={selectedProvince} onChange={(e) => { setSelectedProvince(e.target.value); setSelectedStationId(''); setActiveStation(null); setShowRadar(false); }} style={{ padding: '8px 12px', borderRadius: '20px', border: 'none', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.9rem', minWidth: '160px', outline: 'none', cursor: 'pointer', fontWeight: '500', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}>
-                <option value="">🗺️ ทุกจังหวัด</option>
-                {provinces.map(prov => (<option key={prov} value={prov}>{prov}</option>))}
-              </select>
-              
-              <select value={selectedStationId} onChange={(e) => { setSelectedStationId(e.target.value); const stat = allStations.find(s => s.stationID === e.target.value); if(stat) {setActiveStation(stat); setShowRadar(false);} }} style={{ padding: '8px 12px', borderRadius: '20px', border: 'none', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.9rem', minWidth: '220px', outline: 'none', cursor: 'pointer', fontWeight: '500', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}>
-                <option value="">📍 เลือกสถานี...</option>
-                {filteredStations.slice().sort((a, b) => a.nameTH.localeCompare(b.nameTH, 'th')).map(station => (<option key={station.stationID} value={station.stationID}>{station.nameTH}</option>))}
-              </select>
-            </div>
-          )}
-
-          {/* ปุ่ม Dark Mode */}
-          <button onClick={() => setDarkMode(!darkMode)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '50%', width: '40px', height: '40px', cursor: 'pointer', fontSize: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: '0.3s' }} title="สลับโหมดมืด/สว่าง">
+          <button onClick={() => setDarkMode(!darkMode)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '50%', width: '40px', height: '40px', cursor: 'pointer', fontSize: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: '0.3s' }}>
             {darkMode ? '☀️' : '🌙'}
           </button>
         </div>
       </header>
+
 
       {/* ======================= BODY CONTENT ======================= */}
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden', padding: '15px', gap: '15px', flexDirection: window.innerWidth < 768 ? 'column' : 'row' }}>
@@ -711,18 +715,20 @@ export default function App() {
           /* 📊 ANALYTICS DASHBOARD SECTION */
           <div style={{ flex: 1, backgroundColor: cardBg, borderRadius: '12px', padding: window.innerWidth < 768 ? '15px' : '30px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', border: `1px solid ${borderColor}`, overflowY: 'auto' }}>
             
-            <div style={{ marginBottom: '20px', borderBottom: `1px solid ${borderColor}`, paddingBottom: '15px' }}>
-              <h2 style={{ fontSize: '1.5rem', color: textColor, margin: '0 0 5px 0', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                📊 สถิติย้อนหลัง (14 วันล่าสุด)
-              </h2>
-              <p style={{ margin: 0, color: subTextColor, fontSize: '0.9rem' }}>
-                วิเคราะห์ข้อมูลของสถานี: <strong style={{color: '#0ea5e9'}}>{activeStation ? activeStation.nameTH : (allStations[0] ? allStations[0].nameTH : 'กำลังโหลด...')}</strong>
-              </p>
+            <div style={{ marginBottom: '20px', borderBottom: `1px solid ${borderColor}`, paddingBottom: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+              <div>
+                <h2 style={{ fontSize: '1.5rem', color: textColor, margin: '0 0 5px 0', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  📊 สถิติย้อนหลัง (14 วันล่าสุด)
+                </h2>
+                <p style={{ margin: 0, color: subTextColor, fontSize: '0.9rem' }}>
+                  วิเคราะห์ข้อมูลของ: <strong style={{color: '#0ea5e9', fontSize: '1rem'}}>{analyticsTitle}</strong>
+                </p>
+              </div>
             </div>
 
             {analyticsLoading ? (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '300px', color: subTextColor }}>
-                <span style={{ fontSize: '2rem', marginBottom: '10px' }}>⏳</span>กำลังวิเคราะห์ข้อมูลจากดาวเทียม...
+                <span style={{ fontSize: '2rem', marginBottom: '10px' }}>⏳</span>กำลังประมวลผลข้อมูลจากดาวเทียม...
               </div>
             ) : analyticsData.length > 0 ? (
               <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth < 1024 ? '1fr' : '1fr 1fr', gap: '20px' }}>
@@ -766,12 +772,12 @@ export default function App() {
                       </AreaChart>
                     </ResponsiveContainer>
                   </div>
-                  <p style={{ fontSize: '0.75rem', color: subTextColor, textAlign: 'center', marginTop: '15px' }}>* ข้อมูลฝุ่นดึงย้อนหลังได้สูงสุดตามโควต้า API ฟรี</p>
+                  <p style={{ fontSize: '0.75rem', color: subTextColor, textAlign: 'center', marginTop: '15px' }}>* ข้อมูลอ้างอิงจาก Open-Meteo Archive API</p>
                 </div>
 
               </div>
             ) : (
-              <div style={{ textAlign: 'center', color: subTextColor, padding: '50px' }}>ไม่พบข้อมูลสถิติของสถานีนี้</div>
+              <div style={{ textAlign: 'center', color: subTextColor, padding: '50px' }}>ไม่พบข้อมูลสถิติของพื้นที่นี้</div>
             )}
           </div>
         )}
