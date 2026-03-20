@@ -274,7 +274,7 @@ export default function App() {
   const [dashLoading, setDashLoading] = useState(false);
   const [dashTitle, setDashTitle] = useState('ภาพรวมทั้งประเทศ');
 
-  // 🚀 สเตทใหม่สำหรับการสลับแท็บและการแจ้งเตือน
+  // 🚀 สเตทสำหรับการสลับแท็บและการแจ้งเตือน
   const [currentPage, setCurrentPage] = useState('map'); // 'map' หรือ 'alerts'
   const [alertsData, setAlertsData] = useState([]);
   const [alertsLoading, setAlertsLoading] = useState(false);
@@ -529,7 +529,7 @@ export default function App() {
     );
   };
 
-  // 🚀 ฟังก์ชันประมวลผลข้อมูลสำหรับหน้า "แจ้งเตือน (Alerts)"
+  // 🚀 ฟังก์ชันประมวลผลข้อมูลสำหรับหน้า "แจ้งเตือน (Alerts)" ใหม่ล่าสุด (มีฝน 3 ชม.)
   const fetchAlertsData = async (lat, lon, locName) => {
     setAlertsLoading(true);
     setAlertsLocationName(locName);
@@ -542,33 +542,51 @@ export default function App() {
 
       let generatedAlerts = [];
       const nowIdx = new Date().getHours(); 
-      const next24hW = dataW.hourly ? dataW.hourly.time.slice(nowIdx, nowIdx + 24) : [];
-      
-      let maxRainProb = 0; let maxRainVol = 0; let rainTime = '';
+      const formatTime = (iso) => { const d = new Date(iso); return `${d.getHours()}:00 น.`; };
+
+      // 🌧️ 1. วิเคราะห์ฝนล่วงหน้า 3 ชั่วโมง (Nowcast)
+      let rain3hProb = 0; let rain3hVol = 0; let rain3hTime = '';
+      if (dataW.hourly && dataW.hourly.time) {
+        dataW.hourly.time.slice(nowIdx, nowIdx + 3).forEach((t, i) => {
+          const idx = nowIdx + i;
+          if (dataW.hourly.precipitation_probability[idx] > rain3hProb) { 
+            rain3hProb = dataW.hourly.precipitation_probability[idx]; 
+            rain3hVol = dataW.hourly.precipitation[idx]; 
+            rain3hTime = t; 
+          }
+        });
+      }
+
+      // ☀️ 2. วิเคราะห์อากาศอื่นๆ ใน 24 ชั่วโมงข้างหน้า
       let maxHeat = 0; let heatTime = '';
       let maxUv = 0; let uvTime = '';
       let maxPm = 0; let pmTime = '';
-
-      next24hW.forEach((t, i) => {
-        const idx = nowIdx + i;
-        if (dataW.hourly.precipitation_probability[idx] > maxRainProb) { maxRainProb = dataW.hourly.precipitation_probability[idx]; maxRainVol = dataW.hourly.precipitation[idx]; rainTime = t; }
-        if (dataW.hourly.apparent_temperature[idx] > maxHeat) { maxHeat = dataW.hourly.apparent_temperature[idx]; heatTime = t; }
-        if (dataW.hourly.uv_index[idx] > maxUv) { maxUv = dataW.hourly.uv_index[idx]; uvTime = t; }
-        if (dataA.hourly && dataA.hourly.pm2_5 && dataA.hourly.pm2_5[idx] > maxPm) { maxPm = dataA.hourly.pm2_5[idx]; pmTime = t; }
-      });
-
-      const formatTime = (iso) => { const d = new Date(iso); return `${d.getHours()}:00 น.`; };
-
-      if (maxRainProb >= 40 || maxRainVol >= 0.5) {
-        generatedAlerts.push({ type: 'rain', icon: '🌧️', color: '#3b82f6', title: 'แจ้งเตือนฝนตก', desc: `มีโอกาสเกิดฝน ${maxRainProb}% ปริมาณ ${maxRainVol} mm. (ช่วงเวลาที่มีโอกาสสูงสุด: ${formatTime(rainTime)}) แนะนำให้พกร่มหากต้องออกไปข้างนอก` });
+      if (dataW.hourly && dataW.hourly.time) {
+        dataW.hourly.time.slice(nowIdx, nowIdx + 24).forEach((t, i) => {
+          const idx = nowIdx + i;
+          if (dataW.hourly.apparent_temperature[idx] > maxHeat) { maxHeat = dataW.hourly.apparent_temperature[idx]; heatTime = t; }
+          if (dataW.hourly.uv_index[idx] > maxUv) { maxUv = dataW.hourly.uv_index[idx]; uvTime = t; }
+          if (dataA.hourly && dataA.hourly.pm2_5 && dataA.hourly.pm2_5[idx] > maxPm) { maxPm = dataA.hourly.pm2_5[idx]; pmTime = t; }
+        });
       }
+
+      // 🛠️ 3. จัดเรียงการ์ดแจ้งเตือนลงใน Array
+      
+      // การ์ดที่ 1: สถานการณ์ฝน (มีฝน หรือ ไม่มีฝน) แสดงเป็นอันดับแรกเสมอ
+      if (rain3hProb >= 30 || rain3hVol > 0.1) {
+        generatedAlerts.push({ type: 'rain', icon: '🌧️', color: '#3b82f6', title: 'เตรียมพกร่ม! (ฝนใน 3 ชม.)', desc: `พบกลุ่มฝนบริเวณของคุณ โอกาสตก ${rain3hProb}% (ปริมาณคาดการณ์ ${rain3hVol.toFixed(1)} mm.) คาดว่าจะตกช่วงเวลา ${formatTime(rain3hTime)}` });
+      } else {
+        generatedAlerts.push({ type: 'norain', icon: '🌤️', color: '#10b981', title: 'ไม่มีฝน (ใน 3 ชม. ข้างหน้า)', desc: `โอกาสเกิดฝนต่ำมาก (${rain3hProb}%) ท้องฟ้าโปร่ง สามารถทำกิจกรรมกลางแจ้งหรือเดินทางได้ตามปกติ` });
+      }
+
+      // การ์ดอื่นๆ (แสดงเฉพาะเมื่อมีความเสี่ยง)
       if (maxHeat >= 33) {
         let levelText = maxHeat >= 42 ? 'อันตราย!' : 'เตือนภัย';
         let act = maxHeat >= 42 ? 'หลีกเลี่ยงกิจกรรมกลางแจ้งเด็ดขาด' : 'ลดระยะเวลากิจกรรมกลางแจ้ง';
         generatedAlerts.push({ type: 'heat', icon: '🥵', color: '#ea580c', title: `อากาศร้อน${levelText}`, desc: `ดัชนีความร้อนสูงสุดคาดว่าจะแตะ ${maxHeat.toFixed(1)}°C (ช่วงเวลา: ${formatTime(heatTime)}) ${act} และดื่มน้ำให้เพียงพอ` });
       }
       if (maxPm >= 37.5) {
-        let pmAct = maxPm >= 75 ? 'งดกิจกรรมกลางแจ้ง' : 'ควรสวมหน้ากากอนามัย';
+        let pmAct = maxPm >= 75 ? 'งดกิจกรรมกลางแจ้ง' : 'ควรสวมหน้ากาก N95';
         generatedAlerts.push({ type: 'pm25', icon: '😷', color: '#f59e0b', title: 'เฝ้าระวังฝุ่น PM2.5', desc: `ค่าฝุ่นมีแนวโน้มเพิ่มสูงขึ้นแตะ ${maxPm.toFixed(1)} µg/m³ (ช่วงเวลา: ${formatTime(pmTime)}) ${pmAct} หากออกนอกอาคาร` });
       }
       if (maxUv >= 8) {
@@ -627,7 +645,6 @@ export default function App() {
               <div className="hide-scrollbar" style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: 'rgba(255,255,255,0.15)', padding: '6px 15px', borderRadius: '30px', backdropFilter: 'blur(5px)', border: '1px solid rgba(255,255,255,0.3)', overflowX: 'auto', whiteSpace: 'nowrap' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <label style={{ fontWeight: 'bold', color: '#fff', fontSize: '0.9rem' }}>🗺️</label>
-                  {/* 🚀 แก้ไขสีพื้นหลัง dropdown ให้เป็นสีขาวอ่านง่ายตามเดิม */}
                   <select value={selectedProvince} onChange={(e) => { setSelectedProvince(e.target.value); setSelectedStationId(''); setActiveStation(null); setShowRadar(false); }} style={{ padding: '8px 12px', borderRadius: '20px', border: 'none', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.95rem', minWidth: '150px', outline: 'none', cursor: 'pointer', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}>
                     <option value="">ทุกจังหวัด</option>{provinces.map(prov => (<option key={prov} value={prov}>{prov}</option>))}
                   </select>
@@ -667,7 +684,6 @@ export default function App() {
           <div style={{ display: 'flex', gap: '15px', flexDirection: window.innerWidth < 768 ? 'column' : 'row', padding: '15px' }}>
             
             {/* MAP */}
-            {/* 🚀 แก้ไขความสูงแผนที่ให้พอดีและไม่มีพื้นที่สีฟ้าว่างๆ ด้านล่าง */}
             <div style={{ flex: 7, borderRadius: '12px', overflow: 'hidden', position: 'relative', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', border: `1px solid ${borderColor}`, height: window.innerWidth < 768 ? '60vh' : 'calc(100vh - 120px)' }}>
               <div className="hide-scrollbar" style={{ position: 'absolute', top: '15px', right: '15px', zIndex: 500, background: darkMode ? 'rgba(30,41,59,0.9)' : 'rgba(255,255,255,0.9)', padding: '5px 10px', borderRadius: '30px', boxShadow: '0 4px 15px rgba(0,0,0,0.15)', display: 'flex', alignItems: 'center', gap: '8px', backdropFilter: 'blur(4px)', maxWidth: '85%', overflowX: 'auto', whiteSpace: 'nowrap' }}>
                 <button onClick={() => handleViewModeChange('pm25')} style={{ padding: '6px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem', backgroundColor: isPm25Mode ? '#0ea5e9' : 'transparent', color: isPm25Mode ? '#fff' : subTextColor }}>☁️ PM2.5</button>
@@ -693,7 +709,6 @@ export default function App() {
                 </div>
               )}
 
-              {/* 🚀 รับประกันแผนที่เต็มกรอบด้วย height: 100% */}
               <MapContainer center={[13.5, 101.0]} zoom={6} style={{ height: '100%', width: '100%', backgroundColor: darkMode ? '#1a202c' : '#bae6fd', zIndex: 1 }}>
                 
                 <LayersControl position="bottomleft">
@@ -741,7 +756,6 @@ export default function App() {
             </div>
 
             {/* SIDEBAR RIGHT LIST */}
-            {/* 🚀 แก้ไขความสูงกรอบขวามือให้สัมพันธ์กับหน้าจอ */}
             <div style={{ flex: 3, minWidth: window.innerWidth < 768 ? '100%' : '380px', maxWidth: window.innerWidth < 768 ? '100%' : '450px', backgroundColor: cardBg, borderRadius: '12px', display: 'flex', flexDirection: 'column', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', border: `1px solid ${borderColor}`, height: window.innerWidth < 768 ? '500px' : 'calc(100vh - 120px)' }}>
               <div style={{ padding: '15px 20px', background: darkMode ? '#0f172a' : (isPm25Mode ? '#f0f9ff' : isTempMode ? '#f0fdf4' : isUvMode ? '#faf5ff' : isRainMode ? '#eff6ff' : isWindMode ? '#f8fafc' : '#fff7ed'), borderBottom: `1px solid ${borderColor}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <h2 style={{ fontSize: '1rem', color: textColor, margin: 0, fontWeight: 'bold' }}>{activeChart.name} <span style={{fontSize: '0.85rem', fontWeight: 'normal', color: subTextColor}}>({filteredStations.length} จุด)</span></h2>
@@ -798,7 +812,7 @@ export default function App() {
                         <div style={{ marginTop: '12px', padding: '10px', backgroundColor: darkMode ? '#334155' : '#f8fafc', borderRadius: '8px', border: `1px dashed ${boxBgColor}`, display: 'flex', gap: '8px', alignItems: 'flex-start' }}><span style={{ fontSize: '1.2rem' }}>{healthAdvice.icon}</span><span style={{ fontSize: '0.8rem', color: textColor, lineHeight: 1.4 }}>{healthAdvice.text}</span></div>
                       )}
 
-                      {/* กราฟแท่งจิ๋วพยากรณ์ล่วงหน้า */}
+                      {/* 🚀 กราฟแท่งจิ๋วพยากรณ์ล่วงหน้า (ในการ์ด) */}
                       {isActive && (
                         <div style={{ borderTop: `1px solid ${borderColor}`, marginTop: '15px', paddingTop: '15px' }}>
                           {isPm25Mode ? (
@@ -861,7 +875,6 @@ export default function App() {
           </div>
 
           {/* ======================= DYNAMIC DASHBOARD BOTTOM ======================= */}
-          {/* 🚀 Dashboard กลับมาแล้วอย่างสวยงาม */}
           <div style={{ padding: '15px', paddingTop: '5px', paddingBottom: '30px' }}>
             <div style={{ backgroundColor: cardBg, borderRadius: '12px', padding: window.innerWidth < 768 ? '15px' : '25px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', border: `1px solid ${borderColor}` }}>
               
@@ -1007,7 +1020,7 @@ export default function App() {
             )}
 
             <div style={{ marginTop: '40px', display: 'flex', flexDirection: 'column', gap: '15px', textAlign: 'left' }}>
-              {alertsLoading ? null : alertsData.length > 0 ? (
+              {alertsLoading ? null : alertsData.length > 0 && (
                 alertsData.map((alert, idx) => (
                   <div key={idx} style={{ display: 'flex', gap: '15px', backgroundColor: darkMode ? '#1e293b' : '#fff', padding: '20px', borderRadius: '12px', borderLeft: `6px solid ${alert.color}`, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
                     <div style={{ fontSize: '2.5rem', display: 'flex', alignItems: 'center' }}>{alert.icon}</div>
@@ -1017,15 +1030,7 @@ export default function App() {
                     </div>
                   </div>
                 ))
-              ) : alertsLocationName ? (
-                <div style={{ display: 'flex', gap: '15px', backgroundColor: darkMode ? '#1e293b' : '#f0fdf4', padding: '20px', borderRadius: '12px', borderLeft: `6px solid #22c55e`, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-                  <div style={{ fontSize: '2.5rem', display: 'flex', alignItems: 'center' }}>🟢</div>
-                  <div>
-                    <h4 style={{ margin: '0 0 5px 0', fontSize: '1.2rem', color: '#16a34a', fontWeight: 'bold' }}>สภาพอากาศปลอดภัย</h4>
-                    <p style={{ margin: 0, color: textColor, fontSize: '1rem', lineHeight: 1.5 }}>พิกัดของคุณในอีก 24 ชั่วโมงข้างหน้า ท้องฟ้าแจ่มใส ฝุ่นน้อย และอุณหภูมิอยู่ในเกณฑ์ปกติ เหมาะสำหรับการทำกิจกรรมกลางแจ้งครับ!</p>
-                  </div>
-                </div>
-              ) : null}
+              )}
             </div>
 
           </div>
