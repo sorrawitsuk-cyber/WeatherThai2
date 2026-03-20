@@ -48,17 +48,20 @@ const getTempColor = (val) => {
 
 const getHeatIndexAlert = (feelsLike) => {
   if (isNaN(feelsLike) || feelsLike === null) return { text: 'ไม่มีข้อมูล', color: '#666', bg: '#eee', bar: '#ccc', icon: '❓' };
-  if (feelsLike >= 41) return { text: 'อันตราย (เสี่ยงฮีทสโตรก)', color: '#dc2626', bg: '#fee2e2', bar: '#ef4444', icon: '🥵' };
-  if (feelsLike >= 32) return { text: 'เตือนภัย (เพลียแดด)', color: '#ea580c', bg: '#ffedd5', bar: '#f97316', icon: '😰' };
-  if (feelsLike >= 27) return { text: 'เฝ้าระวัง', color: '#ca8a04', bg: '#fef9c3', bar: '#eab308', icon: '😅' };
-  return { text: 'ปกติ', color: '#16a34a', bg: '#dcfce7', bar: '#22c55e', icon: '😊' };
+  // อิงตามเกณฑ์ กรมอุตุฯ / กรมอนามัย / กทม.
+  if (feelsLike >= 52.0) return { text: 'อันตรายมาก (เสี่ยงฮีทสโตรกสูง)', color: '#dc2626', bg: '#fee2e2', bar: '#ef4444', icon: '🚨' };
+  if (feelsLike >= 42.0) return { text: 'อันตราย (หลีกเลี่ยงกลางแจ้ง)', color: '#ea580c', bg: '#ffedd5', bar: '#f97316', icon: '🥵' };
+  if (feelsLike >= 33.0) return { text: 'เตือนภัย (ลดกิจกรรมกลางแจ้ง)', color: '#ca8a04', bg: '#fef9c3', bar: '#eab308', icon: '😰' };
+  if (feelsLike >= 27.0) return { text: 'เฝ้าระวัง (ดูแลสุขภาพทั่วไป)', color: '#16a34a', bg: '#dcfce7', bar: '#22c55e', icon: '😅' };
+  return { text: 'ปกติ', color: '#0284c7', bg: '#e0f2fe', bar: '#3b82f6', icon: '😊' };
 };
 
 const getHeatHealthAdvice = (val) => {
   if (isNaN(val) || val === null) return null;
-  if (val >= 41) return { text: "อันตรายมาก! หลีกเลี่ยงการอยู่กลางแดดจัด อาจเกิดโรคลมแดด (Heatstroke) ได้", icon: "🚑" };
-  if (val >= 32) return { text: "ควรดื่มน้ำให้มากๆ หลีกเลี่ยงการออกกำลังกายกลางแจ้งเป็นเวลานาน", icon: "💧" };
-  if (val >= 27) return { text: "อากาศเริ่มร้อน สังเกตอาการตนเอง ดื่มน้ำอย่างสม่ำเสมอ", icon: "🥤" };
+  if (val >= 52.0) return { text: "อันตรายมาก! งดกิจกรรมกลางแจ้งโดยเด็ดขาด มีความเสี่ยงเกิดโรคลมร้อน (Heat Stroke) สูงมาก", icon: "🚑" };
+  if (val >= 42.0) return { text: "อันตราย! ควรหลีกเลี่ยงกิจกรรมกลางแจ้งเป็นเวลานาน", icon: "⛔" };
+  if (val >= 33.0) return { text: "เตือนภัย! ควรลดระยะเวลากิจกรรมกลางแจ้ง และดื่มน้ำให้เพียงพอ", icon: "💧" };
+  if (val >= 27.0) return { text: "เฝ้าระวัง! อากาศเริ่มร้อน ควรดูแลสุขภาพทั่วไปและสังเกตอาการตนเอง", icon: "🥤" };
   return null;
 };
 
@@ -123,7 +126,10 @@ const extractProvince = (areaTH) => {
 const legendData = {
   pm25: { title: 'ระดับ PM2.5 (µg/m³)', items: [{ color: '#00b0f0', label: '0-15.0 (ดีมาก)' },{ color: '#92d050', label: '15.1-25.0 (ดี)' },{ color: '#ffff00', label: '25.1-37.5 (ปานกลาง)' },{ color: '#ffc000', label: '37.6-75.0 (เริ่มมีผลกระทบฯ)' },{ color: '#ff0000', label: '> 75.0 (มีผลกระทบฯ)' }]},
   temp: { title: 'อุณหภูมิ (°C)', items: [{ color: '#3498db', label: '< 27 (เย็นสบาย)' },{ color: '#2ecc71', label: '27-32 (ปกติ)' },{ color: '#f1c40f', label: '33-35 (ร้อน)' },{ color: '#e67e22', label: '36-38 (ร้อนมาก)' },{ color: '#e74c3c', label: '> 38 (ร้อนจัด)' }]},
-  heat: { title: 'Heat Index (°C)', items: [{ color: '#22c55e', label: '< 27 (ปกติ)' },{ color: '#eab308', label: '27-31 (เฝ้าระวัง)' },{ color: '#f97316', label: '32-40 (เตือนภัย)' },{ color: '#ef4444', label: '> 41 (อันตราย)' }]},
+  
+  // 🚀 อัปเดตคำอธิบายสี Heat Index ตาม กทม.
+  heat: { title: 'ดัชนีความร้อน (°C)', items: [{ color: '#3b82f6', label: '< 27.0 (ปกติ)' },{ color: '#22c55e', label: '27.0-32.9 (เฝ้าระวัง)' },{ color: '#eab308', label: '33.0-41.9 (เตือนภัย)' },{ color: '#f97316', label: '42.0-51.9 (อันตราย)' },{ color: '#ef4444', label: '≥ 52.0 (อันตรายมาก)' }]},
+  
   uv: { title: 'รังสี UV', items: [{ color: '#2ecc71', label: '0-2 (ต่ำ)' },{ color: '#f1c40f', label: '3-5 (ปานกลาง)' },{ color: '#e67e22', label: '6-7 (สูง)' },{ color: '#e74c3c', label: '8-10 (สูงมาก)' },{ color: '#9b59b6', label: '> 10 (อันตราย)' }]},
   rain: { title: 'โอกาสเกิดฝน (%)', items: [{ color: '#95a5a6', label: '0 (ไม่มีฝน)' },{ color: '#74b9ff', label: '1-30 (โอกาสต่ำ)' },{ color: '#0984e3', label: '31-60 (ปานกลาง)' },{ color: '#273c75', label: '61-80 (โอกาสสูง)' },{ color: '#192a56', label: '> 80 (ตกหนัก)' }]},
   wind: { title: 'ความเร็วลม (km/h)', items: [{ color: '#00b0f0', label: '0-10 (ลมอ่อน)' },{ color: '#2ecc71', label: '11-25 (ลมปานกลาง)' },{ color: '#f1c40f', label: '26-40 (ลมแรง)' },{ color: '#e67e22', label: '41-60 (ลมแรงมาก)' },{ color: '#e74c3c', label: '> 60 (พายุ)' }]}
