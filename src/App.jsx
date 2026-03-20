@@ -48,7 +48,6 @@ const getTempColor = (val) => {
 
 const getHeatIndexAlert = (feelsLike) => {
   if (isNaN(feelsLike) || feelsLike === null) return { text: 'ไม่มีข้อมูล', color: '#666', bg: '#eee', bar: '#ccc', icon: '❓' };
-  // อิงตามเกณฑ์ กรมอุตุฯ / กรมอนามัย / กทม.
   if (feelsLike >= 52.0) return { text: 'อันตรายมาก (เสี่ยงฮีทสโตรกสูง)', color: '#dc2626', bg: '#fee2e2', bar: '#ef4444', icon: '🚨' };
   if (feelsLike >= 42.0) return { text: 'อันตราย (หลีกเลี่ยงกลางแจ้ง)', color: '#ea580c', bg: '#ffedd5', bar: '#f97316', icon: '🥵' };
   if (feelsLike >= 33.0) return { text: 'เตือนภัย (ลดกิจกรรมกลางแจ้ง)', color: '#ca8a04', bg: '#fef9c3', bar: '#eab308', icon: '😰' };
@@ -72,6 +71,14 @@ const getUvColor = (val) => {
   if (val <= 7) return { bg: '#e67e22', text: '#fff', bar: '#e67e22', label: 'สูง (High)' };
   if (val <= 10) return { bg: '#e74c3c', text: '#fff', bar: '#e74c3c', label: 'สูงมาก (V.High)' };
   return { bg: '#9b59b6', text: '#fff', bar: '#9b59b6', label: 'อันตราย (Extreme)' };
+};
+
+const getUvHealthAdvice = (val) => {
+  if (isNaN(val) || val === null) return null;
+  if (val > 10) return { text: "หลีกเลี่ยงการออกแดดเด็ดขาด ผิวหนังและดวงตาอาจไหม้ได้ในเวลาไม่กี่นาที", icon: "⛔" };
+  if (val >= 8) return { text: "ควรอยู่ในที่ร่ม หากต้องออกแดดต้องทาครีมกันแดด SPF50+ ใส่เสื้อแขนยาว หมวก และแว่นตากันแดด", icon: "☂️" };
+  if (val >= 6) return { text: "ควรทาครีมกันแดด สวมหมวก หรือกางร่มเมื่อออกแดด", icon: "🧢" };
+  return null;
 };
 
 const getRainColor = (val) => {
@@ -126,10 +133,7 @@ const extractProvince = (areaTH) => {
 const legendData = {
   pm25: { title: 'ระดับ PM2.5 (µg/m³)', items: [{ color: '#00b0f0', label: '0-15.0 (ดีมาก)' },{ color: '#92d050', label: '15.1-25.0 (ดี)' },{ color: '#ffff00', label: '25.1-37.5 (ปานกลาง)' },{ color: '#ffc000', label: '37.6-75.0 (เริ่มมีผลกระทบฯ)' },{ color: '#ff0000', label: '> 75.0 (มีผลกระทบฯ)' }]},
   temp: { title: 'อุณหภูมิ (°C)', items: [{ color: '#3498db', label: '< 27 (เย็นสบาย)' },{ color: '#2ecc71', label: '27-32 (ปกติ)' },{ color: '#f1c40f', label: '33-35 (ร้อน)' },{ color: '#e67e22', label: '36-38 (ร้อนมาก)' },{ color: '#e74c3c', label: '> 38 (ร้อนจัด)' }]},
-  
-  // 🚀 อัปเดตคำอธิบายสี Heat Index ตาม กทม.
   heat: { title: 'ดัชนีความร้อน (°C)', items: [{ color: '#3b82f6', label: '< 27.0 (ปกติ)' },{ color: '#22c55e', label: '27.0-32.9 (เฝ้าระวัง)' },{ color: '#eab308', label: '33.0-41.9 (เตือนภัย)' },{ color: '#f97316', label: '42.0-51.9 (อันตราย)' },{ color: '#ef4444', label: '≥ 52.0 (อันตรายมาก)' }]},
-  
   uv: { title: 'รังสี UV', items: [{ color: '#2ecc71', label: '0-2 (ต่ำ)' },{ color: '#f1c40f', label: '3-5 (ปานกลาง)' },{ color: '#e67e22', label: '6-7 (สูง)' },{ color: '#e74c3c', label: '8-10 (สูงมาก)' },{ color: '#9b59b6', label: '> 10 (อันตราย)' }]},
   rain: { title: 'โอกาสเกิดฝน (%)', items: [{ color: '#95a5a6', label: '0 (ไม่มีฝน)' },{ color: '#74b9ff', label: '1-30 (โอกาสต่ำ)' },{ color: '#0984e3', label: '31-60 (ปานกลาง)' },{ color: '#273c75', label: '61-80 (โอกาสสูง)' },{ color: '#192a56', label: '> 80 (ตกหนัก)' }]},
   wind: { title: 'ความเร็วลม (km/h)', items: [{ color: '#00b0f0', label: '0-10 (ลมอ่อน)' },{ color: '#2ecc71', label: '11-25 (ลมปานกลาง)' },{ color: '#f1c40f', label: '26-40 (ลมแรง)' },{ color: '#e67e22', label: '41-60 (ลมแรงมาก)' },{ color: '#e74c3c', label: '> 60 (พายุ)' }]}
@@ -139,7 +143,7 @@ const chartConfigs = {
   pm25: { key: 'pm25', name: 'PM2.5', unit: 'µg/m³', color: '#f59e0b', hasLY: false, type: 'area' },
   temp: { key: 'temp', keyLY: 'tempLY', name: 'อุณหภูมิสูงสุด', unit: '°C', color: '#ef4444', hasLY: true, type: 'line' },
   heat: { key: 'heat', keyLY: 'heatLY', name: 'Heat Index สูงสุด', unit: '°C', color: '#ea580c', hasLY: true, type: 'line' },
-  uv:   { key: 'uv', keyLY: null, name: 'ดัชนีรังสี UV', unit: 'UV', color: '#a855f7', hasLY: false, type: 'area' }, 
+  uv:   { key: 'uv', keyLY: null, name: 'ดัชนีรังสี UV', unit: 'UV', color: '#a855f7', hasLY: false, type: 'area' },
   rain: { key: 'rain', keyLY: 'rainLY', name: 'ปริมาณฝนสะสม', unit: 'mm', color: '#3b82f6', hasLY: true, type: 'bar' },
   wind: { key: 'wind', keyLY: 'windLY', name: 'ความเร็วลมสูงสุด', unit: 'km/h', color: '#64748b', hasLY: true, type: 'line' },
 };
@@ -334,7 +338,9 @@ export default function App() {
           if (r && r.current && r.daily) {
             newTemps[chunk[idx].stationID] = {
               temp: r.current.temperature_2m, feelsLike: r.current.apparent_temperature, humidity: r.current.relative_humidity_2m, windSpeed: r.current.wind_speed_10m, windDir: r.current.wind_direction_10m, weatherCode: r.current.weather_code,
-              tempMin: r.daily.temperature_2m_min[1], tempMax: r.daily.temperature_2m_max[1], heatMin: r.daily.apparent_temperature_min[1], heatMax: r.daily.apparent_temperature_max[1], tempYesterdayMax: r.daily.temperature_2m_max[0], uvMax: r.daily.uv_index_max[1], rainProb: r.daily.precipitation_probability_max[1], windMax: r.daily.wind_speed_10m_max[1] 
+              tempMin: r.daily.temperature_2m_min[1], tempMax: r.daily.temperature_2m_max[1], heatMin: r.daily.apparent_temperature_min[1], heatMax: r.daily.apparent_temperature_max[1], tempYesterdayMax: r.daily.temperature_2m_max[0], 
+              uvMax: r.daily.uv_index_max ? (r.daily.uv_index_max[1] || 0) : 0, 
+              rainProb: r.daily.precipitation_probability_max[1], windMax: r.daily.wind_speed_10m_max[1] 
             };
           }
         });
@@ -405,29 +411,29 @@ export default function App() {
           let dateStr = dateObj.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
           let dayName = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'][dateObj.getDay()];
 
-          let avgPm25 = null;
+          let avgPm25 = 0; // เปลี่ยนจาก null เป็น 0 ป้องกันกราฟ error
           if (dataA.hourly && dataA.hourly.pm2_5) {
             const startIdx = i * 24;
             const hours = dataA.hourly.pm2_5.slice(startIdx, startIdx + 24).filter(v => v !== null);
-            avgPm25 = hours.length > 0 ? Math.round(hours.reduce((a, b) => a + b, 0) / hours.length) : null;
+            avgPm25 = hours.length > 0 ? Math.round(hours.reduce((a, b) => a + b, 0) / hours.length) : 0;
           }
 
           let dayData = {
             date: dateStr,
             dayName: dayName,
-            temp: dataW.daily.temperature_2m_max[i] || null,
-            heat: dataW.daily.apparent_temperature_max[i] || null,
+            temp: dataW.daily.temperature_2m_max[i] || 0,
+            heat: dataW.daily.apparent_temperature_max[i] || 0,
             rain: dataW.daily.precipitation_sum[i] || 0,
-            wind: dataW.daily.wind_speed_10m_max[i] || null,
-            uv: dataW.daily.uv_index_max ? dataW.daily.uv_index_max[i] : null,
+            wind: dataW.daily.wind_speed_10m_max[i] || 0,
+            uv: dataW.daily.uv_index_max ? (dataW.daily.uv_index_max[i] || 0) : 0,
             pm25: avgPm25
           };
 
           if (i < 14) {
-            dayData.tempLY = dataArc.daily?.temperature_2m_max ? dataArc.daily.temperature_2m_max[i] : null;
-            dayData.heatLY = dataArc.daily?.apparent_temperature_max ? dataArc.daily.apparent_temperature_max[i] : null;
-            dayData.rainLY = dataArc.daily?.precipitation_sum ? dataArc.daily.precipitation_sum[i] : null;
-            dayData.windLY = dataArc.daily?.wind_speed_10m_max ? dataArc.daily.wind_speed_10m_max[i] : null;
+            dayData.tempLY = dataArc.daily?.temperature_2m_max ? (dataArc.daily.temperature_2m_max[i] || 0) : 0;
+            dayData.heatLY = dataArc.daily?.apparent_temperature_max ? (dataArc.daily.apparent_temperature_max[i] || 0) : 0;
+            dayData.rainLY = dataArc.daily?.precipitation_sum ? (dataArc.daily.precipitation_sum[i] || 0) : 0;
+            dayData.windLY = dataArc.daily?.wind_speed_10m_max ? (dataArc.daily.wind_speed_10m_max[i] || 0) : 0;
             histArray.push(dayData);
           } else {
             if (i === 14) dayData.date = 'วันนี้';
@@ -492,12 +498,9 @@ export default function App() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100vw', backgroundColor: themeBg, fontFamily: "'Kanit', sans-serif", transition: 'background-color 0.3s', overflowY: 'auto' }}>
       
-      {/* ======================= HEADER 6.1 (จัดระเบียบใหม่ชิดซ้ายสวยงาม) ======================= */}
+      {/* ======================= HEADER ======================= */}
       <header style={{ background: darkMode ? 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)' : 'linear-gradient(135deg, #0ea5e9 0%, #3b82f6 100%)', color: '#fff', padding: '12px 25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 4px 10px rgba(0,0,0,0.1)', zIndex: 1000, flexWrap: 'wrap', gap: '15px' }}>
-        
-        {/* 🚀 กรุ๊ปซ้าย: โลโก้ + ตัวกรอง (ย้ายมาไว้ชิดซ้ายให้เป็นระเบียบ) */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap', flex: 1 }}>
-          
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flexWrap: 'wrap', flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
             <div style={{ fontSize: '1.8rem', background: '#fff', borderRadius: '50%', padding: '5px', width: '48px', height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 5px rgba(0,0,0,0.15)' }}>{darkMode ? '🌙' : '🌤️'}</div>
             <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
@@ -505,9 +508,7 @@ export default function App() {
               <p style={{ margin: 0, fontSize: '0.8rem', color: '#cbd5e1', whiteSpace: 'nowrap' }}>ระบบเฝ้าระวังคุณภาพอากาศและสภาพอากาศ</p>
             </div>
           </div>
-
           <div style={{ width: '1px', height: '35px', backgroundColor: 'rgba(255,255,255,0.3)', display: window.innerWidth < 1024 ? 'none' : 'block' }}></div>
-
           <div className="hide-scrollbar" style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: 'rgba(255,255,255,0.15)', padding: '6px 15px', borderRadius: '30px', backdropFilter: 'blur(5px)', border: '1px solid rgba(255,255,255,0.3)', overflowX: 'auto', whiteSpace: 'nowrap' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <label style={{ fontWeight: 'bold', color: '#fff', fontSize: '0.9rem' }}>🗺️</label>
@@ -527,7 +528,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* 🚀 กรุ๊ปขวา: เวลาอัปเดต + Dark Mode */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
           <div style={{ fontSize: '0.8rem', color: '#e0f2fe', display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: 'rgba(0,0,0,0.2)', padding: '8px 12px', borderRadius: '20px' }}>
             <span>⏱️</span> <span style={{display: window.innerWidth < 768 ? 'none' : 'inline'}}>อัปเดต: </span><strong style={{ color: '#fff' }}>{lastUpdateText || '...'}</strong>
@@ -605,12 +605,14 @@ export default function App() {
               const pm25Value = Number(station.AQILast?.PM25?.value); const aqiValue = station.AQILast?.AQI?.aqi || '--'; const aqiInfo = getAqiDetails(station.AQILast?.AQI?.aqi);
               const isActive = activeStation?.stationID === station.stationID; const tObj = stationTemps[station.stationID];
               let displayMainVal = '-', unitLabel = '', boxBgColor = '#ccc';
+              
               if (isPm25Mode) { displayMainVal = isNaN(pm25Value) ? '-' : pm25Value; unitLabel = 'µg/m³'; boxBgColor = getPM25Color(pm25Value); }
               else if (isTempMode) { displayMainVal = tObj?.temp !== undefined ? tObj.temp.toFixed(1) : '-'; unitLabel = '°C'; boxBgColor = getTempColor(tObj?.temp).bar; }
               else if (isHeatMode) { displayMainVal = tObj?.feelsLike !== undefined ? tObj.feelsLike.toFixed(1) : '-'; unitLabel = '°C'; boxBgColor = tObj ? getHeatIndexAlert(tObj.feelsLike).bar : '#ccc'; }
               else if (isUvMode) { displayMainVal = tObj?.uvMax !== undefined ? tObj.uvMax : '-'; unitLabel = 'UV'; boxBgColor = tObj ? getUvColor(tObj.uvMax).bar : '#ccc'; }
               else if (isRainMode) { displayMainVal = tObj?.rainProb !== undefined ? `${tObj.rainProb}%` : '-'; unitLabel = 'ตก'; boxBgColor = tObj ? getRainColor(tObj.rainProb).bar : '#ccc'; }
               else if (isWindMode) { displayMainVal = tObj?.windSpeed !== undefined ? tObj.windSpeed : '-'; unitLabel = 'km/h'; boxBgColor = tObj ? getWindColor(tObj.windSpeed).bar : '#ccc'; }
+              
               let healthAdvice = null;
               if (isPm25Mode) healthAdvice = getPM25HealthAdvice(pm25Value); else if (isHeatMode) healthAdvice = getHeatHealthAdvice(tObj?.feelsLike); else if (isUvMode) healthAdvice = getUvHealthAdvice(tObj?.uvMax);
 
@@ -627,7 +629,8 @@ export default function App() {
                           <div style={{ width: '100%' }}>
                             {tObj ? (
                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: subTextColor, fontWeight: 'bold' }}>
-                                {isUvMode ? (<span style={{ color: getUvColor(tObj.uvMax).color }}>ระดับ: {getUvColor(tObj.uvMax).label}</span>) 
+                                {/* 🚀 แก้ไขโค้ดส่วนของ span color ที่ทำให้เจอหน้าจอขาวใน UV โหมดให้ปลอดภัย 100% */}
+                                {isUvMode ? (<span style={{ color: getUvColor(tObj?.uvMax).bar }}>ระดับ: {getUvColor(tObj?.uvMax).label}</span>) 
                                 : isRainMode ? (<><span style={{color: '#0ea5e9'}}>💧 ชื้น: {tObj.humidity}%</span><span style={{color: darkMode ? '#475569' : '#cbd5e1'}}>|</span><span style={{color: '#0ea5e9'}}>{getRainColor(tObj.rainProb).label}</span></>) 
                                 : isHeatMode ? (<><span><span style={{color: '#3b82f6'}}>●</span>ต่ำ {tObj.heatMin?.toFixed(1)}°</span><span style={{color: darkMode ? '#475569' : '#cbd5e1'}}>|</span><span><span style={{color: '#ef4444'}}>●</span>สูง {tObj.heatMax?.toFixed(1)}°</span></>) 
                                 : isWindMode ? (<><span style={{color: subTextColor}}>ลม: <span style={{ transform: `rotate(${tObj.windDir}deg)`, display: 'inline-block' }}>↓</span></span><span style={{color: darkMode ? '#475569' : '#cbd5e1'}}>|</span><span style={{color: subTextColor}}>แรงสุด: {tObj.windMax} km/h</span></>) 
@@ -701,6 +704,7 @@ export default function App() {
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#334155' : '#e2e8f0'} />
                         <XAxis dataKey="date" stroke={subTextColor} fontSize={11} tickMargin={10} />
+                        {/* 🚀 ลบ domain=['auto','auto'] ทิ้งไปเพื่อป้องกันบั๊กหน้าจอขาว */}
                         <YAxis stroke={subTextColor} fontSize={11} />
                         <Tooltip contentStyle={{ backgroundColor: cardBg, borderColor: borderColor, color: textColor, borderRadius: '8px' }} formatter={(val) => [val, activeChart.name]} />
                         <Legend wrapperStyle={{ paddingTop: '15px' }} />
@@ -710,7 +714,8 @@ export default function App() {
                       <LineChart data={dashHistory} margin={{ top: 5, right: 10, bottom: 5, left: -20 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#334155' : '#e2e8f0'} />
                         <XAxis dataKey="date" stroke={subTextColor} fontSize={11} tickMargin={10} />
-                        <YAxis stroke={subTextColor} fontSize={11} domain={['auto', 'auto']} />
+                        {/* 🚀 ลบ domain=['auto','auto'] ทิ้งไปเพื่อป้องกันบั๊กหน้าจอขาว */}
+                        <YAxis stroke={subTextColor} fontSize={11} />
                         <Tooltip contentStyle={{ backgroundColor: cardBg, borderColor: borderColor, color: textColor, borderRadius: '8px' }} formatter={(val) => [val, activeChart.name]} />
                         <Legend wrapperStyle={{ paddingTop: '15px' }} />
                         <Line type="monotone" dataKey={activeChart.key} name={`ปีนี้ (${activeChart.unit})`} stroke={activeChart.color} strokeWidth={3} activeDot={{ r: 6 }} />
@@ -747,7 +752,8 @@ export default function App() {
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#334155' : '#e2e8f0'} />
                         <XAxis dataKey="date" stroke={subTextColor} fontSize={11} tickMargin={10} />
-                        <YAxis stroke={subTextColor} fontSize={11} domain={['auto', 'auto']} />
+                        {/* 🚀 ลบ domain=['auto','auto'] ทิ้งไปเพื่อป้องกันบั๊กหน้าจอขาว */}
+                        <YAxis stroke={subTextColor} fontSize={11} />
                         <Tooltip contentStyle={{ backgroundColor: cardBg, borderColor: borderColor, color: textColor, borderRadius: '8px' }} labelFormatter={(l, p) => (p && p.length > 0 && p[0].payload) ? p[0].payload.dayName : l} formatter={(val) => [val, activeChart.name]} />
                         <Legend wrapperStyle={{ paddingTop: '15px' }} />
                         <Area type="monotone" dataKey={activeChart.key} name={`พยากรณ์ ${activeChart.unit}`} stroke={activeChart.color} strokeWidth={3} fillOpacity={1} fill="url(#colorFore)" />
