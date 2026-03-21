@@ -593,8 +593,48 @@ export default function App() {
                   </div>
                 </div>
               )}
+                {/* 🚨 แถบเตือนภัยฉุกเฉินระยะประชิด (Nowcasting Alert) โผล่ทับบนแผนที่ */}
+              {activeStation && (() => {
+                const isWeatherOnly = activeStation.isWeatherStation;
+                const pmVal = isWeatherOnly ? null : Number(activeStation.AQILast?.PM25?.value);
+                const tObj = stationTemps[activeStation.stationID];
+                let alerts = [];
+
+                // เช็คเงื่อนไขวิกฤต "ณ ปัจจุบัน" หรือ "กำลังจะเกิด"
+                if (!isWeatherOnly && pmVal >= 75) alerts.push({ text: `วิกฤต! ฝุ่น PM2.5 ทะลุ ${pmVal} µg/m³ ควรงดออกนอกอาคารเด็ดขาด`, color: '#ef4444' });
+                else if (!isWeatherOnly && pmVal >= 37.5) alerts.push({ text: `เตือนภัย: ฝุ่นเริ่มหนาแน่น (${pmVal} µg/m³) ควรใส่หน้ากาก N95`, color: '#f59e0b' });
+                
+                if (tObj?.rainProb >= 60) alerts.push({ text: `เตือนภัย: พื้นที่นี้มีโอกาสฝนตกสูงถึง ${tObj.rainProb}% ในขณะนี้! แนะนำให้เปิดดูเรดาร์ฝน`, color: '#3b82f6', action: 'radar' });
+                
+                if (tObj?.feelsLike >= 42) alerts.push({ text: `อันตราย! ดัชนีความร้อนพุ่งสูง ${tObj.feelsLike.toFixed(1)}°C เสี่ยงฮีทสโตรกเฉียบพลัน`, color: '#ef4444' });
+                else if (tObj?.feelsLike >= 35) alerts.push({ text: `อากาศร้อนจัด รู้สึกเหมือน ${tObj.feelsLike.toFixed(1)}°C ควรหลีกเลี่ยงแดดจัด`, color: '#f97316' });
+
+                if (tObj?.windSpeed >= 40) alerts.push({ text: `ระวัง! ลมกระโชกแรง ความเร็วลม ${tObj.windSpeed} km/h`, color: '#8b5cf6' });
+
+                if (alerts.length === 0) return null;
+
+                return (
+                  <div style={{ position: 'absolute', top: '70px', left: '50%', transform: 'translateX(-50%)', zIndex: 1000, width: '90%', maxWidth: '500px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {alerts.map((al, idx) => (
+                      <div key={idx} style={{ backgroundColor: al.color, color: '#fff', padding: '12px 20px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 6px 20px rgba(0,0,0,0.25)', animation: 'pulse 2s infinite' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.95rem', fontWeight: 'bold' }}>
+                          <span style={{ fontSize: '1.4rem' }}>🚨</span> {al.text}
+                        </div>
+                        {al.action === 'radar' && !showRadar && (
+                          <button onClick={toggleRadar} style={{ backgroundColor: '#fff', color: al.color, border: 'none', padding: '6px 12px', borderRadius: '20px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
+                            📡 เปิดเรดาร์
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    {/* ใส่ CSS Animation ดุ๊กดิ๊กให้ป้ายเตือนภัย */}
+                    <style>{`@keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.02); } 100% { transform: scale(1); } }`}</style>
+                  </div>
+                );
+              })()}
 
               <MapContainer center={[13.5, 101.0]} zoom={6} style={{ height: '100%', width: '100%', zIndex: 1, backgroundColor: darkMode ? '#1a202c' : '#bae6fd' }}>
+                {/* ... (โค้ด MapContainer เดิม) ... */}
                 <LayersControl position="bottomleft">
                   <LayersControl.BaseLayer checked name="🗺️ แผนที่ปกติ (Default)">
                     <TileLayer url={darkMode ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"} />
