@@ -20,7 +20,6 @@ const getRainColor = (val) => { return (isNaN(val)||val===null)?{bg:'#ccc',text:
 const getWindColor = (val) => { return (isNaN(val)||val===null)?{bg:'#ccc',text:'#333',bar:'#ccc',label:'ไม่มีข้อมูล'}:val<=10?{bg:'#00b0f0',text:'#fff',bar:'#00b0f0',label:'ลมอ่อน'}:val<=25?{bg:'#2ecc71',text:'#fff',bar:'#2ecc71',label:'ลมปานกลาง'}:val<=40?{bg:'#f1c40f',text:'#222',bar:'#f1c40f',label:'ลมแรง'}:val<=60?{bg:'#e67e22',text:'#fff',bar:'#e67e22',label:'ลมแรงมาก'}:{bg:'#e74c3c',text:'#fff',bar:'#e74c3c',label:'พายุ'}; };
 const getWeatherIcon = (c) => { if(c===undefined||c===null)return{icon:'❓',text:'ไม่ทราบ'}; if(c===0)return{icon:'☀️',text:'แจ่มใส'}; if(c===1)return{icon:'🌤️',text:'มีเมฆบางส่วน'}; if(c===2)return{icon:'⛅',text:'มีเมฆ'}; if(c===3)return{icon:'☁️',text:'มีเมฆมาก'}; if([45,48].includes(c))return{icon:'🌫️',text:'มีหมอก'}; if([51,53,55,56,57].includes(c))return{icon:'🌧️',text:'ฝนปรอย'}; if([61,63,65,66,67].includes(c))return{icon:'🌧️',text:'ฝนตก'}; if([71,73,75,77,85,86].includes(c))return{icon:'❄️',text:'หิมะ'}; if([80,81,82].includes(c))return{icon:'🌦️',text:'ฝนตกหย่อมๆ'}; if([95,96,99].includes(c))return{icon:'⛈️',text:'พายุฝน'}; return{icon:'🌤️',text:'ปกติ'}; };
 
-// 🚀 แก้ไขฟังก์ชันดึงชื่อจังหวัดให้แม่นยำ 100% ไม่รวมมิตรจังหวัดอื่นเข้ามาใน กทม.
 const extractProvince = (area) => { 
   if(!area) return 'ไม่ระบุ'; 
   let p = area.includes(',') ? area.split(',').pop() : area.trim().split(/\s+/).pop(); 
@@ -66,7 +65,6 @@ const createCustomMarker = (viewMode, value, extraData) => {
   return L.divIcon({ className: 'custom-div-icon', html: `<div style="background-color: ${bg}; width: 34px; height: 34px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.4); display: flex; justify-content: center; align-items: center; color: ${textColor}; font-weight: bold; font-size: ${fontSize}; font-family: 'Kanit', sans-serif; transition: all 0.3s ease;">${displayValue}</div>`, iconSize: [38, 38], iconAnchor: [19, 19] });
 };
 
-// 🚀 แก้ไขฟังก์ชัน FitBounds ให้กรองพิกัดผี และตั้งค่า maxZoom ให้พอดีกับระดับเมือง
 function FitBounds({ stations, activeStation, selectedProvince }) {
   const map = useMap();
   useEffect(() => {
@@ -75,11 +73,10 @@ function FitBounds({ stations, activeStation, selectedProvince }) {
       if (!selectedProvince) {
         map.flyTo([13.5, 101.0], 6, { duration: 1.5 });
       } else { 
-        // กรองเอาเฉพาะสถานีที่มีพิกัดจริง ไม่เป็น 0 ป้องกันการตีวงกว้างเกิน
         const validStations = stations.filter(s => s.lat && s.long && !isNaN(s.lat) && !isNaN(s.long) && parseFloat(s.lat) !== 0);
         if (validStations.length > 0) {
           const bounds = L.latLngBounds(validStations.map(s => [parseFloat(s.lat), parseFloat(s.long)])); 
-          map.fitBounds(bounds, { padding: [40, 40], maxZoom: 11 }); // maxZoom 11 กำลังพอดีสำหรับเมือง ไม่หลุดออกไปเห็นประเทศอื่น
+          map.fitBounds(bounds, { padding: [40, 40], maxZoom: 11 });
         }
       }
     }
@@ -106,6 +103,7 @@ function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 function deg2rad(deg) { return deg * (Math.PI/180) }
+
 // ==============================================================
 // 3. Main App Component
 // ==============================================================
@@ -180,7 +178,7 @@ export default function App() {
 
     try {
       const PROJECT_ID = "thai-env-dashboard"; 
-      // 🚀 แก้ไข URL ตรงนี้ เพิ่ม ?t= เข้าไปกัน Cache
+      // 🚀 เพิ่ม Cache Busting (?t=) ป้องกันการติด Cache
       const url = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents/weatherData/latest?t=${new Date().getTime()}`;
       const response = await fetch(url, { cache: 'no-store' });
       if (!response.ok) throw new Error('Network error');
@@ -205,7 +203,7 @@ export default function App() {
 
   useEffect(() => {
     fetchAirQuality();
-    // 🚀 เปลี่ยนเป็น 3600000 (1 ชั่วโมง)
+    // 🚀 อัปเดตทุก 1 ชั่วโมง (3600000 ms)
     const intervalId = setInterval(() => { fetchAirQuality(true); }, 3600000); 
     return () => clearInterval(intervalId);
   }, []);
@@ -486,6 +484,13 @@ export default function App() {
 
   const validForecast = dashForecast.filter(d => d[activeChart.key] !== null && d[activeChart.key] !== undefined);
 
+  // 🚀 เพิ่มวันที่ภาษาไทย
+  const todayDateText = new Date().toLocaleDateString('th-TH', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100vh', width:'100vw', backgroundColor:themeBg, fontFamily:"'Kanit', sans-serif", overflowY:'auto', overflowX:'hidden' }}>
       
@@ -551,13 +556,16 @@ export default function App() {
                 <button onClick={toggleRadar} style={{ padding: '6px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: showRadar ? '#ef4444' : 'transparent', color: showRadar ? '#fff' : subTextColor }}>{showRadar ? '📡 ปิดเรดาร์' : '📡 เรดาร์ฝน'}</button>
               </div>
 
-              {/* 🚀 แก้ไข block นี้ (เอา pointerEvents: 'none' ออก และใส่ปุ่ม 🔄) */}
+              {/* 🚀 เพิ่มปุ่ม Refresh ตรงอัปเดตเวลา */}
               <div style={{ position: 'absolute', bottom: '25px', right: '70px', zIndex: 500, background: darkMode ? 'rgba(30,41,59,0.95)' : 'rgba(255,255,255,0.95)', padding: '6px 14px', borderRadius: '20px', fontSize: '0.75rem', color: subTextColor, backdropFilter: 'blur(4px)', border: `1px solid ${borderColor}`, display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
                 <span style={{ fontSize: '1rem' }}>⏱️</span> อัปเดต: {lastUpdateText || 'กำลังโหลด...'}
                 <button onClick={() => fetchAirQuality(false)} style={{ background: 'none', border: 'none', padding: '0 0 0 4px', cursor: 'pointer', fontSize: '1rem', color: '#0ea5e9' }} title="โหลดข้อมูลล่าสุดเดี๋ยวนี้">
                   🔄
                 </button>
               </div>
+
+              <button onClick={handleFindNearest} disabled={locating} style={{ position: 'absolute', bottom: '25px', right: '15px', zIndex: 500, width: '44px', height: '44px', borderRadius: '50%', backgroundColor: cardBg, color: textColor, border: `1px solid ${borderColor}`, cursor: locating ? 'wait' : 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>{locating ? '⏳' : '🎯'}</button>
+
               {!showRadar && (
                 <div style={{ position: 'absolute', bottom: '25px', left: window.innerWidth < 768 ? '15px' : '60px', zIndex: 500, background: darkMode ? 'rgba(30,41,59,0.95)' : 'rgba(255,255,255,0.95)', padding: '12px', borderRadius: '10px', border: `1px solid ${borderColor}` }}>
                   <h4 style={{ margin: '0 0 8px 0', fontSize: '0.85rem', color: textColor }}>{legendData[viewMode].title}</h4>
@@ -796,7 +804,8 @@ export default function App() {
           
           <div style={{ textAlign: 'center', marginBottom: '30px' }}>
             <h2 style={{ fontSize: '2rem', color: textColor, marginBottom: '10px', fontWeight:'bold' }}>🔔 ศูนย์พยากรณ์และแจ้งเตือนภัย</h2>
-            <p style={{ color: subTextColor, fontSize:'1.1rem', marginBottom: '25px' }}>วิเคราะห์ข้อมูลเชิงลึก 24 ชั่วโมงข้างหน้า เพื่อให้คุณวางแผนชีวิตได้ง่ายขึ้น</p>
+            {/* 🚀 แสดงวันที่ภาษาไทย */}
+            <p style={{ color: subTextColor, fontSize:'1.1rem', marginBottom: '25px' }}>วิเคราะห์ข้อมูลเชิงลึก 24 ชั่วโมงข้างหน้า ประจำวันที่ <strong style={{color: '#0ea5e9'}}>{todayDateText}</strong></p>
             <button onClick={handleScanLocation} disabled={alertsLoading} style={{ backgroundColor: '#0ea5e9', color: '#fff', border: 'none', borderRadius: '30px', padding: '15px 30px', fontSize: '1.1rem', fontWeight: 'bold', cursor: alertsLoading?'wait':'pointer', boxShadow: '0 4px 15px rgba(14,165,233,0.4)', transition: '0.2s' }}>
               {alertsLoading ? '⏳ กำลังประมวลผลผ่านดาวเทียม...' : '📍 ตรวจสอบพิกัดปัจจุบันของฉัน'}
             </button>
@@ -847,7 +856,8 @@ export default function App() {
           {nationwideSummary && (
             <div style={{ backgroundColor: cardBg, borderRadius: '16px', padding: window.innerWidth < 768 ? '20px' : '30px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.05)' }}>
               <div style={{ textAlign: 'center', marginBottom: '25px' }}>
-                <h3 style={{ fontSize: '1.5rem', color: textColor, margin: '0 0 5px 0', fontWeight:'bold' }}>🇹🇭 สรุปภาพรวมความเสี่ยงทั่วประเทศ (วันนี้)</h3>
+                {/* 🚀 แสดงวันที่ภาษาไทย */}
+                <h3 style={{ fontSize: '1.5rem', color: textColor, margin: '0 0 5px 0', fontWeight:'bold' }}>🇹🇭 สรุปภาพรวมความเสี่ยงทั่วประเทศ ({todayDateText})</h3>
                 <p style={{ margin: 0, color: subTextColor, fontSize: '0.95rem' }}>วิเคราะห์ข้อมูลจากจุดตรวจวัดกว่า {allStations.length} จุดทั่วไทย เพื่อหาสถานที่ที่ต้องเฝ้าระวังเป็นพิเศษ</p>
               </div>
 
