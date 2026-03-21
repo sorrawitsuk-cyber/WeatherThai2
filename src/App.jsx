@@ -224,7 +224,7 @@ export default function App() {
     return () => clearInterval(intervalId);
   }, []);
 
-  // วิเคราะห์ความเสี่ยงทั่วประเทศ (ใช้ PM2.5 187 จุด และ Weather 77 จุด เพื่อความแม่นยำสูงสุด)
+ // วิเคราะห์ความเสี่ยงทั่วประเทศ (ใช้ PM2.5 187 จุด และ Weather 127 จุด)
   useEffect(() => {
     if (pm25Stations.length === 0 || weatherStations.length === 0) return;
     
@@ -243,7 +243,28 @@ export default function App() {
       }
     });
 
-    pm25Risks.sort((a,b)=>b.val - a.val); stormRisks.sort((a,b)=>Math.max(b.rain, b.wind) - Math.max(a.rain, a.wind)); heatRisks.sort((a,b)=>b.val - a.val);
+    // เรียงลำดับจากมากไปน้อย
+    pm25Risks.sort((a,b)=>b.val - a.val); 
+    stormRisks.sort((a,b)=>Math.max(b.rain, b.wind) - Math.max(a.rain, a.wind)); 
+    heatRisks.sort((a,b)=>b.val - a.val);
+    
+    // 🚀 กรองจังหวัดซ้ำ เอาเฉพาะค่าที่แย่ที่สุดของจังหวัดนั้นมาโชว์
+    const uniquePm = []; const pmSet = new Set();
+    pm25Risks.forEach(item => { if(!pmSet.has(item.prov)){ pmSet.add(item.prov); uniquePm.push(item); }});
+
+    const uniqueStorm = []; const stormSet = new Set();
+    stormRisks.forEach(item => { if(!stormSet.has(item.prov)){ stormSet.add(item.prov); uniqueStorm.push(item); }});
+
+    const uniqueHeat = []; const heatSet = new Set();
+    heatRisks.forEach(item => { if(!heatSet.has(item.prov)){ heatSet.add(item.prov); uniqueHeat.push(item); }});
+
+    // คืนค่าเป็น Top 5 (หรือ Top 10) แทน
+    setNationwideSummary({ 
+      pm25: uniquePm.slice(0, 5), 
+      storm: uniqueStorm.slice(0, 5), 
+      heat: uniqueHeat.slice(0, 5) 
+    });
+  }, [pm25Stations, weatherStations, stationTemps]);
     
     // จัดกลุ่มจังหวัดไม่ให้ซ้ำกันเกินไป
     const uniquePm = []; const pmSet = new Set();
