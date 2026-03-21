@@ -19,7 +19,19 @@ const getUvHealthAdvice = (val) => { return (isNaN(val)||val===null)?null:val>10
 const getRainColor = (val) => { return (isNaN(val)||val===null)?{bg:'#ccc',text:'#333',bar:'#ccc',label:'ไม่มีข้อมูล'}:val===0?{bg:'#95a5a6',text:'#fff',bar:'#95a5a6',label:'ไม่มีฝน'}:val<=30?{bg:'#74b9ff',text:'#222',bar:'#74b9ff',label:'โอกาสต่ำ'}:val<=60?{bg:'#0984e3',text:'#fff',bar:'#0984e3',label:'ปานกลาง'}:val<=80?{bg:'#273c75',text:'#fff',bar:'#273c75',label:'โอกาสสูง'}:{bg:'#192a56',text:'#fff',bar:'#192a56',label:'โอกาสสูงมาก'}; };
 const getWindColor = (val) => { return (isNaN(val)||val===null)?{bg:'#ccc',text:'#333',bar:'#ccc',label:'ไม่มีข้อมูล'}:val<=10?{bg:'#00b0f0',text:'#fff',bar:'#00b0f0',label:'ลมอ่อน'}:val<=25?{bg:'#2ecc71',text:'#fff',bar:'#2ecc71',label:'ลมปานกลาง'}:val<=40?{bg:'#f1c40f',text:'#222',bar:'#f1c40f',label:'ลมแรง'}:val<=60?{bg:'#e67e22',text:'#fff',bar:'#e67e22',label:'ลมแรงมาก'}:{bg:'#e74c3c',text:'#fff',bar:'#e74c3c',label:'พายุ'}; };
 const getWeatherIcon = (c) => { if(c===undefined||c===null)return{icon:'❓',text:'ไม่ทราบ'}; if(c===0)return{icon:'☀️',text:'แจ่มใส'}; if(c===1)return{icon:'🌤️',text:'มีเมฆบางส่วน'}; if(c===2)return{icon:'⛅',text:'มีเมฆ'}; if(c===3)return{icon:'☁️',text:'มีเมฆมาก'}; if([45,48].includes(c))return{icon:'🌫️',text:'มีหมอก'}; if([51,53,55,56,57].includes(c))return{icon:'🌧️',text:'ฝนปรอย'}; if([61,63,65,66,67].includes(c))return{icon:'🌧️',text:'ฝนตก'}; if([71,73,75,77,85,86].includes(c))return{icon:'❄️',text:'หิมะ'}; if([80,81,82].includes(c))return{icon:'🌦️',text:'ฝนตกหย่อมๆ'}; if([95,96,99].includes(c))return{icon:'⛈️',text:'พายุฝน'}; return{icon:'🌤️',text:'ปกติ'}; };
-const extractProvince = (area) => { if(!area)return'ไม่ระบุ'; if(area.includes('กรุงเทพ')||area.includes('กทม')||area.includes('เขต'))return'กรุงเทพมหานคร'; let p=area.includes(',')?area.split(',').pop():area.trim().split(/\s+/).pop(); return p.replace(/^(จ\.|จังหวัด)/,'').trim(); };
+
+// 🚀 แก้ไขฟังก์ชันดึงชื่อจังหวัดให้ลบ "จ." ออกอย่างหมดจด
+const extractProvince = (area) => { 
+  if(!area) return 'ไม่ระบุ'; 
+  if(area.includes('กรุงเทพ')||area.includes('กทม')||area.includes('เขต')) return 'กรุงเทพมหานคร'; 
+  let p = area.includes(',') ? area.split(',').pop() : area.trim().split(/\s+/).pop(); 
+  // เคลียร์ช่องว่างและเอาคำว่า จ. หรือ จังหวัด ออกให้หมด
+  p = p.trim().replace(/^(จ\.|จังหวัด)/, '').trim();
+  // ดักเคสพิมพ์ติดกันแปลกๆ เช่น "อ.เมืองจ.เชียงใหม่"
+  if (p.includes('จ.')) p = p.split('จ.').pop().trim();
+  return p; 
+};
+
 const getWindDirTxt = (d) => { if(d===null||d===undefined)return'ไม่ทราบทิศ'; if(d>=337.5||d<22.5)return'เหนือ'; if(d>=22.5&&d<67.5)return'ตะวันออกเฉียงเหนือ'; if(d>=67.5&&d<112.5)return'ตะวันออก'; if(d>=112.5&&d<157.5)return'ตะวันออกเฉียงใต้'; if(d>=157.5&&d<202.5)return'ใต้'; if(d>=202.5&&d<247.5)return'ตะวันตกเฉียงใต้'; if(d>=247.5&&d<292.5)return'ตะวันตก'; return'ตะวันตกเฉียงเหนือ'; };
 
 const legendData = {
@@ -121,8 +133,6 @@ export default function App() {
   const [alertsData, setAlertsData] = useState({ warnings: [], normals: [] });
   const [alertsLoading, setAlertsLoading] = useState(false);
   const [alertsLocationName, setAlertsLocationName] = useState('');
-
-  // 🚀 สเตทใหม่สำหรับเก็บ "สรุปภาพรวมระดับประเทศ"
   const [nationwideSummary, setNationwideSummary] = useState(null);
 
   const cardRefs = useRef({});
@@ -191,18 +201,14 @@ export default function App() {
     return () => clearInterval(intervalId);
   }, []);
 
-  // 🚀 Logic สแกนและจัดกลุ่มความเสี่ยงระดับประเทศ (ทำงานเบื้องหลัง)
   useEffect(() => {
     if (allStations.length === 0 || Object.keys(stationTemps).length === 0) return;
-
     const provData = {};
     allStations.forEach(s => {
       const prov = extractProvince(s.areaTH);
       const t = stationTemps[s.stationID];
       const pm = Number(s.AQILast?.PM25?.value) || 0;
-
       if(!provData[prov]) provData[prov] = { pm: 0, rain: 0, heat: 0, wind: 0 };
-      // หาค่าสูงสุดของแต่ละจังหวัด
       if(pm > provData[prov].pm) provData[prov].pm = pm;
       if(t) {
         if(t.rainProb > provData[prov].rain) provData[prov].rain = t.rainProb;
@@ -211,10 +217,7 @@ export default function App() {
       }
     });
 
-    let pm25Risks = [];
-    let stormRisks = [];
-    let heatRisks = [];
-
+    let pm25Risks = []; let stormRisks = []; let heatRisks = [];
     Object.keys(provData).forEach(prov => {
       const d = provData[prov];
       if(d.pm >= 37.5) pm25Risks.push({ prov, val: d.pm });
@@ -222,16 +225,8 @@ export default function App() {
       if(d.heat >= 40) heatRisks.push({ prov, val: d.heat });
     });
 
-    // เรียงจากหนักไปเบา
-    pm25Risks.sort((a,b)=>b.val - a.val);
-    stormRisks.sort((a,b)=>Math.max(b.rain, b.wind) - Math.max(a.rain, a.wind));
-    heatRisks.sort((a,b)=>b.val - a.val);
-
-    setNationwideSummary({ 
-      pm25: pm25Risks.slice(0, 15), // เอาแค่ 15 จังหวัดที่หนักสุดมาโชว์
-      storm: stormRisks.slice(0, 15), 
-      heat: heatRisks.slice(0, 15) 
-    });
+    pm25Risks.sort((a,b)=>b.val - a.val); stormRisks.sort((a,b)=>Math.max(b.rain, b.wind) - Math.max(a.rain, a.wind)); heatRisks.sort((a,b)=>b.val - a.val);
+    setNationwideSummary({ pm25: pm25Risks.slice(0, 15), storm: stormRisks.slice(0, 15), heat: heatRisks.slice(0, 15) });
   }, [allStations, stationTemps]);
 
   useEffect(() => {
@@ -533,7 +528,7 @@ export default function App() {
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
           <div style={{ display: 'flex', gap: '15px', flexDirection: window.innerWidth < 768 ? 'column' : 'row', padding: '15px' }}>
             
-            {/* MAP AREA (ปรับความสูงบนมือถือให้เหลือ 50vh เพื่อให้เลื่อนดูลิสต์ง่ายขึ้น) */}
+            {/* MAP AREA */}
             <div style={{ flex: 7, borderRadius: '12px', overflow: 'hidden', position: 'relative', border: `1px solid ${borderColor}`, height: window.innerWidth < 768 ? '50vh' : 'calc(100vh - 120px)' }}>
               
               <div className="hide-scrollbar" style={{ position: 'absolute', top: '15px', right: '15px', zIndex: 500, background: darkMode ? 'rgba(30,41,59,0.9)' : 'rgba(255,255,255,0.9)', padding: '5px 10px', borderRadius: '30px', display: 'flex', gap: '8px', overflowX: 'auto', whiteSpace: 'nowrap', boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}>
@@ -608,7 +603,7 @@ export default function App() {
               </MapContainer>
             </div>
 
-            {/* SIDEBAR RIGHT LIST (ปรับบนมือถือให้เลื่อนได้อิสระ) */}
+            {/* SIDEBAR RIGHT LIST */}
             <div style={{ flex: 3, minWidth: window.innerWidth < 768 ? '100%' : '380px', maxWidth: window.innerWidth < 768 ? '100%' : '450px', backgroundColor: cardBg, borderRadius: '12px', display: 'flex', flexDirection: 'column', border: `1px solid ${borderColor}`, height: window.innerWidth < 768 ? 'auto' : 'calc(100vh - 120px)', maxHeight: window.innerWidth < 768 ? '50vh' : 'none' }}>
               <div style={{ padding: '15px', background: darkMode ? '#0f172a' : '#f0f9ff', borderBottom: `1px solid ${borderColor}`, display: 'flex', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 10 }}>
                 <h2 style={{ fontSize: '1rem', color: textColor, margin: 0, fontWeight: 'bold' }}>{activeChart.name} <span style={{fontSize:'0.85rem', color:subTextColor}}>({filteredStations.length} จุด)</span></h2>
@@ -735,15 +730,10 @@ export default function App() {
             </div>
           </div>
 
-          {/* 🚀 DASHBOARD BOTTOM (แบบพับเก็บได้ เพื่อประหยัดพื้นที่มือถือ) */}
+          {/* DASHBOARD BOTTOM */}
           <div style={{ padding: '15px' }}>
             <div style={{ backgroundColor: cardBg, borderRadius: '12px', padding: '20px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
-              
-              {/* ส่วนหัวที่กดพับ/กางได้ */}
-              <div 
-                onClick={() => setShowStats(!showStats)} 
-                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }}
-              >
+              <div onClick={() => setShowStats(!showStats)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }}>
                 <div>
                   <h2 style={{ fontSize: '1.3rem', color: textColor, margin: '0 0 5px 0', fontWeight:'bold' }}>📊 ข้อมูลเชิงลึก: {activeChart.name}</h2>
                   <p style={{ margin: 0, color: subTextColor, fontSize: '0.9rem' }}>พื้นที่วิเคราะห์: <strong style={{color: '#0ea5e9'}}>{dashTitle}</strong></p>
@@ -753,7 +743,6 @@ export default function App() {
                 </div>
               </div>
               
-              {/* ส่วนกราฟที่จะแสดงเมื่อ showStats เป็น true */}
               {showStats && (
                 <div style={{ marginTop: '20px', paddingTop: '20px', borderTop: `1px solid ${borderColor}` }}>
                   {dashLoading ? <div style={{ textAlign:'center', color:subTextColor, padding:'50px' }}>⏳ กำลังประมวลผลข้อมูลดาวเทียม...</div> : dashHistory.length > 0 ? (
@@ -795,7 +784,6 @@ export default function App() {
         // ======================= ALERTS TAB =======================
         <div style={{ flex: 1, padding: '20px', maxWidth: '1000px', margin: '0 auto', width: '100%' }}>
           
-          {/* ส่วนบน: สแกนพิกัดส่วนตัว */}
           <div style={{ textAlign: 'center', marginBottom: '30px' }}>
             <h2 style={{ fontSize: '2rem', color: textColor, marginBottom: '10px', fontWeight:'bold' }}>🔔 ศูนย์พยากรณ์และแจ้งเตือนภัย</h2>
             <p style={{ color: subTextColor, fontSize:'1.1rem', marginBottom: '25px' }}>วิเคราะห์ข้อมูลเชิงลึก 24 ชั่วโมงข้างหน้า เพื่อให้คุณวางแผนชีวิตได้ง่ายขึ้น</p>
@@ -805,10 +793,8 @@ export default function App() {
             {alertsLocationName && !alertsLoading && <div style={{ marginTop: '20px', padding: '8px 15px', backgroundColor: darkMode?'#0f172a':'#f0f9ff', borderRadius: '20px', color: '#0ea5e9', fontWeight: 'bold', display:'inline-block' }}>พิกัดที่กำลังวิเคราะห์: {alertsLocationName}</div>}
           </div>
 
-          {/* ส่วนกลาง: แจ้งเตือนส่วนบุคคล (แสดงผลเมื่อกดสแกนแล้ว) */}
           {alertsLoading ? null : (alertsData.warnings.length > 0 || alertsData.normals.length > 0) && (
             <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth < 768 ? '1fr' : '1fr 1fr', gap: '25px', marginBottom: '40px' }}>
-              
               <div style={{ backgroundColor: cardBg, borderRadius: '16px', padding: '25px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.05)' }}>
                 <h3 style={{ fontSize: '1.3rem', color: '#ef4444', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px', borderBottom: `2px solid #fecaca`, paddingBottom: '10px' }}>🚨 สิ่งที่ต้องเฝ้าระวัง (พิกัดคุณ)</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
@@ -845,11 +831,9 @@ export default function App() {
                   )}
                 </div>
               </div>
-
             </div>
           )}
 
-          {/* 🚀 ส่วนล่าง: สรุปภาพรวมความเสี่ยงระดับประเทศ (Macro View) */}
           {nationwideSummary && (
             <div style={{ backgroundColor: cardBg, borderRadius: '16px', padding: window.innerWidth < 768 ? '20px' : '30px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.05)' }}>
               <div style={{ textAlign: 'center', marginBottom: '25px' }}>
@@ -858,12 +842,8 @@ export default function App() {
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                
-                {/* พายุ/ฝน */}
                 <div style={{ padding: '20px', backgroundColor: darkMode ? '#1e293b' : '#eff6ff', borderRadius: '12px', borderLeft: '4px solid #3b82f6' }}>
-                  <h4 style={{ margin: '0 0 10px 0', fontSize: '1.1rem', color: '#2563eb', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    ⛈️ พื้นที่เสี่ยงพายุฝน / ลมแรง
-                  </h4>
+                  <h4 style={{ margin: '0 0 10px 0', fontSize: '1.1rem', color: '#2563eb', display: 'flex', alignItems: 'center', gap: '8px' }}>⛈️ พื้นที่เสี่ยงพายุฝน / ลมแรง</h4>
                   <p style={{ margin: '0 0 15px 0', color: textColor, fontSize: '0.9rem' }}>จังหวัดที่มีโอกาสเกิดฝนตกหนักหรือพายุลมแรง (มักเกิดในช่วงบ่ายถึงค่ำ):</p>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                     {nationwideSummary.storm.length > 0 
@@ -877,11 +857,8 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* PM2.5 */}
                 <div style={{ padding: '20px', backgroundColor: darkMode ? '#1e293b' : '#fffbeb', borderRadius: '12px', borderLeft: '4px solid #f59e0b' }}>
-                  <h4 style={{ margin: '0 0 10px 0', fontSize: '1.1rem', color: '#d97706', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    😷 พื้นที่เฝ้าระวังฝุ่น PM2.5
-                  </h4>
+                  <h4 style={{ margin: '0 0 10px 0', fontSize: '1.1rem', color: '#d97706', display: 'flex', alignItems: 'center', gap: '8px' }}>😷 พื้นที่เฝ้าระวังฝุ่น PM2.5</h4>
                   <p style={{ margin: '0 0 15px 0', color: textColor, fontSize: '0.9rem' }}>จังหวัดที่มีค่าฝุ่นละอองสะสมเกินมาตรฐาน ควรหลีกเลี่ยงกิจกรรมกลางแจ้ง:</p>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                     {nationwideSummary.pm25.length > 0 
@@ -895,11 +872,8 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* อากาศร้อน */}
                 <div style={{ padding: '20px', backgroundColor: darkMode ? '#1e293b' : '#fef2f2', borderRadius: '12px', borderLeft: '4px solid #ef4444' }}>
-                  <h4 style={{ margin: '0 0 10px 0', fontSize: '1.1rem', color: '#dc2626', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    🥵 พื้นที่เฝ้าระวังอากาศร้อนจัด
-                  </h4>
+                  <h4 style={{ margin: '0 0 10px 0', fontSize: '1.1rem', color: '#dc2626', display: 'flex', alignItems: 'center', gap: '8px' }}>🥵 พื้นที่เฝ้าระวังอากาศร้อนจัด</h4>
                   <p style={{ margin: '0 0 15px 0', color: textColor, fontSize: '0.9rem' }}>จังหวัดที่ดัชนีความร้อนพุ่งสูงปรี๊ด (มักพีคช่วง 13:00 - 15:00 น.) ระวังฮีทสโตรก:</p>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                     {nationwideSummary.heat.length > 0 
@@ -912,7 +886,6 @@ export default function App() {
                     }
                   </div>
                 </div>
-
               </div>
             </div>
           )}
