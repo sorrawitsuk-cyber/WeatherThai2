@@ -1,3 +1,155 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, useMap, LayersControl } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import { LineChart, Line, BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import './App.css';
+
+// ==============================================================
+// 1. ฟังก์ชันคำนวณสีและข้อความ
+// ==============================================================
+const getAqiDetails = (val) => { const v=Number(val); return isNaN(v)||v===0?{color:'#ccc',text:'ไม่มีข้อมูล',level:0}:v<=25?{color:'#00b0f0',text:'คุณภาพอากาศดีมาก',level:1}:v<=50?{color:'#92d050',text:'คุณภาพอากาศดี',level:2}:v<=100?{color:'#ffff00',text:'ปานกลาง',level:3}:v<=200?{color:'#ffc000',text:'เริ่มมีผลกระทบฯ',level:4}:{color:'#ff0000',text:'มีผลกระทบต่อสุขภาพ',level:5};};
+const getPM25Color = (val) => { const v=Number(val); return isNaN(v)?'#ccc':v<=15?'#00b0f0':v<=25?'#92d050':v<=37.5?'#ffff00':v<=75?'#ffc000':'#ff0000'; };
+const getPM25HealthAdvice = (val) => { const v=Number(val); return isNaN(v)||v===0?null:v<=25?{text:"อากาศดีเยี่ยม เหมาะกับการทำกิจกรรมกลางแจ้ง",icon:"🏃‍♂️"}:v<=37.5?{text:"ประชาชนทั่วไปทำกิจกรรมได้ปกติ",icon:"🚶‍♀️"}:v<=75?{text:"ลดระยะเวลาการทำกิจกรรมกลางแจ้ง (หน้ากาก N95)",icon:"😷"}:{text:"งดกิจกรรมกลางแจ้งเด็ดขาด",icon:"🚨"}; };
+const getTempColor = (val) => { return (isNaN(val)||val===null)?{bg:'#ccc',text:'#333',bar:'#ccc'}:val<27?{bg:'#3498db',text:'#fff',bar:'#3498db'}:val<=32?{bg:'#2ecc71',text:'#222',bar:'#2ecc71'}:val<=35?{bg:'#f1c40f',text:'#222',bar:'#f1c40f'}:val<=38?{bg:'#e67e22',text:'#fff',bar:'#e67e22'}:{bg:'#e74c3c',text:'#fff',bar:'#e74c3c'}; };
+const getHeatIndexAlert = (val) => { return (isNaN(val)||val===null)?{text:'ไม่มีข้อมูล',color:'#666',bg:'#eee',bar:'#ccc',icon:'❓'}:val>=52?{text:'อันตรายมาก (เสี่ยงฮีทสโตรกสูง)',color:'#dc2626',bg:'#fee2e2',bar:'#ef4444',icon:'🚨'}:val>=42?{text:'อันตราย (หลีกเลี่ยงกลางแจ้ง)',color:'#ea580c',bg:'#ffedd5',bar:'#f97316',icon:'🥵'}:val>=33?{text:'เตือนภัย (ลดกิจกรรมกลางแจ้ง)',color:'#ca8a04',bg:'#fef9c3',bar:'#eab308',icon:'😰'}:val>=27?{text:'เฝ้าระวัง (ดูแลสุขภาพทั่วไป)',color:'#16a34a',bg:'#dcfce7',bar:'#22c55e',icon:'😅'}:{text:'ปกติ',color:'#0284c7',bg:'#e0f2fe',bar:'#3b82f6',icon:'😊'}; };
+const getHeatHealthAdvice = (val) => { return (isNaN(val)||val===null)?null:val>=52?{text:"งดกิจกรรมกลางแจ้งเด็ดขาด (Heat Stroke)",icon:"🚑"}:val>=42?{text:"หลีกเลี่ยงกิจกรรมกลางแจ้งเป็นเวลานาน",icon:"⛔"}:val>=33?{text:"ลดระยะเวลากิจกรรม ดื่มน้ำให้เพียงพอ",icon:"💧"}:val>=27?{text:"อากาศเริ่มร้อน ดูแลสุขภาพทั่วไป",icon:"🥤"}:null; };
+const getUvColor = (val) => { return (isNaN(val)||val===null)?{bg:'#ccc',text:'#333',bar:'#ccc',label:'ไม่มีข้อมูล'}:val<=2?{bg:'#2ecc71',text:'#fff',bar:'#2ecc71',label:'ต่ำ'}:val<=5?{bg:'#f1c40f',text:'#222',bar:'#f1c40f',label:'ปานกลาง'}:val<=7?{bg:'#e67e22',text:'#fff',bar:'#e67e22',label:'สูง'}:val<=10?{bg:'#e74c3c',text:'#fff',bar:'#e74c3c',label:'สูงมาก'}:{bg:'#9b59b6',text:'#fff',bar:'#9b59b6',label:'อันตราย'}; };
+const getUvHealthAdvice = (val) => { return (isNaN(val)||val===null)?null:val>10?{text:"หลีกเลี่ยงการออกแดดเด็ดขาด ผิวหนังและดวงตาอาจไหม้ได้",icon:"⛔"}:val>=8?{text:"ควรอยู่ในที่ร่ม หากต้องออกแดดต้องทากันแดด SPF50+",icon:"☂️"}:val>=6?{text:"ควรทาครีมกันแดด สวมหมวก หรือกางร่มเมื่อออกแดด",icon:"🧢"}:null; };
+const getRainColor = (val) => { return (isNaN(val)||val===null)?{bg:'#ccc',text:'#333',bar:'#ccc',label:'ไม่มีข้อมูล'}:val===0?{bg:'#95a5a6',text:'#fff',bar:'#95a5a6',label:'ไม่มีฝน'}:val<=30?{bg:'#74b9ff',text:'#222',bar:'#74b9ff',label:'โอกาสต่ำ'}:val<=60?{bg:'#0984e3',text:'#fff',bar:'#0984e3',label:'ปานกลาง'}:val<=80?{bg:'#273c75',text:'#fff',bar:'#273c75',label:'โอกาสสูง'}:{bg:'#192a56',text:'#fff',bar:'#192a56',label:'โอกาสสูงมาก'}; };
+const getWindColor = (val) => { return (isNaN(val)||val===null)?{bg:'#ccc',text:'#333',bar:'#ccc',label:'ไม่มีข้อมูล'}:val<=10?{bg:'#00b0f0',text:'#fff',bar:'#00b0f0',label:'ลมอ่อน'}:val<=25?{bg:'#2ecc71',text:'#fff',bar:'#2ecc71',label:'ลมปานกลาง'}:val<=40?{bg:'#f1c40f',text:'#222',bar:'#f1c40f',label:'ลมแรง'}:val<=60?{bg:'#e67e22',text:'#fff',bar:'#e67e22',label:'ลมแรงมาก'}:{bg:'#e74c3c',text:'#fff',bar:'#e74c3c',label:'พายุ'}; };
+const getWeatherIcon = (c) => { if(c===undefined||c===null)return{icon:'❓',text:'ไม่ทราบ'}; if(c===0)return{icon:'☀️',text:'แจ่มใส'}; if(c===1)return{icon:'🌤️',text:'มีเมฆบางส่วน'}; if(c===2)return{icon:'⛅',text:'มีเมฆ'}; if(c===3)return{icon:'☁️',text:'มีเมฆมาก'}; if([45,48].includes(c))return{icon:'🌫️',text:'มีหมอก'}; if([51,53,55,56,57].includes(c))return{icon:'🌧️',text:'ฝนปรอย'}; if([61,63,65,66,67].includes(c))return{icon:'🌧️',text:'ฝนตก'}; if([71,73,75,77,85,86].includes(c))return{icon:'❄️',text:'หิมะ'}; if([80,81,82].includes(c))return{icon:'🌦️',text:'ฝนตกหย่อมๆ'}; if([95,96,99].includes(c))return{icon:'⛈️',text:'พายุฝน'}; return{icon:'🌤️',text:'ปกติ'}; };
+
+// ฐานข้อมูล 77 จังหวัด
+const thaiProvinces = ["กรุงเทพมหานคร","กระบี่","กาญจนบุรี","กาฬสินธุ์","กำแพงเพชร","ขอนแก่น","จันทบุรี","ฉะเชิงเทรา","ชลบุรี","ชัยนาท","ชัยภูมิ","ชุมพร","เชียงราย","เชียงใหม่","ตรัง","ตราด","ตาก","นครนายก","นครปฐม","นครพนม","นครราชสีมา","นครศรีธรรมราช","นครสวรรค์","นนทบุรี","นราธิวาส","น่าน","บึงกาฬ","บุรีรัมย์","ปทุมธานี","ประจวบคีรีขันธ์","ปราจีนบุรี","ปัตตานี","พระนครศรีอยุธยา","พะเยา","พังงา","พัทลุง","พิจิตร","พิษณุโลก","เพชรบุรี","เพชรบูรณ์","แพร่","ภูเก็ต","มหาสารคาม","มุกดาหาร","แม่ฮ่องสอน","ยโสธร","ยะลา","ร้อยเอ็ด","ระนอง","ระยอง","ราชบุรี","ลพบุรี","ลำปาง","ลำพูน","เลย","ศรีสะเกษ","สกลนคร","สงขลา","สตูล","สมุทรปราการ","สมุทรสงคราม","สมุทรสาคร","สระแก้ว","สระบุรี","สิงห์บุรี","สุโขทัย","สุพรรณบุรี","สุราษฎร์ธานี","สุรินทร์","หนองคาย","หนองบัวลำภู","อ่างทอง","อำนาจเจริญ","อุดรธานี","อุตรดิตถ์","อุทัยธานี","อุบลราชธานี"];
+
+const extractProvince = (area) => { 
+  if(!area) return 'ไม่ระบุ'; 
+  if (area.includes('กรุงเทพ') || area.includes('กทม')) return 'กรุงเทพมหานคร';
+  for (let i = 0; i < thaiProvinces.length; i++) {
+    if (area.includes(thaiProvinces[i])) return thaiProvinces[i];
+  }
+  if (area.includes('เขต')) return 'กรุงเทพมหานคร';
+  let p = area.includes(',') ? area.split(',').pop() : area.trim().split(/\s+/).pop(); 
+  p = p.trim().replace(/^(จ\.|จังหวัด)/, '').trim();
+  if (p.includes('จ.')) p = p.split('จ.').pop().trim();
+  return p; 
+};
+
+const getWindDirTxt = (d) => { if(d===null||d===undefined)return'ไม่ทราบทิศ'; if(d>=337.5||d<22.5)return'เหนือ'; if(d>=22.5&&d<67.5)return'ตะวันออกเฉียงเหนือ'; if(d>=67.5&&d<112.5)return'ตะวันออก'; if(d>=112.5&&d<157.5)return'ตะวันออกเฉียงใต้'; if(d>=157.5&&d<202.5)return'ใต้'; if(d>=202.5&&d<247.5)return'ตะวันตกเฉียงใต้'; if(d>=247.5&&d<292.5)return'ตะวันตก'; return'ตะวันตกเฉียงเหนือ'; };
+
+const legendData = {
+  pm25: { title: 'ระดับ PM2.5 (µg/m³)', items: [{color:'#00b0f0',label:'0-15.0 (ดีมาก)'},{color:'#92d050',label:'15.1-25.0 (ดี)'},{color:'#ffff00',label:'25.1-37.5 (ปานกลาง)'},{color:'#ffc000',label:'37.6-75.0 (เริ่มมีผลกระทบฯ)'},{color:'#ff0000',label:'> 75.0 (มีผลกระทบฯ)'}] },
+  temp: { title: 'อุณหภูมิ (°C)', items: [{color:'#3498db',label:'< 27 (เย็นสบาย)'},{color:'#2ecc71',label:'27-32 (ปกติ)'},{color:'#f1c40f',label:'33-35 (ร้อน)'},{color:'#e67e22',label:'36-38 (ร้อนมาก)'},{color:'#e74c3c',label:'> 38 (ร้อนจัด)'}] },
+  heat: { title: 'ดัชนีความร้อน (°C)', items: [{color:'#3b82f6',label:'< 27.0 (ปกติ)'},{color:'#22c55e',label:'27.0-32.9 (เฝ้าระวัง)'},{color:'#eab308',label:'33.0-41.9 (เตือนภัย)'},{color:'#f97316',label:'42.0-51.9 (อันตราย)'},{color:'#ef4444',label:'≥ 52.0 (อันตรายมาก)'}] },
+  uv: { title: 'รังสี UV สูงสุดของวัน', items: [{color:'#2ecc71',label:'0-2 (ต่ำ)'},{color:'#f1c40f',label:'3-5 (ปานกลาง)'},{color:'#e67e22',label:'6-7 (สูง)'},{color:'#e74c3c',label:'8-10 (สูงมาก)'},{color:'#9b59b6',label:'> 10 (อันตราย)'}] },
+  rain: { title: 'โอกาสเกิดฝน (%)', items: [{color:'#95a5a6',label:'0 (ไม่มีฝน)'},{color:'#74b9ff',label:'1-30 (โอกาสต่ำ)'},{color:'#0984e3',label:'31-60 (ปานกลาง)'},{color:'#273c75',label:'61-80 (โอกาสสูง)'},{color:'#192a56',label:'> 80 (ตกหนัก)'}] },
+  wind: { title: 'ความเร็วลม (km/h)', items: [{color:'#00b0f0',label:'0-10 (ลมอ่อน)'},{color:'#2ecc71',label:'11-25 (ลมปานกลาง)'},{color:'#f1c40f',label:'26-40 (ลมแรง)'},{color:'#e67e22',label:'41-60 (ลมแรงมาก)'},{color:'#e74c3c',label:'> 60 (พายุ)'}] }
+};
+
+const chartConfigs = {
+  pm25: { key: 'pm25', name: 'PM2.5', unit: 'µg/m³', color: '#f59e0b', hasLY: false, type: 'area' },
+  temp: { key: 'temp', keyLY: 'tempLY', name: 'อุณหภูมิสูงสุด', unit: '°C', color: '#ef4444', hasLY: true, type: 'line' },
+  heat: { key: 'heat', keyLY: 'heatLY', name: 'Heat Index สูงสุด', unit: '°C', color: '#ea580c', hasLY: true, type: 'line' },
+  uv:   { key: 'uv', keyLY: null, name: 'รังสี UV สูงสุดของวัน', unit: 'UV', color: '#a855f7', hasLY: false, type: 'area' },
+  rain: { key: 'rain', keyLY: 'rainLY', name: 'ปริมาณฝนสะสม', unit: 'mm', color: '#3b82f6', hasLY: true, type: 'bar' },
+  wind: { key: 'wind', keyLY: 'windLY', name: 'ความเร็วลมสูงสุด', unit: 'km/h', color: '#64748b', hasLY: true, type: 'line' },
+};
+
+// 📍 ฐานข้อมูลสถานีอุตุฯ 127 แห่ง
+const tmdStations = [
+  ["กรุงเทพฯ (บางนา)", 13.6644, 100.6099, "กรุงเทพมหานคร"], ["กรุงเทพฯ (ท่าเรือคลองเตย)", 13.7237, 100.5677, "กรุงเทพมหานคร"], ["กรุงเทพฯ (เฉลิมพระเกียรติ)", 13.7245, 100.5633, "กรุงเทพมหานคร"], ["กรุงเทพฯ (ดอนเมือง)", 13.9191, 100.6050, "กรุงเทพมหานคร"],
+  ["นครสวรรค์", 15.6718, 100.1323, "นครสวรรค์"], ["ตากฟ้า", 15.3493, 100.5303, "นครสวรรค์"], ["ชัยนาท", 15.1582, 100.1916, "ชัยนาท"], ["อุทัยธานี", 15.3741, 100.0389, "อุทัยธานี"],
+  ["พระนครศรีอยุธยา", 14.5348, 100.7250, "พระนครศรีอยุธยา"], ["ลพบุรี", 14.7999, 100.6283, "ลพบุรี"], ["บัวชุม", 15.2666, 101.1873, "ลพบุรี"], ["ราชบุรี", 13.4893, 99.7923, "ราชบุรี"],
+  ["กาญจนบุรี", 14.0223, 99.5359, "กาญจนบุรี"], ["ทองผาภูมิ", 14.7445, 98.6331, "กาญจนบุรี"], ["สุพรรณบุรี", 14.4751, 100.0909, "สุพรรณบุรี"], ["อู่ทอง", 14.3018, 99.8592, "สุพรรณบุรี"],
+  ["ปทุมธานี", 14.1162, 100.6206, "ปทุมธานี"], ["สมุทรปราการ", 13.5169, 100.7612, "สมุทรปราการ"], ["นำร่อง", 13.3772, 100.5994, "สมุทรปราการ"], ["สุวรรณภูมิ", 13.6863, 100.7675, "สมุทรปราการ"],
+  ["สมุทรสงคราม", 13.4077, 100.0322, "สมุทรสงคราม"], ["นครปฐม", 14.0118, 99.9700, "นครปฐม"], ["นครนายก", 14.2166, 101.3833, "นครนายก"], ["ฉะเชิงเทรา", 13.5675, 101.4558, "ฉะเชิงเทรา"],
+  ["ปราจีนบุรี", 14.0509, 101.3693, "ปราจีนบุรี"], ["กบินทร์บุรี", 13.9859, 101.7045, "ปราจีนบุรี"], ["อรัญประเทศ", 13.6886, 102.5041, "สระแก้ว"], ["สระแก้ว", 13.7919, 102.0322, "สระแก้ว"],
+  ["ชลบุรี", 13.3555, 100.9821, "ชลบุรี"], ["เกาะสีชัง", 13.1626, 100.8025, "ชลบุรี"], ["พัทยา", 12.9234, 100.8655, "ชลบุรี"], ["แหลมฉบัง", 13.0780, 100.8738, "ชลบุรี"],
+  ["ระยอง", 12.6336, 101.3407, "ระยอง"], ["ห้วยโป่ง", 12.7348, 101.1353, "ระยอง"], ["จันทบุรี", 12.6096, 102.1040, "จันทบุรี"], ["พลิ้ว", 12.5105, 102.1699, "จันทบุรี"],
+  ["ตราด", 11.7803, 102.8780, "ตราด"], ["เชียงใหม่", 18.7707, 98.9684, "เชียงใหม่"], ["ดอยอ่างขาง", 19.9328, 99.0453, "เชียงใหม่"], ["แม่ฮ่องสอน", 19.2989, 97.9757, "แม่ฮ่องสอน"],
+  ["แม่สะเรียง", 18.1751, 97.9337, "แม่ฮ่องสอน"], ["เชียงราย", 19.9614, 99.8813, "เชียงราย"], ["เชียงราย (เกษตร)", 19.8727, 99.7794, "เชียงราย"], ["พะเยา", 19.1933, 99.8838, "พะเยา"],
+  ["ลำปาง", 18.2782, 99.5065, "ลำปาง"], ["เถิน", 17.6366, 99.2447, "ลำปาง"], ["ห้างฉัตร", 18.3251, 99.3015, "ลำปาง"], ["ลำพูน", 18.5666, 99.0385, "ลำพูน"],
+  ["แพร่", 18.1285, 100.1622, "แพร่"], ["น่าน", 18.7671, 100.7635, "น่าน"], ["น่าน (เกษตร)", 18.8636, 100.7418, "น่าน"], ["ทุ่งช้าง", 19.4083, 100.8824, "น่าน"],
+  ["ท่าวังผา", 19.1231, 100.8131, "น่าน"], ["อุตรดิตถ์", 17.6245, 100.0971, "อุตรดิตถ์"], ["ตาก", 16.8797, 99.1402, "ตาก"], ["แม่สอด", 16.7027, 98.5418, "ตาก"],
+  ["เขื่อนภูมิพล", 17.2439, 99.0025, "ตาก"], ["อุ้มผาง", 16.0254, 98.8600, "ตาก"], ["ดอยมูเซอ", 16.7524, 98.9355, "ตาก"], ["เพชรบูรณ์", 16.4347, 101.1518, "เพชรบูรณ์"],
+  ["วิเชียรบุรี", 15.6570, 101.1055, "เพชรบูรณ์"], ["หล่มสัก", 16.7739, 101.2452, "เพชรบูรณ์"], ["พิษณุโลก", 16.7962, 100.2759, "พิษณุโลก"], ["กำแพงเพชร", 16.4868, 99.5269, "กำแพงเพชร"],
+  ["สุโขทัย", 17.1070, 99.8003, "สุโขทัย"], ["ศรีสำโรง", 17.1613, 99.8616, "สุโขทัย"], ["พิจิตร", 16.4375, 100.2856, "พิจิตร"], ["ขอนแก่น", 16.4610, 102.7896, "ขอนแก่น"],
+  ["ท่าพระ", 16.3354, 102.8266, "ขอนแก่น"], ["หนองคาย", 17.8638, 102.7508, "หนองคาย"], ["เลย", 17.4525, 101.7306, "เลย"], ["เลย (เกษตร)", 17.4096, 101.7296, "เลย"],
+  ["อุดรธานี", 17.3770, 102.8096, "อุดรธานี"], ["สกลนคร", 17.1548, 104.1370, "สกลนคร"], ["สกลนคร (เกษตร)", 17.1250, 104.0610, "สกลนคร"], ["นครพนม", 17.4106, 104.7825, "นครพนม"],
+  ["นครพนม (เกษตร)", 17.2764, 104.7736, "นครพนม"], ["ชัยภูมิ", 15.8119, 102.0291, "ชัยภูมิ"], ["มหาสารคาม", 16.2453, 103.0696, "มหาสารคาม"], ["หนองบัวลำภู", 17.2323, 102.4295, "หนองบัวลำภู"],
+  ["กาฬสินธุ์", 16.3305, 103.5912, "กาฬสินธุ์"], ["บึงกาฬ", 18.4136, 103.5167, "บึงกาฬ"], ["อุบลราชธานี", 15.2438, 104.8748, "อุบลราชธานี"], ["อุบลฯ (เกษตร)", 15.2391, 105.0235, "อุบลราชธานี"],
+  ["มุกดาหาร", 16.5416, 104.7290, "มุกดาหาร"], ["อำนาจเจริญ", 15.9037, 104.6180, "อำนาจเจริญ"], ["ร้อยเอ็ด", 16.0518, 103.6643, "ร้อยเอ็ด"], ["ร้อยเอ็ด (เกษตร)", 16.0732, 103.6084, "ร้อยเอ็ด"],
+  ["ยโสธร", 15.7949, 104.2143, "ยโสธร"], ["นครราชสีมา", 14.9683, 102.0860, "นครราชสีมา"], ["โชคชัย", 14.7379, 102.1681, "นครราชสีมา"], ["ปากช่อง", 14.6420, 101.3215, "นครราชสีมา"],
+  ["สุรินทร์", 14.8739, 103.4996, "สุรินทร์"], ["สุรินทร์ (เกษตร)", 14.8909, 103.4524, "สุรินทร์"], ["ท่าตูม", 15.3162, 103.6803, "สุรินทร์"], ["ศรีสะเกษ", 15.0853, 104.3306, "ศรีสะเกษ"],
+  ["นางรอง", 14.6309, 102.7213, "บุรีรัมย์"], ["สตึก", 15.2257, 103.2480, "บุรีรัมย์"], ["สงขลา", 7.1821, 100.6076, "สงขลา"], ["หาดใหญ่", 6.9376, 100.3954, "สงขลา"],
+  ["คอหงส์", 7.0156, 100.5018, "สงขลา"], ["สะเดา", 6.7872, 100.4127, "สงขลา"], ["เพชรบุรี", 13.0103, 100.0594, "เพชรบุรี"], ["ประจวบคีรีขันธ์", 11.8351, 99.8103, "ประจวบคีรีขันธ์"],
+  ["หัวหิน", 12.5778, 99.9539, "ประจวบคีรีขันธ์"], ["หนองพลับ", 12.5889, 99.7344, "ประจวบคีรีขันธ์"], ["ชุมพร", 10.4987, 99.1884, "ชุมพร"], ["สวี", 10.3306, 99.0927, "ชุมพร"],
+  ["เกาะสมุย", 9.4490, 100.0368, "สุราษฎร์ธานี"], ["สุราษฎร์ธานี", 9.1342, 99.1520, "สุราษฎร์ธานี"], ["สุราษฎร์ฯ (เกษตร)", 9.1428, 99.6362, "สุราษฎร์ธานี"], ["พระแสง", 8.5702, 99.2582, "สุราษฎร์ธานี"],
+  ["นครศรีธรรมราช", 8.5441, 99.9428, "นครศรีธรรมราช"], ["นครศรีฯ (เกษตร)", 8.3593, 100.0594, "นครศรีธรรมราช"], ["ฉวาง", 8.4246, 99.5066, "นครศรีธรรมราช"], ["ปัตตานี", 6.7900, 101.1470, "ปัตตานี"],
+  ["ยะลา", 6.5155, 101.2735, "ยะลา"], ["นราธิวาส", 6.4268, 101.8251, "นราธิวาส"], ["พัทลุง", 7.5806, 100.1663, "พัทลุง"], ["ภูเก็ต (สนามบิน)", 8.1027, 98.3109, "ภูเก็ต"],
+  ["ภูเก็ต", 7.8823, 98.3952, "ภูเก็ต"], ["ระนอง", 9.9526, 98.6368, "ระนอง"], ["พังงา", 8.6822, 98.2552, "พังงา"], ["กระบี่", 8.1017, 98.9783, "กระบี่"],
+  ["เกาะลันตา", 7.5426, 99.0495, "กระบี่"], ["ตรัง", 7.5101, 99.6238, "ตรัง"], ["สตูล", 6.6515, 100.0862, "สตูล"]
+].map((item, j) => ({
+  stationID: `TMD_${j}`,
+  nameTH: `สถานีอุตุฯ ${item[0]}`,
+  areaTH: item[3],
+  lat: item[1],
+  long: item[2],
+  isWeatherStation: true
+}));
+
+const createCustomMarker = (viewMode, value, extraData) => {
+  let bg, textColor, displayValue;
+  const fontSize = String(value).length > 2 ? '9px' : '11px';
+  if (viewMode === 'pm25') { bg = getPM25Color(value); textColor = (value > 25.0 && value <= 37.5) ? '#222' : '#fff'; displayValue = (value === 0 || isNaN(value)) ? '-' : value; }
+  else if (viewMode === 'temp') { const tInfo = getTempColor(value); bg = tInfo.bg; textColor = tInfo.text; displayValue = (value == null || isNaN(value)) ? '-' : Math.round(value); }
+  else if (viewMode === 'heat') { const hInfo = getHeatIndexAlert(value); bg = value != null ? hInfo.bar : '#cccccc'; textColor = '#fff'; displayValue = (value == null || isNaN(value)) ? '-' : Math.round(value); }
+  else if (viewMode === 'uv') { const uInfo = getUvColor(value); bg = value != null ? uInfo.bar : '#cccccc'; textColor = (value > 2 && value <= 5) ? '#222' : '#fff'; displayValue = (value == null || isNaN(value)) ? '-' : Math.round(value); }
+  else if (viewMode === 'rain') { const rInfo = getRainColor(value); bg = value != null ? rInfo.bar : '#cccccc'; textColor = (value <= 30 && value > 0) ? '#222' : '#fff'; displayValue = (value == null || isNaN(value)) ? '-' : `${Math.round(value)}%`; }
+  else if (viewMode === 'wind') { const wInfo = getWindColor(value); bg = value != null ? wInfo.bar : '#cccccc'; textColor = (value > 10 && value <= 40) ? '#222' : '#fff'; const dir = extraData?.windDir || 0; displayValue = value == null ? '-' : `<div style="display:flex; flex-direction:column; align-items:center; line-height:1;"><span style="transform: rotate(${dir}deg); font-size: 14px; margin-bottom: -1px; font-weight: bold;">↓</span><span style="font-size: 9px;">${Math.round(value)}</span></div>`; }
+
+  return L.divIcon({ className: 'custom-div-icon', html: `<div style="background-color: ${bg}; width: 34px; height: 34px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.4); display: flex; justify-content: center; align-items: center; color: ${textColor}; font-weight: bold; font-size: ${fontSize}; font-family: 'Kanit', sans-serif; transition: all 0.3s ease;">${displayValue}</div>`, iconSize: [38, 38], iconAnchor: [19, 19] });
+};
+
+function FitBounds({ stations, activeStation, selectedProvince }) {
+  const map = useMap();
+  useEffect(() => {
+    if (activeStation) return; 
+    if (stations && stations.length > 0) {
+      if (!selectedProvince) { map.flyTo([13.5, 101.0], 6, { duration: 1.5 }); } 
+      else { 
+        const validStations = stations.filter(s => s.lat && s.long && !isNaN(parseFloat(s.lat)) && !isNaN(parseFloat(s.long)) && parseFloat(s.lat) !== 0);
+        if (validStations.length > 0) {
+          const bounds = L.latLngBounds(validStations.map(s => [parseFloat(s.lat), parseFloat(s.long)])); 
+          map.fitBounds(bounds, { padding: [40, 40], maxZoom: 11 });
+        }
+      }
+    }
+  }, [stations, map, activeStation, selectedProvince]);
+  return null;
+}
+
+function FlyToActiveStation({ activeStation }) {
+  const map = useMap();
+  useEffect(() => { if (activeStation && !isNaN(parseFloat(activeStation.lat))) map.flyTo([parseFloat(activeStation.lat), parseFloat(activeStation.long)], 13, { duration: 1.5 }); }, [activeStation, map]);
+  return null;
+}
+
+function RadarMapHandler({ showRadar }) {
+  const map = useMap();
+  useEffect(() => { if (showRadar && map.getZoom() > 8) map.flyTo([13.5, 101.0], 6, { duration: 1.2 }); }, [showRadar, map]);
+  return null;
+}
+
+function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
+  var R = 6371; var dLat = deg2rad(lat2-lat1); var dLon = deg2rad(lon2-lon1); 
+  var a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * Math.sin(dLon/2) * Math.sin(dLon/2); 
+  var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+  return R * c;
+}
+function deg2rad(deg) { return deg * (Math.PI/180) }
+
 // ==============================================================
 // 3. Main App Component
 // ==============================================================
@@ -192,8 +344,8 @@ export default function App() {
       else if (viewMode==='rain') { vA = stationTemps[a.stationID]?.rainProb; vB = stationTemps[b.stationID]?.rainProb; }
       else if (viewMode==='wind') { vA = stationTemps[a.stationID]?.windSpeed; vB = stationTemps[b.stationID]?.windSpeed; }
       
-      const validA = vA!==undefined && vA!==null && !isNaN(vA) && (viewMode==='rain'?true:vA!==0);
-      const validB = vB!==undefined && vB!==null && !isNaN(vB) && (viewMode==='rain'?true:vB!==0);
+      const validA = vA!=null && !isNaN(vA) && (viewMode==='rain'?true:vA!==0);
+      const validB = vB!=null && !isNaN(vB) && (viewMode==='rain'?true:vB!==0);
       if (!validA && validB) return 1; if (validA && !validB) return -1; if (!validA && !validB) return 0;
       return sortOrder === 'desc' ? vB - vA : vA - vB;
     });
@@ -218,7 +370,7 @@ export default function App() {
               let tLabel = i===0?'วันนี้':i===1?'พรุ่งนี้':days[new Date(wData.daily.time[i]).getDay()];
               tempF.push({ time: tLabel, val: Math.round(wData.daily.temperature_2m_max[i]||0), minVal: Math.round(wData.daily.temperature_2m_min[i]||0), colorInfo: getTempColor(wData.daily.temperature_2m_max[i]) });
               heatF.push({ time: tLabel, val: Math.round(wData.daily.apparent_temperature_max[i]||0), colorInfo: getHeatIndexAlert(wData.daily.apparent_temperature_max[i]) });
-              if(wData.daily.uv_index_max[i] !== null && wData.daily.uv_index_max[i] !== undefined){ uvF.push({ time: tLabel, val: Math.round(wData.daily.uv_index_max[i]||0), colorInfo: getUvColor(wData.daily.uv_index_max[i]) }); }
+              if(wData.daily.uv_index_max[i] != null){ uvF.push({ time: tLabel, val: Math.round(wData.daily.uv_index_max[i]||0), colorInfo: getUvColor(wData.daily.uv_index_max[i]) }); }
               rainF.push({ time: tLabel, val: Math.round(wData.daily.precipitation_probability_max[i]||0), colorInfo: getRainColor(wData.daily.precipitation_probability_max[i]) });
               windF.push({ time: tLabel, val: Math.round(wData.daily.wind_speed_10m_max[i]||0), colorInfo: getWindColor(wData.daily.wind_speed_10m_max[i]) });
             }
@@ -233,7 +385,7 @@ export default function App() {
             let offset = (!isNaN(currentReal) && aData.hourly.pm2_5[sIdx] !== undefined) ? currentReal - aData.hourly.pm2_5[sIdx] : 0;
             const pmF = [];
             for (let i = sIdx; i < aData.hourly.time.length && pmF.length < 24; i += 3) {
-              if(aData.hourly.pm2_5[i] !== null){
+              if(aData.hourly.pm2_5[i] != null){
                 let cVal = Math.max(0, (aData.hourly.pm2_5[i] || 0) + offset);
                 pmF.push({ time: `${new Date(aData.hourly.time[i]).getHours().toString().padStart(2, '0')}`, val: Math.round(cVal), color: getPM25Color(cVal) });
               }
@@ -324,7 +476,6 @@ export default function App() {
     }, () => { alert('ดึงพิกัดไม่ได้'); setLocating(false); });
   };
 
-  // 🚀 ระบบวิเคราะห์ Nowcasting 3 ชม. & 24 ชม.
   const fetchAlertsData = async (lat, lon, locName) => {
     setAlertsLoading(true); setAlertsLocationName(locName);
     try {
@@ -339,7 +490,6 @@ export default function App() {
       const nIdx = new Date().getHours();
       const fmt = (iso) => `${new Date(iso).getHours()}:00 น.`;
 
-      // 1. วิเคราะห์ 3 ชม. ข้างหน้า (Urgent)
       let rain3hP = 0, rain3hV = 0, rain3hT = '';
       let heat3h = 0, heat3hT = '';
       let pm3h = 0, pm3hT = '';
@@ -365,7 +515,6 @@ export default function App() {
         urgent.push({ icon:'✨', color:'#10b981', title:'สภาพอากาศปกติ', desc:'ไม่มีสภาวะรุนแรงใน 3 ชั่วโมงนี้ สามารถทำกิจกรรมได้ตามปกติ' });
       }
 
-      // 2. วิเคราะห์ 24 ชม. (Daily)
       let rain24P = 0, rain24T = '';
       let heat24 = 0, heat24T = '';
       let pm24 = 0, pm24T = '';
@@ -418,7 +567,7 @@ export default function App() {
   const borderColor = darkMode ? '#334155' : '#e2e8f0';
   const activeChart = chartConfigs[viewMode] || chartConfigs['pm25']; 
 
-  const validForecast = dashForecast.filter(d => d[activeChart.key] !== null && d[activeChart.key] !== undefined);
+  const validForecast = dashForecast.filter(d => d[activeChart.key] != null);
   const todayDateText = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
 
   return (
@@ -519,6 +668,11 @@ export default function App() {
                 <RadarMapHandler showRadar={showRadar} />
                 
                 {!showRadar && filteredStations.map((station) => {
+                  const lat = parseFloat(station.lat);
+                  const lon = parseFloat(station.long);
+                  // ป้องกันบั๊ก Marker พังถ้าข้อมูลสถานีล่ม
+                  if (isNaN(lat) || isNaN(lon)) return null;
+
                   const isWeatherOnly = station.isWeatherStation; 
                   const pmVal = isWeatherOnly ? null : Number(station.AQILast?.PM25?.value); 
                   const tObj = stationTemps[station.stationID];
@@ -527,7 +681,7 @@ export default function App() {
                   if(isPm25Mode) mVal=pmVal; else if(isTempMode) mVal=tObj?.temp; else if(isHeatMode) mVal=tObj?.feelsLike; else if(isUvMode) mVal=tObj?.uvMax; else if(isRainMode) mVal=tObj?.rainProb; else if(isWindMode) mVal=tObj?.windSpeed;
                   
                   return (
-                    <Marker key={station.stationID} position={[parseFloat(station.lat), parseFloat(station.long)]} icon={createCustomMarker(viewMode, mVal, tObj)} ref={el => markerRefs.current[station.stationID]=el} eventHandlers={{ click: () => setActiveStation(station) }}>
+                    <Marker key={station.stationID} position={[lat, lon]} icon={createCustomMarker(viewMode, mVal, tObj)} ref={el => markerRefs.current[station.stationID]=el} eventHandlers={{ click: () => setActiveStation(station) }}>
                       <Popup minWidth={260}>
                         <div style={{ textAlign: 'center', fontFamily: 'Kanit', color: '#1e293b' }}>
                           <strong>{station.nameTH}</strong>
@@ -543,7 +697,7 @@ export default function App() {
                             <div style={{ padding: '12px', background: '#f1f5f9', borderRadius: '8px', fontSize: '0.85rem', color: '#334155', fontWeight:'bold', marginTop: isWeatherOnly?'10px':0 }}>
                               <div style={{ marginBottom: '8px', fontSize: '1.1rem', color:'#1e293b' }}>{getWeatherIcon(tObj.weatherCode).icon} {getWeatherIcon(tObj.weatherCode).text}</div>
                               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', textAlign: 'left' }}>
-                                <span>🌡️ {tObj.temp?.toFixed(1)||'-'}°C</span><span>🥵 {tObj.feelsLike?.toFixed(1)||'-'}°C</span>
+                                <span>🌡️ {tObj.temp != null ? Number(tObj.temp).toFixed(1) : '-'}°C</span><span>🥵 {tObj.feelsLike != null ? Number(tObj.feelsLike).toFixed(1) : '-'}°C</span>
                                 <span style={{color:'#0ea5e9'}}>💧 {tObj.humidity||'-'}%</span><span style={{color:'#0ea5e9'}}>🌧️ {tObj.rainProb||'0'}%</span>
                                 <span style={{color:'#a855f7'}}>☀️ UV สูงสุด: {tObj.uvMax||'-'}</span><span>🌬️ {tObj.windSpeed||'-'}</span>
                               </div>
@@ -574,11 +728,11 @@ export default function App() {
                   
                   let disp = '-', unit = '', boxBg = '#ccc';
                   if(isPm25Mode){ disp=isNaN(pmVal)?'-':pmVal; unit='µg/m³'; boxBg=getPM25Color(pmVal); }
-                  else if(isTempMode){ disp=tObj?.temp!==undefined?tObj.temp.toFixed(1):'-'; unit='°C'; boxBg=getTempColor(tObj?.temp).bar; }
-                  else if(isHeatMode){ disp=tObj?.feelsLike!==undefined?tObj.feelsLike.toFixed(1):'-'; unit='°C'; boxBg=tObj?getHeatIndexAlert(tObj.feelsLike).bar:'#ccc'; }
-                  else if(isUvMode){ disp=tObj?.uvMax!==undefined?tObj.uvMax:'-'; unit='UV'; boxBg=tObj?getUvColor(tObj.uvMax).bar:'#ccc'; }
-                  else if(isRainMode){ disp=tObj?.rainProb!==undefined?`${tObj.rainProb}%`:'-'; unit='ตก'; boxBg=tObj?getRainColor(tObj.rainProb).bar:'#ccc'; }
-                  else if(isWindMode){ disp=tObj?.windSpeed!==undefined?tObj.windSpeed:'-'; unit='km/h'; boxBg=tObj?getWindColor(tObj.windSpeed).bar:'#ccc'; }
+                  else if(isTempMode){ disp=tObj?.temp!=null?Number(tObj.temp).toFixed(1):'-'; unit='°C'; boxBg=getTempColor(tObj?.temp).bar; }
+                  else if(isHeatMode){ disp=tObj?.feelsLike!=null?Number(tObj.feelsLike).toFixed(1):'-'; unit='°C'; boxBg=tObj?getHeatIndexAlert(tObj.feelsLike).bar:'#ccc'; }
+                  else if(isUvMode){ disp=tObj?.uvMax!=null?tObj.uvMax:'-'; unit='UV'; boxBg=tObj?getUvColor(tObj.uvMax).bar:'#ccc'; }
+                  else if(isRainMode){ disp=tObj?.rainProb!=null?`${tObj.rainProb}%`:'-'; unit='ตก'; boxBg=tObj?getRainColor(tObj.rainProb).bar:'#ccc'; }
+                  else if(isWindMode){ disp=tObj?.windSpeed!=null?tObj.windSpeed:'-'; unit='km/h'; boxBg=tObj?getWindColor(tObj.windSpeed).bar:'#ccc'; }
                   
                   let hAdv = isPm25Mode?getPM25HealthAdvice(pmVal):isHeatMode?getHeatHealthAdvice(tObj?.feelsLike):isUvMode?getUvHealthAdvice(tObj?.uvMax):null;
 
@@ -589,7 +743,7 @@ export default function App() {
                           <h4 style={{ margin:'0 0 2px 0', color:textColor, fontSize:'1rem' }}>{station.nameTH}</h4>
                           <p style={{ margin:0, color:'#3b82f6', fontSize:'0.8rem', fontWeight:'bold' }}>{extractProvince(station.areaTH)}</p>
                           <div style={{ marginTop:'10px', fontSize:'0.85rem', color:subTextColor, fontWeight:'bold' }}>
-                            {isPm25Mode ? `AQI: ${station.AQILast?.AQI?.aqi||'--'}` : tObj ? (isUvMode?`ระดับ: ${getUvColor(tObj?.uvMax).label}`:isRainMode?`💧 ชื้น: ${tObj.humidity}%`:isWindMode?`ลมสูงสุด: ${tObj.windMax} km/h`:`ต่ำ ${tObj.tempMin?.toFixed(1)}° | สูง ${tObj.tempMax?.toFixed(1)}°`) : 'ไม่มีข้อมูล'}
+                            {isPm25Mode ? `AQI: ${station.AQILast?.AQI?.aqi||'--'}` : tObj ? (isUvMode?`ระดับ: ${getUvColor(tObj?.uvMax).label}`:isRainMode?`💧 ชื้น: ${tObj.humidity}%`:isWindMode?`ลมสูงสุด: ${tObj.windMax} km/h`:`ต่ำ ${tObj.tempMin!=null?Number(tObj.tempMin).toFixed(1):'-'}° | สูง ${tObj.tempMax!=null?Number(tObj.tempMax).toFixed(1):'-'}°`) : 'ไม่มีข้อมูล'}
                           </div>
                         </div>
                         <div style={{ backgroundColor:boxBg, color:(isPm25Mode && pmVal>25&&pmVal<=37.5) || (isUvMode&&tObj?.uvMax<=5)?'#1e293b':'#fff', width:'60px', height:'60px', borderRadius:'12px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center' }}>
@@ -764,16 +918,16 @@ export default function App() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
               
               {/* ส่วนที่ 1: แจ้งเตือนพิกัดปัจจุบันของคุณ (แบ่ง 3 ชม. กับ 24 ชม.) */}
-              {(alertsData.urgent?.length > 0 || alertsData.daily?.length > 0) && (
+              {(alertsData?.urgent?.length > 0 || alertsData?.daily?.length > 0) && (
                 <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth < 768 ? '1fr' : '1fr 1fr', gap: '20px' }}>
                   
                   {/* คอลัมน์ 1: 3 ชั่วโมงข้างหน้า (Urgent) */}
-                  <div style={{ backgroundColor: cardBg, borderRadius: '16px', padding: '20px', border: `1px solid ${borderColor}`, borderTop: alertsData.urgent.some(a => a.color !== '#10b981') ? '4px solid #ef4444' : '4px solid #10b981', boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
-                    <h3 style={{ fontSize: '1.2rem', color: alertsData.urgent.some(a => a.color !== '#10b981') ? '#ef4444' : '#10b981', margin: '0 0 15px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      {alertsData.urgent.some(a => a.color !== '#10b981') ? '🚨 เฝ้าระวังด่วน (3 ชม. ข้างหน้า)' : '✅ สถานการณ์ปกติ (3 ชม. ข้างหน้า)'}
+                  <div style={{ backgroundColor: cardBg, borderRadius: '16px', padding: '20px', border: `1px solid ${borderColor}`, borderTop: alertsData?.urgent?.some(a => a.color !== '#10b981') ? '4px solid #ef4444' : '4px solid #10b981', boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
+                    <h3 style={{ fontSize: '1.2rem', color: alertsData?.urgent?.some(a => a.color !== '#10b981') ? '#ef4444' : '#10b981', margin: '0 0 15px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      {alertsData?.urgent?.some(a => a.color !== '#10b981') ? '🚨 เฝ้าระวังด่วน (3 ชม. ข้างหน้า)' : '✅ สถานการณ์ปกติ (3 ชม. ข้างหน้า)'}
                     </h3>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                      {alertsData.urgent.map((al, idx) => (
+                      {alertsData?.urgent?.map((al, idx) => (
                         <div key={idx} style={{ display: 'flex', gap: '15px', backgroundColor: darkMode?'#0f172a':'#fff', padding: '15px', borderRadius: '10px', borderLeft: `4px solid ${al.color}`, border: darkMode ? '1px solid #334155' : '1px solid #f1f5f9' }}>
                           <div style={{ fontSize: '1.8rem', display:'flex', alignItems:'center' }}>{al.icon}</div>
                           <div><h4 style={{ margin: '0 0 4px 0', fontSize: '1rem', color: al.color, fontWeight:'bold' }}>{al.title}</h4><p style={{ margin: 0, color: textColor, lineHeight:1.4, fontSize:'0.85rem' }}>{al.desc}</p></div>
@@ -786,7 +940,7 @@ export default function App() {
                   <div style={{ backgroundColor: cardBg, borderRadius: '16px', padding: '20px', border: `1px solid ${borderColor}`, borderTop: '4px solid #0ea5e9', boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
                     <h3 style={{ fontSize: '1.2rem', color: '#0ea5e9', margin: '0 0 15px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>📅 ภาพรวมสภาพอากาศ (24 ชั่วโมง)</h3>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                      {alertsData.daily.map((al, idx) => (
+                      {alertsData?.daily?.map((al, idx) => (
                         <div key={idx} style={{ display: 'flex', gap: '15px', backgroundColor: darkMode?'#0f172a':'#f8fafc', padding: '15px', borderRadius: '10px' }}>
                           <div style={{ fontSize: '1.5rem', display:'flex', alignItems:'center' }}>{al.icon}</div>
                           <div><h4 style={{ margin: '0 0 4px 0', fontSize: '0.95rem', color: al.color, fontWeight:'bold' }}>{al.title}</h4><p style={{ margin: 0, color: subTextColor, lineHeight:1.4, fontSize:'0.85rem' }}>{al.desc}</p></div>
