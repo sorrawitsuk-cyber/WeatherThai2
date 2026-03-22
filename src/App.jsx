@@ -5,9 +5,7 @@ import 'leaflet/dist/leaflet.css';
 import { LineChart, Line, BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import './App.css';
 
-// ==============================================================
 // 1. ฟังก์ชันคำนวณสีและข้อความ
-// ==============================================================
 const getAqiDetails = (val) => { const v=Number(val); return isNaN(v)||v===0?{color:'#ccc',text:'ไม่มีข้อมูล',level:0}:v<=25?{color:'#00b0f0',text:'คุณภาพอากาศดีมาก',level:1}:v<=50?{color:'#92d050',text:'คุณภาพอากาศดี',level:2}:v<=100?{color:'#ffff00',text:'ปานกลาง',level:3}:v<=200?{color:'#ffc000',text:'เริ่มมีผลกระทบฯ',level:4}:{color:'#ff0000',text:'มีผลกระทบต่อสุขภาพ',level:5};};
 const getPM25Color = (val) => { const v=Number(val); return isNaN(v)?'#ccc':v<=15?'#00b0f0':v<=25?'#92d050':v<=37.5?'#ffff00':v<=75?'#ffc000':'#ff0000'; };
 const getPM25HealthAdvice = (val) => { const v=Number(val); return isNaN(v)||v===0?null:v<=25?{text:"อากาศดีเยี่ยม เหมาะกับการทำกิจกรรมกลางแจ้ง",icon:"🏃‍♂️"}:v<=37.5?{text:"ประชาชนทั่วไปทำกิจกรรมได้ปกติ",icon:"🚶‍♀️"}:v<=75?{text:"ลดระยะเวลาการทำกิจกรรมกลางแจ้ง (หน้ากาก N95)",icon:"😷"}:{text:"งดกิจกรรมกลางแจ้งเด็ดขาด",icon:"🚨"}; };
@@ -20,7 +18,7 @@ const getRainColor = (val) => { return (isNaN(val)||val===null)?{bg:'#ccc',text:
 const getWindColor = (val) => { return (isNaN(val)||val===null)?{bg:'#ccc',text:'#333',bar:'#ccc',label:'ไม่มีข้อมูล'}:val<=10?{bg:'#00b0f0',text:'#fff',bar:'#00b0f0',label:'ลมอ่อน'}:val<=25?{bg:'#2ecc71',text:'#fff',bar:'#2ecc71',label:'ลมปานกลาง'}:val<=40?{bg:'#f1c40f',text:'#222',bar:'#f1c40f',label:'ลมแรง'}:val<=60?{bg:'#e67e22',text:'#fff',bar:'#e67e22',label:'ลมแรงมาก'}:{bg:'#e74c3c',text:'#fff',bar:'#e74c3c',label:'พายุ'}; };
 const getWeatherIcon = (c) => { if(c===undefined||c===null)return{icon:'❓',text:'ไม่ทราบ'}; if(c===0)return{icon:'☀️',text:'แจ่มใส'}; if(c===1)return{icon:'🌤️',text:'มีเมฆบางส่วน'}; if(c===2)return{icon:'⛅',text:'มีเมฆ'}; if(c===3)return{icon:'☁️',text:'มีเมฆมาก'}; if([45,48].includes(c))return{icon:'🌫️',text:'มีหมอก'}; if([51,53,55,56,57].includes(c))return{icon:'🌧️',text:'ฝนปรอย'}; if([61,63,65,66,67].includes(c))return{icon:'🌧️',text:'ฝนตก'}; if([71,73,75,77,85,86].includes(c))return{icon:'❄️',text:'หิมะ'}; if([80,81,82].includes(c))return{icon:'🌦️',text:'ฝนตกหย่อมๆ'}; if([95,96,99].includes(c))return{icon:'⛈️',text:'พายุฝน'}; return{icon:'🌤️',text:'ปกติ'}; };
 
-// ฐานข้อมูล 77 จังหวัดสำหรับดักกรองชื่อที่ผิดปกติ
+// ฐานข้อมูลจังหวัด
 const thaiProvinces = ["กรุงเทพมหานคร","กระบี่","กาญจนบุรี","กาฬสินธุ์","กำแพงเพชร","ขอนแก่น","จันทบุรี","ฉะเชิงเทรา","ชลบุรี","ชัยนาท","ชัยภูมิ","ชุมพร","เชียงราย","เชียงใหม่","ตรัง","ตราด","ตาก","นครนายก","นครปฐม","นครพนม","นครราชสีมา","นครศรีธรรมราช","นครสวรรค์","นนทบุรี","นราธิวาส","น่าน","บึงกาฬ","บุรีรัมย์","ปทุมธานี","ประจวบคีรีขันธ์","ปราจีนบุรี","ปัตตานี","พระนครศรีอยุธยา","พะเยา","พังงา","พัทลุง","พิจิตร","พิษณุโลก","เพชรบุรี","เพชรบูรณ์","แพร่","ภูเก็ต","มหาสารคาม","มุกดาหาร","แม่ฮ่องสอน","ยโสธร","ยะลา","ร้อยเอ็ด","ระนอง","ระยอง","ราชบุรี","ลพบุรี","ลำปาง","ลำพูน","เลย","ศรีสะเกษ","สกลนคร","สงขลา","สตูล","สมุทรปราการ","สมุทรสงคราม","สมุทรสาคร","สระแก้ว","สระบุรี","สิงห์บุรี","สุโขทัย","สุพรรณบุรี","สุราษฎร์ธานี","สุรินทร์","หนองคาย","หนองบัวลำภู","อ่างทอง","อำนาจเจริญ","อุดรธานี","อุตรดิตถ์","อุทัยธานี","อุบลราชธานี"];
 
 const extractProvince = (area) => { 
@@ -56,9 +54,49 @@ const chartConfigs = {
   wind: { key: 'wind', keyLY: 'windLY', name: 'ความเร็วลมสูงสุด', unit: 'km/h', color: '#64748b', hasLY: true, type: 'line' },
 };
 
-// ==============================================================
-// 2. Map Components
-// ==============================================================
+// 📍 ข้อมูลพิกัดสถานีอุตุฯ 127 แห่ง (ย้ายมาไว้ฝั่ง Client)
+const tmdStations = [
+  ["กรุงเทพฯ (บางนา)", 13.6644, 100.6099, "กรุงเทพมหานคร"], ["กรุงเทพฯ (ท่าเรือคลองเตย)", 13.7237, 100.5677, "กรุงเทพมหานคร"], ["กรุงเทพฯ (เฉลิมพระเกียรติ)", 13.7245, 100.5633, "กรุงเทพมหานคร"], ["กรุงเทพฯ (ดอนเมือง)", 13.9191, 100.6050, "กรุงเทพมหานคร"],
+  ["นครสวรรค์", 15.6718, 100.1323, "นครสวรรค์"], ["ตากฟ้า", 15.3493, 100.5303, "นครสวรรค์"], ["ชัยนาท", 15.1582, 100.1916, "ชัยนาท"], ["อุทัยธานี", 15.3741, 100.0389, "อุทัยธานี"],
+  ["พระนครศรีอยุธยา", 14.5348, 100.7250, "พระนครศรีอยุธยา"], ["ลพบุรี", 14.7999, 100.6283, "ลพบุรี"], ["บัวชุม", 15.2666, 101.1873, "ลพบุรี"], ["ราชบุรี", 13.4893, 99.7923, "ราชบุรี"],
+  ["กาญจนบุรี", 14.0223, 99.5359, "กาญจนบุรี"], ["ทองผาภูมิ", 14.7445, 98.6331, "กาญจนบุรี"], ["สุพรรณบุรี", 14.4751, 100.0909, "สุพรรณบุรี"], ["อู่ทอง", 14.3018, 99.8592, "สุพรรณบุรี"],
+  ["ปทุมธานี", 14.1162, 100.6206, "ปทุมธานี"], ["สมุทรปราการ", 13.5169, 100.7612, "สมุทรปราการ"], ["นำร่อง", 13.3772, 100.5994, "สมุทรปราการ"], ["สุวรรณภูมิ", 13.6863, 100.7675, "สมุทรปราการ"],
+  ["สมุทรสงคราม", 13.4077, 100.0322, "สมุทรสงคราม"], ["นครปฐม", 14.0118, 99.9700, "นครปฐม"], ["นครนายก", 14.2166, 101.3833, "นครนายก"], ["ฉะเชิงเทรา", 13.5675, 101.4558, "ฉะเชิงเทรา"],
+  ["ปราจีนบุรี", 14.0509, 101.3693, "ปราจีนบุรี"], ["กบินทร์บุรี", 13.9859, 101.7045, "ปราจีนบุรี"], ["อรัญประเทศ", 13.6886, 102.5041, "สระแก้ว"], ["สระแก้ว", 13.7919, 102.0322, "สระแก้ว"],
+  ["ชลบุรี", 13.3555, 100.9821, "ชลบุรี"], ["เกาะสีชัง", 13.1626, 100.8025, "ชลบุรี"], ["พัทยา", 12.9234, 100.8655, "ชลบุรี"], ["แหลมฉบัง", 13.0780, 100.8738, "ชลบุรี"],
+  ["ระยอง", 12.6336, 101.3407, "ระยอง"], ["ห้วยโป่ง", 12.7348, 101.1353, "ระยอง"], ["จันทบุรี", 12.6096, 102.1040, "จันทบุรี"], ["พลิ้ว", 12.5105, 102.1699, "จันทบุรี"],
+  ["ตราด", 11.7803, 102.8780, "ตราด"], ["เชียงใหม่", 18.7707, 98.9684, "เชียงใหม่"], ["ดอยอ่างขาง", 19.9328, 99.0453, "เชียงใหม่"], ["แม่ฮ่องสอน", 19.2989, 97.9757, "แม่ฮ่องสอน"],
+  ["แม่สะเรียง", 18.1751, 97.9337, "แม่ฮ่องสอน"], ["เชียงราย", 19.9614, 99.8813, "เชียงราย"], ["เชียงราย (เกษตร)", 19.8727, 99.7794, "เชียงราย"], ["พะเยา", 19.1933, 99.8838, "พะเยา"],
+  ["ลำปาง", 18.2782, 99.5065, "ลำปาง"], ["เถิน", 17.6366, 99.2447, "ลำปาง"], ["ห้างฉัตร", 18.3251, 99.3015, "ลำปาง"], ["ลำพูน", 18.5666, 99.0385, "ลำพูน"],
+  ["แพร่", 18.1285, 100.1622, "แพร่"], ["น่าน", 18.7671, 100.7635, "น่าน"], ["น่าน (เกษตร)", 18.8636, 100.7418, "น่าน"], ["ทุ่งช้าง", 19.4083, 100.8824, "น่าน"],
+  ["ท่าวังผา", 19.1231, 100.8131, "น่าน"], ["อุตรดิตถ์", 17.6245, 100.0971, "อุตรดิตถ์"], ["ตาก", 16.8797, 99.1402, "ตาก"], ["แม่สอด", 16.7027, 98.5418, "ตาก"],
+  ["เขื่อนภูมิพล", 17.2439, 99.0025, "ตาก"], ["อุ้มผาง", 16.0254, 98.8600, "ตาก"], ["ดอยมูเซอ", 16.7524, 98.9355, "ตาก"], ["เพชรบูรณ์", 16.4347, 101.1518, "เพชรบูรณ์"],
+  ["วิเชียรบุรี", 15.6570, 101.1055, "เพชรบูรณ์"], ["หล่มสัก", 16.7739, 101.2452, "เพชรบูรณ์"], ["พิษณุโลก", 16.7962, 100.2759, "พิษณุโลก"], ["กำแพงเพชร", 16.4868, 99.5269, "กำแพงเพชร"],
+  ["สุโขทัย", 17.1070, 99.8003, "สุโขทัย"], ["ศรีสำโรง", 17.1613, 99.8616, "สุโขทัย"], ["พิจิตร", 16.4375, 100.2856, "พิจิตร"], ["ขอนแก่น", 16.4610, 102.7896, "ขอนแก่น"],
+  ["ท่าพระ", 16.3354, 102.8266, "ขอนแก่น"], ["หนองคาย", 17.8638, 102.7508, "หนองคาย"], ["เลย", 17.4525, 101.7306, "เลย"], ["เลย (เกษตร)", 17.4096, 101.7296, "เลย"],
+  ["อุดรธานี", 17.3770, 102.8096, "อุดรธานี"], ["สกลนคร", 17.1548, 104.1370, "สกลนคร"], ["สกลนคร (เกษตร)", 17.1250, 104.0610, "สกลนคร"], ["นครพนม", 17.4106, 104.7825, "นครพนม"],
+  ["นครพนม (เกษตร)", 17.2764, 104.7736, "นครพนม"], ["ชัยภูมิ", 15.8119, 102.0291, "ชัยภูมิ"], ["มหาสารคาม", 16.2453, 103.0696, "มหาสารคาม"], ["หนองบัวลำภู", 17.2323, 102.4295, "หนองบัวลำภู"],
+  ["กาฬสินธุ์", 16.3305, 103.5912, "กาฬสินธุ์"], ["บึงกาฬ", 18.4136, 103.5167, "บึงกาฬ"], ["อุบลราชธานี", 15.2438, 104.8748, "อุบลราชธานี"], ["อุบลฯ (เกษตร)", 15.2391, 105.0235, "อุบลราชธานี"],
+  ["มุกดาหาร", 16.5416, 104.7290, "มุกดาหาร"], ["อำนาจเจริญ", 15.9037, 104.6180, "อำนาจเจริญ"], ["ร้อยเอ็ด", 16.0518, 103.6643, "ร้อยเอ็ด"], ["ร้อยเอ็ด (เกษตร)", 16.0732, 103.6084, "ร้อยเอ็ด"],
+  ["ยโสธร", 15.7949, 104.2143, "ยโสธร"], ["นครราชสีมา", 14.9683, 102.0860, "นครราชสีมา"], ["โชคชัย", 14.7379, 102.1681, "นครราชสีมา"], ["ปากช่อง", 14.6420, 101.3215, "นครราชสีมา"],
+  ["สุรินทร์", 14.8739, 103.4996, "สุรินทร์"], ["สุรินทร์ (เกษตร)", 14.8909, 103.4524, "สุรินทร์"], ["ท่าตูม", 15.3162, 103.6803, "สุรินทร์"], ["ศรีสะเกษ", 15.0853, 104.3306, "ศรีสะเกษ"],
+  ["นางรอง", 14.6309, 102.7213, "บุรีรัมย์"], ["สตึก", 15.2257, 103.2480, "บุรีรัมย์"], ["สงขลา", 7.1821, 100.6076, "สงขลา"], ["หาดใหญ่", 6.9376, 100.3954, "สงขลา"],
+  ["คอหงส์", 7.0156, 100.5018, "สงขลา"], ["สะเดา", 6.7872, 100.4127, "สงขลา"], ["เพชรบุรี", 13.0103, 100.0594, "เพชรบุรี"], ["ประจวบคีรีขันธ์", 11.8351, 99.8103, "ประจวบคีรีขันธ์"],
+  ["หัวหิน", 12.5778, 99.9539, "ประจวบคีรีขันธ์"], ["หนองพลับ", 12.5889, 99.7344, "ประจวบคีรีขันธ์"], ["ชุมพร", 10.4987, 99.1884, "ชุมพร"], ["สวี", 10.3306, 99.0927, "ชุมพร"],
+  ["เกาะสมุย", 9.4490, 100.0368, "สุราษฎร์ธานี"], ["สุราษฎร์ธานี", 9.1342, 99.1520, "สุราษฎร์ธานี"], ["สุราษฎร์ฯ (เกษตร)", 9.1428, 99.6362, "สุราษฎร์ธานี"], ["พระแสง", 8.5702, 99.2582, "สุราษฎร์ธานี"],
+  ["นครศรีธรรมราช", 8.5441, 99.9428, "นครศรีธรรมราช"], ["นครศรีฯ (เกษตร)", 8.3593, 100.0594, "นครศรีธรรมราช"], ["ฉวาง", 8.4246, 99.5066, "นครศรีธรรมราช"], ["ปัตตานี", 6.7900, 101.1470, "ปัตตานี"],
+  ["ยะลา", 6.5155, 101.2735, "ยะลา"], ["นราธิวาส", 6.4268, 101.8251, "นราธิวาส"], ["พัทลุง", 7.5806, 100.1663, "พัทลุง"], ["ภูเก็ต (สนามบิน)", 8.1027, 98.3109, "ภูเก็ต"],
+  ["ภูเก็ต", 7.8823, 98.3952, "ภูเก็ต"], ["ระนอง", 9.9526, 98.6368, "ระนอง"], ["พังงา", 8.6822, 98.2552, "พังงา"], ["กระบี่", 8.1017, 98.9783, "กระบี่"],
+  ["เกาะลันตา", 7.5426, 99.0495, "กระบี่"], ["ตรัง", 7.5101, 99.6238, "ตรัง"], ["สตูล", 6.6515, 100.0862, "สตูล"]
+].map((item, j) => ({
+  stationID: `TMD_${j}`,
+  nameTH: `สถานีอุตุฯ ${item[0]}`,
+  areaTH: item[3],
+  lat: item[1],
+  long: item[2],
+  isWeatherStation: true
+}));
+
 const createCustomMarker = (viewMode, value, extraData) => {
   let bg, textColor, displayValue;
   const fontSize = String(value).length > 2 ? '9px' : '11px';
@@ -109,12 +147,13 @@ function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 function deg2rad(deg) { return deg * (Math.PI/180) }
+
 // ==============================================================
 // 3. Main App Component
 // ==============================================================
 export default function App() {
-  const [pm25Stations, setPm25Stations] = useState([]); // 187 จุด
-  const [weatherStations, setWeatherStations] = useState([]); // 127 จุด
+  const [pm25Stations, setPm25Stations] = useState([]);
+  const [weatherStations, setWeatherStations] = useState(tmdStations); 
   const [filteredStations, setFilteredStations] = useState([]);
   
   const [provinces, setProvinces] = useState([]);
@@ -175,42 +214,77 @@ export default function App() {
     setShowRadar(!showRadar);
   };
 
+  // 🚀 ฟังก์ชันดึงข้อมูลอากาศจาก Open-Meteo แบบ Bulk (ฝั่ง Client)
+  const fetchOpenMeteoBulk = async (stationsList) => {
+    try {
+      // แบ่ง 127 สถานีออกเป็น 2 ชุด (ชุดละ 64) เพื่อไม่ให้ URL ยาวเกินไป
+      const chunks = [stationsList.slice(0, 64), stationsList.slice(64)];
+      let allWeather = {};
+
+      for (let chunk of chunks) {
+        const lats = chunk.map(s => s.lat).join(',');
+        const lons = chunk.map(s => s.long).join(',');
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,wind_direction_10m,weather_code&daily=temperature_2m_max,temperature_2m_min,apparent_temperature_max,uv_index_max,precipitation_probability_max,wind_speed_10m_max&timezone=Asia%2FBangkok`;
+        
+        const res = await fetch(url);
+        const data = await res.json();
+        
+        // Open-Meteo จะส่งกลับมาเป็น Array ถ้ามีหลายพิกัด
+        const results = Array.isArray(data) ? data : [data];
+        
+        results.forEach((r, idx) => {
+           if (r && r.current && r.daily) {
+             allWeather[chunk[idx].stationID] = {
+               temp: r.current.temperature_2m,
+               feelsLike: r.current.apparent_temperature,
+               humidity: r.current.relative_humidity_2m,
+               windSpeed: r.current.wind_speed_10m,
+               windDir: r.current.wind_direction_10m,
+               weatherCode: r.current.weather_code,
+               tempMin: r.daily.temperature_2m_min[0],
+               tempMax: r.daily.temperature_2m_max[0],
+               heatMin: r.daily.temperature_2m_min[0],
+               heatMax: r.daily.apparent_temperature_max[0],
+               uvMax: r.daily.uv_index_max[0],
+               rainProb: r.daily.precipitation_probability_max[0],
+               windMax: r.daily.wind_speed_10m_max[0]
+             };
+           }
+        });
+      }
+      return allWeather;
+    } catch (error) {
+      console.error("Open-Meteo fetch error:", error);
+      return {};
+    }
+  };
+
   const fetchAirQuality = async (isBackgroundLoad = false) => {
-    const cachedData = localStorage.getItem('dashboard_cache');
-    if (cachedData && !isBackgroundLoad) {
-      try {
-        const parsedCache = JSON.parse(cachedData);
-        setPm25Stations(parsedCache.stations || []);
-        setWeatherStations(parsedCache.weatherStations || []);
-        setProvinces([...new Set((parsedCache.stations || []).map(s => extractProvince(s.areaTH)))].sort((a, b) => a.localeCompare(b, 'th')));
-        setLastUpdateText(`${parsedCache.stations[0]?.AQILast?.date || ''} เวลา ${parsedCache.stations[0]?.AQILast?.time || ''} น.`);
-        setStationTemps(parsedCache.weather || {});
-      } catch (e) { console.error("Cache error", e); }
-    } else if (!isBackgroundLoad) { setLoading(true); }
+    if (!isBackgroundLoad) setLoading(true);
 
     try {
       const PROJECT_ID = "thai-env-dashboard"; 
+      // ดึงแค่ Air4Thai จาก Firebase ของเรา
       const url = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents/weatherData/latest?t=${new Date().getTime()}`;
-      const response = await fetch(url, { cache: 'no-store' });
-      if (!response.ok) throw new Error('Network error');
       
-      const rawData = await response.json();
-      const payloadString = rawData.fields.jsonData.stringValue;
+      const [firebaseRes, openMeteoData] = await Promise.all([
+        fetch(url, { cache: 'no-store' }).then(res => res.json()),
+        fetchOpenMeteoBulk(tmdStations) // ดึงสภาพอากาศตรงจากเบราว์เซอร์ผู้ใช้!
+      ]);
+      
+      const payloadString = firebaseRes.fields.jsonData.stringValue;
       const parsedData = JSON.parse(payloadString);
-      
       const stations = parsedData.stations || [];
-      const wStations = parsedData.weatherStations || [];
-      const weather = parsedData.weather || {};
       
       if (stations.length > 0) {
-        localStorage.setItem('dashboard_cache', JSON.stringify({ stations, weatherStations: wStations, weather }));
         setPm25Stations(stations);
-        setWeatherStations(wStations);
         setProvinces([...new Set(stations.map(s => extractProvince(s.areaTH)))].sort((a, b) => a.localeCompare(b, 'th')));
         setLastUpdateText(`${stations[0]?.AQILast?.date || ''} เวลา ${stations[0]?.AQILast?.time || ''} น.`);
-        setStationTemps(weather); 
+        setStationTemps(openMeteoData); // ใช้ข้อมูลจาก Open-Meteo แท้ 100%
       }
-    } catch (err) { console.error("Fetch error:", err); } 
+    } catch (err) { 
+      console.error("Fetch error:", err); 
+    } 
     finally { if (!isBackgroundLoad) setLoading(false); }
   };
 
@@ -220,9 +294,9 @@ export default function App() {
     return () => clearInterval(intervalId);
   }, []);
 
-  // วิเคราะห์ความเสี่ยงทั่วประเทศ (แก้ปัญหาจังหวัดซ้ำ + จัด Top 5)
+  // วิเคราะห์ความเสี่ยงทั่วประเทศ
   useEffect(() => {
-    if (pm25Stations.length === 0 || weatherStations.length === 0) return;
+    if (pm25Stations.length === 0 || weatherStations.length === 0 || Object.keys(stationTemps).length === 0) return;
     
     let pm25Risks = []; let stormRisks = []; let heatRisks = [];
     
@@ -243,7 +317,6 @@ export default function App() {
     stormRisks.sort((a,b)=>Math.max(b.rain, b.wind) - Math.max(a.rain, a.wind)); 
     heatRisks.sort((a,b)=>b.val - a.val);
     
-    // กรองจังหวัดซ้ำ เอาเฉพาะจุดที่วิกฤตสุด
     const uniquePm = []; const pmSet = new Set();
     pm25Risks.forEach(item => { if(!pmSet.has(item.prov)){ pmSet.add(item.prov); uniquePm.push(item); }});
 
