@@ -20,7 +20,6 @@ const getRainColor = (val) => { return (isNaN(val)||val===null)?{bg:'#ccc',text:
 const getWindColor = (val) => { return (isNaN(val)||val===null)?{bg:'#ccc',text:'#333',bar:'#ccc',label:'ไม่มีข้อมูล'}:val<=10?{bg:'#00b0f0',text:'#fff',bar:'#00b0f0',label:'ลมอ่อน'}:val<=25?{bg:'#2ecc71',text:'#fff',bar:'#2ecc71',label:'ลมปานกลาง'}:val<=40?{bg:'#f1c40f',text:'#222',bar:'#f1c40f',label:'ลมแรง'}:val<=60?{bg:'#e67e22',text:'#fff',bar:'#e67e22',label:'ลมแรงมาก'}:{bg:'#e74c3c',text:'#fff',bar:'#e74c3c',label:'พายุ'}; };
 const getWeatherIcon = (c) => { if(c===undefined||c===null)return{icon:'❓',text:'ไม่ทราบ'}; if(c===0)return{icon:'☀️',text:'แจ่มใส'}; if(c===1)return{icon:'🌤️',text:'มีเมฆบางส่วน'}; if(c===2)return{icon:'⛅',text:'มีเมฆ'}; if(c===3)return{icon:'☁️',text:'มีเมฆมาก'}; if([45,48].includes(c))return{icon:'🌫️',text:'มีหมอก'}; if([51,53,55,56,57].includes(c))return{icon:'🌧️',text:'ฝนปรอย'}; if([61,63,65,66,67].includes(c))return{icon:'🌧️',text:'ฝนตก'}; if([71,73,75,77,85,86].includes(c))return{icon:'❄️',text:'หิมะ'}; if([80,81,82].includes(c))return{icon:'🌦️',text:'ฝนตกหย่อมๆ'}; if([95,96,99].includes(c))return{icon:'⛈️',text:'พายุฝน'}; return{icon:'🌤️',text:'ปกติ'}; };
 
-// ฐานข้อมูล 77 จังหวัด
 const thaiProvinces = ["กรุงเทพมหานคร","กระบี่","กาญจนบุรี","กาฬสินธุ์","กำแพงเพชร","ขอนแก่น","จันทบุรี","ฉะเชิงเทรา","ชลบุรี","ชัยนาท","ชัยภูมิ","ชุมพร","เชียงราย","เชียงใหม่","ตรัง","ตราด","ตาก","นครนายก","นครปฐม","นครพนม","นครราชสีมา","นครศรีธรรมราช","นครสวรรค์","นนทบุรี","นราธิวาส","น่าน","บึงกาฬ","บุรีรัมย์","ปทุมธานี","ประจวบคีรีขันธ์","ปราจีนบุรี","ปัตตานี","พระนครศรีอยุธยา","พะเยา","พังงา","พัทลุง","พิจิตร","พิษณุโลก","เพชรบุรี","เพชรบูรณ์","แพร่","ภูเก็ต","มหาสารคาม","มุกดาหาร","แม่ฮ่องสอน","ยโสธร","ยะลา","ร้อยเอ็ด","ระนอง","ระยอง","ราชบุรี","ลพบุรี","ลำปาง","ลำพูน","เลย","ศรีสะเกษ","สกลนคร","สงขลา","สตูล","สมุทรปราการ","สมุทรสงคราม","สมุทรสาคร","สระแก้ว","สระบุรี","สิงห์บุรี","สุโขทัย","สุพรรณบุรี","สุราษฎร์ธานี","สุรินทร์","หนองคาย","หนองบัวลำภู","อ่างทอง","อำนาจเจริญ","อุดรธานี","อุตรดิตถ์","อุทัยธานี","อุบลราชธานี"];
 
 const extractProvince = (area) => { 
@@ -142,6 +141,16 @@ function RadarMapHandler({ showRadar }) {
   return null;
 }
 
+// 🚀 ฟังก์ชันสะกิดแผนที่ (แก้ปัญหาจอมืด/จอเทา เวลาสลับแท็บในมือถือ)
+function MapFix() {
+  const map = useMap();
+  useEffect(() => {
+    const timer = setTimeout(() => { map.invalidateSize(); }, 400);
+    return () => clearTimeout(timer);
+  }, [map]);
+  return null;
+}
+
 function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
   var R = 6371; var dLat = deg2rad(lat2-lat1); var dLon = deg2rad(lon2-lon1); 
   var a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * Math.sin(dLon/2) * Math.sin(dLon/2); 
@@ -180,7 +189,8 @@ export default function App() {
   const [dashLoading, setDashLoading] = useState(false);
   const [dashTitle, setDashTitle] = useState('ภาพรวมทั้งประเทศ');
 
-   const [currentPage, setCurrentPage] = useState(window.innerWidth < 768 ? 'alerts' : 'map');
+  // 🚀 ตั้งค่าหน้าแรกให้เป็น 'alerts' ถ้าเปิดในมือถือ (จอเล็กกว่า 768px)
+  const [currentPage, setCurrentPage] = useState(window.innerWidth < 768 ? 'alerts' : 'map'); 
   const [showStats, setShowStats] = useState(window.innerWidth >= 768);
 
   const [alertsData, setAlertsData] = useState({ urgent: [], daily: [] });
@@ -216,7 +226,6 @@ export default function App() {
     setShowRadar(!showRadar);
   };
 
-  // ดึงข้อมูลอากาศ Open-Meteo 127 จุดแบบ Bulk
   const fetchOpenMeteoBulk = async (stationsList) => {
     try {
       const chunks = [stationsList.slice(0, 64), stationsList.slice(64)];
@@ -463,7 +472,7 @@ export default function App() {
     }
   }, [activeStation, selectedProvince, pm25Stations, currentPage]);
 
-  const handleReset = () => { setSelectedProvince(''); setSelectedStationId(''); setActiveStation(null); setShowRadar(false); setCurrentPage('map'); };
+  const handleReset = () => { setSelectedProvince(''); setSelectedStationId(''); setActiveStation(null); setShowRadar(false); setCurrentPage('map'); window.scrollTo({top:0, behavior:'smooth'}); };
   
   const handleFindNearest = () => {
     if (!navigator.geolocation) return alert('ไม่รองรับ GPS'); setLocating(true);
@@ -471,7 +480,7 @@ export default function App() {
       let nearest = null; let minD = Infinity;
       const activeList = viewMode === 'pm25' ? pm25Stations : weatherStations;
       activeList.forEach(s => { const d = getDistanceFromLatLonInKm(pos.coords.latitude, pos.coords.longitude, parseFloat(s.lat), parseFloat(s.long)); if (d<minD){minD=d; nearest=s;} });
-      if (nearest) { setSelectedProvince(extractProvince(nearest.areaTH)); setSelectedStationId(nearest.stationID); setActiveStation(nearest); setShowRadar(false); setCurrentPage('map'); }
+      if (nearest) { setSelectedProvince(extractProvince(nearest.areaTH)); setSelectedStationId(nearest.stationID); setActiveStation(nearest); setShowRadar(false); setCurrentPage('map'); window.scrollTo({top:0, behavior:'smooth'}); }
       setLocating(false);
     }, () => { alert('ดึงพิกัดไม่ได้'); setLocating(false); });
   };
@@ -609,8 +618,8 @@ export default function App() {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: '25px', padding: '4px' }}>
-            <button onClick={() => setCurrentPage('map')} style={{ padding: '6px 16px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: currentPage === 'map' ? '#fff' : 'transparent', color: currentPage === 'map' ? '#0ea5e9' : '#fff' }}>🗺️ แผนที่ & สถิติ</button>
-            <button onClick={() => setCurrentPage('alerts')} style={{ padding: '6px 16px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: currentPage === 'alerts' ? '#fff' : 'transparent', color: currentPage === 'alerts' ? '#0ea5e9' : '#fff' }}>🔔 แจ้งเตือนภัย</button>
+            <button onClick={() => { setCurrentPage('map'); window.scrollTo({top:0, behavior:'smooth'}); }} style={{ padding: '6px 16px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: currentPage === 'map' ? '#fff' : 'transparent', color: currentPage === 'map' ? '#0ea5e9' : '#fff' }}>🗺️ แผนที่ & สถิติ</button>
+            <button onClick={() => { setCurrentPage('alerts'); window.scrollTo({top:0, behavior:'smooth'}); }} style={{ padding: '6px 16px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: currentPage === 'alerts' ? '#fff' : 'transparent', color: currentPage === 'alerts' ? '#0ea5e9' : '#fff' }}>🔔 แจ้งเตือนภัย</button>
           </div>
           <button onClick={() => setDarkMode(!darkMode)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '50%', width: '40px', height: '40px', cursor: 'pointer', fontSize: '1.2rem' }}>{darkMode ? '☀️' : '🌙'}</button>
         </div>
@@ -622,7 +631,7 @@ export default function App() {
           <div style={{ display: 'flex', gap: '15px', flexDirection: window.innerWidth < 768 ? 'column' : 'row', padding: '15px' }}>
             
             {/* MAP AREA */}
-            <div style={{ flex: 7, borderRadius: '12px', overflow: 'hidden', position: 'relative', border: `1px solid ${borderColor}`, height: window.innerWidth < 768 ? '50vh' : 'calc(100vh - 120px)' }}>
+            <div style={{ flex: 7, width: '100%', minHeight: window.innerWidth < 768 ? '500px' : 'auto', borderRadius: '12px', overflow: 'hidden', position: 'relative', border: `1px solid ${borderColor}`, height: window.innerWidth < 768 ? '60vh' : 'calc(100vh - 120px)' }}>
               
               <div className="hide-scrollbar" style={{ position: 'absolute', top: '15px', right: '15px', zIndex: 500, background: darkMode ? 'rgba(30,41,59,0.9)' : 'rgba(255,255,255,0.9)', padding: '5px 10px', borderRadius: '30px', display: 'flex', gap: '8px', overflowX: 'auto', whiteSpace: 'nowrap', boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}>
                 <button onClick={() => handleViewModeChange('pm25')} style={{ padding: '6px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: isPm25Mode ? '#0ea5e9' : 'transparent', color: isPm25Mode ? '#fff' : subTextColor }}>☁️ PM2.5</button>
@@ -663,6 +672,9 @@ export default function App() {
                   </LayersControl.BaseLayer>
                 </LayersControl>
                 {showRadar && radarTime && <TileLayer url={`https://tilecache.rainviewer.com/v2/radar/${radarTime}/256/{z}/{x}/{y}/2/1_1.png`} opacity={0.65} zIndex={10} maxNativeZoom={12} />}
+                
+                {/* 🚀 เรียกใช้ฟังก์ชันสะกิดแผนที่ */}
+                <MapFix /> 
                 <FitBounds stations={filteredStations} activeStation={activeStation} selectedProvince={selectedProvince} />
                 <FlyToActiveStation activeStation={activeStation} />
                 <RadarMapHandler showRadar={showRadar} />
@@ -670,7 +682,6 @@ export default function App() {
                 {!showRadar && filteredStations.map((station) => {
                   const lat = parseFloat(station.lat);
                   const lon = parseFloat(station.long);
-                  // ป้องกันบั๊ก Marker พังถ้าข้อมูลสถานีล่ม
                   if (isNaN(lat) || isNaN(lon)) return null;
 
                   const isWeatherOnly = station.isWeatherStation; 
@@ -809,7 +820,7 @@ export default function App() {
                             }
 
                             let fData = isHeatMode?activeWeather.heatForecast:isUvMode?activeWeather.uvForecast:isRainMode?activeWeather.rainForecast:isWindMode?activeWeather.windForecast:[];
-                            fData = fData.filter(d => d.val !== null && !isNaN(d.val)); 
+                            fData = fData.filter(d => d.val != null && !isNaN(d.val)); 
                             if(fData.length === 0) return null;
                             
                             return (
