@@ -572,60 +572,68 @@ export default function App() {
     <div style={{ display:'flex', flexDirection:'column', height:'100vh', width:'100vw', backgroundColor:themeBg, fontFamily:"'Kanit', sans-serif", overflowY:'auto', overflowX:'hidden' }}>
       
       {/* HEADER */}
-      <header style={{ background: darkMode ? 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)' : 'linear-gradient(135deg, #0ea5e9 0%, #3b82f6 100%)', color: '#fff', padding: '12px 25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flexWrap: 'wrap', flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-            <div style={{ fontSize: '1.8rem', background: '#fff', borderRadius: '50%', padding: '5px', width: '48px', height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{darkMode ? '🌙' : '🌤️'}</div>
-            <div>
-              <h1 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 'bold' }}>Thailand Environment Dashboard</h1>
-              <p style={{ margin: 0, fontSize: '0.8rem', color: '#cbd5e1' }}>ระบบเฝ้าระวังคุณภาพอากาศและสภาพอากาศ</p>
+      <header style={{ background: darkMode ? 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)' : 'linear-gradient(135deg, #0ea5e9 0%, #3b82f6 100%)', color: '#fff', padding: '10px 15px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'nowrap', overflowX: 'auto' }} className="hide-scrollbar">
+        
+        {/* โซนด้านซ้าย (โลโก้ + ตัวกรอง) */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
+          
+          {/* Logo & Title */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+            <div style={{ fontSize: '1.3rem', background: '#fff', borderRadius: '50%', padding: '2px', width: '34px', height: '34px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{darkMode ? '🌙' : '🌤️'}</div>
+            <div style={{ display: window.innerWidth < 1024 ? 'none' : 'block' }}>
+              <h1 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}>Thai Env Dashboard</h1>
             </div>
           </div>
+
           {currentPage === 'map' && (
             <>
-              <div style={{ width: '1px', height: '35px', backgroundColor: 'rgba(255,255,255,0.3)', display: window.innerWidth < 1024 ? 'none' : 'block' }}></div>
-              <div className="hide-scrollbar" style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: 'rgba(255,255,255,0.15)', padding: '6px 15px', borderRadius: '30px', overflowX: 'auto', whiteSpace: 'nowrap' }}>
+              <div style={{ width: '1px', height: '20px', backgroundColor: 'rgba(255,255,255,0.3)', display: window.innerWidth < 1024 ? 'none' : 'block', flexShrink: 0 }}></div>
+              
+              {/* แถบกรองข้อมูล (ตั้งค่าให้เลื่อนซ้ายขวาได้ ไม่ปัดบรรทัด) */}
+              <div className="hide-scrollbar" style={{ display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: 'rgba(255,255,255,0.15)', padding: '4px 10px', borderRadius: '30px', overflowX: 'auto', whiteSpace: 'nowrap', flex: 1 }}>
                 
-                {/* 🚀 Dropdown เลือกภูมิภาค (ภาค) */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <label style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>📍</label>
-                  <select value={selectedRegion} onChange={(e) => { setSelectedRegion(e.target.value); setSelectedProvince(''); setSelectedStationId(''); setActiveStation(null); setShowRadar(false); }} style={{ padding: '8px 12px', borderRadius: '20px', border: 'none', backgroundColor: '#fff', color: '#1e293b', outline: 'none', cursor: 'pointer' }}>
+                {/* Dropdown ภูมิภาค */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <label style={{ fontWeight: 'bold', fontSize: '0.85rem' }}>📍</label>
+                  <select value={selectedRegion} onChange={(e) => { setSelectedRegion(e.target.value); setSelectedProvince(''); setSelectedStationId(''); setActiveStation(null); setShowRadar(false); }} style={{ padding: '4px 8px', borderRadius: '15px', border: 'none', backgroundColor: '#fff', color: '#1e293b', outline: 'none', cursor: 'pointer', fontSize: '0.85rem' }}>
                     <option value="">ทุกภูมิภาค</option>
                     {Object.keys(regionMapping).map(r => <option key={r} value={r}>{r}</option>)}
                   </select>
                 </div>
-                <div style={{ width: '2px', height: '20px', backgroundColor: 'rgba(255,255,255,0.3)' }}></div>
+                <div style={{ width: '1px', height: '15px', backgroundColor: 'rgba(255,255,255,0.3)' }}></div>
 
-                {/* Dropdown เลือกจังหวัด */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <label style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>🗺️</label>
-                  <select value={selectedProvince} onChange={(e) => { setSelectedProvince(e.target.value); setSelectedStationId(''); setActiveStation(null); setShowRadar(false); }} style={{ padding: '8px 12px', borderRadius: '20px', border: 'none', backgroundColor: '#fff', color: '#1e293b', minWidth: '120px', outline: 'none', cursor: 'pointer' }}>
+                {/* Dropdown จังหวัด */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <label style={{ fontWeight: 'bold', fontSize: '0.85rem' }}>🗺️</label>
+                  <select value={selectedProvince} onChange={(e) => { setSelectedProvince(e.target.value); setSelectedStationId(''); setActiveStation(null); setShowRadar(false); }} style={{ padding: '4px 8px', borderRadius: '15px', border: 'none', backgroundColor: '#fff', color: '#1e293b', outline: 'none', cursor: 'pointer', fontSize: '0.85rem' }}>
                     <option value="">ทุกจังหวัด</option>{availableProvinces.map(p => (<option key={p} value={p}>{p}</option>))}
                   </select>
                 </div>
-                <div style={{ width: '2px', height: '20px', backgroundColor: 'rgba(255,255,255,0.3)' }}></div>
+                <div style={{ width: '1px', height: '15px', backgroundColor: 'rgba(255,255,255,0.3)' }}></div>
 
-                {/* Dropdown เลือกสถานี */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <label style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>📌</label>
-                  <select value={selectedStationId} onChange={(e) => { setSelectedStationId(e.target.value); const stat = filteredStations.find(s => s.stationID === e.target.value); if(stat) {setActiveStation(stat); setShowRadar(false);} }} style={{ padding: '8px 12px', borderRadius: '20px', border: 'none', backgroundColor: '#fff', color: '#1e293b', minWidth: '180px', outline: 'none', cursor: 'pointer' }}>
+                {/* Dropdown สถานี */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <label style={{ fontWeight: 'bold', fontSize: '0.85rem' }}>📌</label>
+                  <select value={selectedStationId} onChange={(e) => { setSelectedStationId(e.target.value); const stat = filteredStations.find(s => s.stationID === e.target.value); if(stat) {setActiveStation(stat); setShowRadar(false);} }} style={{ padding: '4px 8px', borderRadius: '15px', border: 'none', backgroundColor: '#fff', color: '#1e293b', outline: 'none', cursor: 'pointer', fontSize: '0.85rem', maxWidth: '140px', textOverflow: 'ellipsis' }}>
                     <option value="">-- เลือกสถานี --</option>
                     {filteredStations.slice().sort((a, b) => a.nameTH.localeCompare(b.nameTH, 'th')).map(s => (<option key={s.stationID} value={s.stationID}>{s.nameTH}</option>))}
                   </select>
                 </div>
 
-                <button onClick={handleReset} style={{ padding: '8px 16px', backgroundColor: '#fff', color: '#0ea5e9', border: 'none', borderRadius: '20px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', marginLeft: '5px' }}>🏠 รีเซ็ต</button>
+                {/* ปุ่มรีเซ็ต */}
+                <button onClick={handleReset} style={{ padding: '4px 10px', backgroundColor: '#fff', color: '#0ea5e9', border: 'none', borderRadius: '15px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '5px', fontSize: '0.85rem', flexShrink: 0 }}>🏠 รีเซ็ต</button>
               </div>
             </>
           )}
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: '25px', padding: '4px' }}>
-            <button onClick={() => { setCurrentPage('map'); window.scrollTo({top:0, behavior:'smooth'}); }} style={{ padding: '6px 16px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: currentPage === 'map' ? '#fff' : 'transparent', color: currentPage === 'map' ? '#0ea5e9' : '#fff' }}>🗺️ แผนที่ & สถิติ</button>
-            <button onClick={() => { setCurrentPage('alerts'); window.scrollTo({top:0, behavior:'smooth'}); }} style={{ padding: '6px 16px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: currentPage === 'alerts' ? '#fff' : 'transparent', color: currentPage === 'alerts' ? '#0ea5e9' : '#fff' }}>🔔 แจ้งเตือนภัย</button>
+        {/* โซนด้านขวา (ปุ่มเมนูสลับหน้า + Dark Mode) */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+          <div style={{ display: 'flex', backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: '25px', padding: '3px' }}>
+            <button onClick={() => { setCurrentPage('map'); window.scrollTo({top:0, behavior:'smooth'}); }} style={{ padding: '4px 12px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem', backgroundColor: currentPage === 'map' ? '#fff' : 'transparent', color: currentPage === 'map' ? '#0ea5e9' : '#fff' }}>🗺️ แผนที่</button>
+            <button onClick={() => { setCurrentPage('alerts'); window.scrollTo({top:0, behavior:'smooth'}); }} style={{ padding: '4px 12px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem', backgroundColor: currentPage === 'alerts' ? '#fff' : 'transparent', color: currentPage === 'alerts' ? '#0ea5e9' : '#fff' }}>🔔 แจ้งเตือน</button>
           </div>
-          <button onClick={() => setDarkMode(!darkMode)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '50%', width: '40px', height: '40px', cursor: 'pointer', fontSize: '1.2rem' }}>{darkMode ? '☀️' : '🌙'}</button>
+          <button onClick={() => setDarkMode(!darkMode)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '50%', width: '34px', height: '34px', cursor: 'pointer', fontSize: '1rem' }}>{darkMode ? '☀️' : '🌙'}</button>
         </div>
       </header>
 
@@ -666,7 +674,7 @@ export default function App() {
                 </div>
               )}
 
-              <MapContainer center={[13.5, 101.0]} zoom={6} style={{ height: '100%', width: '100%', zIndex: 1, backgroundColor: darkMode ? '#1a202c' : '#bae6fd' }}>
+<MapContainer center={[13.5, 101.0]} zoom={6} style={{ height: '100%', width: '100%', zIndex: 1, backgroundColor: darkMode ? '#1a202c' : '#bae6fd' }}>
                 <LayersControl position="bottomleft">
                   <LayersControl.BaseLayer checked name="🗺️ แผนที่ปกติ (Default)">
                     <TileLayer url={darkMode ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"} />
@@ -677,15 +685,53 @@ export default function App() {
                 </LayersControl>
                 {showRadar && radarTime && <TileLayer url={`https://tilecache.rainviewer.com/v2/radar/${radarTime}/256/{z}/{x}/{y}/2/1_1.png`} opacity={0.65} zIndex={10} maxNativeZoom={12} />}
                 
+                {/* 🚀 ฟังก์ชันช่วยเหลือต่างๆ ของแผนที่ */}
                 <MapFix /> 
                 <FitBounds stations={filteredStations} activeStation={activeStation} selectedProvince={selectedProvince} selectedRegion={selectedRegion} />
                 <FlyToActiveStation activeStation={activeStation} />
                 <RadarMapHandler showRadar={showRadar} />
                 
-                {/* 🚀 ระบบ Marker Clustering ตั้งค่า disableClusteringAtZoom={11} เพื่อให้ กทม. กระจายตัวออกเวลาซูมดู */}
+                {/* 🚀 1. หมุดจังหวัดอื่นๆ ทั่วประเทศ (ไม่จัดกลุ่ม โชว์เดี่ยวๆ) */}
+                {!showRadar && filteredStations.filter(s => extractProvince(s.areaTH) !== 'กรุงเทพมหานคร').map((station) => {
+                  const lat = parseFloat(station.lat);
+                  const lon = parseFloat(station.long);
+                  if (isNaN(lat) || isNaN(lon)) return null;
+
+                  const pmVal = Number(station.AQILast?.PM25?.value); 
+                  const tObj = stationTemps[station.stationID];
+                  
+                  let mVal = null;
+                  if(isPm25Mode) mVal=pmVal; else if(isTempMode) mVal=tObj?.temp; else if(isHeatMode) mVal=tObj?.feelsLike; else if(isUvMode) mVal=tObj?.uvMax; else if(isRainMode) mVal=tObj?.rainProb; else if(isWindMode) mVal=tObj?.windSpeed;
+                  
+                  return (
+                    <Marker key={station.stationID} position={[lat, lon]} icon={createCustomMarker(viewMode, mVal, tObj)} ref={el => markerRefs.current[station.stationID]=el} eventHandlers={{ click: () => setActiveStation(station) }}>
+                      <Popup minWidth={260}>
+                        <div style={{ textAlign: 'center', fontFamily: 'Kanit', color: '#1e293b' }}>
+                          <strong>{station.nameTH}</strong>
+                          <div style={{ margin: '10px 0', padding: '10px', background: '#f8f9fa', borderRadius: '8px' }}>
+                            <span style={{ fontSize: '1.2rem', color: getPM25Color(pmVal)==='#ffff00'?'#d4b500':getPM25Color(pmVal), fontWeight: 'bold' }}>PM2.5: {isNaN(pmVal)?'-':pmVal} µg/m³</span>
+                            <div style={{ fontSize: '0.85rem', color: '#666' }}>(AQI: {station.AQILast?.AQI?.aqi||'-'})</div>
+                          </div>
+                          {tObj && (
+                            <div style={{ padding: '12px', background: '#f1f5f9', borderRadius: '8px', fontSize: '0.85rem', color: '#334155', fontWeight:'bold' }}>
+                              <div style={{ marginBottom: '8px', fontSize: '1.1rem', color:'#1e293b' }}>{getWeatherIcon(tObj.weatherCode).icon} {getWeatherIcon(tObj.weatherCode).text}</div>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', textAlign: 'left' }}>
+                                <span>🌡️ {tObj.temp != null ? Number(tObj.temp).toFixed(1) : '-'}°C</span><span>🥵 {tObj.feelsLike != null ? Number(tObj.feelsLike).toFixed(1) : '-'}°C</span>
+                                <span style={{color:'#0ea5e9'}}>💧 {tObj.humidity||'-'}%</span><span style={{color:'#0ea5e9'}}>🌧️ {tObj.rainProb||'0'}%</span>
+                                <span style={{color:'#a855f7'}}>☀️ UV สูงสุด: {tObj.uvMax||'-'}</span><span>🌬️ {tObj.windSpeed||'-'}</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </Popup>
+                    </Marker>
+                  );
+                })}
+
+                {/* 🚀 2. หมุดเฉพาะ "กรุงเทพมหานคร" (ถูกจัดกลุ่มด้วย MarkerClusterGroup) */}
                 {!showRadar && (
                   <MarkerClusterGroup chunkedLoading maxClusterRadius={45} disableClusteringAtZoom={11} spiderfyOnMaxZoom={true}>
-                    {filteredStations.map((station) => {
+                    {filteredStations.filter(s => extractProvince(s.areaTH) === 'กรุงเทพมหานคร').map((station) => {
                       const lat = parseFloat(station.lat);
                       const lon = parseFloat(station.long);
                       if (isNaN(lat) || isNaN(lon)) return null;
@@ -701,12 +747,10 @@ export default function App() {
                           <Popup minWidth={260}>
                             <div style={{ textAlign: 'center', fontFamily: 'Kanit', color: '#1e293b' }}>
                               <strong>{station.nameTH}</strong>
-                              
                               <div style={{ margin: '10px 0', padding: '10px', background: '#f8f9fa', borderRadius: '8px' }}>
                                 <span style={{ fontSize: '1.2rem', color: getPM25Color(pmVal)==='#ffff00'?'#d4b500':getPM25Color(pmVal), fontWeight: 'bold' }}>PM2.5: {isNaN(pmVal)?'-':pmVal} µg/m³</span>
                                 <div style={{ fontSize: '0.85rem', color: '#666' }}>(AQI: {station.AQILast?.AQI?.aqi||'-'})</div>
                               </div>
-
                               {tObj && (
                                 <div style={{ padding: '12px', background: '#f1f5f9', borderRadius: '8px', fontSize: '0.85rem', color: '#334155', fontWeight:'bold' }}>
                                   <div style={{ marginBottom: '8px', fontSize: '1.1rem', color:'#1e293b' }}>{getWeatherIcon(tObj.weatherCode).icon} {getWeatherIcon(tObj.weatherCode).text}</div>
