@@ -508,17 +508,28 @@ export default function App() {
   }, [currentPage, activeStation, alertsLocationName]);
 
   // 🤖 🚀 ฟังก์ชันให้ AI สรุปสภาพอากาศ (ยิงผ่าน Backend ของเราเอง)
-  const generateAISummary = async () => {
+ // 🤖 ฟังก์ชันให้ AI สรุปสภาพอากาศ (เวอร์ชันอัปเกรด เลือกหัวข้อได้)
+  const generateAISummary = async (topic = 'general') => {
     setIsGeneratingAI(true);
     try {
       const loc = alertsLocationName || "ประเทศไทย";
       let contextData = `พิกัด/พื้นที่: ${loc}\n\n`;
-      contextData += `[ข้อมูลพยากรณ์ 3 ชม. (สำคัญมาก)]\n`;
+      contextData += `[ข้อมูลพยากรณ์ 3 ชม.]\n`;
       alertsData.urgent.forEach(a => contextData += `- ${a.title}: ${a.desc}\n`);
       contextData += `\n[ข้อมูลภาพรวม 24 ชั่วโมง]\n`;
       alertsData.daily.forEach(a => contextData += `- ${a.title}: ${a.desc}\n`);
 
-      const prompt = `คุณคือนักพยากรณ์อากาศที่เชี่ยวชาญ เป็นมิตร และห่วงใยสุขภาพประชาชน ช่วยสรุปสภาพอากาศจากข้อมูลดิบต่อไปนี้ให้หน่อย เขียนสรุปสั้นๆ 3-4 บรรทัด อ่านง่ายๆ เป็นภาษาคน ไม่ต้องเกริ่นนำ เน้นความเสี่ยงในช่วง 3 ชั่วโมงนี้เป็นหลัก และให้คำแนะนำการใช้ชีวิตที่เหมาะสม:\n\n${contextData}`;
+      // 🧠 หัวใจสำคัญ: เปลี่ยนคำสั่ง (Prompt) ตามปุ่มที่กด
+      let prompt = '';
+      if (topic === 'general') {
+        prompt = `คุณคือนักพยากรณ์อากาศ สรุปสภาพอากาศจากข้อมูลดิบต่อไปนี้ สั้นๆ 3 บรรทัด อ่านง่าย เป็นภาษาคน เน้นความเสี่ยงช่วง 3 ชม.นี้:\n\n${contextData}`;
+      } else if (topic === 'lifestyle') {
+        prompt = `คุณคือผู้ช่วยแม่บ้านและพ่อบ้านสุดสมาร์ท วิเคราะห์ข้อมูลสภาพอากาศต่อไปนี้ แล้วฟันธงมาเลยว่า 1. วันนี้เหมาะจะตากผ้าไหม? 2. เหมาะจะล้างรถไหม? (ถ้าฝนจะตกบอกให้งด) 3. ควรเตรียมร่มก่อนออกจากบ้านไหม? ตอบแบบเป็นกันเอง สั้นๆ กระชับ:\n\n${contextData}`;
+      } else if (topic === 'exercise') {
+        prompt = `คุณคือเทรนเนอร์ฟิตเนส วิเคราะห์ข้อมูลสภาพอากาศต่อไปนี้ (เน้นดู PM2.5, อุณหภูมิ, UV) แล้วแนะนำว่า วันนี้สามารถออกกำลังกายกลางแจ้งได้ไหม? ช่วงเวลาไหนดีที่สุด? หรือควรเลี่ยงไปออกกำลังกายในร่มแทน? ตอบสั้นๆ กระชับ ห่วงใยสุขภาพ:\n\n${contextData}`;
+      } else if (topic === 'health') {
+        prompt = `คุณคือแพทย์ผู้เชี่ยวชาญด้านภูมิแพ้และทางเดินหายใจ วิเคราะห์ข้อมูลฝุ่น PM2.5 ดัชนีความร้อน และ UV จากข้อมูลต่อไปนี้ แล้วให้คำแนะนำทางการแพทย์ที่ชัดเจนสำหรับการใช้ชีวิตวันนี้ (เช่น ชนิดหน้ากากที่ควรใส่, การงดออกจากบ้าน) สั้นๆ ตรงประเด็น:\n\n${contextData}`;
+      }
 
       const response = await fetch('/api/summary', {
         method: 'POST',
@@ -531,12 +542,11 @@ export default function App() {
       else setAiSummary("ขออภัยครับ AI ไม่สามารถสรุปข้อมูลได้ในขณะนี้");
     } catch (error) {
       console.error(error);
-      setAiSummary("เกิดข้อผิดพลาดในการเชื่อมต่อกับเซิร์ฟเวอร์ AI");
+      setAiSummary("เกิดข้อผิดพลาดในการเชื่อมต่อกับเซิร์ฟเวอร์");
     } finally {
       setIsGeneratingAI(false);
     }
   };
-
   if (loading) return <div style={{ display:'flex', justifyContent:'center', alignItems:'center', height:'100vh', fontSize:'1.5rem', color:'#555' }}>กำลังโหลด...</div>;
 
   const isPm25Mode = viewMode === 'pm25'; const isTempMode = viewMode === 'temp'; const isHeatMode = viewMode === 'heat';
@@ -977,27 +987,45 @@ export default function App() {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
               
-              {/* 🤖 ส่วนทดสอบ: ผู้ช่วย AI สรุปสภาพอากาศ */}
+              {/* 🤖 ส่วนที่อัปเกรด: ผู้ช่วย AI อัจฉริยะ (เลือกหัวข้อได้) */}
               {(alertsData?.urgent?.length > 0) && (
                 <div style={{ backgroundColor: cardBg, borderRadius: '16px', padding: '20px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.03)', position: 'relative', overflow: 'hidden' }}>
+                  
                   <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: 'linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899)' }}></div>
+
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '15px' }}>
                     <h3 style={{ fontSize: '1.2rem', color: textColor, margin: 0, display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>
-                      <span style={{ fontSize: '1.5rem' }}>✨</span> AI สรุปสภาพอากาศให้ฟัง
+                      <span style={{ fontSize: '1.5rem' }}>✨</span> AI ผู้ช่วยส่วนตัว
                     </h3>
-                    {!aiSummary && (
-                      <button onClick={generateAISummary} disabled={isGeneratingAI} style={{ backgroundColor: '#8b5cf6', color: '#fff', border: 'none', borderRadius: '20px', padding: '8px 16px', fontSize: '0.9rem', fontWeight: 'bold', cursor: isGeneratingAI ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px', transition: '0.2s', boxShadow: '0 2px 8px rgba(139,92,246,0.3)' }}>
-                        {isGeneratingAI ? '⏳ กำลังประมวลผล...' : '🪄 กดให้ AI สรุปให้'}
-                      </button>
+                  </div>
+
+                  {/* 🎯 ปุ่มตัวเลือกให้ AI ทำงาน (Prompt Chips) */}
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '15px' }}>
+                    <button onClick={() => generateAISummary('general')} disabled={isGeneratingAI} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #3b82f6`, backgroundColor: '#eff6ff', color: '#2563eb', fontSize: '0.85rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold' }}>
+                      🌤️ สรุปภาพรวม
+                    </button>
+                    <button onClick={() => generateAISummary('lifestyle')} disabled={isGeneratingAI} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #10b981`, backgroundColor: '#f0fdf4', color: '#16a34a', fontSize: '0.85rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold' }}>
+                      👕 ซักผ้า/ล้างรถ?
+                    </button>
+                    <button onClick={() => generateAISummary('exercise')} disabled={isGeneratingAI} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #f59e0b`, backgroundColor: '#fffbeb', color: '#d97706', fontSize: '0.85rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold' }}>
+                      🏃‍♂️ ออกกำลังกาย
+                    </button>
+                    <button onClick={() => generateAISummary('health')} disabled={isGeneratingAI} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #ef4444`, backgroundColor: '#fef2f2', color: '#dc2626', fontSize: '0.85rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold' }}>
+                      😷 สุขภาพ/ภูมิแพ้
+                    </button>
+                  </div>
+
+                  {/* โชว์ข้อความที่ AI ตอบกลับมา */}
+                  <div style={{ backgroundColor: darkMode ? '#1e293b' : '#f8fafc', padding: aiSummary ? '15px 20px' : '0', borderRadius: '12px', border: aiSummary ? `1px dashed #8b5cf6` : 'none', color: textColor, fontSize: '1rem', lineHeight: '1.6', transition: 'all 0.3s' }}>
+                    {isGeneratingAI ? (
+                       <div style={{ textAlign: 'center', color: '#8b5cf6', padding: '10px', fontWeight: 'bold' }}>⏳ AI กำลังคิดวิเคราะห์...</div>
+                    ) : aiSummary ? (
+                       aiSummary.split('\n').map((line, i) => <p key={i} style={{ margin: '0 0 8px 0' }}>{line}</p>)
+                    ) : (
+                       <div style={{ color: subTextColor, fontSize: '0.9rem' }}>👆 กดปุ่มด้านบนเพื่อให้ AI วิเคราะห์สภาพอากาศตามที่คุณต้องการได้เลยครับ</div>
                     )}
                   </div>
-                  {aiSummary && (
-                    <div style={{ backgroundColor: darkMode ? '#1e293b' : '#f8fafc', padding: '15px 20px', borderRadius: '12px', border: `1px dashed #8b5cf6`, color: textColor, fontSize: '1rem', lineHeight: '1.6' }}>
-                      {aiSummary.split('\n').map((line, i) => (
-                        <p key={i} style={{ margin: '0 0 8px 0' }}>{line}</p>
-                      ))}
-                    </div>
-                  )}
+
                 </div>
               )}
 
