@@ -909,7 +909,7 @@ export default function App() {
           
           <div style={{ textAlign: 'center', marginBottom: '30px' }}>
             <h2 style={{ fontSize: '2rem', color: textColor, marginBottom: '5px', fontWeight:'bold' }}>🔔 ศูนย์พยากรณ์และแจ้งเตือนภัย</h2>
-            <p style={{ color: subTextColor, fontSize:'1.1rem', marginBottom: '20px' }}>อัปเดตข้อมูลเชิงลึก 24 ชั่วโมงข้างหน้า ประจำวันที่ <strong style={{color: '#0ea5e9'}}>{todayDateText}</strong></p>
+            <p style={{ color: subTextColor, fontSize:'1.1rem', marginBottom: '20px' }}>อัปเดตสถานการณ์สภาพอากาศ ประจำวันที่ <strong style={{color: '#0ea5e9'}}>{todayDateText}</strong></p>
             
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '15px', flexWrap: 'wrap' }}>
               <button onClick={handleScanLocation} disabled={alertsLoading} style={{ backgroundColor: '#0ea5e9', color: '#fff', border: 'none', borderRadius: '30px', padding: '12px 25px', fontSize: '1rem', fontWeight: 'bold', cursor: alertsLoading?'wait':'pointer', boxShadow: '0 4px 15px rgba(14,165,233,0.3)', transition: '0.2s', display: 'flex', alignItems: 'center', gap: '8px' }}>
