@@ -574,61 +574,59 @@ export default function App() {
       {/* HEADER */}
       <header style={{ flexShrink: 0, minHeight: '65px', background: darkMode ? 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)' : 'linear-gradient(135deg, #0ea5e9 0%, #3b82f6 100%)', color: '#fff', padding: '10px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '15px', flexWrap: 'nowrap', overflowX: 'auto' }} className="hide-scrollbar">
         
-        {/* โซนด้านซ้าย (โลโก้ + ตัวกรอง) */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
-          
-          {/* Logo & Title */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-            <div style={{ fontSize: '1.4rem', background: '#fff', borderRadius: '50%', padding: '4px', width: '38px', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{darkMode ? '🌙' : '🌤️'}</div>
-            <div style={{ display: window.innerWidth < 1024 ? 'none' : 'block' }}>
-              <h1 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}>Thai Env Dashboard</h1>
-            </div>
+        {/* โซนด้านซ้าย (โลโก้) */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+          <div style={{ fontSize: '1.4rem', background: '#fff', borderRadius: '50%', padding: '4px', width: '38px', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{darkMode ? '🌙' : '🌤️'}</div>
+          <div style={{ display: window.innerWidth < 1024 ? 'none' : 'block' }}>
+            <h1 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}>Thai Env Dashboard</h1>
           </div>
-
-          {currentPage === 'map' && (
-            <>
-              <div style={{ width: '1px', height: '25px', backgroundColor: 'rgba(255,255,255,0.3)', display: window.innerWidth < 1024 ? 'none' : 'block', flexShrink: 0 }}></div>
-              
-              {/* แถบกรองข้อมูล (ตั้งค่าให้เลื่อนซ้ายขวาได้ ไม่ปัดบรรทัด) */}
-              <div className="hide-scrollbar" style={{ display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: 'rgba(255,255,255,0.15)', padding: '5px 12px', borderRadius: '30px', overflowX: 'auto', whiteSpace: 'nowrap', flex: 1 }}>
-                
-                {/* Dropdown ภูมิภาค */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <label style={{ fontWeight: 'bold', fontSize: '0.85rem' }}>📍</label>
-                  <select value={selectedRegion} onChange={(e) => { setSelectedRegion(e.target.value); setSelectedProvince(''); setSelectedStationId(''); setActiveStation(null); setShowRadar(false); }} style={{ padding: '5px 10px', borderRadius: '15px', border: 'none', backgroundColor: '#fff', color: '#1e293b', outline: 'none', cursor: 'pointer', fontSize: '0.85rem' }}>
-                    <option value="">ทุกภูมิภาค</option>
-                    {Object.keys(regionMapping).map(r => <option key={r} value={r}>{r}</option>)}
-                  </select>
-                </div>
-                <div style={{ width: '1px', height: '15px', backgroundColor: 'rgba(255,255,255,0.3)' }}></div>
-
-                {/* Dropdown จังหวัด */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <label style={{ fontWeight: 'bold', fontSize: '0.85rem' }}>🗺️</label>
-                  <select value={selectedProvince} onChange={(e) => { setSelectedProvince(e.target.value); setSelectedStationId(''); setActiveStation(null); setShowRadar(false); }} style={{ padding: '5px 10px', borderRadius: '15px', border: 'none', backgroundColor: '#fff', color: '#1e293b', outline: 'none', cursor: 'pointer', fontSize: '0.85rem' }}>
-                    <option value="">ทุกจังหวัด</option>{availableProvinces.map(p => (<option key={p} value={p}>{p}</option>))}
-                  </select>
-                </div>
-                <div style={{ width: '1px', height: '15px', backgroundColor: 'rgba(255,255,255,0.3)' }}></div>
-
-                {/* Dropdown สถานี */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <label style={{ fontWeight: 'bold', fontSize: '0.85rem' }}>📌</label>
-                  <select value={selectedStationId} onChange={(e) => { setSelectedStationId(e.target.value); const stat = filteredStations.find(s => s.stationID === e.target.value); if(stat) {setActiveStation(stat); setShowRadar(false);} }} style={{ padding: '5px 10px', borderRadius: '15px', border: 'none', backgroundColor: '#fff', color: '#1e293b', outline: 'none', cursor: 'pointer', fontSize: '0.85rem', maxWidth: '160px', textOverflow: 'ellipsis' }}>
-                    <option value="">-- เลือกสถานี --</option>
-                    {filteredStations.slice().sort((a, b) => a.nameTH.localeCompare(b.nameTH, 'th')).map(s => (<option key={s.stationID} value={s.stationID}>{s.nameTH}</option>))}
-                  </select>
-                </div>
-
-                {/* ปุ่มรีเซ็ต */}
-                <button onClick={handleReset} style={{ padding: '5px 12px', backgroundColor: '#fff', color: '#0ea5e9', border: 'none', borderRadius: '15px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', marginLeft: '5px', fontSize: '0.85rem', flexShrink: 0 }}>🏠 รีเซ็ต</button>
-              </div>
-            </>
-          )}
         </div>
 
+        {/* ตรงกลาง: ตัวกรอง + ปุ่ม Home */}
+        {currentPage === 'map' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: 0, maxWidth: window.innerWidth >= 768 ? '65%' : '100%' }}>
+            
+            {/* แถบกรองข้อมูล (ให้ขยายเต็มพื้นที่ที่เหลือ เพื่อให้ยาวขนานกับแผนที่) */}
+            <div className="hide-scrollbar" style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: 'rgba(255,255,255,0.15)', padding: '5px 12px', borderRadius: '30px', overflowX: 'auto', whiteSpace: 'nowrap', flex: 1 }}>
+              
+              {/* Dropdown ภูมิภาค */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <label style={{ fontWeight: 'bold', fontSize: '0.85rem' }}>📍</label>
+                <select value={selectedRegion} onChange={(e) => { setSelectedRegion(e.target.value); setSelectedProvince(''); setSelectedStationId(''); setActiveStation(null); setShowRadar(false); }} style={{ padding: '5px 10px', borderRadius: '15px', border: 'none', backgroundColor: '#fff', color: '#1e293b', outline: 'none', cursor: 'pointer', fontSize: '0.85rem' }}>
+                  <option value="">ทุกภูมิภาค</option>
+                  {Object.keys(regionMapping).map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </div>
+              <div style={{ width: '1px', height: '15px', backgroundColor: 'rgba(255,255,255,0.3)' }}></div>
+
+              {/* Dropdown จังหวัด */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <label style={{ fontWeight: 'bold', fontSize: '0.85rem' }}>🗺️</label>
+                <select value={selectedProvince} onChange={(e) => { setSelectedProvince(e.target.value); setSelectedStationId(''); setActiveStation(null); setShowRadar(false); }} style={{ padding: '5px 10px', borderRadius: '15px', border: 'none', backgroundColor: '#fff', color: '#1e293b', outline: 'none', cursor: 'pointer', fontSize: '0.85rem' }}>
+                  <option value="">ทุกจังหวัด</option>{availableProvinces.map(p => (<option key={p} value={p}>{p}</option>))}
+                </select>
+              </div>
+              <div style={{ width: '1px', height: '15px', backgroundColor: 'rgba(255,255,255,0.3)' }}></div>
+
+              {/* Dropdown สถานี (ตั้ง flex: 1 เพื่อยืดช่องนี้ให้ยาวไปจนสุด) */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1 }}>
+                <label style={{ fontWeight: 'bold', fontSize: '0.85rem' }}>📌</label>
+                <select value={selectedStationId} onChange={(e) => { setSelectedStationId(e.target.value); const stat = filteredStations.find(s => s.stationID === e.target.value); if(stat) {setActiveStation(stat); setShowRadar(false);} }} style={{ width: '100%', minWidth: '150px', padding: '5px 10px', borderRadius: '15px', border: 'none', backgroundColor: '#fff', color: '#1e293b', outline: 'none', cursor: 'pointer', fontSize: '0.85rem', textOverflow: 'ellipsis' }}>
+                  <option value="">-- เลือกสถานี --</option>
+                  {filteredStations.slice().sort((a, b) => a.nameTH.localeCompare(b.nameTH, 'th')).map(s => (<option key={s.stationID} value={s.stationID}>{s.nameTH}</option>))}
+                </select>
+              </div>
+            </div>
+
+            {/* ปุ่ม Home (แยกออกมาเป็นวงกลมด้านขวา) */}
+            <button onClick={handleReset} title="รีเซ็ตแผนที่ / กลับหน้าแรก" style={{ flexShrink: 0, backgroundColor: '#fff', border: 'none', borderRadius: '50%', width: '38px', height: '38px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 5px rgba(0,0,0,0.15)', fontSize: '1.2rem', color: '#0ea5e9' }}>
+              🏠
+            </button>
+          </div>
+        )}
+
         {/* โซนด้านขวา (ปุ่มเมนูสลับหน้า + Dark Mode) */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0, marginLeft: 'auto' }}>
           <div style={{ display: 'flex', backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: '25px', padding: '4px' }}>
             <button onClick={() => { setCurrentPage('map'); window.scrollTo({top:0, behavior:'smooth'}); }} style={{ padding: '5px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem', backgroundColor: currentPage === 'map' ? '#fff' : 'transparent', color: currentPage === 'map' ? '#0ea5e9' : '#fff' }}>🗺️ แผนที่</button>
             <button onClick={() => { setCurrentPage('alerts'); window.scrollTo({top:0, behavior:'smooth'}); }} style={{ padding: '5px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem', backgroundColor: currentPage === 'alerts' ? '#fff' : 'transparent', color: currentPage === 'alerts' ? '#0ea5e9' : '#fff' }}>🔔 แจ้งเตือน</button>
