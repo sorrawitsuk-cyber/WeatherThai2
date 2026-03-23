@@ -970,13 +970,46 @@ export default function App() {
             <h2 style={{ fontSize: '2rem', color: textColor, marginBottom: '5px', fontWeight:'bold' }}>🔔 ศูนย์พยากรณ์และแจ้งเตือนภัย</h2>
             <p style={{ color: subTextColor, fontSize:'1.1rem', marginBottom: '20px' }}>อัปเดตสถานการณ์สภาพอากาศ ประจำวันที่ <strong style={{color: '#0ea5e9'}}>{todayDateText}</strong></p>
             
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '15px', flexWrap: 'wrap' }}>
-              <button onClick={handleScanLocation} disabled={alertsLoading} style={{ backgroundColor: '#0ea5e9', color: '#fff', border: 'none', borderRadius: '30px', padding: '12px 25px', fontSize: '1rem', fontWeight: 'bold', cursor: alertsLoading?'wait':'pointer', boxShadow: '0 4px 15px rgba(14,165,233,0.3)', transition: '0.2s', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                {alertsLoading ? '⏳ กำลังสแกนพิกัด...' : '📍 ตรวจสอบพิกัดปัจจุบันของฉัน'}
+            {/* 🚀 โซนเลือกพื้นที่ดูแจ้งเตือน (ปรับใหม่ให้มี Dropdown เลือกเองได้) */}
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+              
+              {/* 1. ปุ่มใช้พิกัด GPS */}
+              <button onClick={handleScanLocation} disabled={alertsLoading} style={{ backgroundColor: '#0ea5e9', color: '#fff', border: 'none', borderRadius: '30px', padding: '10px 20px', fontSize: '0.95rem', fontWeight: 'bold', cursor: alertsLoading?'wait':'pointer', boxShadow: '0 4px 15px rgba(14,165,233,0.3)', transition: '0.2s', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {alertsLoading ? '⏳ กำลังสแกน...' : '📍 ใช้พิกัดปัจจุบัน'}
               </button>
-              {alertsLocationName && !alertsLoading && (
-                <div style={{ padding: '10px 20px', backgroundColor: darkMode?'#1e293b':'#f0f9ff', borderRadius: '30px', color: '#0ea5e9', fontWeight: 'bold', border: `1px solid ${borderColor}` }}>
-                  🎯 พิกัด: {alertsLocationName}
+
+              <span style={{ color: subTextColor, fontWeight: 'bold', fontSize: '0.9rem' }}>หรือ</span>
+
+              {/* 2. Dropdown เลือกสถานีเอง */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 15px', backgroundColor: darkMode ? '#1e293b' : '#f0f9ff', borderRadius: '30px', border: `1px solid ${borderColor}` }}>
+                <label style={{ fontWeight: 'bold', color: '#0ea5e9', fontSize: '0.95rem' }}>🎯 ค้นหา:</label>
+                <select 
+                  value={activeStation ? activeStation.stationID : ''} 
+                  onChange={(e) => {
+                    const stat = stations.find(s => s.stationID === e.target.value);
+                    if (stat) {
+                      setActiveStation(stat);
+                      setSelectedProvince(extractProvince(stat.areaTH)); // ซิงค์กับเมนูด้านบน
+                      setSelectedStationId(stat.stationID); // ซิงค์กับเมนูด้านบน
+                      fetchAlertsData(stat.lat, stat.long, `พื้นที่: ${stat.nameTH}`);
+                    }
+                  }} 
+                  style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid ${borderColor}`, backgroundColor: darkMode ? '#0f172a' : '#fff', color: textColor, outline: 'none', cursor: 'pointer', fontSize: '0.9rem', maxWidth: window.innerWidth < 768 ? '160px' : '300px', textOverflow: 'ellipsis' }}
+                >
+                  <option value="">-- เลือกพื้นที่ / สถานี --</option>
+                  {/* เรียงรายชื่อสถานีตาม "ชื่อจังหวัด" ผู้ใช้จะได้หาง่ายๆ */}
+                  {stations.slice().sort((a, b) => extractProvince(a.areaTH).localeCompare(extractProvince(b.areaTH), 'th')).map(s => (
+                    <option key={s.stationID} value={s.stationID}>
+                      จ.{extractProvince(s.areaTH)} - {s.nameTH}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 3. ป้ายโชว์สถานะ (จะโชว์เฉพาะตอนใช้ GPS หรือค่า Default กรุงเทพฯ) */}
+              {alertsLocationName && !alertsLocationName.includes('พื้นที่:') && !alertsLoading && (
+                <div style={{ padding: '8px 15px', backgroundColor: darkMode ? '#0f172a' : '#f0fdf4', borderRadius: '30px', color: '#16a34a', fontWeight: 'bold', border: `1px solid #bbf7d0`, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  ✅ {alertsLocationName}
                 </div>
               )}
             </div>
