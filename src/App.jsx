@@ -20,6 +20,7 @@ const getRainColor = (val) => { return (isNaN(val)||val===null)?{bg:'#ccc',text:
 const getWindColor = (val) => { return (isNaN(val)||val===null)?{bg:'#ccc',text:'#333',bar:'#ccc',label:'ไม่มีข้อมูล'}:val<=10?{bg:'#00b0f0',text:'#fff',bar:'#00b0f0',label:'ลมอ่อน'}:val<=25?{bg:'#2ecc71',text:'#fff',bar:'#2ecc71',label:'ลมปานกลาง'}:val<=40?{bg:'#f1c40f',text:'#222',bar:'#f1c40f',label:'ลมแรง'}:val<=60?{bg:'#e67e22',text:'#fff',bar:'#e67e22',label:'ลมแรงมาก'}:{bg:'#e74c3c',text:'#fff',bar:'#e74c3c',label:'พายุ'}; };
 const getWeatherIcon = (c) => { if(c===undefined||c===null)return{icon:'❓',text:'ไม่ทราบ'}; if(c===0)return{icon:'☀️',text:'แจ่มใส'}; if(c===1)return{icon:'🌤️',text:'มีเมฆบางส่วน'}; if(c===2)return{icon:'⛅',text:'มีเมฆ'}; if(c===3)return{icon:'☁️',text:'มีเมฆมาก'}; if([45,48].includes(c))return{icon:'🌫️',text:'มีหมอก'}; if([51,53,55,56,57].includes(c))return{icon:'🌧️',text:'ฝนปรอย'}; if([61,63,65,66,67].includes(c))return{icon:'🌧️',text:'ฝนตก'}; if([71,73,75,77,85,86].includes(c))return{icon:'❄️',text:'หิมะ'}; if([80,81,82].includes(c))return{icon:'🌦️',text:'ฝนตกหย่อมๆ'}; if([95,96,99].includes(c))return{icon:'⛈️',text:'พายุฝน'}; return{icon:'🌤️',text:'ปกติ'}; };
 
+// ฐานข้อมูลจังหวัด
 const thaiProvinces = ["กรุงเทพมหานคร","กระบี่","กาญจนบุรี","กาฬสินธุ์","กำแพงเพชร","ขอนแก่น","จันทบุรี","ฉะเชิงเทรา","ชลบุรี","ชัยนาท","ชัยภูมิ","ชุมพร","เชียงราย","เชียงใหม่","ตรัง","ตราด","ตาก","นครนายก","นครปฐม","นครพนม","นครราชสีมา","นครศรีธรรมราช","นครสวรรค์","นนทบุรี","นราธิวาส","น่าน","บึงกาฬ","บุรีรัมย์","ปทุมธานี","ประจวบคีรีขันธ์","ปราจีนบุรี","ปัตตานี","พระนครศรีอยุธยา","พะเยา","พังงา","พัทลุง","พิจิตร","พิษณุโลก","เพชรบุรี","เพชรบูรณ์","แพร่","ภูเก็ต","มหาสารคาม","มุกดาหาร","แม่ฮ่องสอน","ยโสธร","ยะลา","ร้อยเอ็ด","ระนอง","ระยอง","ราชบุรี","ลพบุรี","ลำปาง","ลำพูน","เลย","ศรีสะเกษ","สกลนคร","สงขลา","สตูล","สมุทรปราการ","สมุทรสงคราม","สมุทรสาคร","สระแก้ว","สระบุรี","สิงห์บุรี","สุโขทัย","สุพรรณบุรี","สุราษฎร์ธานี","สุรินทร์","หนองคาย","หนองบัวลำภู","อ่างทอง","อำนาจเจริญ","อุดรธานี","อุตรดิตถ์","อุทัยธานี","อุบลราชธานี"];
 
 const extractProvince = (area) => { 
@@ -158,7 +159,6 @@ function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 function deg2rad(deg) { return deg * (Math.PI/180) }
-
 // ==============================================================
 // 3. Main App Component
 // ==============================================================
@@ -579,6 +579,11 @@ export default function App() {
   const validForecast = dashForecast.filter(d => d[activeChart.key] != null);
   const todayDateText = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
 
+  // 🚀 คำนวณเวลา 3 ชั่วโมงข้างหน้าแบบ Real-time
+  const currentHr = new Date().getHours();
+  const next3Hr = (currentHr + 3) % 24;
+  const timeStr3h = `${String(currentHr).padStart(2, '0')}:00 - ${String(next3Hr).padStart(2, '0')}:00 น.`;
+
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100vh', width:'100vw', backgroundColor:themeBg, fontFamily:"'Kanit', sans-serif", overflowY:'auto', overflowX:'hidden' }}>
       
@@ -633,7 +638,7 @@ export default function App() {
             {/* MAP AREA */}
             <div style={{ flex: 7, width: '100%', minHeight: window.innerWidth < 768 ? '500px' : 'auto', borderRadius: '12px', overflow: 'hidden', position: 'relative', border: `1px solid ${borderColor}`, height: window.innerWidth < 768 ? '60vh' : 'calc(100vh - 120px)' }}>
               
-              <div className="hide-scrollbar" style={{ position: 'absolute', top: '15px', right: '15px', maxWidth: 'calc(100vw - 30px)', zIndex: 500, background: darkMode ? 'rgba(30,41,59,0.9)' : 'rgba(255,255,255,0.9)', padding: '5px 10px', borderRadius: '30px', display: 'flex', gap: '8px', overflowX: 'auto', whiteSpace: 'nowrap', WebkitOverflowScrolling: 'touch', boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}>
+              <div className="hide-scrollbar" style={{ position: 'absolute', top: '15px', right: '15px', zIndex: 500, background: darkMode ? 'rgba(30,41,59,0.9)' : 'rgba(255,255,255,0.9)', padding: '5px 10px', borderRadius: '30px', display: 'flex', gap: '8px', overflowX: 'auto', whiteSpace: 'nowrap', boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}>
                 <button onClick={() => handleViewModeChange('pm25')} style={{ padding: '6px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: isPm25Mode ? '#0ea5e9' : 'transparent', color: isPm25Mode ? '#fff' : subTextColor }}>☁️ PM2.5</button>
                 <button onClick={() => handleViewModeChange('temp')} style={{ padding: '6px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: isTempMode ? '#22c55e' : 'transparent', color: isTempMode ? '#fff' : subTextColor }}>🌡️ อุณหภูมิ</button>
                 <button onClick={() => handleViewModeChange('heat')} style={{ padding: '6px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: isHeatMode ? '#f97316' : 'transparent', color: isHeatMode ? '#fff' : subTextColor }}>🥵 Heat</button>
@@ -869,11 +874,11 @@ export default function App() {
               {showStats && (
                 <div style={{ marginTop: '20px', paddingTop: '20px', borderTop: `1px solid ${borderColor}` }}>
                   {dashLoading ? <div style={{ textAlign:'center', color:subTextColor, padding:'50px' }}>⏳ กำลังประมวลผลข้อมูลดาวเทียม...</div> : dashHistory.length > 0 ? (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth < 1024 ? '1fr' : '1fr 1fr', gap: '20px' }}>
                       <div style={{ background: darkMode?'#0f172a':'#f8fafc', padding: '15px', borderRadius: '10px', border: `1px solid ${borderColor}` }}>
                         <h3 style={{ fontSize: '1rem', color: textColor, textAlign: 'center', fontWeight:'bold' }}>⏳ ย้อนหลัง 14 วัน</h3>
-                        <div style={{ height: '220px', width: '100%', marginTop:'15px' }}>
-                          <ResponsiveContainer width="100%" height="100%">
+                        <div style={{ height: '220px', marginTop:'15px' }}>
+                          <ResponsiveContainer>
                             {activeChart.type === 'bar' ? (
                               <BarChart data={dashHistory} margin={{ top:5, right:10, bottom:5, left:-20 }}><CartesianGrid strokeDasharray="3 3" stroke={borderColor} /><XAxis dataKey="date" stroke={subTextColor} fontSize={10} /><YAxis stroke={subTextColor} fontSize={10} /><Tooltip /><Bar dataKey={activeChart.key} fill={activeChart.color} radius={[4,4,0,0]} />{activeChart.hasLY && <Bar dataKey={activeChart.keyLY} fill="#94a3b8" radius={[4,4,0,0]} />}</BarChart>
                             ) : activeChart.type === 'area' ? (
@@ -886,8 +891,8 @@ export default function App() {
                       </div>
                       <div style={{ background: darkMode?'#0f172a':'#f8fafc', padding: '15px', borderRadius: '10px', border: `1px solid ${borderColor}` }}>
                         <h3 style={{ fontSize: '1rem', color: textColor, textAlign: 'center', fontWeight:'bold' }}>🔮 พยากรณ์ล่วงหน้า {validForecast.length} วัน (Forecast)</h3>
-                        <div style={{ height: '220px', width: '100%', marginTop:'15px' }}>
-                          <ResponsiveContainer width="100%" height="100%">
+                        <div style={{ height: '220px', marginTop:'15px' }}>
+                          <ResponsiveContainer>
                             {activeChart.type === 'bar' ? (
                               <BarChart data={validForecast} margin={{ top:5, right:10, bottom:5, left:-20 }}><CartesianGrid strokeDasharray="3 3" stroke={borderColor} /><XAxis dataKey="date" stroke={subTextColor} fontSize={10} /><YAxis stroke={subTextColor} fontSize={10} /><Tooltip /><Bar dataKey={activeChart.key} fill={activeChart.color} radius={[4,4,0,0]} /></BarChart>
                             ) : (
@@ -935,7 +940,7 @@ export default function App() {
                   {/* คอลัมน์ 1: 3 ชั่วโมงข้างหน้า (Urgent) */}
                   <div style={{ backgroundColor: cardBg, borderRadius: '16px', padding: '20px', border: `1px solid ${borderColor}`, borderTop: alertsData?.urgent?.some(a => a.color !== '#10b981') ? '4px solid #ef4444' : '4px solid #10b981', boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
                     <h3 style={{ fontSize: '1.2rem', color: alertsData?.urgent?.some(a => a.color !== '#10b981') ? '#ef4444' : '#10b981', margin: '0 0 15px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      {alertsData?.urgent?.some(a => a.color !== '#10b981') ? '🚨 เฝ้าระวังด่วน (3 ชม. ข้างหน้า)' : '✅ สถานการณ์ปกติ (3 ชม. ข้างหน้า)'}
+                      {alertsData?.urgent?.some(a => a.color !== '#10b981') ? `🚨 เฝ้าระวังด่วน (${timeStr3h})` : `✅ สถานการณ์ปกติ (${timeStr3h})`}
                     </h3>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                       {alertsData?.urgent?.map((al, idx) => (
