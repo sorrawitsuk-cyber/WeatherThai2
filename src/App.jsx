@@ -172,6 +172,9 @@ export default function App() {
   const [alertsLoading, setAlertsLoading] = useState(false);
   const [alertsLocationName, setAlertsLocationName] = useState('');
   const [nationwideSummary, setNationwideSummary] = useState(null);
+  // 🤖 State สำหรับทดสอบ AI
+  const [aiSummary, setAiSummary] = useState('');
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
 
   const cardRefs = useRef({});
   const markerRefs = useRef({});
@@ -564,6 +567,47 @@ export default function App() {
     } catch(e) { console.error("Alert err:", e); } finally { setAlertsLoading(false); }
   };
 
+  // 🤖 ฟังก์ชันให้ Gemini สรุปสภาพอากาศ
+// 🤖 ฟังก์ชันให้ Gemini สรุปสภาพอากาศ (เวอร์ชันปลอดภัย ยิงผ่าน Backend ของเราเอง)
+  const generateAISummary = async () => {
+    setIsGeneratingAI(true);
+    try {
+      // 1. เตรียมข้อมูลที่จะส่งไปให้ AI อ่าน
+      const loc = alertsLocationName || "ประเทศไทย";
+      let contextData = `พิกัด/พื้นที่: ${loc}\n\n`;
+      contextData += `[ข้อมูลพยากรณ์ 3 ชม. (สำคัญมาก)]\n`;
+      alertsData.urgent.forEach(a => contextData += `- ${a.title}: ${a.desc}\n`);
+      contextData += `\n[ข้อมูลภาพรวม 24 ชั่วโมง]\n`;
+      alertsData.daily.forEach(a => contextData += `- ${a.title}: ${a.desc}\n`);
+
+      // 2. ร่างคำสั่ง (Prompt)
+      const prompt = `คุณคือนักพยากรณ์อากาศที่เชี่ยวชาญ เป็นมิตร และห่วงใยสุขภาพประชาชน ช่วยสรุปสภาพอากาศจากข้อมูลดิบต่อไปนี้ให้หน่อย เขียนสรุปสั้นๆ 3-4 บรรทัด อ่านง่ายๆ เป็นภาษาคน ไม่ต้องเกริ่นนำ เน้นความเสี่ยงในช่วง 3 ชั่วโมงนี้เป็นหลัก และให้คำแนะนำการใช้ชีวิตที่เหมาะสม:\n\n${contextData}`;
+
+      // 3. 🚀 ยิงคำสั่งไปที่ Backend ของเราเอง (โฟลเดอร์ api/summary.js) แทนการยิงไป Google ตรงๆ
+      const response = await fetch('/api/summary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt })
+      });
+      
+      const data = await response.json();
+      
+      // 4. เอาคำตอบมาโชว์หน้าเว็บ
+      if (data.text) {
+        setAiSummary(data.text);
+      } else {
+        setAiSummary("ขออภัยครับ AI ไม่สามารถสรุปข้อมูลได้ในขณะนี้");
+      }
+    } catch (error) {
+      console.error(error);
+      setAiSummary("เกิดข้อผิดพลาดในการเชื่อมต่อกับเซิร์ฟเวอร์");
+    } finally {
+      setIsGeneratingAI(false);
+    }
+  };
+
+  // รีเซ็ตข้อความ AI ทุกครั้งที่เปลี่ยนสถานที่ใหม่
+  useEffect(() => { setAiSummary(''); }, [alertsLocationName, activeStation]);
   useEffect(() => {
     if (currentPage==='alerts' && !alertsLocationName) {
       if(activeStation) fetchAlertsData(activeStation.lat, activeStation.long, `พื้นที่: ${activeStation.nameTH}`);
@@ -1076,6 +1120,35 @@ export default function App() {
                 </div>
               )}
 
+{/* 🤖 ส่วนทดสอบ: ผู้ช่วย AI สรุปสภาพอากาศ */}
+              {(alertsData?.urgent?.length > 0) && (
+                <div style={{ backgroundColor: cardBg, borderRadius: '16px', padding: '20px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.03)', position: 'relative', overflow: 'hidden' }}>
+                  
+                  {/* แถบสีตกแต่ง (ให้ดูเป็น AI) */}
+                  <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: 'linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899)' }}></div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '15px' }}>
+                    <h3 style={{ fontSize: '1.2rem', color: textColor, margin: 0, display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>
+                      <span style={{ fontSize: '1.5rem' }}>✨</span> AI สรุปสภาพอากาศให้ฟัง
+                    </h3>
+                    
+                    {!aiSummary && (
+                      <button onClick={generateAISummary} disabled={isGeneratingAI} style={{ backgroundColor: '#8b5cf6', color: '#fff', border: 'none', borderRadius: '20px', padding: '8px 16px', fontSize: '0.9rem', fontWeight: 'bold', cursor: isGeneratingAI ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px', transition: '0.2s', boxShadow: '0 2px 8px rgba(139,92,246,0.3)' }}>
+                        {isGeneratingAI ? '⏳ กำลังประมวลผล...' : '🪄 กดให้ AI สรุปให้'}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* โชว์ข้อความที่ AI ตอบกลับมา */}
+                  {aiSummary && (
+                    <div style={{ backgroundColor: darkMode ? '#1e293b' : '#f8fafc', padding: '15px 20px', borderRadius: '12px', border: `1px dashed #8b5cf6`, color: textColor, fontSize: '1rem', lineHeight: '1.6' }}>
+                      {aiSummary.split('\n').map((line, i) => (
+                        <p key={i} style={{ margin: '0 0 8px 0' }}>{line}</p>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
               {/* ส่วนที่ 2: สรุปภาพรวมความเสี่ยงระดับประเทศ (Top 5 Ranking) */}
               {nationwideSummary && (
                 <div style={{ backgroundColor: cardBg, borderRadius: '16px', padding: '25px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
