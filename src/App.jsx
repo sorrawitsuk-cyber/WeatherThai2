@@ -133,6 +133,7 @@ function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 function deg2rad(deg) { return deg * (Math.PI/180) }
+
 // ==============================================================
 // 3. Main App Component
 // ==============================================================
