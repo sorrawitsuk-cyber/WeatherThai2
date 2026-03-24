@@ -731,7 +731,7 @@ export default function App() {
 
                 {/* หมุดเฉพาะ "กรุงเทพมหานคร" จัดกลุ่มด้วย Cluster */}
                 {!showRadar && (
-                  <MarkerClusterGroup chunkedLoading maxClusterRadius={45} disableClusteringAtZoom={11} spiderfyOnMaxZoom={true}>
+                  <MarkerClusterGroup chunkedLoading maxClusterRadius={45} disableClusteringAtZoom={11} spiderfyOnMaxZoom={true} iconCreateFunction={createClusterCustomIcon}>
                     {filteredStations.filter(s => extractProvince(s.areaTH) === 'กรุงเทพมหานคร').map((station) => {
                       const lat = parseFloat(station.lat); const lon = parseFloat(station.long); if (isNaN(lat) || isNaN(lon)) return null;
                       const pmVal = Number(station.AQILast?.PM25?.value); const tObj = stationTemps[station.stationID];
