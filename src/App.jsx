@@ -34,7 +34,15 @@ const legendData = {
   wind: { title: 'ความเร็วลม', items: [{color:'#00b0f0',label:'0-10 (ลมอ่อน)'},{color:'#2ecc71',label:'11-25 (ลมปานกลาง)'},{color:'#f1c40f',label:'26-40 (ลมแรง)'},{color:'#e67e22',label:'41-60 (ลมแรงมาก)'},{color:'#e74c3c',label:'> 60 (พายุ)'}] }
 };
 
-const chartConfigs = { pm25: { key: 'pm25', name: 'PM2.5', color: '#f59e0b', type: 'area' }, temp: { key: 'temp', keyLY: 'tempLY', name: 'อุณหภูมิสูงสุด', color: '#ef4444', hasLY: true, type: 'line' }, heat: { key: 'heat', keyLY: 'heatLY', name: 'Heat Index สูงสุด', color: '#ea580c', hasLY: true, type: 'line' }, uv: { key: 'uv', keyLY: null, name: 'รังสี UV สูงสุด', color: '#a855f7', type: 'area' }, rain: { key: 'rain', keyLY: 'rainLY', name: 'ปริมาณฝนสะสม', color: '#3b82f6', hasLY: true, type: 'bar' }, wind: { key: 'wind', keyLY: 'windLY', name: 'ความเร็วลมสูงสุด', color: '#64748b', hasLY: true, type: 'line' } };
+// 🌟 ตั้งค่าสเกลมาตรฐาน (Domain) เพื่อไม่ให้กราฟหลอกตา
+const chartConfigs = { 
+  pm25: { key: 'pm25', name: 'PM2.5', color: '#f59e0b', type: 'area', domain: [0, max => Math.max(100, Math.ceil(max))] }, 
+  temp: { key: 'temp', keyLY: 'tempLY', name: 'อุณหภูมิสูงสุด', color: '#ef4444', hasLY: true, type: 'line', domain: [min => Math.min(20, Math.floor(min)), max => Math.max(45, Math.ceil(max))] }, 
+  heat: { key: 'heat', keyLY: 'heatLY', name: 'Heat Index สูงสุด', color: '#ea580c', hasLY: true, type: 'line', domain: [min => Math.min(25, Math.floor(min)), max => Math.max(55, Math.ceil(max))] }, 
+  uv: { key: 'uv', keyLY: null, name: 'รังสี UV สูงสุด', color: '#a855f7', type: 'area', domain: [0, max => Math.max(12, Math.ceil(max))] }, 
+  rain: { key: 'rain', keyLY: 'rainLY', name: 'ปริมาณฝนสะสม', color: '#3b82f6', hasLY: true, type: 'bar', domain: [0, max => Math.max(20, Math.ceil(max))] }, 
+  wind: { key: 'wind', keyLY: 'windLY', name: 'ความเร็วลมสูงสุด', color: '#64748b', hasLY: true, type: 'line', domain: [0, max => Math.max(40, Math.ceil(max))] } 
+};
 
 // 2. Map Components & Skeleton
 const createCustomMarker = (viewMode, value, extraData) => {
@@ -43,18 +51,13 @@ const createCustomMarker = (viewMode, value, extraData) => {
   return L.divIcon({ className: 'custom-div-icon', html: `<div style="background-color: ${bg}; width: 34px; height: 34px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.4); display: flex; justify-content: center; align-items: center; color: ${textColor}; font-weight: bold; font-size: ${fontSize}; font-family: 'Kanit', sans-serif; transition: all 0.3s ease;">${displayValue}</div>`, iconSize: [38, 38], iconAnchor: [19, 19] });
 };
 
-// 🌟 อัปเดต FitBounds ให้ถ้ากด Home ปุ๊บ จะซูมออกเห็นทั้งประเทศทันที (Zoom 6)
 function FitBounds({ stations, activeStation, selectedProvince, selectedRegion }) { 
   const map = useMap(); 
   useEffect(() => { 
     if (activeStation) return; 
     if (stations && stations.length > 0) { 
-      if (!selectedProvince && !selectedRegion) { 
-        map.flyTo([13.5, 101.0], 6, { duration: 1.5 }); // กลับไปซูมดูทั้งประเทศ
-      } else { 
-        const validStations = stations.filter(s => s.lat && s.long && !isNaN(parseFloat(s.lat)) && !isNaN(parseFloat(s.long)) && parseFloat(s.lat) !== 0); 
-        if (validStations.length > 0) { const bounds = L.latLngBounds(validStations.map(s => [parseFloat(s.lat), parseFloat(s.long)])); map.fitBounds(bounds, { padding: [40, 40], maxZoom: 11 }); } 
-      } 
+      if (!selectedProvince && !selectedRegion) { map.flyTo([13.5, 101.0], 6, { duration: 1.5 }); } 
+      else { const validStations = stations.filter(s => s.lat && s.long && !isNaN(parseFloat(s.lat)) && !isNaN(parseFloat(s.long)) && parseFloat(s.lat) !== 0); if (validStations.length > 0) { const bounds = L.latLngBounds(validStations.map(s => [parseFloat(s.lat), parseFloat(s.long)])); map.fitBounds(bounds, { padding: [40, 40], maxZoom: 11 }); } } 
     } 
   }, [stations, map, activeStation, selectedProvince, selectedRegion]); 
   return null; 
@@ -78,7 +81,6 @@ export default function App() {
   const [filteredStations, setFilteredStations] = useState([]);
   const [provinces, setProvinces] = useState([]);
   
-  // 🌟 ตั้งค่าเริ่มต้นเป็น "กรุงเทพมหานคร" ทันทีที่เปิดแอป
   const [selectedRegion, setSelectedRegion] = useState('ภาคกลาง');
   const [selectedProvince, setSelectedProvince] = useState('กรุงเทพมหานคร');
   
@@ -118,7 +120,6 @@ export default function App() {
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   const [aiTimestamp, setAiTimestamp] = useState('');
   
-  // 🌟 State ใหม่สำหรับเลือกวันที่ใน AI
   const [aiTargetDay, setAiTargetDay] = useState(0); 
 
   const [showMobileFilters, setShowMobileFilters] = useState(false);
@@ -175,19 +176,13 @@ export default function App() {
 
   useEffect(() => { fetchAirQuality(); const intervalId = setInterval(() => { fetchAirQuality(true); }, 1800000); return () => clearInterval(intervalId); }, []);
 
- // 🌟 ฟังก์ชันคำนวณ 5 อันดับจังหวัดเฝ้าระวัง (อัปเดต: ใช้ค่าเฉลี่ยของทั้งจังหวัด)
   useEffect(() => {
     if (stations.length === 0 || Object.keys(stationTemps).length === 0) return;
-
-    // 1. จัดกลุ่มข้อมูลแยกตามจังหวัด
     const provData = {};
     stations.forEach(s => {
       const prov = extractProvince(s.areaTH);
       if (!provData[prov]) provData[prov] = { pm25: [], rain: [], wind: [], heat: [] };
-      
-      const pm = Number(s.AQILast?.PM25?.value);
-      if (!isNaN(pm)) provData[prov].pm25.push(pm);
-
+      const pm = Number(s.AQILast?.PM25?.value); if (!isNaN(pm)) provData[prov].pm25.push(pm);
       const t = stationTemps[s.stationID];
       if (t) {
         if (t.rainProb != null) provData[prov].rain.push(t.rainProb);
@@ -196,32 +191,16 @@ export default function App() {
       }
     });
 
-    // 2. คำนวณค่าเฉลี่ย (Average) ของแต่ละจังหวัด
     let pm25AvgList = []; let stormAvgList = []; let heatAvgList = [];
     for (const prov in provData) {
-      const d = provData[prov];
-      const getAvg = (arr) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
-
-      const avgPm = getAvg(d.pm25);
-      const avgRain = getAvg(d.rain);
-      const avgWind = getAvg(d.wind);
-      const avgHeat = getAvg(d.heat);
-
+      const d = provData[prov]; const getAvg = (arr) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+      const avgPm = getAvg(d.pm25); const avgRain = getAvg(d.rain); const avgWind = getAvg(d.wind); const avgHeat = getAvg(d.heat);
       if (avgPm >= 37.5) pm25AvgList.push({ prov, val: Math.round(avgPm * 10) / 10 });
       if (avgRain >= 40 || avgWind >= 30) stormAvgList.push({ prov, rain: Math.round(avgRain), wind: Math.round(avgWind) });
       if (avgHeat >= 40) heatAvgList.push({ prov, val: Math.round(avgHeat * 10) / 10 });
     }
-
-    // 3. เรียงลำดับจากค่าเฉลี่ยสูงสุดลงมา (Top 5)
-    pm25AvgList.sort((a, b) => b.val - a.val);
-    stormAvgList.sort((a, b) => Math.max(b.rain, b.wind) - Math.max(a.rain, a.wind));
-    heatAvgList.sort((a, b) => b.val - a.val);
-
-    setNationwideSummary({ 
-      pm25: pm25AvgList.slice(0, 5), 
-      storm: stormAvgList.slice(0, 5), 
-      heat: heatAvgList.slice(0, 5) 
-    });
+    pm25AvgList.sort((a, b) => b.val - a.val); stormAvgList.sort((a, b) => Math.max(b.rain, b.wind) - Math.max(a.rain, a.wind)); heatAvgList.sort((a, b) => b.val - a.val);
+    setNationwideSummary({ pm25: pm25AvgList.slice(0, 5), storm: stormAvgList.slice(0, 5), heat: heatAvgList.slice(0, 5) });
   }, [stations, stationTemps]);
 
   useEffect(() => {
@@ -848,7 +827,6 @@ export default function App() {
                     )}
                   </div>
 
-                  {/* 🌟 เปลี่ยน Dropdown ให้แสดงวันที่จริงแบบ Dynamic */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px', padding: '10px', backgroundColor: darkMode ? 'rgba(0,0,0,0.2)' : '#f0f9ff', borderRadius: '12px', border: `1px solid ${borderColor}` }}>
                     <span style={{ fontSize: '0.9rem', color: textColor, fontWeight: 'bold' }}>📅 เลือกวันวิเคราะห์:</span>
                     <select value={aiTargetDay} onChange={(e) => setAiTargetDay(Number(e.target.value))} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #0ea5e9`, backgroundColor: darkMode ? '#1e293b' : '#fff', color: '#0ea5e9', outline: 'none', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold' }}>
@@ -942,6 +920,7 @@ export default function App() {
                 </div>
               )}
 
+              {/* 🌟 4. 📊 กราฟสถิติเชิงลึก 14 วัน (อัปเดตแกน Y) */}
               <div style={{ backgroundColor: cardBg, borderRadius: '16px', padding: '25px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
                   <div>
@@ -964,11 +943,11 @@ export default function App() {
                       <div style={{ height: '220px' }}>
                         <ResponsiveContainer>
                           {activeChart.type === 'bar' ? (
-                            <BarChart data={dashHistory} margin={{ top:5, right:10, bottom:5, left:-20 }}><CartesianGrid strokeDasharray="3 3" stroke={borderColor} /><XAxis dataKey="date" stroke={subTextColor} fontSize={10} /><YAxis stroke={subTextColor} fontSize={10} /><RechartsTooltip /><Bar dataKey={activeChart.key} fill={activeChart.color} radius={[4,4,0,0]} />{activeChart.hasLY && <Bar dataKey={activeChart.keyLY} fill="#94a3b8" radius={[4,4,0,0]} />}</BarChart>
+                            <BarChart data={dashHistory} margin={{ top:5, right:10, bottom:5, left:-20 }}><CartesianGrid strokeDasharray="3 3" stroke={borderColor} /><XAxis dataKey="date" stroke={subTextColor} fontSize={10} /><YAxis stroke={subTextColor} fontSize={10} domain={activeChart.domain} /><RechartsTooltip /><Bar dataKey={activeChart.key} fill={activeChart.color} radius={[4,4,0,0]} />{activeChart.hasLY && <Bar dataKey={activeChart.keyLY} fill="#94a3b8" radius={[4,4,0,0]} />}</BarChart>
                           ) : activeChart.type === 'area' ? (
-                            <AreaChart data={dashHistory} margin={{ top:5, right:10, bottom:5, left:-20 }}><CartesianGrid strokeDasharray="3 3" stroke={borderColor} /><XAxis dataKey="date" stroke={subTextColor} fontSize={10} /><YAxis stroke={subTextColor} fontSize={10} /><RechartsTooltip /><Area type="monotone" dataKey={activeChart.key} stroke={activeChart.color} fill={activeChart.color} fillOpacity={0.4} strokeWidth={2} /></AreaChart>
+                            <AreaChart data={dashHistory} margin={{ top:5, right:10, bottom:5, left:-20 }}><CartesianGrid strokeDasharray="3 3" stroke={borderColor} /><XAxis dataKey="date" stroke={subTextColor} fontSize={10} /><YAxis stroke={subTextColor} fontSize={10} domain={activeChart.domain} /><RechartsTooltip /><Area type="monotone" dataKey={activeChart.key} stroke={activeChart.color} fill={activeChart.color} fillOpacity={0.4} strokeWidth={2} /></AreaChart>
                           ) : (
-                            <LineChart data={dashHistory} margin={{ top:5, right:10, bottom:5, left:-20 }}><CartesianGrid strokeDasharray="3 3" stroke={borderColor} /><XAxis dataKey="date" stroke={subTextColor} fontSize={10} /><YAxis stroke={subTextColor} fontSize={10} /><RechartsTooltip /><Line type="monotone" dataKey={activeChart.key} stroke={activeChart.color} strokeWidth={3} />{activeChart.hasLY && <Line type="monotone" dataKey={activeChart.keyLY} stroke="#94a3b8" strokeDasharray="4 4" strokeWidth={2} />}</LineChart>
+                            <LineChart data={dashHistory} margin={{ top:5, right:10, bottom:5, left:-20 }}><CartesianGrid strokeDasharray="3 3" stroke={borderColor} /><XAxis dataKey="date" stroke={subTextColor} fontSize={10} /><YAxis stroke={subTextColor} fontSize={10} domain={activeChart.domain} /><RechartsTooltip /><Line type="monotone" dataKey={activeChart.key} stroke={activeChart.color} strokeWidth={3} />{activeChart.hasLY && <Line type="monotone" dataKey={activeChart.keyLY} stroke="#94a3b8" strokeDasharray="4 4" strokeWidth={2} />}</LineChart>
                           )}
                         </ResponsiveContainer>
                       </div>
@@ -978,9 +957,9 @@ export default function App() {
                       <div style={{ height: '220px' }}>
                         <ResponsiveContainer>
                           {activeChart.type === 'bar' ? (
-                            <BarChart data={validForecast} margin={{ top:5, right:10, bottom:5, left:-20 }}><CartesianGrid strokeDasharray="3 3" stroke={borderColor} /><XAxis dataKey="date" stroke={subTextColor} fontSize={10} /><YAxis stroke={subTextColor} fontSize={10} /><RechartsTooltip /><Bar dataKey={activeChart.key} fill={activeChart.color} radius={[4,4,0,0]} /></BarChart>
+                            <BarChart data={validForecast} margin={{ top:5, right:10, bottom:5, left:-20 }}><CartesianGrid strokeDasharray="3 3" stroke={borderColor} /><XAxis dataKey="date" stroke={subTextColor} fontSize={10} /><YAxis stroke={subTextColor} fontSize={10} domain={activeChart.domain} /><RechartsTooltip /><Bar dataKey={activeChart.key} fill={activeChart.color} radius={[4,4,0,0]} /></BarChart>
                           ) : (
-                            <AreaChart data={validForecast} margin={{ top:5, right:10, bottom:5, left:-20 }}><CartesianGrid strokeDasharray="3 3" stroke={borderColor} /><XAxis dataKey="date" stroke={subTextColor} fontSize={10} /><YAxis stroke={subTextColor} fontSize={10} domain={['auto', 'auto']} /><RechartsTooltip /><Area type="monotone" dataKey={activeChart.key} stroke={activeChart.color} fill={activeChart.color} fillOpacity={0.4} strokeWidth={3} /></AreaChart>
+                            <AreaChart data={validForecast} margin={{ top:5, right:10, bottom:5, left:-20 }}><CartesianGrid strokeDasharray="3 3" stroke={borderColor} /><XAxis dataKey="date" stroke={subTextColor} fontSize={10} /><YAxis stroke={subTextColor} fontSize={10} domain={activeChart.domain} /><RechartsTooltip /><Area type="monotone" dataKey={activeChart.key} stroke={activeChart.color} fill={activeChart.color} fillOpacity={0.4} strokeWidth={3} /></AreaChart>
                           )}
                         </ResponsiveContainer>
                       </div>
@@ -989,6 +968,7 @@ export default function App() {
                 ) : <div style={{ textAlign:'center', color:subTextColor, padding:'40px' }}>ไม่มีข้อมูลสถิติของพื้นที่นี้</div>}
               </div>
 
+              {/* 5. Top 5 Ranking ทั่วประเทศ */}
               {nationwideSummary && (
                 <div style={{ backgroundColor: cardBg, borderRadius: '16px', padding: '25px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
                   <div style={{ textAlign: 'center', marginBottom: '20px' }}>
