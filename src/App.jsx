@@ -133,7 +133,6 @@ function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 function deg2rad(deg) { return deg * (Math.PI/180) }
-
 // ==============================================================
 // 3. Main App Component
 // ==============================================================
@@ -172,7 +171,7 @@ export default function App() {
   const [alertsLocationName, setAlertsLocationName] = useState('');
   const [nationwideSummary, setNationwideSummary] = useState(null);
 
-  // 🤖 State สำหรับ AI
+  // 🤖 State สำหรับ AI (อัปเดตเป็น JSON)
   const [aiSummaryJson, setAiSummaryJson] = useState(null);
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
 
@@ -188,7 +187,7 @@ export default function App() {
   }, [darkMode]);
 
   // ล้างค่า AI เวลาย้ายพื้นที่
-  useEffect(() => { setAiSummary(''); }, [alertsLocationName, activeStation]);
+  useEffect(() => { setAiSummaryJson(null); }, [alertsLocationName, activeStation]);
 
   const handleViewModeChange = (mode) => { 
     setViewMode(mode); setSortOrder(mode === 'temp' ? 'asc' : 'desc'); setShowRadar(false); setSelectedStationId(''); setActiveStation(null);
@@ -507,9 +506,7 @@ export default function App() {
     }
   }, [currentPage, activeStation, alertsLocationName]);
 
-  // 🤖 🚀 ฟังก์ชันให้ AI สรุปสภาพอากาศ (ยิงผ่าน Backend ของเราเอง)
- // 🤖 ฟังก์ชันให้ AI สรุปสภาพอากาศ (เวอร์ชันอัปเกรด เลือกหัวข้อได้)
-  // 🤖 ฟังก์ชันให้ AI สรุปสภาพอากาศ (เวอร์ชันอัปเกรดJSON-to-UI)
+  // 🤖 ฟังก์ชันให้ AI สรุปสภาพอากาศ (เวอร์ชันอัปเกรด JSON-to-UI)
   const generateAISummary = async (topic = 'general') => {
     setIsGeneratingAI(true);
     setAiSummaryJson(null); // ล้างข้อมูลเก่า
@@ -535,12 +532,12 @@ export default function App() {
       const response = await fetch('/api/summary', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: promptText, topic: topic }) // ส่ง topic ไปด้วย
+        body: JSON.stringify({ prompt: promptText, topic: topic }) 
       });
       
       const data = await response.json();
       if (data.jsonText) {
-        // 🧩 ลอง Parse JSON ที่ได้มา ถ้าผิดพลาด ให้แสดง Error
+        // 🧩 Parse JSON ที่ได้มา ถ้าผิดพลาด ให้แสดง Error
         try {
           const parsedData = JSON.parse(data.jsonText);
           setAiSummaryJson(parsedData);
@@ -577,12 +574,11 @@ export default function App() {
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100vh', width:'100vw', backgroundColor:themeBg, fontFamily:"'Kanit', sans-serif", overflowY:'auto', overflowX:'hidden' }}>
       
-     {/* HEADER */}
-      <header style={{ flexShrink: 0, minHeight: '65px', background: darkMode ? '#1e293b' : '#1da1f2', color: '#fff', padding: '10px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '15px', flexWrap: 'nowrap', overflowX: 'auto' }} className="hide-scrollbar">
+      {/* HEADER */}
+      <header style={{ flexShrink: 0, minHeight: '65px', background: darkMode ? 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)' : '#1da1f2', color: '#fff', padding: '10px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '15px', flexWrap: 'nowrap', overflowX: 'auto' }} className="hide-scrollbar">
         
         {/* โซนด้านซ้าย (โลโก้ + ชื่อแอป) */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
-          {/* ปรับโลโก้ให้วงกลมใหญ่ขึ้นแบบในรูป */}
           <div style={{ fontSize: '1.8rem', background: '#fff', borderRadius: '50%', width: '48px', height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 5px rgba(0,0,0,0.15)' }}>
             {darkMode ? '🌙' : '🌤️'}
           </div>
@@ -595,11 +591,7 @@ export default function App() {
         {/* ตรงกลาง: ตัวกรอง + ปุ่ม Home (แสดงเฉพาะหน้าแผนที่) */}
         {currentPage === 'map' && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: 0, maxWidth: window.innerWidth >= 768 ? '65%' : '100%' }}>
-            
-            {/* แถบกรองข้อมูล (ให้ขยายเต็มพื้นที่ที่เหลือ เพื่อให้ยาวขนานกับแผนที่) */}
             <div className="hide-scrollbar" style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: 'rgba(255,255,255,0.15)', padding: '5px 12px', borderRadius: '30px', overflowX: 'auto', whiteSpace: 'nowrap', flex: 1 }}>
-              
-              {/* Dropdown ภูมิภาค */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <label style={{ fontWeight: 'bold', fontSize: '0.85rem' }}>📍</label>
                 <select value={selectedRegion} onChange={(e) => { setSelectedRegion(e.target.value); setSelectedProvince(''); setSelectedStationId(''); setActiveStation(null); setShowRadar(false); }} style={{ padding: '5px 10px', borderRadius: '15px', border: 'none', backgroundColor: '#fff', color: '#1e293b', outline: 'none', cursor: 'pointer', fontSize: '0.85rem' }}>
@@ -608,8 +600,6 @@ export default function App() {
                 </select>
               </div>
               <div style={{ width: '1px', height: '15px', backgroundColor: 'rgba(255,255,255,0.3)' }}></div>
-
-              {/* Dropdown จังหวัด */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <label style={{ fontWeight: 'bold', fontSize: '0.85rem' }}>🗺️</label>
                 <select value={selectedProvince} onChange={(e) => { setSelectedProvince(e.target.value); setSelectedStationId(''); setActiveStation(null); setShowRadar(false); }} style={{ padding: '5px 10px', borderRadius: '15px', border: 'none', backgroundColor: '#fff', color: '#1e293b', outline: 'none', cursor: 'pointer', fontSize: '0.85rem' }}>
@@ -617,8 +607,6 @@ export default function App() {
                 </select>
               </div>
               <div style={{ width: '1px', height: '15px', backgroundColor: 'rgba(255,255,255,0.3)' }}></div>
-
-              {/* Dropdown สถานี */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1 }}>
                 <label style={{ fontWeight: 'bold', fontSize: '0.85rem' }}>📌</label>
                 <select value={selectedStationId} onChange={(e) => { setSelectedStationId(e.target.value); const stat = filteredStations.find(s => s.stationID === e.target.value); if(stat) {setActiveStation(stat); setShowRadar(false);} }} style={{ width: '100%', minWidth: '150px', padding: '5px 10px', borderRadius: '15px', border: 'none', backgroundColor: '#fff', color: '#1e293b', outline: 'none', cursor: 'pointer', fontSize: '0.85rem', textOverflow: 'ellipsis' }}>
@@ -627,11 +615,7 @@ export default function App() {
                 </select>
               </div>
             </div>
-
-            {/* ปุ่ม Home (แยกออกมาเป็นวงกลมด้านขวา) */}
-            <button onClick={handleReset} title="รีเซ็ตแผนที่ / กลับหน้าแรก" style={{ flexShrink: 0, backgroundColor: '#fff', border: 'none', borderRadius: '50%', width: '38px', height: '38px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 5px rgba(0,0,0,0.15)', fontSize: '1.2rem', color: '#0ea5e9' }}>
-              🏠
-            </button>
+            <button onClick={handleReset} title="รีเซ็ตแผนที่ / กลับหน้าแรก" style={{ flexShrink: 0, backgroundColor: '#fff', border: 'none', borderRadius: '50%', width: '38px', height: '38px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 5px rgba(0,0,0,0.15)', fontSize: '1.2rem', color: '#0ea5e9' }}>🏠</button>
           </div>
         )}
 
@@ -643,7 +627,6 @@ export default function App() {
           </div>
           <button onClick={() => setDarkMode(!darkMode)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '50%', width: '36px', height: '36px', cursor: 'pointer', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{darkMode ? '☀️' : '🌙'}</button>
         </div>
-        
       </header>
 
       {/* BODY CONTENT */}
@@ -960,7 +943,7 @@ export default function App() {
             <h2 style={{ fontSize: '2rem', color: textColor, marginBottom: '5px', fontWeight:'bold' }}>🔔 ศูนย์พยากรณ์และแจ้งเตือนภัย</h2>
             <p style={{ color: subTextColor, fontSize:'1.1rem', marginBottom: '20px' }}>อัปเดตสถานการณ์สภาพอากาศ ประจำวันที่ <strong style={{color: '#0ea5e9'}}>{todayDateText}</strong></p>
             
-            {/* 🚀 โซนเลือกพื้นที่ดูแจ้งเตือน (มีพิกัด GPS + Dropdown เลือกสถานี) */}
+            {/* 🚀 โซนเลือกพื้นที่ดูแจ้งเตือน */}
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
               <button onClick={handleScanLocation} disabled={alertsLoading} style={{ backgroundColor: '#0ea5e9', color: '#fff', border: 'none', borderRadius: '30px', padding: '10px 20px', fontSize: '0.95rem', fontWeight: 'bold', cursor: alertsLoading?'wait':'pointer', boxShadow: '0 4px 15px rgba(14,165,233,0.3)', transition: '0.2s', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 {alertsLoading ? '⏳ กำลังสแกน...' : '📍 ใช้พิกัดปัจจุบัน'}
@@ -998,48 +981,6 @@ export default function App() {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
               
-              {/* 🤖 ส่วนที่อัปเกรด: ผู้ช่วย AI อัจฉริยะ (เลือกหัวข้อได้) */}
-              {(alertsData?.urgent?.length > 0) && (
-                <div style={{ backgroundColor: cardBg, borderRadius: '16px', padding: '20px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.03)', position: 'relative', overflow: 'hidden' }}>
-                  
-                  <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: 'linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899)' }}></div>
-
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '15px' }}>
-                    <h3 style={{ fontSize: '1.2rem', color: textColor, margin: 0, display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>
-                      <span style={{ fontSize: '1.5rem' }}>✨</span> AI ผู้ช่วยส่วนตัว
-                    </h3>
-                  </div>
-
-                  {/* 🎯 ปุ่มตัวเลือกให้ AI ทำงาน (Prompt Chips) */}
-                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '15px' }}>
-                    <button onClick={() => generateAISummary('general')} disabled={isGeneratingAI} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #3b82f6`, backgroundColor: '#eff6ff', color: '#2563eb', fontSize: '0.85rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold' }}>
-                      🌤️ สรุปภาพรวม
-                    </button>
-                    <button onClick={() => generateAISummary('lifestyle')} disabled={isGeneratingAI} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #10b981`, backgroundColor: '#f0fdf4', color: '#16a34a', fontSize: '0.85rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold' }}>
-                      👕 ซักผ้า/ล้างรถ?
-                    </button>
-                    <button onClick={() => generateAISummary('exercise')} disabled={isGeneratingAI} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #f59e0b`, backgroundColor: '#fffbeb', color: '#d97706', fontSize: '0.85rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold' }}>
-                      🏃‍♂️ ออกกำลังกาย
-                    </button>
-                    <button onClick={() => generateAISummary('health')} disabled={isGeneratingAI} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #ef4444`, backgroundColor: '#fef2f2', color: '#dc2626', fontSize: '0.85rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold' }}>
-                      😷 สุขภาพ/ภูมิแพ้
-                    </button>
-                  </div>
-
-                  {/* โชว์ข้อความที่ AI ตอบกลับมา */}
-                  <div style={{ backgroundColor: darkMode ? '#1e293b' : '#f8fafc', padding: aiSummary ? '15px 20px' : '0', borderRadius: '12px', border: aiSummary ? `1px dashed #8b5cf6` : 'none', color: textColor, fontSize: '1rem', lineHeight: '1.6', transition: 'all 0.3s' }}>
-                    {isGeneratingAI ? (
-                       <div style={{ textAlign: 'center', color: '#8b5cf6', padding: '10px', fontWeight: 'bold' }}>⏳ AI กำลังคิดวิเคราะห์...</div>
-                    ) : aiSummary ? (
-                       aiSummary.split('\n').map((line, i) => <p key={i} style={{ margin: '0 0 8px 0' }}>{line}</p>)
-                    ) : (
-                       <div style={{ color: subTextColor, fontSize: '0.9rem' }}>👆 กดปุ่มด้านบนเพื่อให้ AI วิเคราะห์สภาพอากาศตามที่คุณต้องการได้เลยครับ</div>
-                    )}
-                  </div>
-
-                </div>
-              )}
-
               {/* 🤖 ส่วนที่อัปเกรด: ผู้ช่วย AI อัจฉริยะ (แบบ Checklist สีสันสวยงาม) */}
               {(alertsData?.urgent?.length > 0 || alertsData?.daily?.length > 0) && (
                 <div style={{ backgroundColor: cardBg, borderRadius: '16px', padding: '20px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.03)', position: 'relative', overflow: 'hidden' }}>
@@ -1077,7 +1018,6 @@ export default function App() {
                     ) : aiSummaryJson ? (
                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                          {aiSummaryJson.map((item, i) => {
-                           // 🎨 กำหนดสีและไอคอนตาม status (yes/no/warning)
                            let statusColor, statusBg, statusIcon, statusText;
                            if (item.status === 'yes') { 
                              statusColor = '#16a34a'; statusBg = darkMode ? 'rgba(22,163,74,0.15)' : '#dcfce7'; statusIcon = '✅'; statusText = 'เหมาะสม';
@@ -1089,16 +1029,12 @@ export default function App() {
                            
                            return (
                               <div key={i} style={{ display: 'flex', gap: '15px', backgroundColor: darkMode ? 'rgba(0,0,0,0.2)' : '#fff', padding: '15px', borderRadius: '10px', border: `1px solid ${borderColor}`, boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
-                                {/* ไอคอนวงกลมด้านซ้าย */}
                                 <div style={{ fontSize: '1.8rem', width: '45px', height: '45px', background: statusBg, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                                   {item.icon}
                                 </div>
-                                
-                                {/* เนื้อหาด้านขวา */}
                                 <div style={{ flex: 1 }}>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap', gap: '5px' }}>
                                     <h4 style={{ margin: '0', fontSize: '1.05rem', color: textColor, fontWeight: 'bold' }}>{item.label}</h4>
-                                    {/* ป้าย Tag บอกสถานะ */}
                                     <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: statusColor, display: 'flex', alignItems: 'center', gap: '4px', background: statusBg, padding: '4px 10px', borderRadius: '12px' }}>
                                       {statusIcon} {statusText}
                                     </span>

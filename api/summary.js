@@ -1,10 +1,9 @@
-// ไฟล์: api/summary.js (เวอร์ชันอัปเกรด JSON Format)
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { prompt, topic } = req.body; // รับทั้ง prompt และ topic
+  const { prompt, topic } = req.body;
   const apiKey = process.env.GEMINI_API_KEY;
 
   if (!apiKey) {
@@ -31,7 +30,6 @@ Example of required output structure:
 
     const data = await response.json();
     
-    // ส่งข้อมูล JSON สรุปกลับไป
     if (data.candidates && data.candidates.length > 0) {
       return res.status(200).json({ jsonText: data.candidates[0].content.parts[0].text });
     } else {
