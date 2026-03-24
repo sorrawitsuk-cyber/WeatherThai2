@@ -253,7 +253,6 @@ export default function App() {
     setDashTitle(titleText); setDashLoading(true);
     try {
       const today = new Date(); const lyEnd = new Date(); lyEnd.setFullYear(today.getFullYear() - 1); lyEnd.setDate(lyEnd.getDate() - 1); const lyStart = new Date(lyEnd); lyStart.setDate(lyStart.getDate() - 13);
-      // 🌟 ดึงข้อมูลความน่าจะเป็นของฝน (precipitation_probability_max) มาให้ AI อ่านด้วย
       const urlW = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,apparent_temperature_max,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,uv_index_max&past_days=14&forecast_days=7&timezone=Asia%2FBangkok`;
       const urlA = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&hourly=pm2_5&past_days=14&forecast_days=7&timezone=Asia%2FBangkok`;
       const urlArc = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${lyStart.toISOString().split('T')[0]}&end_date=${lyEnd.toISOString().split('T')[0]}&daily=temperature_2m_max,apparent_temperature_max,precipitation_sum,wind_speed_10m_max&timezone=Asia%2FBangkok`;
@@ -374,7 +373,6 @@ export default function App() {
     }
   }, [currentPage, activeStation, alertsLocationName]);
 
-  // 🌟 ระบบดึงข้อมูลตาม "วันที่" ที่ผู้ใช้เลือก
   const generateAISummary = async (topic = 'general') => {
     setIsGeneratingAI(true); setAiSummaryJson(null); setAiTimestamp('');
     try {
@@ -502,7 +500,6 @@ export default function App() {
             {/* MAP AREA */}
             <div style={{ flex: 7, width: '100%', borderRadius: '12px', overflow: 'hidden', position: 'relative', border: `1px solid ${borderColor}`, height: window.innerWidth < 768 ? '100%' : '100%' }}>
               
-              {/* 🌟 แก้ปัญหาเลื่อนซ้ายขวาบนมือถือด้วย onTouchStart */}
               <div 
                 className="hide-scrollbar" 
                 onTouchStart={(e) => e.stopPropagation()} 
@@ -525,7 +522,6 @@ export default function App() {
                 <button onClick={() => fetchAirQuality(false)} style={{ background: 'none', border: 'none', padding: '0 0 0 4px', cursor: 'pointer', fontSize: '1rem', color: '#0ea5e9' }} title="โหลดข้อมูลล่าสุด">🔄</button>
               </div>
 
-              {/* 🌟 ปุ่มลอย(FAB) เปิดดูรายชื่อสถานี ไม่เกะกะจอ */}
               {window.innerWidth < 768 && !isMobileListOpen && (
                 <button onClick={() => setIsMobileListOpen(true)} title="ดูรายชื่อสถานี" style={{ position: 'absolute', bottom: '85px', right: '15px', zIndex: 600, width: '44px', height: '44px', borderRadius: '50%', backgroundColor: cardBg, color: '#0ea5e9', border: `1px solid ${borderColor}`, cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', display: 'flex', justifyContent: 'center', alignItems: 'center', transition: 'all 0.2s' }}>
                    <span style={{ fontSize: '1.2rem' }}>📋</span>
@@ -784,7 +780,6 @@ export default function App() {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
               
-              {/* 🚨 1. ป้ายแจ้งเตือน Nowcast */}
               {nowcastAlert && (
                 <div style={{ backgroundColor: '#fef2f2', borderRadius: '16px', padding: '20px', border: '2px solid #ef4444', display: 'flex', alignItems: 'center', gap: '15px', animation: 'alertPulse 2s infinite' }}>
                   <style>{`@keyframes alertPulse { 0% { boxShadow: 0 0 0 0 rgba(239, 68, 68, 0.4); } 70% { boxShadow: 0 0 0 15px rgba(239, 68, 68, 0); } 100% { boxShadow: 0 0 0 0 rgba(239, 68, 68, 0); } }`}</style>
@@ -805,7 +800,6 @@ export default function App() {
                 </div>
               )}
 
-              {/* 2. ส่วนผู้ช่วย AI */}
               {(alertsData?.urgent?.length > 0 || alertsData?.daily?.length > 0) && (
                 <div style={{ backgroundColor: cardBg, borderRadius: '16px', padding: '20px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.03)', position: 'relative', overflow: 'hidden' }}>
                   <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: 'linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899)' }}></div>
@@ -820,14 +814,16 @@ export default function App() {
                     )}
                   </div>
 
-                  {/* 🌟 เพิ่ม Dropdown เลือกวันให้ AI */}
+                  {/* 🌟 เปลี่ยน Dropdown ให้แสดงวันที่จริงแบบ Dynamic */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px', padding: '10px', backgroundColor: darkMode ? 'rgba(0,0,0,0.2)' : '#f0f9ff', borderRadius: '12px', border: `1px solid ${borderColor}` }}>
                     <span style={{ fontSize: '0.9rem', color: textColor, fontWeight: 'bold' }}>📅 เลือกวันวิเคราะห์:</span>
                     <select value={aiTargetDay} onChange={(e) => setAiTargetDay(Number(e.target.value))} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #0ea5e9`, backgroundColor: darkMode ? '#1e293b' : '#fff', color: '#0ea5e9', outline: 'none', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold' }}>
-                      <option value={0}>วันนี้ (ค่าเริ่มต้น)</option>
-                      <option value={1}>พรุ่งนี้</option>
-                      {dashForecast[3] && <option value={3}>อีก 3 วัน ({dashForecast[3].date})</option>}
-                      {dashForecast[5] && <option value={5}>อีก 5 วัน ({dashForecast[5].date})</option>}
+                      {dashForecast.slice(0, 7).map((item, idx) => {
+                        const d = new Date(); d.setDate(d.getDate() + idx);
+                        const dateStr = d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
+                        let label = idx === 0 ? `วันนี้ (${dateStr})` : idx === 1 ? `พรุ่งนี้ (${dateStr})` : dateStr;
+                        return <option key={idx} value={idx}>{label}</option>;
+                      })}
                     </select>
                   </div>
 
@@ -870,10 +866,8 @@ export default function App() {
                 </div>
               )}
 
-              {/* 🌟 3. แจ้งเตือน 3 ชม / 24 ชม / พรุ่งนี้ (เพิ่มเป็น 3 คอลัมน์) */}
               {(alertsData?.urgent?.length > 0 || alertsData?.daily?.length > 0) && (
                 <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth < 768 ? '1fr' : (window.innerWidth < 1024 ? '1fr 1fr' : '1fr 1fr 1fr'), gap: '20px' }}>
-                  
                   <div style={{ backgroundColor: cardBg, borderRadius: '16px', padding: '20px', border: `1px solid ${borderColor}`, borderTop: alertsData?.urgent?.some(a => a.level >= 2) ? '4px solid #ef4444' : '4px solid #10b981', boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
                     <h3 style={{ fontSize: '1.2rem', color: alertsData?.urgent?.some(a => a.level >= 2) ? '#ef4444' : '#10b981', margin: '0 0 15px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
                       {alertsData?.urgent?.some(a => a.level >= 2) ? `🚨 พยากรณ์ 3 ชม. (${timeStr3h})` : `✅ พยากรณ์ 3 ชม. (${timeStr3h})`}
@@ -911,11 +905,9 @@ export default function App() {
                       )) : <div style={{ textAlign:'center', color:subTextColor, padding:'20px' }}>กำลังดึงข้อมูลวันพรุ่งนี้...</div>}
                     </div>
                   </div>
-
                 </div>
               )}
 
-              {/* 4. 📊 กราฟสถิติเชิงลึก 14 วัน */}
               <div style={{ backgroundColor: cardBg, borderRadius: '16px', padding: '25px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
                   <div>
@@ -963,7 +955,6 @@ export default function App() {
                 ) : <div style={{ textAlign:'center', color:subTextColor, padding:'40px' }}>ไม่มีข้อมูลสถิติของพื้นที่นี้</div>}
               </div>
 
-              {/* 5. Top 5 Ranking ทั่วประเทศ */}
               {nationwideSummary && (
                 <div style={{ backgroundColor: cardBg, borderRadius: '16px', padding: '25px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
                   <div style={{ textAlign: 'center', marginBottom: '20px' }}>
