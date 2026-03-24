@@ -676,7 +676,7 @@ export default function App() {
                 <LayersControl position="bottomleft">
                   <LayersControl.BaseLayer checked name="🗺️ แผนที่ปกติ (Default)">
                     {/* 👇 เปลี่ยน URL ของแผนที่โหมดสว่าง เป็น CartoDB Light (สว่างมินิมอล สะอาดตา ไม่มีเลขถนนรกๆ) */}
-                    <TileLayer url={darkMode ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"} />
+                    <TileLayer url={darkMode ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"} />
                   </LayersControl.BaseLayer>
                   <LayersControl.BaseLayer name="🛰️ ภาพดาวเทียม (Satellite)">
                     <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" />
