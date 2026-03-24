@@ -175,19 +175,53 @@ export default function App() {
 
   useEffect(() => { fetchAirQuality(); const intervalId = setInterval(() => { fetchAirQuality(true); }, 1800000); return () => clearInterval(intervalId); }, []);
 
+ // 🌟 ฟังก์ชันคำนวณ 5 อันดับจังหวัดเฝ้าระวัง (อัปเดต: ใช้ค่าเฉลี่ยของทั้งจังหวัด)
   useEffect(() => {
     if (stations.length === 0 || Object.keys(stationTemps).length === 0) return;
-    let pm25Risks = []; let stormRisks = []; let heatRisks = [];
+
+    // 1. จัดกลุ่มข้อมูลแยกตามจังหวัด
+    const provData = {};
     stations.forEach(s => {
-      const pm = Number(s.AQILast?.PM25?.value); if(pm >= 37.5) pm25Risks.push({ prov: extractProvince(s.areaTH), val: pm });
+      const prov = extractProvince(s.areaTH);
+      if (!provData[prov]) provData[prov] = { pm25: [], rain: [], wind: [], heat: [] };
+      
+      const pm = Number(s.AQILast?.PM25?.value);
+      if (!isNaN(pm)) provData[prov].pm25.push(pm);
+
       const t = stationTemps[s.stationID];
-      if(t) { if(t.rainProb >= 40 || t.windMax >= 30) stormRisks.push({ prov: extractProvince(s.areaTH), rain: t.rainProb, wind: t.windMax }); if(t.heatMax >= 40) heatRisks.push({ prov: extractProvince(s.areaTH), val: t.heatMax }); }
+      if (t) {
+        if (t.rainProb != null) provData[prov].rain.push(t.rainProb);
+        if (t.windMax != null) provData[prov].wind.push(t.windMax);
+        if (t.heatMax != null) provData[prov].heat.push(t.heatMax);
+      }
     });
-    pm25Risks.sort((a,b)=>b.val - a.val); stormRisks.sort((a,b)=>Math.max(b.rain, b.wind) - Math.max(a.rain, a.wind)); heatRisks.sort((a,b)=>b.val - a.val);
-    const uniquePm = []; const pmSet = new Set(); pm25Risks.forEach(item => { if(!pmSet.has(item.prov)){ pmSet.add(item.prov); uniquePm.push(item); }});
-    const uniqueStorm = []; const stormSet = new Set(); stormRisks.forEach(item => { if(!stormSet.has(item.prov)){ stormSet.add(item.prov); uniqueStorm.push(item); }});
-    const uniqueHeat = []; const heatSet = new Set(); heatRisks.forEach(item => { if(!heatSet.has(item.prov)){ heatSet.add(item.prov); uniqueHeat.push(item); }});
-    setNationwideSummary({ pm25: uniquePm.slice(0, 5), storm: uniqueStorm.slice(0, 5), heat: uniqueHeat.slice(0, 5) });
+
+    // 2. คำนวณค่าเฉลี่ย (Average) ของแต่ละจังหวัด
+    let pm25AvgList = []; let stormAvgList = []; let heatAvgList = [];
+    for (const prov in provData) {
+      const d = provData[prov];
+      const getAvg = (arr) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+
+      const avgPm = getAvg(d.pm25);
+      const avgRain = getAvg(d.rain);
+      const avgWind = getAvg(d.wind);
+      const avgHeat = getAvg(d.heat);
+
+      if (avgPm >= 37.5) pm25AvgList.push({ prov, val: Math.round(avgPm * 10) / 10 });
+      if (avgRain >= 40 || avgWind >= 30) stormAvgList.push({ prov, rain: Math.round(avgRain), wind: Math.round(avgWind) });
+      if (avgHeat >= 40) heatAvgList.push({ prov, val: Math.round(avgHeat * 10) / 10 });
+    }
+
+    // 3. เรียงลำดับจากค่าเฉลี่ยสูงสุดลงมา (Top 5)
+    pm25AvgList.sort((a, b) => b.val - a.val);
+    stormAvgList.sort((a, b) => Math.max(b.rain, b.wind) - Math.max(a.rain, a.wind));
+    heatAvgList.sort((a, b) => b.val - a.val);
+
+    setNationwideSummary({ 
+      pm25: pm25AvgList.slice(0, 5), 
+      storm: stormAvgList.slice(0, 5), 
+      heat: heatAvgList.slice(0, 5) 
+    });
   }, [stations, stationTemps]);
 
   useEffect(() => {
