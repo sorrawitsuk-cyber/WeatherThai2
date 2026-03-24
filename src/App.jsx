@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap, LayersControl } from 'react-leaflet';
-import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { LineChart, Line, BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend as RechartsLegend, ResponsiveContainer } from 'recharts';
@@ -44,9 +43,25 @@ const createCustomMarker = (viewMode, value, extraData) => {
   return L.divIcon({ className: 'custom-div-icon', html: `<div style="background-color: ${bg}; width: 34px; height: 34px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.4); display: flex; justify-content: center; align-items: center; color: ${textColor}; font-weight: bold; font-size: ${fontSize}; font-family: 'Kanit', sans-serif; transition: all 0.3s ease;">${displayValue}</div>`, iconSize: [38, 38], iconAnchor: [19, 19] });
 };
 
-const createClusterCustomIcon = function (cluster) { return L.divIcon({ html: `<div style="background-color: #0ea5e9; color: white; border-radius: 50%; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-family: 'Kanit', sans-serif;">${cluster.getChildCount()}</div>`, className: 'custom-marker-cluster', iconSize: [34, 34], iconAnchor: [17, 17] }); };
-
-function FitBounds({ stations, activeStation, selectedProvince, selectedRegion }) { const map = useMap(); useEffect(() => { if (activeStation) return; if (stations && stations.length > 0) { if (!selectedProvince && !selectedRegion) { map.flyTo([13.5, 101.0], 6, { duration: 1.5 }); } else { const validStations = stations.filter(s => s.lat && s.long && !isNaN(parseFloat(s.lat)) && !isNaN(parseFloat(s.long)) && parseFloat(s.lat) !== 0); if (validStations.length > 0) { const bounds = L.latLngBounds(validStations.map(s => [parseFloat(s.lat), parseFloat(s.long)])); map.fitBounds(bounds, { padding: [40, 40], maxZoom: 11 }); } } } }, [stations, map, activeStation, selectedProvince, selectedRegion]); return null; }
+// 🎯 อัปเดต FitBounds ให้เริ่มที่กรุงเทพมหานคร (Zoom 10)
+function FitBounds({ stations, activeStation, selectedProvince, selectedRegion }) { 
+  const map = useMap(); 
+  useEffect(() => { 
+    if (activeStation) return; 
+    if (stations && stations.length > 0) { 
+      if (!selectedProvince && !selectedRegion) { 
+        map.flyTo([13.75, 100.5], 10, { duration: 1.5 }); // เปลี่ยนเป็นโฟกัส กทม. ซูม 10
+      } else { 
+        const validStations = stations.filter(s => s.lat && s.long && !isNaN(parseFloat(s.lat)) && !isNaN(parseFloat(s.long)) && parseFloat(s.lat) !== 0); 
+        if (validStations.length > 0) { 
+          const bounds = L.latLngBounds(validStations.map(s => [parseFloat(s.lat), parseFloat(s.long)])); 
+          map.fitBounds(bounds, { padding: [40, 40], maxZoom: 11 }); 
+        } 
+      } 
+    } 
+  }, [stations, map, activeStation, selectedProvince, selectedRegion]); 
+  return null; 
+}
 function FlyToActiveStation({ activeStation }) { const map = useMap(); useEffect(() => { if (activeStation && !isNaN(parseFloat(activeStation.lat))) map.flyTo([parseFloat(activeStation.lat), parseFloat(activeStation.long)], 13, { duration: 1.5 }); }, [activeStation, map]); return null; }
 function RadarMapHandler({ showRadar }) { const map = useMap(); useEffect(() => { if (showRadar && map.getZoom() > 8) map.flyTo([13.5, 101.0], 6, { duration: 1.2 }); }, [showRadar, map]); return null; }
 function MapFix() { const map = useMap(); useEffect(() => { const timer = setTimeout(() => { map.invalidateSize(); }, 400); return () => clearTimeout(timer); }, [map]); return null; }
@@ -91,10 +106,9 @@ export default function App() {
   const [showLegend, setShowLegend] = useState(window.innerWidth >= 768);
   const [showStatsModal, setShowStatsModal] = useState(false);
 
-  // 📱 Mobile UX State: ปุ่มเปิด/ปิด แถบรายชื่อสถานีบนหน้าแผนที่
   const [isMobileListOpen, setIsMobileListOpen] = useState(false);
 
-  const [alertsData, setAlertsData] = useState({ urgent: [], daily: [], rawHourlyText: '' }); // 🧠 เพิ่ม rawHourlyText สำหรับส่งให้ AI
+  const [alertsData, setAlertsData] = useState({ urgent: [], daily: [], rawHourlyText: '' }); 
   const [alertsLoading, setAlertsLoading] = useState(false);
   const [alertsLocationName, setAlertsLocationName] = useState('');
   const [nationwideSummary, setNationwideSummary] = useState(null);
@@ -286,25 +300,18 @@ export default function App() {
   };
 
   const fetchAlertsData = async (lat, lon, locName) => {
-    setAlertsLoading(true); setAlertsLocationName(locName); fetchDashboardData(lat, lon, locName); // ทริกเกอร์โหลดสถิติด้วย
+    setAlertsLoading(true); setAlertsLocationName(locName); fetchDashboardData(lat, lon, locName); 
     try {
       const urlW = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,apparent_temperature,precipitation_probability,precipitation,uv_index,wind_speed_10m,wind_direction_10m&forecast_days=2&timezone=Asia%2FBangkok`;
       const urlA = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&hourly=pm2_5&forecast_days=2&timezone=Asia%2FBangkok`;
       const [rW, rA] = await Promise.all([fetch(urlW), fetch(urlA)]); const [dW, dA] = await Promise.all([rW.json(), rA.json()]);
 
       let urgent = []; let daily = []; const nIdx = new Date().getHours(); const fmt = (iso) => `${new Date(iso).getHours()}:00 น.`;
-
-      // 🧠 เก็บข้อมูลรายชั่วโมง (12 ชม. ล่วงหน้า) ไว้ส่งให้ AI
       let hourlyRawData = "[พยากรณ์รายชั่วโมง (12 ชั่วโมงล่วงหน้า)]\n";
       
       let rain3hP = 0, rain3hV = 0, rain3hT = ''; let heat3h = 0, heat3hT = ''; let pm3h = 0, pm3hT = ''; let wind3h = 0, wind3hT = ''; let uv3h = 0, uv3hT = ''; 
       if(dW.hourly && dW.hourly.time && dA.hourly && dA.hourly.pm2_5) {
-        
-        for (let i=0; i<12; i++) {
-          const idx = nIdx + i;
-          hourlyRawData += `- เวลา ${fmt(dW.hourly.time[idx])}: อุณหภูมิ ${dW.hourly.temperature_2m[idx]}°C, โอกาสฝน ${dW.hourly.precipitation_probability[idx]}%, ปริมาณฝน ${dW.hourly.precipitation[idx]}mm, PM2.5 ${dA.hourly.pm2_5[idx]} µg/m³, UV ${dW.hourly.uv_index[idx]}, ลม ${dW.hourly.wind_speed_10m[idx]} km/h\n`;
-        }
-
+        for (let i=0; i<12; i++) { const idx = nIdx + i; hourlyRawData += `- เวลา ${fmt(dW.hourly.time[idx])}: อุณหภูมิ ${dW.hourly.temperature_2m[idx]}°C, โอกาสฝน ${dW.hourly.precipitation_probability[idx]}%, ปริมาณฝน ${dW.hourly.precipitation[idx]}mm, PM2.5 ${dA.hourly.pm2_5[idx]} µg/m³, UV ${dW.hourly.uv_index[idx]}, ลม ${dW.hourly.wind_speed_10m[idx]} km/h\n`; }
         for (let i=0; i<3; i++) {
           const idx = nIdx + i;
           if (dW.hourly.precipitation_probability[idx] > rain3hP) { rain3hP=dW.hourly.precipitation_probability[idx]; rain3hV=dW.hourly.precipitation[idx]; rain3hT=dW.hourly.time[idx]; }
@@ -339,7 +346,7 @@ export default function App() {
       if (uv24 >= 8) daily.push({ icon:'🔆', color:'#a855f7', title:`รังสี UV อันตราย (ระดับ ${uv24})`, desc:`แดดแรงจัดช่วง ${fmt(uv24T)} ควรทากันแดด SPF50+`, level: 3 }); else daily.push({ icon:'🌤️', color:'#10b981', title:`รังสี UV ปลอดภัย (ระดับ ${uv24})`, desc:`แดดไม่แรงมากในช่วง ${fmt(uv24T)} สามารถทำกิจกรรมกลางแจ้งได้`, level: 1 });
       daily.sort((a, b) => b.level - a.level);
 
-      setAlertsData({ urgent, daily, rawHourlyText: hourlyRawData }); // อัปเดตข้อมูลส่งให้ AI
+      setAlertsData({ urgent, daily, rawHourlyText: hourlyRawData });
     } catch(e) { console.error(e); } finally { setAlertsLoading(false); }
   };
 
@@ -356,11 +363,8 @@ export default function App() {
     setIsGeneratingAI(true); setAiSummaryJson(null); setAiTimestamp('');
     try {
       const loc = alertsLocationName || "ประเทศไทย"; 
-      let contextData = `พิกัด/พื้นที่: ${loc}\n\n[ข้อมูลพยากรณ์ด่วน 3 ชม.]\n`;
-      alertsData.urgent.forEach(a => contextData += `- ${a.title}: ${a.desc}\n`);
+      let contextData = `พิกัด/พื้นที่: ${loc}\n\n[ข้อมูลพยากรณ์ด่วน 3 ชม.]\n`; alertsData.urgent.forEach(a => contextData += `- ${a.title}: ${a.desc}\n`);
       contextData += `\n[ข้อมูลภาพรวม 24 ชั่วโมง]\n`; alertsData.daily.forEach(a => contextData += `- ${a.title}: ${a.desc}\n`);
-      
-      // แนบข้อมูลรายชั่วโมงให้ AI ด้วย (ถ้ามี)
       if (alertsData.rawHourlyText) contextData += `\n${alertsData.rawHourlyText}`;
 
       let promptText = '';
@@ -368,7 +372,6 @@ export default function App() {
       else if (topic === 'lifestyle') { promptText = `คุณคือผู้ช่วยแม่บ้าน วิเคราะห์ข้อมูลสภาพอากาศ เป็น JSON: 1.วันนี้เหมาะจะตากผ้าไหม? 2.เหมาะจะล้างรถไหม? 3.ควรเตรียมร่มก่อนออกจากบ้านไหม?:\n\n${contextData}`; } 
       else if (topic === 'exercise') { promptText = `คุณคือเทรนเนอร์ฟิตเนส วิเคราะห์ข้อมูลสภาพอากาศ เป็น JSON: 1.ออกกำลังกายกลางแจ้งได้ไหม? 2.ช่วงเวลาที่ดีที่สุด? 3.สิ่งที่ควรระวังที่สุด:\n\n${contextData}`; } 
       else if (topic === 'health') { promptText = `คุณคือแพทย์ผู้เชี่ยวชาญภูมิแพ้ วิเคราะห์สภาพอากาศ เป็น JSON: 1.ความปลอดภัยของระบบหายใจวันนี้ 2.หน้ากากที่ควรใส่ 3.การงดออกจากบ้าน:\n\n${contextData}`; }
-      // 🚀 3 คำสั่งใหม่สำหรับ AI!
       else if (topic === 'hourly') { promptText = `คุณคือนักวางแผนเวลา (Time Management) วิเคราะห์ข้อมูลรายชั่วโมง เป็น JSON แบบละเอียด แนะนำสิ่งที่ควรทำและไม่ควรทำในแต่ละช่วงเวลา (เช้า, บ่าย, เย็น):\n\n${contextData}`; }
       else if (topic === 'agriculture') { promptText = `คุณคือผู้เชี่ยวชาญการเกษตรอัจฉริยะ วิเคราะห์สภาพอากาศ (ฝน, ลม, แดด) เป็น JSON เพื่อแนะนำเกษตรกร: 1.ช่วงเวลาที่ปลอดภัยในการฉีดพ่นปุ๋ย/ยา 2.การรดน้ำ/ลดน้ำ 3.การตากผลผลิต:\n\n${contextData}`; }
       else if (topic === 'travel') { promptText = `คุณคือผู้ช่วยวางแผนท่องเที่ยวและแฟชั่น วิเคราะห์สภาพอากาศ เป็น JSON เพื่อแนะนำ: 1.การแต่งกาย/สีเสื้อผ้าที่เหมาะสม 2.ไอเท็มที่ห้ามลืมพก (เช่น ร่ม, กันแดด, เสื้อหนาว) 3.กิจกรรมที่เหมาะกับวันนี้:\n\n${contextData}`; }
@@ -484,7 +487,6 @@ export default function App() {
                 {locating ? <span style={{ fontSize: '1.2rem' }}>⏳</span> : <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="6"></circle><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line></svg>}
               </button>
 
-              {/* 📱 Mobile UX: ปุ่มกดให้โชว์รายชื่อสถานีแบบ Overlay */}
               {window.innerWidth < 768 && !isMobileListOpen && (
                 <button onClick={() => setIsMobileListOpen(true)} style={{ position: 'absolute', bottom: '85px', left: '50%', transform: 'translateX(-50%)', zIndex: 600, padding: '12px 24px', borderRadius: '30px', backgroundColor: '#1e293b', color: '#fff', border: '2px solid #0ea5e9', fontWeight: 'bold', fontSize: '0.95rem', boxShadow: '0 8px 25px rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', gap: '8px', animation: 'slideUp 0.3s ease-out' }}>
                   📋 ดูรายชื่อสถานี ({filteredStations.length})
@@ -509,7 +511,7 @@ export default function App() {
                 </div>
               )}
 
-              <MapContainer center={[13.5, 101.0]} zoom={6} style={{ height: '100%', width: '100%', zIndex: 1, backgroundColor: darkMode ? '#1a202c' : '#bae6fd' }}>
+              <MapContainer center={[13.75, 100.5]} zoom={10} style={{ height: '100%', width: '100%', zIndex: 1, backgroundColor: darkMode ? '#1a202c' : '#bae6fd' }}>
                 <LayersControl position="bottomleft">
                   <LayersControl.BaseLayer checked name="🗺️ แผนที่ปกติ (Default)">
                     <TileLayer url={darkMode ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"} />
@@ -522,7 +524,8 @@ export default function App() {
                 
                 <MapFix /> <FitBounds stations={filteredStations} activeStation={activeStation} selectedProvince={selectedProvince} selectedRegion={selectedRegion} /> <FlyToActiveStation activeStation={activeStation} /> <RadarMapHandler showRadar={showRadar} />
                 
-                {!showRadar && filteredStations.filter(s => extractProvince(s.areaTH) !== 'กรุงเทพมหานคร').map((station) => {
+                {/* 🎯 แสดงหมุดแผนที่ทั้งหมด ไม่ใช้ Cluster */}
+                {!showRadar && filteredStations.map((station) => {
                   const lat = parseFloat(station.lat); const lon = parseFloat(station.long); if (isNaN(lat) || isNaN(lon)) return null;
                   const pmVal = Number(station.AQILast?.PM25?.value); const tObj = stationTemps[station.stationID];
                   let mVal = null; if(isPm25Mode) mVal=pmVal; else if(isTempMode) mVal=tObj?.temp; else if(isHeatMode) mVal=tObj?.feelsLike; else if(isUvMode) mVal=tObj?.uvMax; else if(isRainMode) mVal=tObj?.rainProb; else if(isWindMode) mVal=tObj?.windSpeed;
@@ -552,45 +555,10 @@ export default function App() {
                     </Marker>
                   );
                 })}
-
-                {!showRadar && (
-                  <MarkerClusterGroup chunkedLoading maxClusterRadius={45} disableClusteringAtZoom={11} spiderfyOnMaxZoom={true} iconCreateFunction={createClusterCustomIcon}>
-                    {filteredStations.filter(s => extractProvince(s.areaTH) === 'กรุงเทพมหานคร').map((station) => {
-                      const lat = parseFloat(station.lat); const lon = parseFloat(station.long); if (isNaN(lat) || isNaN(lon)) return null;
-                      const pmVal = Number(station.AQILast?.PM25?.value); const tObj = stationTemps[station.stationID];
-                      let mVal = null; if(isPm25Mode) mVal=pmVal; else if(isTempMode) mVal=tObj?.temp; else if(isHeatMode) mVal=tObj?.feelsLike; else if(isUvMode) mVal=tObj?.uvMax; else if(isRainMode) mVal=tObj?.rainProb; else if(isWindMode) mVal=tObj?.windSpeed;
-                      return (
-                        <Marker key={station.stationID} position={[lat, lon]} icon={createCustomMarker(viewMode, mVal, tObj)} ref={el => markerRefs.current[station.stationID]=el} eventHandlers={{ click: () => { setActiveStation(station); if(window.innerWidth < 768) setIsMobileListOpen(true); } }}>
-                          {window.innerWidth >= 768 && (
-                            <Popup minWidth={260}>
-                              <div style={{ textAlign: 'center', fontFamily: 'Kanit', color: '#1e293b' }}>
-                                <strong>{station.nameTH}</strong>
-                                <div style={{ margin: '10px 0', padding: '10px', background: '#f8f9fa', borderRadius: '8px' }}>
-                                  <span style={{ fontSize: '1.2rem', color: getPM25Color(pmVal)==='#ffff00'?'#d4b500':getPM25Color(pmVal), fontWeight: 'bold' }}>PM2.5: {isNaN(pmVal)?'-':pmVal} µg/m³</span>
-                                  <div style={{ fontSize: '0.85rem', color: '#666' }}>(AQI: {station.AQILast?.AQI?.aqi||'-'})</div>
-                                </div>
-                                {tObj && (
-                                  <div style={{ padding: '12px', background: '#f1f5f9', borderRadius: '8px', fontSize: '0.85rem', color: '#334155', fontWeight:'bold' }}>
-                                    <div style={{ marginBottom: '8px', fontSize: '1.1rem', color:'#1e293b' }}>{getWeatherIcon(tObj.weatherCode).icon} {getWeatherIcon(tObj.weatherCode).text}</div>
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', textAlign: 'left' }}>
-                                      <span>🌡️ {tObj.temp != null ? Number(tObj.temp).toFixed(1) : '-'}°C</span><span>🥵 {tObj.feelsLike != null ? Number(tObj.feelsLike).toFixed(1) : '-'}°C</span>
-                                      <span style={{color:'#0ea5e9'}}>💧 {tObj.humidity||'-'}%</span><span style={{color:'#0ea5e9'}}>🌧️ {tObj.rainProb||'0'}%</span>
-                                      <span style={{color:'#a855f7'}}>☀️ UV: {tObj.uvMax||'-'}</span><span>🌬️ {tObj.windSpeed||'-'}</span>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            </Popup>
-                          )}
-                        </Marker>
-                      );
-                    })}
-                  </MarkerClusterGroup>
-                )}
               </MapContainer>
             </div>
 
-            {/* 📱 Mobile UX: Sidebar List ซ่อน/แสดงได้บนมือถือ */}
+            {/* SIDEBAR RIGHT LIST */}
             <div style={{ 
               flex: window.innerWidth < 768 ? 'none' : 3, 
               display: window.innerWidth < 768 ? (isMobileListOpen ? 'flex' : 'none') : 'flex',
@@ -788,7 +756,6 @@ export default function App() {
                     )}
                   </div>
 
-                  {/* 🚀 ปุ่ม AI ทั้ง 6 หมวดหมู่ */}
                   <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '15px' }}>
                     <button onClick={() => generateAISummary('general')} disabled={isGeneratingAI} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #3b82f6`, backgroundColor: darkMode ? 'rgba(59,130,246,0.1)' : '#eff6ff', color: '#3b82f6', fontSize: '0.85rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold' }}>🌤️ สรุปภาพรวม</button>
                     <button onClick={() => generateAISummary('hourly')} disabled={isGeneratingAI} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #6366f1`, backgroundColor: darkMode ? 'rgba(99,102,241,0.1)' : '#e0e7ff', color: '#4f46e5', fontSize: '0.85rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold' }}>⏱️ วางแผนราย ชม.</button>
