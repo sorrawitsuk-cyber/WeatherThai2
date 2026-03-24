@@ -173,7 +173,7 @@ export default function App() {
   const [nationwideSummary, setNationwideSummary] = useState(null);
 
   // 🤖 State สำหรับ AI
-  const [aiSummary, setAiSummary] = useState('');
+  const [aiSummaryJson, setAiSummaryJson] = useState(null);
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
 
   const cardRefs = useRef({});
@@ -509,44 +509,55 @@ export default function App() {
 
   // 🤖 🚀 ฟังก์ชันให้ AI สรุปสภาพอากาศ (ยิงผ่าน Backend ของเราเอง)
  // 🤖 ฟังก์ชันให้ AI สรุปสภาพอากาศ (เวอร์ชันอัปเกรด เลือกหัวข้อได้)
+  // 🤖 ฟังก์ชันให้ AI สรุปสภาพอากาศ (เวอร์ชันอัปเกรดJSON-to-UI)
   const generateAISummary = async (topic = 'general') => {
     setIsGeneratingAI(true);
+    setAiSummaryJson(null); // ล้างข้อมูลเก่า
     try {
       const loc = alertsLocationName || "ประเทศไทย";
-      let contextData = `พิกัด/พื้นที่: ${loc}\n\n`;
-      contextData += `[ข้อมูลพยากรณ์ 3 ชม.]\n`;
+      let contextData = `พิกัด/พื้นที่: ${loc}\n\n[ข้อมูลพยากรณ์ด่วน 3 ชม.]\n`;
       alertsData.urgent.forEach(a => contextData += `- ${a.title}: ${a.desc}\n`);
       contextData += `\n[ข้อมูลภาพรวม 24 ชั่วโมง]\n`;
       alertsData.daily.forEach(a => contextData += `- ${a.title}: ${a.desc}\n`);
 
-      // 🧠 หัวใจสำคัญ: เปลี่ยนคำสั่ง (Prompt) ตามปุ่มที่กด
-      let prompt = '';
+      //🧠 กำหนดคำสั่งวิเคราะห์ แต่ให้หลังบ้านบังคับ JSON
+      let promptText = '';
       if (topic === 'general') {
-        prompt = `คุณคือนักพยากรณ์อากาศ สรุปสภาพอากาศจากข้อมูลดิบต่อไปนี้ สั้นๆ 3 บรรทัด อ่านง่าย เป็นภาษาคน เน้นความเสี่ยงช่วง 3 ชม.นี้:\n\n${contextData}`;
+        promptText = `คุณคือผู้ช่วยส่วนตัว สรุปภาพรวมสภาพอากาศจากข้อมูลต่อไปนี้ (เน้นความเสี่ยงช่วง 3 ชม.นี้) เป็น JSON วิเคราะห์หัวข้อ: 1.ภาพรวมสภาพอากาศ 2.ความปลอดภัยในการเดินทาง 3.สุขภาพ/ภูมิแพ้:\n\n${contextData}`;
       } else if (topic === 'lifestyle') {
-        prompt = `คุณคือผู้ช่วยแม่บ้านและพ่อบ้านสุดสมาร์ท วิเคราะห์ข้อมูลสภาพอากาศต่อไปนี้ แล้วฟันธงมาเลยว่า 1. วันนี้เหมาะจะตากผ้าไหม? 2. เหมาะจะล้างรถไหม? (ถ้าฝนจะตกบอกให้งด) 3. ควรเตรียมร่มก่อนออกจากบ้านไหม? ตอบแบบเป็นกันเอง สั้นๆ กระชับ:\n\n${contextData}`;
+        promptText = `คุณคือผู้ช่วยแม่บ้าน วิเคราะห์ข้อมูลสภาพอากาศต่อไปนี้ เป็น JSON เพื่อตอบโจทย์ชีวิตประจำวัน: 1.วันนี้เหมาะจะตากผ้าไหม? 2.เหมาะจะล้างรถไหม? 3.ควรเตรียมร่มก่อนออกจากบ้านไหม?:\n\n${contextData}`;
       } else if (topic === 'exercise') {
-        prompt = `คุณคือเทรนเนอร์ฟิตเนส วิเคราะห์ข้อมูลสภาพอากาศต่อไปนี้ (เน้นดู PM2.5, อุณหภูมิ, UV) แล้วแนะนำว่า วันนี้สามารถออกกำลังกายกลางแจ้งได้ไหม? ช่วงเวลาไหนดีที่สุด? หรือควรเลี่ยงไปออกกำลังกายในร่มแทน? ตอบสั้นๆ กระชับ ห่วงใยสุขภาพ:\n\n${contextData}`;
+        promptText = `คุณคือเทรนเนอร์ฟิตเนส วิเคราะห์ข้อมูลต่อไปนี้ (PM2.5,อุณหภูมิ,UV) เป็น JSON เพื่อแนะนำ: 1.ออกกำลังกายกลางแจ้งได้ไหม? 2.ช่วงเวลาที่ดีที่สุดคือเมื่อไหร่? 3.สิ่งที่ควรระวังมากที่สุด:\n\n${contextData}`;
       } else if (topic === 'health') {
-        prompt = `คุณคือแพทย์ผู้เชี่ยวชาญด้านภูมิแพ้และทางเดินหายใจ วิเคราะห์ข้อมูลฝุ่น PM2.5 ดัชนีความร้อน และ UV จากข้อมูลต่อไปนี้ แล้วให้คำแนะนำทางการแพทย์ที่ชัดเจนสำหรับการใช้ชีวิตวันนี้ (เช่น ชนิดหน้ากากที่ควรใส่, การงดออกจากบ้าน) สั้นๆ ตรงประเด็น:\n\n${contextData}`;
+        promptText = `คุณคือแพทย์ผู้เชี่ยวชาญภูมิแพ้ วิเคราะห์ข้อมูลต่อไปนี้ เป็น JSON เพื่อให้คำแนะนำแพทย์: 1.ความปลอดภัยของระบบทางเดินหายใจวันนี้ 2.ชนิดหน้ากากที่ควรใส่ 3.การงดออกจากบ้าน:\n\n${contextData}`;
       }
 
       const response = await fetch('/api/summary', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt })
+        body: JSON.stringify({ prompt: promptText, topic: topic }) // ส่ง topic ไปด้วย
       });
       
       const data = await response.json();
-      if (data.text) setAiSummary(data.text);
-      else setAiSummary("ขออภัยครับ AI ไม่สามารถสรุปข้อมูลได้ในขณะนี้");
+      if (data.jsonText) {
+        // 🧩 ลอง Parse JSON ที่ได้มา ถ้าผิดพลาด ให้แสดง Error
+        try {
+          const parsedData = JSON.parse(data.jsonText);
+          setAiSummaryJson(parsedData);
+        } catch (e) {
+          setAiSummaryJson([{ label: "Error", icon: "❌", status: "no", reason: "AI ส่งข้อมูลผิดรูปแบบ ลองกดปุ่มใหม่อีกครั้ง" }]);
+        }
+      } else {
+        setAiSummaryJson([{ label: "No Summary", icon: "😶", status: "warning", reason: "AI ไม่สามารถสรุปได้ในขณะนี้" }]);
+      }
     } catch (error) {
       console.error(error);
-      setAiSummary("เกิดข้อผิดพลาดในการเชื่อมต่อกับเซิร์ฟเวอร์");
+      setAiSummaryJson([{ label: "Server Error", icon: "🚑", status: "no", reason: "เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์" }]);
     } finally {
       setIsGeneratingAI(false);
     }
   };
+
   if (loading) return <div style={{ display:'flex', justifyContent:'center', alignItems:'center', height:'100vh', fontSize:'1.5rem', color:'#555' }}>กำลังโหลด...</div>;
 
   const isPm25Mode = viewMode === 'pm25'; const isTempMode = viewMode === 'temp'; const isHeatMode = viewMode === 'heat';
@@ -1023,6 +1034,85 @@ export default function App() {
                        aiSummary.split('\n').map((line, i) => <p key={i} style={{ margin: '0 0 8px 0' }}>{line}</p>)
                     ) : (
                        <div style={{ color: subTextColor, fontSize: '0.9rem' }}>👆 กดปุ่มด้านบนเพื่อให้ AI วิเคราะห์สภาพอากาศตามที่คุณต้องการได้เลยครับ</div>
+                    )}
+                  </div>
+
+                </div>
+              )}
+
+              {/* 🤖 ส่วนที่อัปเกรด: ผู้ช่วย AI อัจฉริยะ (แบบ Checklist สีสันสวยงาม) */}
+              {(alertsData?.urgent?.length > 0 || alertsData?.daily?.length > 0) && (
+                <div style={{ backgroundColor: cardBg, borderRadius: '16px', padding: '20px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.03)', position: 'relative', overflow: 'hidden' }}>
+                  
+                  {/* แถบสีตกแต่งด้านบน */}
+                  <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: 'linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899)' }}></div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '15px' }}>
+                    <h3 style={{ fontSize: '1.2rem', color: textColor, margin: 0, display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>
+                      <span style={{ fontSize: '1.5rem' }}>✨</span> AI ผู้ช่วยส่วนตัว
+                    </h3>
+                  </div>
+
+                  {/* 🎯 ปุ่มตัวเลือกให้ AI ทำงาน (Prompt Chips) */}
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '15px' }}>
+                    <button onClick={() => generateAISummary('general')} disabled={isGeneratingAI} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #3b82f6`, backgroundColor: darkMode ? 'rgba(59,130,246,0.1)' : '#eff6ff', color: '#3b82f6', fontSize: '0.85rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold' }}>
+                      🌤️ สรุปภาพรวม
+                    </button>
+                    <button onClick={() => generateAISummary('lifestyle')} disabled={isGeneratingAI} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #10b981`, backgroundColor: darkMode ? 'rgba(16,185,129,0.1)' : '#f0fdf4', color: '#10b981', fontSize: '0.85rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold' }}>
+                      👕 ซักผ้า/ล้างรถ
+                    </button>
+                    <button onClick={() => generateAISummary('exercise')} disabled={isGeneratingAI} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #f59e0b`, backgroundColor: darkMode ? 'rgba(245,158,11,0.1)' : '#fffbeb', color: '#f59e0b', fontSize: '0.85rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold' }}>
+                      🏃‍♂️ ออกกำลังกาย
+                    </button>
+                    <button onClick={() => generateAISummary('health')} disabled={isGeneratingAI} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #ef4444`, backgroundColor: darkMode ? 'rgba(239,68,68,0.1)' : '#fef2f2', color: '#ef4444', fontSize: '0.85rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold' }}>
+                      😷 สุขภาพ/ภูมิแพ้
+                    </button>
+                  </div>
+
+                  {/* 📊 โชว์ข้อมูลที่ AI สรุปมาเป็น UI สวยๆ (JSON-to-UI) */}
+                  <div style={{ backgroundColor: darkMode ? '#1e293b' : '#f8fafc', padding: isGeneratingAI || aiSummaryJson ? '15px' : '0', borderRadius: '12px', border: aiSummaryJson ? `1px dashed #8b5cf6` : 'none', transition: 'all 0.3s' }}>
+                    
+                    {isGeneratingAI ? (
+                       <div style={{ textAlign: 'center', color: '#8b5cf6', padding: '15px', fontWeight: 'bold' }}>⏳ AI กำลังคิดวิเคราะห์ข้อมูลอย่างละเอียด...</div>
+                    ) : aiSummaryJson ? (
+                       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                         {aiSummaryJson.map((item, i) => {
+                           // 🎨 กำหนดสีและไอคอนตาม status (yes/no/warning)
+                           let statusColor, statusBg, statusIcon, statusText;
+                           if (item.status === 'yes') { 
+                             statusColor = '#16a34a'; statusBg = darkMode ? 'rgba(22,163,74,0.15)' : '#dcfce7'; statusIcon = '✅'; statusText = 'เหมาะสม';
+                           } else if (item.status === 'no') { 
+                             statusColor = '#dc2626'; statusBg = darkMode ? 'rgba(220,38,38,0.15)' : '#fee2e2'; statusIcon = '❌'; statusText = 'ควรเลี่ยง';
+                           } else { 
+                             statusColor = '#d97706'; statusBg = darkMode ? 'rgba(217,119,6,0.15)' : '#fffbeb'; statusIcon = '⚠️'; statusText = 'เฝ้าระวัง';
+                           }
+                           
+                           return (
+                              <div key={i} style={{ display: 'flex', gap: '15px', backgroundColor: darkMode ? 'rgba(0,0,0,0.2)' : '#fff', padding: '15px', borderRadius: '10px', border: `1px solid ${borderColor}`, boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+                                {/* ไอคอนวงกลมด้านซ้าย */}
+                                <div style={{ fontSize: '1.8rem', width: '45px', height: '45px', background: statusBg, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                  {item.icon}
+                                </div>
+                                
+                                {/* เนื้อหาด้านขวา */}
+                                <div style={{ flex: 1 }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap', gap: '5px' }}>
+                                    <h4 style={{ margin: '0', fontSize: '1.05rem', color: textColor, fontWeight: 'bold' }}>{item.label}</h4>
+                                    {/* ป้าย Tag บอกสถานะ */}
+                                    <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: statusColor, display: 'flex', alignItems: 'center', gap: '4px', background: statusBg, padding: '4px 10px', borderRadius: '12px' }}>
+                                      {statusIcon} {statusText}
+                                    </span>
+                                  </div>
+                                  <p style={{ margin: 0, color: subTextColor, lineHeight: 1.5, fontSize: '0.9rem' }}>{item.reason}</p>
+                                </div>
+                              </div>
+                           );
+                         })}
+                       </div>
+                    ) : (
+                       <div style={{ color: subTextColor, fontSize: '0.9rem', textAlign: 'center', padding: '10px' }}>
+                         👆 กดปุ่มด้านบนเพื่อให้ AI วิเคราะห์สภาพอากาศตามที่คุณต้องการได้เลยครับ
+                       </div>
                     )}
                   </div>
 

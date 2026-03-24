@@ -1,36 +1,44 @@
-// ไฟล์: api/summary.js
+// ไฟล์: api/summary.js (เวอร์ชันอัปเกรด JSON Format)
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { prompt } = req.body;
+  const { prompt, topic } = req.body; // รับทั้ง prompt และ topic
   const apiKey = process.env.GEMINI_API_KEY;
 
   if (!apiKey) {
-    return res.status(200).json({ text: '❌ หา API Key ไม่เจอครับ! ตรวจสอบตู้เซฟใน Vercel ด่วน' });
+    return res.status(500).json({ error: 'API key is missing' });
   }
 
   const cleanApiKey = apiKey.replace(/["']/g, "").trim();
 
+  // 🧠 บังคับให้ Gemini ตอบกลับเป็น JSON เท่านั้น
+  let finalPrompt = `${prompt}\n\n**IMPORTANT INSTRUCTION:** Return the answer **ONLY** in a raw JSON format (no Markdown, no code blocks like \`\`\`json). The JSON must be a single array of objects, where each object has exactly four keys: "label" (string), "icon" (string emoji), "status" (string, choose only from: "yes", "no", or "warning"), and "reason" (string, max 100 characters). 
+
+Example of required output structure:
+[
+  {"label": "ตากผ้า", "icon": "👕", "status": "yes", "reason": "ท้องฟ้าแจ่มใส ลมพัดดี"},
+  {"label": "ล้างรถ", "icon": "🚗", "status": "warning", "reason": "โอกาสฝนตกปานกลางตอนค่ำ"}
+]`;
+
   try {
-    // 🚀 เปลี่ยนโมเดลตรง URL นี้ เป็น gemini-2.5-flash ครับ!
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${cleanApiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+      body: JSON.stringify({ contents: [{ parts: [{ text: finalPrompt }] }] })
     });
 
     const data = await response.json();
     
+    // ส่งข้อมูล JSON สรุปกลับไป
     if (data.candidates && data.candidates.length > 0) {
-      return res.status(200).json({ text: data.candidates[0].content.parts[0].text });
+      return res.status(200).json({ jsonText: data.candidates[0].content.parts[0].text });
     } else {
-      // เผื่อมี Error อื่นๆ จะได้โชว์ให้เห็นชัดๆ
-      return res.status(200).json({ text: `❌ ข้อผิดพลาดจาก API: ${JSON.stringify(data)}` });
+      return res.status(500).json({ error: 'No summary generated' });
     }
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ error: 'Failed to fetch from Gemini' });
+    return res.status(500).json({ error: 'Server Error' });
   }
 }
