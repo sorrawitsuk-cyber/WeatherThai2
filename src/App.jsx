@@ -132,7 +132,7 @@ export default function App() {
   
   useEffect(() => { setAiSummaryJson(null); setAiTimestamp(''); setNowcastAlert(null); }, [alertsLocationName, activeStation, aiTargetDay]);
 
-  const handleViewModeChange = (mode) => { setViewMode(mode); setSortOrder(mode === 'temp' ? 'asc' : 'desc'); setShowRadar(false); setSelectedStationId(''); setActiveStation(null); setIsMobileListOpen(false); };
+  const handleViewModeChange = (mode) => { setViewMode(mode); setSortOrder(mode === 'temp' ? 'asc' : 'desc'); setShowRadar(false); setIsMobileListOpen(false); };
 
   const toggleRadar = async () => { if (!showRadar) { try { const res = await fetch('https://api.rainviewer.com/public/weather-maps.json'); const data = await res.json(); setRadarTime(data.radar.past[data.radar.past.length - 1].time); } catch (err) { console.error(err); } } setShowRadar(!showRadar); };
 
