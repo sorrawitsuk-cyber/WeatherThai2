@@ -1,4 +1,5 @@
-import Jimp from 'jimp';
+// 🌟 เปลี่ยนวิธี Import ให้ตรงกับโครงสร้างใหม่ของแพ็กเกจ
+import { Jimp, intToRGBA } from 'jimp';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
@@ -29,10 +30,10 @@ export default async function handler(req, res) {
     // 3. ไปดูดรูปภาพเรดาร์เฉพาะชิ้นส่วน (Tile) ที่ครอบคลุมพิกัดของคุณมา
     const tileUrl = `https://tilecache.rainviewer.com/v2/radar/${latestTime}/256/${zoom}/${tileX}/${tileY}/2/1_1.png`;
 
-    // 4. 👁️ ใช้ Jimp โหลดรูปและ "อ่านค่าสี" ของพิกเซลนั้น!
+    // 4. 👁️ ใช้ Jimp โหลดรูปและ "อ่านค่าสี" ของพิกเซลนั้น! (ใช้คำสั่งรูปแบบใหม่)
     const image = await Jimp.read(tileUrl);
     const hexColor = image.getPixelColor(pixelX, pixelY);
-    const rgba = Jimp.intToRGBA(hexColor); // แปลงเป็นสี R G B A
+    const rgba = intToRGBA(hexColor); // แปลงเป็นสี R G B A
 
     // 5. วิเคราะห์สีเพื่อบอกความรุนแรง (Computer Vision)
     let intensity = "🌤️ ไม่มีฝนในพื้นที่นี้";
