@@ -24,7 +24,9 @@ export default async function handler(req, res) {
     
     // เรียกใช้งาน Gemini
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); // ใช้รุ่น Flash เพื่อความรวดเร็ว
+    
+    // 🌟 อัปเดต: เปลี่ยนชื่อโมเดลให้ตรงกับเวอร์ชันล่าสุดที่ Google รองรับ (ป้องกัน Error 404)
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" }); 
     
     const result = await model.generateContent(prompt);
     const response = await result.response;
