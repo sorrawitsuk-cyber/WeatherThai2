@@ -17,23 +17,24 @@ export default async function handler(req, res) {
   }
 
   try {
-    console.log("🚀 ส่งข้อมูลยิงตรงไปที่ Google Gemini API (รุ่น gemini-pro)...");
+    console.log("🚀 ส่งข้อมูลยิงตรงไปที่ Google Gemini API (gemini-1.5-flash)...");
     
-    // 🌟 แก้ไข: ใช้โมเดล "gemini-pro" ซึ่งรองรับ API Key ทุกรุ่นแน่นอน 100%
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`;
+    // 🌟 กลับมาใช้ gemini-1.5-flash ลูกรักของคุณที่เคยใช้งานได้ปกติครับ!
+    // (ถ้าคุณหมายถึง 2.0 จริงๆ สามารถแก้เลข 1.5 เป็น 2.0 ได้เลยนะครับ)
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
     
     const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.2 } // บังคับให้ AI ตอบตรงไปตรงมา
+        generationConfig: { temperature: 0.2 } // บังคับให้ AI ตอบตรงไปตรงมา ไม่มั่ว
       })
     });
 
     const data = await response.json();
 
-    // เช็คว่า Google ด่าอะไรกลับมาไหม
+    // เช็ค Error จาก Google
     if (!response.ok) {
       console.error("🔥 Google API Error:", data);
       return res.status(response.status).json({ 
@@ -42,9 +43,9 @@ export default async function handler(req, res) {
       });
     }
 
-    // ดึงข้อความจาก JSON ที่ Google ตอบกลับมา
+    // ดึงข้อความออกมาส่งกลับไปให้หน้าเว็บ
     const text = data.candidates[0].content.parts[0].text;
-    console.log("✅ Gemini ตอบกลับสำเร็จ!");
+    console.log("✅ Gemini 1.5 Flash ตอบกลับสำเร็จ!");
     
     return res.status(200).json({ jsonText: text });
 
