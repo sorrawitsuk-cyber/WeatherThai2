@@ -17,10 +17,10 @@ export default async function handler(req, res) {
   }
 
   try {
-    console.log("🚀 ส่งข้อมูลยิงตรงไปที่ Google Gemini API...");
+    console.log("🚀 ส่งข้อมูลยิงตรงไปที่ Google Gemini API (รุ่น gemini-pro)...");
     
-    // 🌟 ท่าไม้ตาย: ยิงตรงเข้า API ของ Google (ใช้รุ่น 1.5-flash ล่าสุด)
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    // 🌟 แก้ไข: ใช้โมเดล "gemini-pro" ซึ่งรองรับ API Key ทุกรุ่นแน่นอน 100%
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`;
     
     const response = await fetch(url, {
       method: "POST",
