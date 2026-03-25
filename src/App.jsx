@@ -34,7 +34,15 @@ const legendData = {
   wind: { title: 'ความเร็วลม', items: [{color:'#00b0f0',label:'0-10 (ลมอ่อน)'},{color:'#2ecc71',label:'11-25 (ลมปานกลาง)'},{color:'#f1c40f',label:'26-40 (ลมแรง)'},{color:'#e67e22',label:'41-60 (ลมแรงมาก)'},{color:'#e74c3c',label:'> 60 (พายุ)'}] }
 };
 
-const chartConfigs = { pm25: { key: 'pm25', name: 'PM2.5', color: '#f59e0b', type: 'area' }, temp: { key: 'temp', keyLY: 'tempLY', name: 'อุณหภูมิสูงสุด', color: '#ef4444', hasLY: true, type: 'line' }, heat: { key: 'heat', keyLY: 'heatLY', name: 'Heat Index สูงสุด', color: '#ea580c', hasLY: true, type: 'line' }, uv: { key: 'uv', keyLY: null, name: 'รังสี UV สูงสุด', color: '#a855f7', type: 'area' }, rain: { key: 'rain', keyLY: 'rainLY', name: 'ปริมาณฝนสะสม', color: '#3b82f6', hasLY: true, type: 'bar' }, wind: { key: 'wind', keyLY: 'windLY', name: 'ความเร็วลมสูงสุด', color: '#64748b', hasLY: true, type: 'line' } };
+// 🌟 ตั้งค่าสเกลแกน Y ของกราฟไม่ให้หลอกตา
+const chartConfigs = { 
+  pm25: { key: 'pm25', name: 'PM2.5', color: '#f59e0b', type: 'area', domain: [0, max => Math.max(100, Math.ceil(max))] }, 
+  temp: { key: 'temp', keyLY: 'tempLY', name: 'อุณหภูมิสูงสุด', color: '#ef4444', hasLY: true, type: 'line', domain: [min => Math.min(20, Math.floor(min)), max => Math.max(45, Math.ceil(max))] }, 
+  heat: { key: 'heat', keyLY: 'heatLY', name: 'Heat Index สูงสุด', color: '#ea580c', hasLY: true, type: 'line', domain: [min => Math.min(25, Math.floor(min)), max => Math.max(55, Math.ceil(max))] }, 
+  uv: { key: 'uv', keyLY: null, name: 'รังสี UV สูงสุด', color: '#a855f7', type: 'area', domain: [0, max => Math.max(12, Math.ceil(max))] }, 
+  rain: { key: 'rain', keyLY: 'rainLY', name: 'ปริมาณฝนสะสม', color: '#3b82f6', hasLY: true, type: 'bar', domain: [0, max => Math.max(20, Math.ceil(max))] }, 
+  wind: { key: 'wind', keyLY: 'windLY', name: 'ความเร็วลมสูงสุด', color: '#64748b', hasLY: true, type: 'line', domain: [0, max => Math.max(40, Math.ceil(max))] } 
+};
 
 // 2. Map Components & Skeleton
 const createCustomMarker = (viewMode, value, extraData) => {
@@ -48,7 +56,7 @@ function FitBounds({ stations, activeStation, selectedProvince, selectedRegion }
   useEffect(() => { 
     if (activeStation) return; 
     if (stations && stations.length > 0) { 
-      if (!selectedProvince && !selectedRegion) { map.flyTo([13.75, 100.5], 10, { duration: 1.5 }); } 
+      if (!selectedProvince && !selectedRegion) { map.flyTo([13.5, 101.0], 6, { duration: 1.5 }); } 
       else { const validStations = stations.filter(s => s.lat && s.long && !isNaN(parseFloat(s.lat)) && !isNaN(parseFloat(s.long)) && parseFloat(s.lat) !== 0); if (validStations.length > 0) { const bounds = L.latLngBounds(validStations.map(s => [parseFloat(s.lat), parseFloat(s.long)])); map.fitBounds(bounds, { padding: [40, 40], maxZoom: 11 }); } } 
     } 
   }, [stations, map, activeStation, selectedProvince, selectedRegion]); 
@@ -72,8 +80,10 @@ export default function App() {
   const [stations, setStations] = useState([]); 
   const [filteredStations, setFilteredStations] = useState([]);
   const [provinces, setProvinces] = useState([]);
-  const [selectedRegion, setSelectedRegion] = useState('');
-  const [selectedProvince, setSelectedProvince] = useState('');
+  
+  const [selectedRegion, setSelectedRegion] = useState('ภาคกลาง');
+  const [selectedProvince, setSelectedProvince] = useState('กรุงเทพมหานคร');
+  
   const [selectedStationId, setSelectedStationId] = useState('');
   const [viewMode, setViewMode] = useState('pm25'); 
   const [sortOrder, setSortOrder] = useState('desc'); 
@@ -99,17 +109,18 @@ export default function App() {
   const [showStatsModal, setShowStatsModal] = useState(false);
   const [isMobileListOpen, setIsMobileListOpen] = useState(false);
 
-  const [alertsData, setAlertsData] = useState({ urgent: [], daily: [], rawHourlyText: '' }); 
+  const [alertsData, setAlertsData] = useState({ urgent: [], daily: [], tomorrow: [], rawHourlyText: '', tomorrowHourlyText: '' }); 
   const [alertsLoading, setAlertsLoading] = useState(false);
   const [alertsLocationName, setAlertsLocationName] = useState('');
   const [nationwideSummary, setNationwideSummary] = useState(null);
 
-  // 🚨 State ใหม่สำหรับแจ้งเตือน Nowcast (15 นาที)
   const [nowcastAlert, setNowcastAlert] = useState(null);
 
   const [aiSummaryJson, setAiSummaryJson] = useState(null);
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
   const [aiTimestamp, setAiTimestamp] = useState('');
+  
+  const [aiTargetDay, setAiTargetDay] = useState(0); 
 
   const [showMobileFilters, setShowMobileFilters] = useState(false);
 
@@ -120,14 +131,12 @@ export default function App() {
 
   useEffect(() => { localStorage.setItem('darkMode', darkMode); if(darkMode) document.body.classList.add('dark-theme'); else document.body.classList.remove('dark-theme'); }, [darkMode]);
   
-  // ล้างค่าเวลาเปลี่ยนที่
-  useEffect(() => { setAiSummaryJson(null); setAiTimestamp(''); setNowcastAlert(null); }, [alertsLocationName, activeStation]);
+  useEffect(() => { setAiSummaryJson(null); setAiTimestamp(''); setNowcastAlert(null); }, [alertsLocationName, activeStation, aiTargetDay]);
 
   const handleViewModeChange = (mode) => { setViewMode(mode); setSortOrder(mode === 'temp' ? 'asc' : 'desc'); setShowRadar(false); setSelectedStationId(''); setActiveStation(null); setIsMobileListOpen(false); };
 
   const toggleRadar = async () => { if (!showRadar) { try { const res = await fetch('https://api.rainviewer.com/public/weather-maps.json'); const data = await res.json(); setRadarTime(data.radar.past[data.radar.past.length - 1].time); } catch (err) { console.error(err); } } setShowRadar(!showRadar); };
 
-  // === สิ้นสุดส่วนที่ 1 ===
   const fetchOpenMeteoBulk = async (stationsList) => {
     try {
       let allWeather = {}; const chunkSize = 50; 
@@ -168,17 +177,29 @@ export default function App() {
 
   useEffect(() => {
     if (stations.length === 0 || Object.keys(stationTemps).length === 0) return;
-    let pm25Risks = []; let stormRisks = []; let heatRisks = [];
+    const provData = {};
     stations.forEach(s => {
-      const pm = Number(s.AQILast?.PM25?.value); if(pm >= 37.5) pm25Risks.push({ prov: extractProvince(s.areaTH), val: pm });
+      const prov = extractProvince(s.areaTH);
+      if (!provData[prov]) provData[prov] = { pm25: [], rain: [], wind: [], heat: [] };
+      const pm = Number(s.AQILast?.PM25?.value); if (!isNaN(pm)) provData[prov].pm25.push(pm);
       const t = stationTemps[s.stationID];
-      if(t) { if(t.rainProb >= 40 || t.windMax >= 30) stormRisks.push({ prov: extractProvince(s.areaTH), rain: t.rainProb, wind: t.windMax }); if(t.heatMax >= 40) heatRisks.push({ prov: extractProvince(s.areaTH), val: t.heatMax }); }
+      if (t) {
+        if (t.rainProb != null) provData[prov].rain.push(t.rainProb);
+        if (t.windMax != null) provData[prov].wind.push(t.windMax);
+        if (t.heatMax != null) provData[prov].heat.push(t.heatMax);
+      }
     });
-    pm25Risks.sort((a,b)=>b.val - a.val); stormRisks.sort((a,b)=>Math.max(b.rain, b.wind) - Math.max(a.rain, a.wind)); heatRisks.sort((a,b)=>b.val - a.val);
-    const uniquePm = []; const pmSet = new Set(); pm25Risks.forEach(item => { if(!pmSet.has(item.prov)){ pmSet.add(item.prov); uniquePm.push(item); }});
-    const uniqueStorm = []; const stormSet = new Set(); stormRisks.forEach(item => { if(!stormSet.has(item.prov)){ stormSet.add(item.prov); uniqueStorm.push(item); }});
-    const uniqueHeat = []; const heatSet = new Set(); heatRisks.forEach(item => { if(!heatSet.has(item.prov)){ heatSet.add(item.prov); uniqueHeat.push(item); }});
-    setNationwideSummary({ pm25: uniquePm.slice(0, 5), storm: uniqueStorm.slice(0, 5), heat: uniqueHeat.slice(0, 5) });
+
+    let pm25AvgList = []; let stormAvgList = []; let heatAvgList = [];
+    for (const prov in provData) {
+      const d = provData[prov]; const getAvg = (arr) => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+      const avgPm = getAvg(d.pm25); const avgRain = getAvg(d.rain); const avgWind = getAvg(d.wind); const avgHeat = getAvg(d.heat);
+      if (avgPm >= 37.5) pm25AvgList.push({ prov, val: Math.round(avgPm * 10) / 10 });
+      if (avgRain >= 40 || avgWind >= 30) stormAvgList.push({ prov, rain: Math.round(avgRain), wind: Math.round(avgWind) });
+      if (avgHeat >= 40) heatAvgList.push({ prov, val: Math.round(avgHeat * 10) / 10 });
+    }
+    pm25AvgList.sort((a, b) => b.val - a.val); stormAvgList.sort((a, b) => Math.max(b.rain, b.wind) - Math.max(a.rain, a.wind)); heatAvgList.sort((a, b) => b.val - a.val);
+    setNationwideSummary({ pm25: pm25AvgList.slice(0, 5), storm: stormAvgList.slice(0, 5), heat: heatAvgList.slice(0, 5) });
   }, [stations, stationTemps]);
 
   useEffect(() => {
@@ -244,7 +265,7 @@ export default function App() {
     setDashTitle(titleText); setDashLoading(true);
     try {
       const today = new Date(); const lyEnd = new Date(); lyEnd.setFullYear(today.getFullYear() - 1); lyEnd.setDate(lyEnd.getDate() - 1); const lyStart = new Date(lyEnd); lyStart.setDate(lyStart.getDate() - 13);
-      const urlW = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,apparent_temperature_max,precipitation_sum,wind_speed_10m_max,uv_index_max&past_days=14&forecast_days=7&timezone=Asia%2FBangkok`;
+      const urlW = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,apparent_temperature_max,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,uv_index_max&past_days=14&forecast_days=7&timezone=Asia%2FBangkok`;
       const urlA = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&hourly=pm2_5&past_days=14&forecast_days=7&timezone=Asia%2FBangkok`;
       const urlArc = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=${lyStart.toISOString().split('T')[0]}&end_date=${lyEnd.toISOString().split('T')[0]}&daily=temperature_2m_max,apparent_temperature_max,precipitation_sum,wind_speed_10m_max&timezone=Asia%2FBangkok`;
       const [rW, rA, rArc] = await Promise.all([fetch(urlW), fetch(urlA), fetch(urlArc)]); const [dW, dA, dArc] = await Promise.all([rW.json(), rA.json(), rArc.json()]);
@@ -257,7 +278,8 @@ export default function App() {
           let item = {
             date: dObj.toLocaleDateString('th-TH',{day:'numeric',month:'short'}), dayName: ['อา.','จ.','อ.','พ.','พฤ.','ศ.','ส.'][dObj.getDay()],
             temp: dW.daily.temperature_2m_max[i] ?? null, heat: dW.daily.apparent_temperature_max[i] ?? null,
-            rain: dW.daily.precipitation_sum[i] ?? null, wind: dW.daily.wind_speed_10m_max[i] ?? null, uv: dW.daily.uv_index_max ? (dW.daily.uv_index_max[i] ?? null) : null, pm25: avgPm
+            rain: dW.daily.precipitation_sum[i] ?? null, rainProb: dW.daily.precipitation_probability_max ? dW.daily.precipitation_probability_max[i] : 0, 
+            wind: dW.daily.wind_speed_10m_max[i] ?? null, uv: dW.daily.uv_index_max ? (dW.daily.uv_index_max[i] ?? null) : null, pm25: avgPm
           };
           if (i<14) {
             item.tempLY = dArc.daily?.temperature_2m_max?(dArc.daily.temperature_2m_max[i]||0):0; item.heatLY = dArc.daily?.apparent_temperature_max?(dArc.daily.apparent_temperature_max[i]||0):0;
@@ -283,52 +305,57 @@ export default function App() {
 
   const fetchAlertsData = async (lat, lon, locName) => {
     setAlertsLoading(true); setAlertsLocationName(locName); setNowcastAlert(null); fetchDashboardData(lat, lon, locName); 
+    
     try {
-      // 📡 ดึงข้อมูล High-Res นาทีต่อนาที (minutely_15) มาด้วย!
-      const urlW = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,apparent_temperature,precipitation_probability,precipitation,uv_index,wind_speed_10m,wind_direction_10m&minutely_15=precipitation,precipitation_probability&forecast_days=2&timezone=Asia%2FBangkok`;
+      const urlW = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,apparent_temperature,precipitation_probability,precipitation,uv_index,wind_speed_10m,wind_direction_10m&daily=temperature_2m_max,apparent_temperature_max,precipitation_probability_max,uv_index_max&minutely_15=precipitation,precipitation_probability&forecast_days=2&timezone=Asia%2FBangkok`;
       const urlA = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&hourly=pm2_5&forecast_days=2&timezone=Asia%2FBangkok`;
-      const [rW, rA] = await Promise.all([fetch(urlW), fetch(urlA)]); const [dW, dA] = await Promise.all([rW.json(), rA.json()]);
+      
+      let dW = {}, dA = {};
+      try { const rW = await fetch(urlW); dW = await rW.json(); } catch(e) { console.error("Weather API:", e); }
+      try { const rA = await fetch(urlA); dA = await rA.json(); } catch(e) { console.error("AQI API:", e); }
 
-      // 🚨 วิเคราะห์ Nowcast (พยากรณ์ด่วนพิเศษ 90 นาทีข้างหน้า ราย 15 นาที)
       if (dW.minutely_15 && dW.minutely_15.time) {
-        const nowMs = new Date().getTime();
-        let rainingTime = null; let rainIntensity = 0;
+        const nowMs = new Date().getTime(); let rainingTime = null; let rainIntensity = 0;
         for (let i = 0; i < dW.minutely_15.time.length; i++) {
           const timeMs = new Date(dW.minutely_15.time[i]).getTime();
-          // สแกนช่วงเวลาตั้งแต่ 15 นาทีก่อนหน้า ไปจนถึง 90 นาทีข้างหน้า
           if (timeMs >= nowMs - 15 * 60 * 1000 && timeMs <= nowMs + 90 * 60 * 1000) {
-            if (dW.minutely_15.precipitation[i] > 0.1 || dW.minutely_15.precipitation_probability[i] >= 40) {
-              rainingTime = dW.minutely_15.time[i];
-              rainIntensity = dW.minutely_15.precipitation[i] || 0;
-              break;
-            }
+            if ((dW.minutely_15.precipitation?.[i] ?? 0) > 0.1 || (dW.minutely_15.precipitation_probability?.[i] ?? 0) >= 40) { rainingTime = dW.minutely_15.time[i]; rainIntensity = dW.minutely_15.precipitation?.[i] ?? 0; break; }
           }
         }
         if (rainingTime) {
-          const diffMins = Math.floor((new Date(rainingTime).getTime() - nowMs) / 60000);
-          const timeStr = new Date(rainingTime).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
-          setNowcastAlert({ 
-            mins: diffMins, 
-            time: timeStr, 
-            intensity: rainIntensity > 2 ? 'หนัก' : (rainIntensity > 0.5 ? 'ปานกลาง' : 'ปรอยๆ'), 
-            source: "Open-Meteo (15-Min High-Res Nowcast)" 
-          });
+          const diffMins = Math.floor((new Date(rainingTime).getTime() - nowMs) / 60000); const timeStr = new Date(rainingTime).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+          setNowcastAlert({ mins: diffMins, time: timeStr, intensity: rainIntensity > 2 ? 'หนัก' : (rainIntensity > 0.5 ? 'ปานกลาง' : 'ปรอยๆ'), source: "Open-Meteo (15-Min High-Res Nowcast)" });
         }
       }
 
-      let urgent = []; let daily = []; const nIdx = new Date().getHours(); const fmt = (iso) => `${new Date(iso).getHours()}:00 น.`;
-      let hourlyRawData = "[พยากรณ์รายชั่วโมง (12 ชั่วโมงล่วงหน้า)]\n";
+      let urgent = []; let daily = []; let tomorrow = []; const nIdx = new Date().getHours(); const fmt = (iso) => `${new Date(iso).getHours()}:00 น.`;
       
+      let hourlyRawData = "[พยากรณ์รายชั่วโมง (วันนี้)]\n";
+      let tomorrowHourlyRawData = "[พยากรณ์รายชั่วโมงพรุ่งนี้ (ราย 3 ชม.)]\n";
       let rain3hP = 0, rain3hV = 0, rain3hT = ''; let heat3h = 0, heat3hT = ''; let pm3h = 0, pm3hT = ''; let wind3h = 0, wind3hT = ''; let uv3h = 0, uv3hT = ''; 
-      if(dW.hourly && dW.hourly.time && dA.hourly && dA.hourly.pm2_5) {
-        for (let i=0; i<12; i++) { const idx = nIdx + i; hourlyRawData += `- เวลา ${fmt(dW.hourly.time[idx])}: อุณหภูมิ ${dW.hourly.temperature_2m[idx]}°C, โอกาสฝน ${dW.hourly.precipitation_probability[idx]}%, ปริมาณฝน ${dW.hourly.precipitation[idx]}mm, PM2.5 ${dA.hourly.pm2_5[idx]} µg/m³, UV ${dW.hourly.uv_index[idx]}, ลม ${dW.hourly.wind_speed_10m[idx]} km/h\n`; }
-        for (let i=0; i<3; i++) {
+      
+      if(dW.hourly && dW.hourly.time) {
+        for (let i = 0; i < 12; i++) { 
+           const idx = nIdx + i; 
+           if (!dW.hourly.time[idx]) continue;
+           const pmVal = dA.hourly?.pm2_5?.[idx] ?? 'ไม่มีข้อมูล';
+           hourlyRawData += `- เวลา ${fmt(dW.hourly.time[idx])}: อุณหภูมิ ${dW.hourly.temperature_2m?.[idx] ?? '-'}°C, โอกาสฝน ${dW.hourly.precipitation_probability?.[idx] ?? 0}%, ปริมาณฝน ${dW.hourly.precipitation?.[idx] ?? 0}mm, PM2.5 ${pmVal} µg/m³\n`; 
+        }
+        
+        for (let i = nIdx + 12; i < dW.hourly.time.length; i += 3) {
+            if(dW.hourly.time[i]) {
+                tomorrowHourlyRawData += `- พรุ่งนี้เวลา ${fmt(dW.hourly.time[i])}: โอกาสฝน ${dW.hourly.precipitation_probability?.[i] ?? 0}% (${dW.hourly.precipitation?.[i] ?? 0}mm), อุณหภูมิ ${dW.hourly.temperature_2m?.[i] ?? '-'}°C\n`;
+            }
+        }
+
+        for (let i = 0; i < 3; i++) {
           const idx = nIdx + i;
-          if (dW.hourly.precipitation_probability[idx] > rain3hP) { rain3hP=dW.hourly.precipitation_probability[idx]; rain3hV=dW.hourly.precipitation[idx]; rain3hT=dW.hourly.time[idx]; }
-          if (dW.hourly.apparent_temperature[idx] > heat3h) { heat3h=dW.hourly.apparent_temperature[idx]; heat3hT=dW.hourly.time[idx]; }
-          if (dA.hourly.pm2_5[idx] > pm3h) { pm3h=dA.hourly.pm2_5[idx]; pm3hT=dA.hourly.time[idx]; }
-          if (dW.hourly.wind_speed_10m[idx] > wind3h) { wind3h=dW.hourly.wind_speed_10m[idx]; wind3hT=dW.hourly.time[idx]; }
-          if (dW.hourly.uv_index[idx] > uv3h) { uv3h=dW.hourly.uv_index[idx]; uv3hT=dW.hourly.time[idx]; } 
+          if (!dW.hourly.time[idx]) continue;
+          if ((dW.hourly.precipitation_probability?.[idx] ?? 0) > rain3hP) { rain3hP = dW.hourly.precipitation_probability[idx]; rain3hV = dW.hourly.precipitation[idx]||0; rain3hT = dW.hourly.time[idx]; }
+          if ((dW.hourly.apparent_temperature?.[idx] ?? 0) > heat3h) { heat3h = dW.hourly.apparent_temperature[idx]; heat3hT = dW.hourly.time[idx]; }
+          if ((dW.hourly.wind_speed_10m?.[idx] ?? 0) > wind3h) { wind3h = dW.hourly.wind_speed_10m[idx]; wind3hT = dW.hourly.time[idx]; }
+          if ((dW.hourly.uv_index?.[idx] ?? 0) > uv3h) { uv3h = dW.hourly.uv_index[idx]; uv3hT = dW.hourly.time[idx]; } 
+          if ((dA.hourly?.pm2_5?.[idx] ?? 0) > pm3h) { pm3h = dA.hourly.pm2_5[idx]; pm3hT = dW.hourly.time[idx]; }
         }
       }
 
@@ -340,13 +367,14 @@ export default function App() {
       urgent.sort((a, b) => b.level - a.level);
 
       let rain24P = 0, rain24T = ''; let heat24 = 0, heat24T = ''; let pm24 = 0, pm24T = ''; let uv24 = 0, uv24T = '';
-      if(dW.hourly && dW.hourly.time && dA.hourly && dA.hourly.pm2_5) {
+      if(dW.hourly && dW.hourly.time) {
         for (let i=0; i<24; i++) {
           const idx = nIdx + i;
-          if (dW.hourly.precipitation_probability[idx] > rain24P) { rain24P=dW.hourly.precipitation_probability[idx]; rain24T=dW.hourly.time[idx]; }
-          if (dW.hourly.apparent_temperature[idx] > heat24) { heat24=dW.hourly.apparent_temperature[idx]; heat24T=dW.hourly.time[idx]; }
-          if (dA.hourly.pm2_5[idx] > pm24) { pm24=dA.hourly.pm2_5[idx]; pm24T=dA.hourly.time[idx]; }
-          if (dW.hourly.uv_index[idx] > uv24) { uv24=dW.hourly.uv_index[idx]; uv24T=dW.hourly.time[idx]; }
+          if (!dW.hourly.time[idx]) continue;
+          if ((dW.hourly.precipitation_probability?.[idx] ?? 0) > rain24P) { rain24P=dW.hourly.precipitation_probability[idx]; rain24T=dW.hourly.time[idx]; }
+          if ((dW.hourly.apparent_temperature?.[idx] ?? 0) > heat24) { heat24=dW.hourly.apparent_temperature[idx]; heat24T=dW.hourly.time[idx]; }
+          if ((dW.hourly.uv_index?.[idx] ?? 0) > uv24) { uv24=dW.hourly.uv_index[idx]; uv24T=dW.hourly.time[idx]; }
+          if ((dA.hourly?.pm2_5?.[idx] ?? 0) > pm24) { pm24=dA.hourly.pm2_5[idx]; pm24T=dW.hourly.time[idx]; }
         }
       }
 
@@ -356,8 +384,16 @@ export default function App() {
       if (uv24 >= 8) daily.push({ icon:'🔆', color:'#a855f7', title:`รังสี UV อันตราย (ระดับ ${uv24})`, desc:`แดดแรงจัดช่วง ${fmt(uv24T)} ควรทากันแดด SPF50+`, level: 3 }); else daily.push({ icon:'🌤️', color:'#10b981', title:`รังสี UV ปลอดภัย (ระดับ ${uv24})`, desc:`แดดไม่แรงมากในช่วง ${fmt(uv24T)} สามารถทำกิจกรรมกลางแจ้งได้`, level: 1 });
       daily.sort((a, b) => b.level - a.level);
 
-      setAlertsData({ urgent, daily, rawHourlyText: hourlyRawData });
-    } catch(e) { console.error(e); } finally { setAlertsLoading(false); }
+      if (dW.daily && dW.daily.time && dW.daily.time.length > 1) {
+        const tRainP = dW.daily.precipitation_probability_max?.[1] || 0; const tHeat = dW.daily.apparent_temperature_max?.[1] || 0; const tUv = dW.daily.uv_index_max?.[1] || 0;
+        if (tRainP >= 40) tomorrow.push({ icon:'🌧️', color:'#0ea5e9', title:`พายุฝน (${tRainP}%)`, desc:'พรุ่งนี้มีแนวโน้มฝนตก พกอุปกรณ์และร่มเผื่อไว้ด้วยครับ', level: 2 }); else tomorrow.push({ icon:'☀️', color:'#10b981', title:'โอกาสฝนตกต่ำ', desc:'พรุ่งนี้อากาศดี ท้องฟ้าโปร่ง เหมาะกับการเดินทาง', level: 1 });
+        if (tHeat >= 42) tomorrow.push({ icon:'🔥', color:'#ef4444', title:'ร้อนอันตราย', desc:`พรุ่งนี้ดัชนีความร้อนพุ่งถึง ${tHeat.toFixed(1)}°C ระวังฮีทสโตรก`, level: 3 }); else tomorrow.push({ icon:'😎', color:'#f59e0b', title:`อากาศร้อนปานกลาง`, desc:`พรุ่งนี้อุณหภูมิรู้สึกเหมือน ${tHeat.toFixed(1)}°C`, level: 2 });
+        if (tUv >= 8) tomorrow.push({ icon:'🔆', color:'#a855f7', title:`UV แรงจัด (${tUv})`, desc:'พรุ่งนี้แดดแรงมาก ห้ามลืมทาครีมกันแดดเด็ดขาด', level: 3 }); else tomorrow.push({ icon:'🌤️', color:'#10b981', title:`UV ปลอดภัย (${tUv})`, desc:'รังสี UV ในวันพรุ่งนี้อยู่ในเกณฑ์ปกติ', level: 1 });
+        tomorrow.sort((a, b) => b.level - a.level);
+      }
+
+      setAlertsData({ urgent, daily, tomorrow, rawHourlyText: hourlyRawData, tomorrowHourlyText: tomorrowHourlyRawData });
+    } catch(e) { console.error("Error setting alerts:", e); } finally { setAlertsLoading(false); }
   };
 
   const handleScanLocation = () => { if (!navigator.geolocation) return alert('ไม่รองรับ GPS'); navigator.geolocation.getCurrentPosition((pos) => fetchAlertsData(pos.coords.latitude, pos.coords.longitude, '📍 พิกัดปัจจุบันของคุณ'), () => alert('ไม่อนุญาต GPS')); };
@@ -373,8 +409,7 @@ export default function App() {
     setIsGeneratingAI(true); setAiSummaryJson(null); setAiTimestamp('');
     try {
       const loc = alertsLocationName || "ประเทศไทย"; 
-      const now = new Date();
-      let targetDate = new Date(now); targetDate.setDate(now.getDate() + aiTargetDay);
+      const now = new Date(); let targetDate = new Date(now); targetDate.setDate(now.getDate() + aiTargetDay);
       const targetDateStr = targetDate.toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long' });
 
       let contextData = `พิกัด/พื้นที่: ${loc}\nวันที่ต้องการวิเคราะห์: ${aiTargetDay === 0 ? 'วันนี้' : targetDateStr}\n\n`; 
@@ -402,8 +437,6 @@ export default function App() {
       }
 
       const dayWord = aiTargetDay === 0 ? 'วันนี้' : `วันที่ ${targetDateStr}`;
-      
-      // 🌟 ปลดล็อกให้ AI คิดข้อความในป้ายกำกับ (Badge) และเลือกสีเองได้เลย!
       const jsonInstruction = `\n\n**ข้อบังคับสำคัญ: คุณต้องตอบเป็น JSON Array แท้ๆ เท่านั้น ห้ามมีข้อความอื่นปนเด็ดขาด** ตัวอย่าง:\n[\n  { "label": "หัวข้อ", "icon": "☀️", "status_color": "green/red/yellow/blue", "status_text": "คำสั้นๆในป้าย (เช่น ปกติ, ไม่มีฝน, อันตราย, เลี่ยงได้เลี่ยง)", "reason": "อธิบายสั้นๆ" }\n]`;
 
       let promptText = '';
@@ -816,80 +849,72 @@ export default function App() {
                 </div>
               )}
 
-              {(alertsData?.urgent?.length > 0 || alertsData?.daily?.length > 0) && (
-                <div style={{ backgroundColor: cardBg, borderRadius: '16px', padding: '20px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.03)', position: 'relative', overflow: 'hidden' }}>
-                  <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: 'linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899)' }}></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '15px' }}>
-                    <h3 style={{ fontSize: '1.2rem', color: textColor, margin: 0, display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>
-                      <span style={{ fontSize: '1.5rem' }}>✨</span> AI ผู้ช่วยส่วนตัว
-                    </h3>
-                    {aiSummaryJson && (
-                      <button onClick={handleShareAI} style={{ background: darkMode?'#334155':'#f1f5f9', border: `1px solid ${borderColor}`, padding: '6px 12px', borderRadius: '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: textColor, fontWeight: 'bold' }}>
-                        📤 แชร์สรุปนี้
-                      </button>
-                    )}
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px', padding: '10px', backgroundColor: darkMode ? 'rgba(0,0,0,0.2)' : '#f0f9ff', borderRadius: '12px', border: `1px solid ${borderColor}` }}>
-                    <span style={{ fontSize: '0.9rem', color: textColor, fontWeight: 'bold' }}>📅 เลือกวันวิเคราะห์:</span>
-                    <select value={aiTargetDay} onChange={(e) => setAiTargetDay(Number(e.target.value))} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #0ea5e9`, backgroundColor: darkMode ? '#1e293b' : '#fff', color: '#0ea5e9', outline: 'none', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold' }}>
-                      {dashForecast.slice(0, 7).map((item, idx) => {
-                        const d = new Date(); d.setDate(d.getDate() + idx);
-                        const dateStr = d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
-                        let label = idx === 0 ? `วันนี้ (${dateStr})` : idx === 1 ? `พรุ่งนี้ (${dateStr})` : dateStr;
-                        return <option key={idx} value={idx}>{label}</option>;
-                      })}
-                    </select>
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '15px' }}>
-                    <button onClick={() => generateAISummary('general')} disabled={isGeneratingAI} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #3b82f6`, backgroundColor: darkMode ? 'rgba(59,130,246,0.1)' : '#eff6ff', color: '#3b82f6', fontSize: '0.85rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold' }}>🌤️ สรุปภาพรวม</button>
-                    <button onClick={() => generateAISummary('rain')} disabled={isGeneratingAI} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #0ea5e9`, backgroundColor: darkMode ? 'rgba(14,165,233,0.1)' : '#e0f2fe', color: '#0ea5e9', fontSize: '0.85rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold' }}>☔ เช็คเวลาฝนตก</button>
-                    <button onClick={() => generateAISummary('hourly')} disabled={isGeneratingAI} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #6366f1`, backgroundColor: darkMode ? 'rgba(99,102,241,0.1)' : '#e0e7ff', color: '#4f46e5', fontSize: '0.85rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold' }}>⏱️ วางแผนราย ชม.</button>
-                    <button onClick={() => generateAISummary('lifestyle')} disabled={isGeneratingAI} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #10b981`, backgroundColor: darkMode ? 'rgba(16,185,129,0.1)' : '#f0fdf4', color: '#10b981', fontSize: '0.85rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold' }}>👕 ซักผ้า/ล้างรถ</button>
-                    <button onClick={() => generateAISummary('exercise')} disabled={isGeneratingAI} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #f59e0b`, backgroundColor: darkMode ? 'rgba(245,158,11,0.1)' : '#fffbeb', color: '#f59e0b', fontSize: '0.85rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold' }}>🏃‍♂️ ออกกำลังกาย</button>
-                    <button onClick={() => generateAISummary('health')} disabled={isGeneratingAI} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #ef4444`, backgroundColor: darkMode ? 'rgba(239,68,68,0.1)' : '#fef2f2', color: '#ef4444', fontSize: '0.85rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold' }}>😷 สุขภาพ/ภูมิแพ้</button>
-                    <button onClick={() => generateAISummary('travel')} disabled={isGeneratingAI} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #db2777`, backgroundColor: darkMode ? 'rgba(219,39,119,0.1)' : '#fce7f3', color: '#db2777', fontSize: '0.85rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold' }}>🎒 ท่องเที่ยว</button>
-                    <button onClick={() => generateAISummary('agriculture')} disabled={isGeneratingAI} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #84cc16`, backgroundColor: darkMode ? 'rgba(132,204,22,0.1)' : '#ecfccb', color: '#65a30d', fontSize: '0.85rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold' }}>🌾 เกษตรกร</button>
-                  </div>
-
-                  {/* 🌟 ส่วนประมวลผลกล่อง AI เปลี่ยนให้รองรับข้อความที่ AI คิดเองทั้งหมด */}
-                  <div style={{ backgroundColor: darkMode ? '#1e293b' : '#f8fafc', padding: isGeneratingAI || aiSummaryJson ? '15px' : '0', borderRadius: '12px', border: aiSummaryJson ? `1px dashed #8b5cf6` : 'none', transition: 'all 0.3s' }}>
-                    {isGeneratingAI ? ( <div style={{ textAlign: 'center', color: '#8b5cf6', padding: '15px', fontWeight: 'bold' }}>⏳ AI กำลังคิดวิเคราะห์ข้อมูลอย่างละเอียด...</div> ) : aiSummaryJson ? (
-                       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                         {aiSummaryJson.map((item, i) => {
-                           let statusColor, statusBg, statusIcon, statusText;
-                           
-                           // รองรับโค้ดสีที่ AI ส่งมา (green, red, yellow, blue) หรือใช้แบบเก่า (yes, no, warning)
-                           const c = item.status_color || item.status;
-                           
-                           if (c === 'green' || c === 'yes') { statusColor = '#16a34a'; statusBg = darkMode ? 'rgba(22,163,74,0.15)' : '#dcfce7'; statusIcon = '✅'; } 
-                           else if (c === 'red' || c === 'no') { statusColor = '#dc2626'; statusBg = darkMode ? 'rgba(220,38,38,0.15)' : '#fee2e2'; statusIcon = '🚨'; } 
-                           else if (c === 'blue' || c === 'info') { statusColor = '#0ea5e9'; statusBg = darkMode ? 'rgba(14,165,233,0.15)' : '#e0f2fe'; statusIcon = 'ℹ️'; }
-                           else { statusColor = '#d97706'; statusBg = darkMode ? 'rgba(217,119,6,0.15)' : '#fffbeb'; statusIcon = '⚠️'; }
-                           
-                           // ใช้คำที่ AI คิดให้ ถ้าไม่มีให้ใช้คำเดิม
-                           statusText = item.status_text || (c === 'yes' ? 'เหมาะสม' : c === 'no' ? 'ควรเลี่ยง' : 'เฝ้าระวัง');
-                           
-                           return (
-                              <div key={i} style={{ display: 'flex', gap: '15px', backgroundColor: darkMode ? 'rgba(0,0,0,0.2)' : '#fff', padding: '15px', borderRadius: '10px', border: `1px solid ${borderColor}`, boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
-                                <div style={{ fontSize: '1.8rem', width: '45px', height: '45px', background: statusBg, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{item.icon}</div>
-                                <div style={{ flex: 1 }}>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap', gap: '5px' }}>
-                                    <h4 style={{ margin: '0', fontSize: '1.05rem', color: textColor, fontWeight: 'bold' }}>{item.label}</h4>
-                                    <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: statusColor, display: 'flex', alignItems: 'center', gap: '4px', background: statusBg, padding: '4px 10px', borderRadius: '12px' }}>{statusIcon} {statusText}</span>
-                                  </div>
-                                  <p style={{ margin: 0, color: subTextColor, lineHeight: 1.5, fontSize: '0.9rem' }}>{item.reason}</p>
-                                </div>
-                              </div>
-                           );
-                         })}
-                         {aiTimestamp && <div style={{ textAlign: 'right', fontSize: '0.75rem', color: subTextColor, marginTop: '5px', fontStyle: 'italic' }}>AI วิเคราะห์ข้อมูลล่าสุดเมื่อ: {aiTimestamp}</div>}
-                       </div>
-                    ) : ( <div style={{ color: subTextColor, fontSize: '0.9rem', textAlign: 'center', padding: '10px' }}>👆 กดปุ่มด้านบนเพื่อให้ AI วิเคราะห์สภาพอากาศตามที่คุณต้องการได้เลยครับ</div> )}
-                  </div>
+              <div style={{ backgroundColor: cardBg, borderRadius: '16px', padding: '20px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.03)', position: 'relative', overflow: 'hidden' }}>
+                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: 'linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899)' }}></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '15px' }}>
+                  <h3 style={{ fontSize: '1.2rem', color: textColor, margin: 0, display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>
+                    <span style={{ fontSize: '1.5rem' }}>✨</span> AI ผู้ช่วยส่วนตัว
+                  </h3>
+                  {aiSummaryJson && (
+                    <button onClick={handleShareAI} style={{ background: darkMode?'#334155':'#f1f5f9', border: `1px solid ${borderColor}`, padding: '6px 12px', borderRadius: '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: textColor, fontWeight: 'bold' }}>
+                      📤 แชร์สรุปนี้
+                    </button>
+                  )}
                 </div>
-              )}
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px', padding: '10px', backgroundColor: darkMode ? 'rgba(0,0,0,0.2)' : '#f0f9ff', borderRadius: '12px', border: `1px solid ${borderColor}` }}>
+                  <span style={{ fontSize: '0.9rem', color: textColor, fontWeight: 'bold' }}>📅 เลือกวันวิเคราะห์:</span>
+                  <select value={aiTargetDay} onChange={(e) => setAiTargetDay(Number(e.target.value))} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #0ea5e9`, backgroundColor: darkMode ? '#1e293b' : '#fff', color: '#0ea5e9', outline: 'none', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold' }}>
+                    {dashForecast.slice(0, 7).map((item, idx) => {
+                      const d = new Date(); d.setDate(d.getDate() + idx);
+                      const dateStr = d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
+                      let label = idx === 0 ? `วันนี้ (${dateStr})` : idx === 1 ? `พรุ่งนี้ (${dateStr})` : dateStr;
+                      return <option key={idx} value={idx}>{label}</option>;
+                    })}
+                  </select>
+                </div>
+
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '15px' }}>
+                  <button onClick={() => generateAISummary('general')} disabled={isGeneratingAI} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #3b82f6`, backgroundColor: darkMode ? 'rgba(59,130,246,0.1)' : '#eff6ff', color: '#3b82f6', fontSize: '0.85rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold' }}>🌤️ สรุปภาพรวม</button>
+                  <button onClick={() => generateAISummary('rain')} disabled={isGeneratingAI} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #0ea5e9`, backgroundColor: darkMode ? 'rgba(14,165,233,0.1)' : '#e0f2fe', color: '#0ea5e9', fontSize: '0.85rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold' }}>☔ เช็คเวลาฝนตก</button>
+                  <button onClick={() => generateAISummary('hourly')} disabled={isGeneratingAI} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #6366f1`, backgroundColor: darkMode ? 'rgba(99,102,241,0.1)' : '#e0e7ff', color: '#4f46e5', fontSize: '0.85rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold' }}>⏱️ วางแผนราย ชม.</button>
+                  <button onClick={() => generateAISummary('lifestyle')} disabled={isGeneratingAI} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #10b981`, backgroundColor: darkMode ? 'rgba(16,185,129,0.1)' : '#f0fdf4', color: '#10b981', fontSize: '0.85rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold' }}>👕 ซักผ้า/ล้างรถ</button>
+                  <button onClick={() => generateAISummary('exercise')} disabled={isGeneratingAI} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #f59e0b`, backgroundColor: darkMode ? 'rgba(245,158,11,0.1)' : '#fffbeb', color: '#f59e0b', fontSize: '0.85rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold' }}>🏃‍♂️ ออกกำลังกาย</button>
+                  <button onClick={() => generateAISummary('health')} disabled={isGeneratingAI} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #ef4444`, backgroundColor: darkMode ? 'rgba(239,68,68,0.1)' : '#fef2f2', color: '#ef4444', fontSize: '0.85rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold' }}>😷 สุขภาพ/ภูมิแพ้</button>
+                  <button onClick={() => generateAISummary('travel')} disabled={isGeneratingAI} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #db2777`, backgroundColor: darkMode ? 'rgba(219,39,119,0.1)' : '#fce7f3', color: '#db2777', fontSize: '0.85rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold' }}>🎒 ท่องเที่ยว</button>
+                  <button onClick={() => generateAISummary('agriculture')} disabled={isGeneratingAI} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #84cc16`, backgroundColor: darkMode ? 'rgba(132,204,22,0.1)' : '#ecfccb', color: '#65a30d', fontSize: '0.85rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold' }}>🌾 เกษตรกร</button>
+                </div>
+
+                <div style={{ backgroundColor: darkMode ? '#1e293b' : '#f8fafc', padding: isGeneratingAI || aiSummaryJson ? '15px' : '0', borderRadius: '12px', border: aiSummaryJson ? `1px dashed #8b5cf6` : 'none', transition: 'all 0.3s' }}>
+                  {isGeneratingAI ? ( <div style={{ textAlign: 'center', color: '#8b5cf6', padding: '15px', fontWeight: 'bold' }}>⏳ AI กำลังคิดวิเคราะห์ข้อมูลอย่างละเอียด...</div> ) : aiSummaryJson ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        {aiSummaryJson.map((item, i) => {
+                          let statusColor, statusBg, statusIcon, statusText;
+                          const c = item.status_color || item.status;
+                          if (c === 'green' || c === 'yes') { statusColor = '#16a34a'; statusBg = darkMode ? 'rgba(22,163,74,0.15)' : '#dcfce7'; statusIcon = '✅'; } 
+                          else if (c === 'red' || c === 'no') { statusColor = '#dc2626'; statusBg = darkMode ? 'rgba(220,38,38,0.15)' : '#fee2e2'; statusIcon = '🚨'; } 
+                          else if (c === 'blue' || c === 'info') { statusColor = '#0ea5e9'; statusBg = darkMode ? 'rgba(14,165,233,0.15)' : '#e0f2fe'; statusIcon = 'ℹ️'; }
+                          else { statusColor = '#d97706'; statusBg = darkMode ? 'rgba(217,119,6,0.15)' : '#fffbeb'; statusIcon = '⚠️'; }
+                          statusText = item.status_text || (c === 'yes' ? 'เหมาะสม' : c === 'no' ? 'ควรเลี่ยง' : 'เฝ้าระวัง');
+                          
+                          return (
+                            <div key={i} style={{ display: 'flex', gap: '15px', backgroundColor: darkMode ? 'rgba(0,0,0,0.2)' : '#fff', padding: '15px', borderRadius: '10px', border: `1px solid ${borderColor}`, boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
+                              <div style={{ fontSize: '1.8rem', width: '45px', height: '45px', background: statusBg, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{item.icon}</div>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap', gap: '5px' }}>
+                                  <h4 style={{ margin: '0', fontSize: '1.05rem', color: textColor, fontWeight: 'bold' }}>{item.label}</h4>
+                                  <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: statusColor, display: 'flex', alignItems: 'center', gap: '4px', background: statusBg, padding: '4px 10px', borderRadius: '12px' }}>{statusIcon} {statusText}</span>
+                                </div>
+                                <p style={{ margin: 0, color: subTextColor, lineHeight: 1.5, fontSize: '0.9rem' }}>{item.reason}</p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {aiTimestamp && <div style={{ textAlign: 'right', fontSize: '0.75rem', color: subTextColor, marginTop: '5px', fontStyle: 'italic' }}>AI วิเคราะห์ข้อมูลล่าสุดเมื่อ: {aiTimestamp}</div>}
+                      </div>
+                  ) : ( <div style={{ color: subTextColor, fontSize: '0.9rem', textAlign: 'center', padding: '10px' }}>👆 กดปุ่มด้านบนเพื่อให้ AI วิเคราะห์สภาพอากาศตามที่คุณต้องการได้เลยครับ</div> )}
+                </div>
+              </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth < 768 ? '1fr' : (window.innerWidth < 1024 ? '1fr 1fr' : '1fr 1fr 1fr'), gap: '20px' }}>
                 <div style={{ backgroundColor: cardBg, borderRadius: '16px', padding: '20px', border: `1px solid ${borderColor}`, borderTop: alertsData?.urgent?.some(a => a.level >= 2) ? '4px solid #ef4444' : '4px solid #10b981', boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
