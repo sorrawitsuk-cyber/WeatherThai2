@@ -14,6 +14,43 @@ const getWindDirectionText = (degree) => {
     return '';
 };
 
+// 🌟 ใหม่: ฟังก์ชันแปลงพิกัด GPS เป็นชื่อ เขต/อำเภอ ภาษาไทย
+const getLocationName = async (lat, lon) => {
+    try {
+        const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=th`;
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data && (data.locality || data.city)) {
+            let locality = data.locality || '';
+            let city = data.city || '';
+            // กรองคำซ้ำให้ดูสวยงาม
+            if (locality && !locality.includes('เขต') && !locality.includes('อำเภอ')) {
+                locality = city.includes('กรุงเทพ') ? `เขต${locality}` : `อ.${locality}`;
+            }
+            return `${locality} ${city}`.trim();
+        }
+        return null;
+    } catch (e) {
+        return null;
+    }
+};
+
+// 🌟 ใหม่: สมการคณิตศาสตร์ (Haversine) คำนวณหาพิกัดในอีก 30 นาทีข้างหน้า
+const calculateFutureLocation = (lat, lon, windDir, windSpeedKmH) => {
+    const R = 6371; // รัศมีโลก (กิโลเมตร)
+    const distance = windSpeedKmH * 0.5; // ระยะทางที่เคลื่อนที่ใน 30 นาที (0.5 ชั่วโมง)
+    const bearing = (windDir + 180) % 360; // ทิศที่พายุจะไป (ตรงข้ามกับทิศที่ลมพัดมา)
+    
+    const brng = bearing * Math.PI / 180;
+    const lat1 = lat * Math.PI / 180;
+    const lon1 = lon * Math.PI / 180;
+
+    const lat2 = Math.asin(Math.sin(lat1) * Math.cos(distance/R) + Math.cos(lat1) * Math.sin(distance/R) * Math.cos(brng));
+    const lon2 = lon1 + Math.atan2(Math.sin(brng) * Math.sin(distance/R) * Math.cos(lat1), Math.cos(distance/R) - Math.sin(lat1) * Math.sin(lat2));
+
+    return { lat: lat2 * 180 / Math.PI, lon: lon2 * 180 / Math.PI, moveDir: bearing };
+};
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
@@ -21,7 +58,6 @@ export default async function handler(req, res) {
   if (!lat || !lon) return res.status(400).json({ error: 'Missing lat/lon' });
 
   try {
-    const rvRes = await fetch('https://api.api-ninjas.com/v1/weather'); // เลี่ยงปัญหาด้วย public
     const rvDataRes = await fetch('https://api.rainviewer.com/public/weather-maps.json');
     const rvData = await rvDataRes.json();
     const latestTime = rvData.radar.past[rvData.radar.past.length - 1].time;
@@ -46,27 +82,38 @@ export default async function handler(req, res) {
 
     let alertLevel = 0;
 
-    if (rgba.a > 0) {
+    // 🌟 แก้บั๊ก "ฝนทิพย์": บังคับความเข้มสี (Alpha > 50) กรองเมฆจางๆ ทิ้ง
+    if (rgba.a > 50) {
         if (rgba.r > 200 && rgba.g < 100) { 
-            alertLevel = 3; // หนักมาก
-        } else if (rgba.r > 200 && rgba.g > 150) { 
-            alertLevel = 2; // ปานกลาง
-        } else { 
-            alertLevel = 1; // อ่อน
+            alertLevel = 3; // แดง/ม่วง = หนักมาก
+        } else if (rgba.r > 150 && rgba.g > 150) { 
+            alertLevel = 2; // เหลือง/ส้ม = ปานกลาง
+        } else if (rgba.a > 80) { 
+            alertLevel = 1; // ฟ้า/เขียวเข้ม = ปรอยๆ
         }
     }
 
-    // คำนวณคำบรรยายทิศทางฝน
     let windText = '';
-    if (alertLevel > 0 && windSpeed !== undefined) {
-        const dirText = getWindDirectionText(windDir);
-        windText = windSpeed > 5 ? `กลุ่มฝนมีแนวโน้มเคลื่อนตัวไปทางทิศ${dirText} (ตามทิศทางลม ${windSpeed} กม./ชม.)` : 'สภาพลมค่อนข้างสงบ กลุ่มฝนอาจแช่ตัวอยู่ในพื้นที่สักระยะ';
+    let targetDistrict = await getLocationName(lat, lon); // ดึงชื่อเขตปัจจุบัน
+
+    if (alertLevel > 0) {
+        if (windSpeed > 3 && windDir !== undefined) {
+            const futureLoc = calculateFutureLocation(lat, lon, windDir, windSpeed);
+            const futureDistrict = await getLocationName(futureLoc.lat, futureLoc.lon);
+            const moveDirText = getWindDirectionText(futureLoc.moveDir);
+            
+            const destText = futureDistrict ? `มุ่งหน้าเข้าสู่พื้นที่ [${futureDistrict}]` : 'เคลื่อนตัวออกนอกพื้นที่';
+            windText = `กลุ่มฝนมีแนวโน้มเคลื่อนตัวไปทางทิศ${moveDirText} (ความเร็ว ${windSpeed} กม./ชม.) คาดว่าจะ${destText} ในอีก 30 นาทีข้างหน้า`;
+        } else {
+            windText = 'สภาพลมค่อนข้างสงบ กลุ่มฝนมีแนวโน้มแช่ตัวและตกสะสมอยู่ในพื้นที่เดิมครับ';
+        }
     }
 
     return res.status(200).json({
       radarTime: new Date(latestTime * 1000).toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit' }),
       alertLevel: alertLevel,
-      windText: windText
+      windText: windText,
+      currentLocName: targetDistrict
     });
 
   } catch (error) {

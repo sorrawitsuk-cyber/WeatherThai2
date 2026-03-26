@@ -437,7 +437,7 @@ export default function App() {
     let windDir = 0;
     let windSpeed = 0;
 
-    // หาพิกัดและข้อมูลลมของพื้นที่เป้าหมาย
+    // หาพิกัดและข้อมูลลม
     if (activeStation) {
       targetLat = activeStation.lat; targetLon = activeStation.long;
       const tObj = stationTemps[activeStation.stationID];
@@ -452,9 +452,7 @@ export default function App() {
       }
     }
     
-    const locName = alertsLocationName || 'พื้นที่ปัจจุบัน';
-    
-    // เรียกแอนิเมชันลูกแก้ว AI ของเราทำงาน
+    // เรียกแอนิเมชันลูกแก้ว AI
     setIsGeneratingAI(true);
     setAiSummaryJson(null);
     
@@ -466,21 +464,21 @@ export default function App() {
       });
       const data = await res.json();
       
-      // จัดรูปแบบข้อมูลให้ออกมาเป็นการ์ด AI สีสวยๆ
+      const realLocName = data.currentLocName || alertsLocationName || 'พื้นที่ของคุณ';
       let resultCard = {};
 
       if (data.alertLevel === 3) {
-          resultCard = { title: "ระวังพายุฝนรุนแรง!", icon: "🚨", color: "red", tag: "ฝนตกหนัก", desc: `เรดาร์ตรวจพบกลุ่มฝนกำลังแรงหนาแน่นบริเวณ ${locName} เสี่ยงน้ำท่วมขังและลมกระโชกแรง ${data.windText}` };
+          resultCard = { title: "ระวังพายุฝนรุนแรง!", icon: "🚨", color: "red", tag: "ฝนตกหนัก", desc: `เรดาร์ตรวจพบพายุฝนกำลังแรงปกคลุมบริเวณ ${realLocName} เสี่ยงน้ำท่วมขัง ${data.windText}` };
       } else if (data.alertLevel === 2) {
-          resultCard = { title: "มีฝนตกปานกลาง", icon: "🌧️", color: "yellow", tag: "มีฝนตก", desc: `ตรวจพบกลุ่มฝนระดับปานกลางปกคลุมพื้นที่ ${locName} การเดินทางควรพกร่มและระวังถนนลื่น ${data.windText}` };
+          resultCard = { title: "มีฝนตกปานกลาง", icon: "🌧️", color: "yellow", tag: "มีฝนตก", desc: `ตรวจพบกลุ่มฝนระดับปานกลางปกคลุมพื้นที่ ${realLocName} การเดินทางควรพกร่ม ${data.windText}` };
       } else if (data.alertLevel === 1) {
-          resultCard = { title: "มีฝนตกปรอยๆ", icon: "🌦️", color: "green", tag: "ฝนเล็กน้อย", desc: `พบกลุ่มฝนกำลังอ่อนบริเวณ ${locName} อาจมีฝนตกปรอยๆ ไม่กระทบการทำกิจกรรมมากนัก ${data.windText}` };
+          resultCard = { title: "มีฝนตกปรอยๆ", icon: "🌦️", color: "green", tag: "ฝนเล็กน้อย", desc: `พบเมฆครึ้มหรือมีฝนตกปรอยๆ บริเวณ ${realLocName} ${data.windText}` };
       } else {
-          resultCard = { title: "ท้องฟ้าโปร่ง ไม่มีฝน", icon: "☀️", color: "blue", tag: "ปลอดภัย", desc: `เรดาร์ตรวจไม่พบกลุ่มฝนบริเวณ ${locName} ในขณะนี้ สามารถทำกิจกรรมกลางแจ้งหรือซักผ้าได้ตามปกติครับ` };
+          resultCard = { title: "ท้องฟ้าโปร่ง ไม่มีฝน", icon: "☀️", color: "blue", tag: "ปลอดภัย", desc: `เรดาร์ไม่พบกลุ่มฝนบริเวณ ${realLocName} ในขณะนี้ (กรองเมฆรบกวนแล้ว) สามารถทำกิจกรรมหรือเดินทางได้ตามปกติครับ` };
       }
 
       setAiSummaryJson([resultCard]);
-      setAiTimestamp(`${data.radarTime} น. (สแกนจากดาวเทียมภาพล่าสุด)`);
+      setAiTimestamp(`${data.radarTime} น. (วิเคราะห์เจาะจงระดับอำเภอ)`);
 
     } catch(e) {
       setAiSummaryJson([{ title: "ระบบขัดข้อง", icon: "⚠️", color: "red", tag: "Error", desc: "ไม่สามารถประมวลผลภาพเรดาร์ได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง" }]);
@@ -488,7 +486,7 @@ export default function App() {
       setIsGeneratingAI(false);
     }
   };
-  
+
   useEffect(() => {
     if (currentPage === 'forecast' && alertsLocationName === '') {
       if (stations.length > 0) {
