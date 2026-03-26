@@ -106,8 +106,9 @@ export default function App() {
   const [lastUpdateText, setLastUpdateText] = useState('');
   const [locating, setLocating] = useState(false);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('darkMode') === 'true');
+  
+  // สถานะเปิด/ปิด เรดาร์
   const [showRadar, setShowRadar] = useState(false);
-  const [radarTime, setRadarTime] = useState(null);
   
   const [activeWeather, setActiveWeather] = useState(null); 
   const [activeForecast, setActiveForecast] = useState(null); 
@@ -147,7 +148,8 @@ export default function App() {
 
   const handleViewModeChange = (mode) => { setViewMode(mode); setSortOrder(mode === 'temp' ? 'asc' : 'desc'); setShowRadar(false); setIsMobileListOpen(false); };
 
-  const toggleRadar = async () => { if (!showRadar) { try { const res = await fetch('https://api.rainviewer.com/public/weather-maps.json'); const data = await res.json(); setRadarTime(data.radar.past[data.radar.past.length - 1].time); } catch (err) { console.error(err); } } setShowRadar(!showRadar); };
+  // 🌟 อัปเดต: สลับเรดาร์ Windy
+  const toggleRadar = () => { setShowRadar(!showRadar); };
 
   const fetchOpenMeteoBulk = async (stationsList) => {
     try {
@@ -671,6 +673,7 @@ export default function App() {
                 <button onClick={() => handleViewModeChange('rain')} style={{ padding: '6px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: isRainMode ? '#3b82f6' : 'transparent', color: isRainMode ? '#fff' : subTextColor }}>🌧️ ฝน</button>
                 <button onClick={() => handleViewModeChange('wind')} style={{ padding: '6px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: isWindMode ? '#475569' : 'transparent', color: isWindMode ? '#fff' : subTextColor }}>🌬️ ลม</button>
                 <div style={{ width: '2px', backgroundColor: borderColor, margin: '0 4px' }}></div>
+                {/* 🌟 เปลี่ยนปุ่มกด ให้พลิกหน้าจอไปแสดง Windy */}
                 <button onClick={toggleRadar} style={{ padding: '6px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: showRadar ? '#ef4444' : 'transparent', color: showRadar ? '#fff' : subTextColor }}>{showRadar ? '📡 ปิดเรดาร์' : '📡 เรดาร์ฝน'}</button>
               </div>
 
@@ -708,6 +711,18 @@ export default function App() {
                 </div>
               )}
 
+              {/* 🌟 ใหม่: นำจอ Windy เรดาร์มาซ้อนทับแผนที่เดิมเมื่อกดปุ่ม "เรดาร์ฝน" */}
+              {showRadar && (
+                <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 450, backgroundColor: darkMode ? '#0f172a' : '#fff' }}>
+                  <iframe 
+                    width="100%" 
+                    height="100%" 
+                    src={`https://embed.windy.com/embed.html?type=map&location=coordinates&metricRain=mm&metricTemp=°C&metricWind=km/h&zoom=7&overlay=radar&product=radar&level=surface&lat=${activeStation ? activeStation.lat : 13.75}&lon=${activeStation ? activeStation.long : 100.5}`} 
+                    frameBorder="0"
+                  ></iframe>
+                </div>
+              )}
+
               <MapContainer center={[13.75, 100.5]} zoom={10} style={{ height: '100%', width: '100%', zIndex: 1, backgroundColor: darkMode ? '#1a202c' : '#bae6fd' }}>
                 <LayersControl position="bottomleft">
                   <LayersControl.BaseLayer checked name="🗺️ แผนที่ปกติ (Default)">
@@ -717,9 +732,8 @@ export default function App() {
                     <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" />
                   </LayersControl.BaseLayer>
                 </LayersControl>
-                {showRadar && radarTime && <TileLayer url={`https://tilecache.rainviewer.com/v2/radar/${radarTime}/256/{z}/{x}/{y}/2/1_1.png`} opacity={0.65} zIndex={10} maxNativeZoom={12} />}
                 
-                <MapFix /> <FitBounds stations={filteredStations} activeStation={activeStation} selectedProvince={selectedProvince} selectedRegion={selectedRegion} /> <FlyToActiveStation activeStation={activeStation} /> <RadarMapHandler showRadar={showRadar} />
+                <MapFix /> <FitBounds stations={filteredStations} activeStation={activeStation} selectedProvince={selectedProvince} selectedRegion={selectedRegion} /> <FlyToActiveStation activeStation={activeStation} /> 
                 
                 {!showRadar && filteredStations.map((station) => {
                   const lat = parseFloat(station.lat); const lon = parseFloat(station.long); if (isNaN(lat) || isNaN(lon)) return null;
@@ -1160,9 +1174,8 @@ export default function App() {
                 </h3>
               </div>
               
-              {/* แผนที่ลมจาก Windy.com (จำลองการดึง iFrame) */}
+              {/* แผนที่ลมจาก Windy.com */}
               <div style={{ width: '100%', height: window.innerWidth < 768 ? '350px' : '450px', borderRadius: '12px', overflow: 'hidden', border: `1px solid ${borderColor}`, backgroundColor: darkMode ? '#0f172a' : '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                 {/* 💡 ในอนาคตเราจะเอาโค้ด <iframe> ของ Windy หรือ Zoom Earth มาแปะตรงนี้ครับ */}
                  <iframe 
                     width="100%" 
                     height="100%" 
@@ -1187,7 +1200,7 @@ export default function App() {
                     .enso-gauge-container { position: relative; width: 240px; height: 120px; overflow: hidden; }
                     .enso-gauge-bg { position: absolute; top: 0; left: 0; width: 240px; height: 240px; border-radius: 50%; background: conic-gradient(from 270deg, #3b82f6 0deg 60deg, #10b981 60deg 120deg, #ef4444 120deg 180deg, transparent 180deg); }
                     .enso-gauge-inner { position: absolute; top: 30px; left: 30px; width: 180px; height: 180px; border-radius: 50%; background-color: ${darkMode ? '#0f172a' : '#f8fafc'}; }
-                    .enso-needle { position: absolute; bottom: 0; left: 118px; width: 4px; height: 90px; background-color: ${textColor}; transform-origin: bottom center; transform: rotate(10deg); /* ปรับองศาเข็มตรงนี้ (-90 ถึง 90) */ border-radius: 4px; transition: transform 1s ease-out; }
+                    .enso-needle { position: absolute; bottom: 0; left: 118px; width: 4px; height: 90px; background-color: ${textColor}; transform-origin: bottom center; transform: rotate(10deg); border-radius: 4px; transition: transform 1s ease-out; }
                     .enso-dot { position: absolute; bottom: -8px; left: 112px; width: 16px; height: 16px; background-color: ${textColor}; border-radius: 50%; }
                   `}</style>
                   
