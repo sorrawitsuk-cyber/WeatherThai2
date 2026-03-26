@@ -742,7 +742,7 @@ export default function App() {
             <div style={{ display: 'flex', backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: '25px', padding: '4px' }}>
               <button onClick={() => { setCurrentPage('map'); setIsMobileListOpen(false); }} style={{ padding: '5px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem', backgroundColor: currentPage === 'map' ? '#fff' : 'transparent', color: currentPage === 'map' ? '#0ea5e9' : '#fff' }}>🗺️ แผนที่</button>
               <button onClick={() => { setCurrentPage('forecast'); }} style={{ padding: '5px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem', backgroundColor: currentPage === 'forecast' ? '#fff' : 'transparent', color: currentPage === 'forecast' ? '#0ea5e9' : '#fff' }}>🌤️ พยากรณ์</button>
-              <button onClick={() => { setCurrentPage('climate'); }} style={{ padding: '5px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem', backgroundColor: currentPage === 'climate' ? '#fff' : 'transparent', color: currentPage === 'climate' ? '#0ea5e9' : '#fff' }}>🌍 ภูมิอากาศ</button>
+              <button onClick={() => { setCurrentPage('climate'); }} style={{ padding: '5px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem', backgroundColor: currentPage === 'climate' ? '#fff' : 'transparent', color: currentPage === 'climate' ? '#0ea5e9' : '#fff' }}>🌍 ข่าว & เตือนภัย</button>
             </div>
           )}
           <button onClick={() => setDarkMode(!darkMode)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '50%', width: '36px', height: '36px', cursor: 'pointer', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{darkMode ? '☀️' : '🌙'}</button>
@@ -1263,7 +1263,7 @@ export default function App() {
                             <YAxis stroke={subTextColor} fontSize={10} domain={activeChart.domain} />
                             <RechartsTooltip contentStyle={{ borderRadius: '8px', border: `1px solid ${borderColor}`, backgroundColor: cardBg, color: textColor }} />
                             <RechartsLegend wrapperStyle={{ fontSize: '0.8rem', paddingTop: '10px' }} />
-                            {activeChart.hasLY && <Line type="monotone" dataKey={activeChart.keyLY} name="สถิติอดีต (10 ปีที่แล้ว)" stroke="#94a3b8" strokeDasharray="5 5" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />}
+                            {activeChart.hasLY && <Line type="monotone" dataKey={activeChart.keyLY} name="ค่าเฉลี่ย 10 ปีที่)" stroke="#94a3b8" strokeDasharray="5 5" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />}
                             <Line type="monotone" dataKey={activeChart.key} name={`ปัจจุบัน (${activeChart.name})`} stroke={activeChart.color} strokeWidth={3} dot={{ r: 3, fill: activeChart.color }} activeDot={{ r: 6 }} />
                           </LineChart>
                         </ResponsiveContainer>
@@ -1281,7 +1281,7 @@ export default function App() {
                             <YAxis stroke={subTextColor} fontSize={10} domain={activeChart.domain} />
                             <RechartsTooltip contentStyle={{ borderRadius: '8px', border: `1px solid ${borderColor}`, backgroundColor: cardBg, color: textColor }} />
                             <RechartsLegend wrapperStyle={{ fontSize: '0.8rem', paddingTop: '10px' }} />
-                            {activeChart.hasLY && <Line type="monotone" dataKey={activeChart.keyLY} name="สถิติอดีต (10 ปีที่แล้ว)" stroke="#94a3b8" strokeDasharray="5 5" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />}
+                            {activeChart.hasLY && <Line type="monotone" dataKey={activeChart.keyLY} name="ค่าเฉลี่ย 10 ปี" stroke="#94a3b8" strokeDasharray="5 5" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />}
                             <Line type="monotone" dataKey={activeChart.key} name={`คาดการณ์ (${activeChart.name})`} stroke={activeChart.color} strokeWidth={3} dot={{ r: 3, fill: activeChart.color }} activeDot={{ r: 6 }} />
                           </LineChart>
                         </ResponsiveContainer>
@@ -1298,7 +1298,7 @@ export default function App() {
         // ======================= 🌟 ภูมิอากาศ TAB (Climate Center) 🌟 =======================
         <div style={{ flex: 1, padding: '20px', paddingBottom: window.innerWidth < 768 ? '90px' : '20px', maxWidth: '1200px', margin: '0 auto', width: '100%', overflowY: 'auto' }}>
           <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-            <h2 style={{ fontSize: '2rem', color: textColor, marginBottom: '5px', fontWeight:'bold' }}>🌍 ศูนย์วิเคราะห์ภูมิอากาศและภัยพิบัติ</h2>
+            <h2 style={{ fontSize: '2rem', color: textColor, marginBottom: '5px', fontWeight:'bold' }}>🌍 ศูนย์ข้อมูลภูมิอากาศและเตือนภัย</h2>
             <p style={{ color: subTextColor, fontSize:'1.1rem', marginBottom: '20px' }}>เฝ้าระวังพายุ ข่าวสาร และการเปลี่ยนแปลงสภาพภูมิอากาศ</p>
           </div>
 
@@ -1425,7 +1425,7 @@ export default function App() {
           </div>
           <div onClick={() => { setCurrentPage('climate'); window.scrollTo({top:0, behavior:'smooth'}); }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', color: currentPage === 'climate' ? '#0ea5e9' : subTextColor, cursor: 'pointer', flex: 1, padding: '5px' }}>
             <span style={{ fontSize: '1.4rem', marginBottom: '2px', filter: currentPage === 'climate' ? 'none' : 'grayscale(100%) opacity(50%)', transition: 'all 0.2s' }}>🌍</span>
-            <span style={{ fontSize: '0.75rem', fontWeight: currentPage === 'climate' ? 'bold' : 'normal', transition: 'all 0.2s' }}>ภูมิอากาศ</span>
+            <span style={{ fontSize: '0.75rem', fontWeight: currentPage === 'climate' ? 'bold' : 'normal', transition: 'all 0.2s' }}>ข้อมูลภูมิอากาศ</span>
           </div>
         </div>
       )}
