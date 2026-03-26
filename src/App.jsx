@@ -108,7 +108,9 @@ export default function App() {
 
   const [alertsData, setAlertsData] = useState({ urgent: [], daily: [], tomorrow: [], rawHourlyText: '', tomorrowHourlyText: '' }); 
   const [alertsLoading, setAlertsLoading] = useState(false);
-  const [alertsLocationName, setAlertsLocationName] = useState('จ.กรุงเทพมหานคร');
+  
+  // 🌟 แก้บั๊ก 1: ล้างค่าเริ่มต้นให้ว่างเปล่า เพื่อให้ดึงข้อมูลออโต้ตอนเริ่ม
+  const [alertsLocationName, setAlertsLocationName] = useState('');
   const [nationwideSummary, setNationwideSummary] = useState(null);
 
   const [nowcastAlert, setNowcastAlert] = useState(null);
@@ -258,16 +260,12 @@ export default function App() {
     }
   }, [activeStation, showRadar, currentPage, isMobileListOpen]);
 
-  // 🌟 อัปเดต: ดึงข้อมูลปีที่แล้วให้คลุมช่วง 7 วันล่วงหน้าด้วย
   const fetchDashboardData = async (lat, lon, titleText) => {
     setDashTitle(titleText); setDashLoading(true);
     try {
       const today = new Date(); 
-      // ช่วงเวลาปัจจุบัน (ย้อนหลัง 14 วัน ถึงล่วงหน้า 7 วัน)
-      
-      // ช่วงเวลาปีที่แล้ว (ย้อนหลัง 14 วัน ถึงล่วงหน้า 7 วัน)
       const lyEnd = new Date(); lyEnd.setFullYear(today.getFullYear() - 1); lyEnd.setDate(lyEnd.getDate() + 7); 
-      const lyStart = new Date(lyEnd); lyStart.setDate(lyStart.getDate() - 21); // รวมทั้งหมด 21 วัน (14 อดีต + 1 ปัจจุบัน + 6 อนาคต)
+      const lyStart = new Date(lyEnd); lyStart.setDate(lyStart.getDate() - 21); 
       
       const urlW = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,apparent_temperature_max,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,uv_index_max&past_days=14&forecast_days=7&timezone=Asia%2FBangkok`;
       const urlA = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&hourly=pm2_5&past_days=14&forecast_days=7&timezone=Asia%2FBangkok`;
@@ -289,7 +287,6 @@ export default function App() {
             wind: dW.daily.wind_speed_10m_max[i] ?? null, uv: dW.daily.uv_index_max ? (dW.daily.uv_index_max[i] ?? null) : null, pm25: avgPm
           };
           
-          // ใส่ค่าปีที่แล้ว (ถ้ามี)
           item.tempLY = dArc.daily?.temperature_2m_max?(dArc.daily.temperature_2m_max[i]||0):0; 
           item.heatLY = dArc.daily?.apparent_temperature_max?(dArc.daily.apparent_temperature_max[i]||0):0;
           item.rainLY = dArc.daily?.precipitation_sum?(dArc.daily.precipitation_sum[i]||0):0; 
@@ -420,7 +417,6 @@ export default function App() {
   };
 
   const handleRadarPixelScan = async () => {
-    // ใช้พิกัดปัจจุบันเป็นค่าเริ่มต้น ถ้าเลือกจังหวัดอยู่ให้สุ่มสถานีในจังหวัดนั้นมาใช้อ้างอิง
     let targetLat = 13.75;
     let targetLon = 100.5;
     if (activeStation) {
@@ -456,19 +452,21 @@ export default function App() {
     }
   };
 
+  // 🌟 แก้บั๊ก 2: ให้ดึงข้อมูล กทม. อัตโนมัติเมื่อเปิดหน้ามาและสถานะเป็นค่าว่าง
   useEffect(() => {
-    // ดึงข้อมูลกรุงเทพเป็นค่าเริ่มต้น
-    if (currentPage==='forecast' && (!alertsLocationName || alertsLocationName === '')) {
-      if(stations.length > 0){
+    if (currentPage === 'forecast' && alertsLocationName === '') {
+      if (stations.length > 0) {
         const bkkStations = stations.filter(s => extractProvince(s.areaTH) === 'กรุงเทพมหานคร');
-        if(bkkStations.length > 0){
+        if (bkkStations.length > 0) {
            const avgLat = bkkStations.reduce((sum, s) => sum + parseFloat(s.lat), 0) / bkkStations.length;
            const avgLon = bkkStations.reduce((sum, s) => sum + parseFloat(s.long), 0) / bkkStations.length;
            fetchAlertsData(avgLat, avgLon, 'จ.กรุงเทพมหานคร');
+        } else {
+           fetchAlertsData(13.75, 100.5, 'จ.กรุงเทพมหานคร');
         }
       }
     }
-  }, [currentPage, stations]);
+  }, [currentPage, stations, alertsLocationName]);
 
   const generateAISummary = async (topic = 'general') => {
     setIsGeneratingAI(true); setAiSummaryJson(null); setAiTimestamp('');
@@ -811,7 +809,6 @@ export default function App() {
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 15px', backgroundColor: darkMode ? '#1e293b' : '#f0f9ff', borderRadius: '30px', border: `1px solid ${borderColor}` }}>
                 <label style={{ fontWeight: 'bold', color: '#0ea5e9', fontSize: '0.95rem' }}>🎯</label>
                 
-                {/* 🌟 อัปเดต 1: ตัวกรองเปลี่ยนเป็นให้เลือกเฉพาะ "จังหวัด" */}
                 <select 
                   value={alertsLocationName.replace('จ.', '')} 
                   onChange={(e) => {
@@ -819,11 +816,10 @@ export default function App() {
                     if (prov) {
                       const provStations = stations.filter(s => extractProvince(s.areaTH) === prov);
                       if (provStations.length > 0) {
-                        // คำนวณพิกัดเฉลี่ยของจังหวัดนั้นๆ
                         const avgLat = provStations.reduce((sum, s) => sum + parseFloat(s.lat), 0) / provStations.length;
                         const avgLon = provStations.reduce((sum, s) => sum + parseFloat(s.long), 0) / provStations.length;
                         fetchAlertsData(avgLat, avgLon, `จ.${prov}`);
-                        setActiveStation(null); // ล้างค่าสถานี เพื่อให้ระบบรู้ว่าตอนนี้ดูภาพรวมจังหวัด
+                        setActiveStation(null); 
                       }
                     }
                   }} 
@@ -979,7 +975,6 @@ export default function App() {
                         {nationwideSummary.storm.length > 0 ? nationwideSummary.storm.map((item, i) => (
                           <div key={i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', fontSize:'0.9rem', color:textColor, padding:'8px', background:darkMode?'#1e293b':'#fff', borderRadius:'6px' }}>
                             <span><strong style={{color:'#94a3b8'}}>{i+1}.</strong> {item.prov}</span>
-                            {/* 🌟 อัปเดต 2: แสดงค่าเปอร์เซ็นต์ฝนเสมอ ถ้ามีลมแรงด้วยค่อยใส่วงเล็บ */}
                             <span style={{ fontWeight:'bold', color: item.rain >= 70 ? '#dc2626' : '#2563eb' }}>
                               โอกาสฝน {item.rain}% {item.wind > 20 ? <span style={{fontSize:'0.75rem', color:'#64748b'}}>(ลม {item.wind} km/h)</span> : ''}
                             </span>
@@ -1069,7 +1064,7 @@ export default function App() {
                       </div>
                     </div>
 
-                    {/* 🌟 อัปเดต 3: กราฟพยากรณ์ล่วงหน้า (เพิ่มเส้นสถิติปีที่แล้ว) */}
+                    {/* กราฟพยากรณ์ล่วงหน้า 7 วัน */}
                     <div style={{ background: darkMode?'#0f172a':'#f8fafc', padding: '15px', borderRadius: '12px', border: `1px solid ${borderColor}` }}>
                       <h4 style={{ fontSize: '1rem', color: textColor, textAlign: 'center', fontWeight:'bold', marginBottom: '15px' }}>พยากรณ์ล่วงหน้า 7 วัน (เทียบปีที่แล้ว)</h4>
                       <div style={{ height: '220px' }}>
