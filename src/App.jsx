@@ -331,7 +331,7 @@ export default function App() {
     navigator.geolocation.getCurrentPosition((pos) => {
       let nearest = null; let minD = Infinity;
       stations.forEach(s => { const d = getDistanceFromLatLonInKm(pos.coords.latitude, pos.coords.longitude, parseFloat(s.lat), parseFloat(s.long)); if (d<minD){minD=d; nearest=s;} });
-      if (nearest) { const prov = extractProvince(nearest.areaTH); setSelectedRegion(getRegion(prov)); setSelectedProvince(prov); setSelectedStationId(nearest.stationID); setActiveStation(nearest); setShowRadar(false); setIsMobileListOpen(false); setCurrentPage('map'); window.scrollTo({top:0, behavior:'smooth'}); }
+      if (nearest) { const prov = extractProvince(nearest.areaTH); setSelectedRegion(getRegion(prov)); setSelectedProvince(prov); setSelectedStationId(nearest.stationID); setActiveStation(nearest); setIsMobileListOpen(false); setCurrentPage('map'); window.scrollTo({top:0, behavior:'smooth'}); }
       setLocating(false);
     }, () => { alert('ดึงพิกัดไม่ได้'); setLocating(false); });
   };
@@ -430,7 +430,6 @@ export default function App() {
     } catch(e) { console.error("Error setting alerts:", e); } finally { setAlertsLoading(false); }
   };
 
-  // แยกฟังก์ชันยิง API เรดาร์ออกมาเพื่อให้อ่านง่าย
   const executeRadarScan = async (lat, lon, windDir, windSpeed, locName) => {
     setIsMapRadarScanning(true);
     setMapRadarResult(null);
@@ -453,7 +452,7 @@ export default function App() {
       } else if (data.alertLevel === 1) {
           resultCard = { title: "มีฝนตกปรอยๆ", icon: "🌦️", color: "green", tag: "ฝนเล็กน้อย", desc: `พบเมฆครึ้มหรือมีฝนตกปรอยๆ บริเวณ ${realLocName} ${data.windText}` };
       } else {
-          resultCard = { title: "ท้องฟ้าโปร่ง ไม่มีฝน", icon: "☀️", color: "blue", tag: "ปลอดภัย", desc: `เรดาร์ไม่พบกลุ่มฝนบริเวณ ${realLocName} ในขณะนี้ (กรองเมฆบางแล้ว) สามารถทำกิจกรรมได้ตามปกติ` };
+          resultCard = { title: "ท้องฟ้าโปร่ง ไม่มีฝน", icon: "☀️", color: "blue", tag: "ปลอดภัย", desc: `เรดาร์ไม่พบกลุ่มฝนบริเวณ ${realLocName} ในขณะนี้ (กรองเมฆรบกวนแล้ว) สามารถทำกิจกรรมได้ตามปกติ` };
       }
 
       setMapRadarResult(resultCard);
@@ -465,14 +464,32 @@ export default function App() {
     }
   };
 
-  const handleMapRadarScan = async () => {
+  const handleMapRadarScan = async (useGps = false) => {
     let targetLat = 13.75;
     let targetLon = 100.5;
     let windDir = 0;
     let windSpeed = 0;
     let locName = 'พิกัดที่กำหนด';
 
-    // 🌟 อัปเดต: คำนวณพิกัดให้ตรงกึ่งกลางจังหวัดจริงๆ (แก้บั๊กไปโผล่โคราช)
+    if (useGps) {
+      if (!navigator.geolocation) return alert('อุปกรณ์ของคุณไม่รองรับ GPS');
+      setIsMapRadarScanning(true);
+      setMapRadarResult(null);
+      
+      navigator.geolocation.getCurrentPosition(async (pos) => {
+        targetLat = pos.coords.latitude;
+        targetLon = pos.coords.longitude;
+        locName = 'พิกัดปัจจุบันของคุณ';
+        
+        setRadarTarget({ lat: targetLat, lon: targetLon, name: locName });
+        await executeRadarScan(targetLat, targetLon, 0, 0, locName); 
+      }, () => {
+        alert('ไม่สามารถเข้าถึงตำแหน่ง GPS ได้');
+        setIsMapRadarScanning(false);
+      });
+      return; 
+    }
+
     if (activeStation && !isNaN(parseFloat(activeStation.lat))) {
       targetLat = parseFloat(activeStation.lat); 
       targetLon = parseFloat(activeStation.long); 
@@ -603,7 +620,7 @@ export default function App() {
   const todayDateText = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
   const currentHr = new Date().getHours(); const next3Hr = (currentHr + 3) % 24; const timeStr3h = `${String(currentHr).padStart(2, '0')}:00 - ${String(next3Hr).padStart(2, '0')}:00 น.`;
 
-  // อัปเดตศูนย์กลางแผนที่ตอนกดเรดาร์ (ดึงพิกัดจริงๆ ของจังหวัด)
+  // อัปเดตศูนย์กลางแผนที่
   let radarLat = 13.75;
   let radarLon = 100.5;
   let radarZoom = 6;
@@ -621,7 +638,7 @@ export default function App() {
     }
   }
 
-  // ล็อคเป้าแผนที่ตอนกำลังสแกน หรือโชว์ผลลัพธ์
+  // ใช้ตำแหน่งที่ตั้งไว้ล่าสุดเพื่อบังคับ iframe ให้ล็อคเป้า
   if (isMapRadarScanning || mapRadarResult) {
      radarLat = radarTarget.lat;
      radarLon = radarTarget.lon;
@@ -647,21 +664,22 @@ export default function App() {
               <div className="hide-scrollbar" style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: 'rgba(255,255,255,0.15)', padding: '5px 12px', borderRadius: '30px', overflowX: 'auto', whiteSpace: 'nowrap', flex: 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <label style={{ fontWeight: 'bold', fontSize: '0.85rem' }}>📍</label>
-                  <select value={selectedRegion} onChange={(e) => { setSelectedRegion(e.target.value); setSelectedProvince(''); setSelectedStationId(''); setActiveStation(null); setShowRadar(false); setIsMobileListOpen(false); setMapRadarResult(null); }} style={{ padding: '5px 10px', borderRadius: '15px', border: 'none', backgroundColor: '#fff', color: '#1e293b', outline: 'none', cursor: 'pointer', fontSize: '0.85rem' }}>
+                  {/* 🌟 ปลดล็อคคำสั่งปิดเรดาร์ออกแล้ว */}
+                  <select value={selectedRegion} onChange={(e) => { setSelectedRegion(e.target.value); setSelectedProvince(''); setSelectedStationId(''); setActiveStation(null); setIsMobileListOpen(false); setMapRadarResult(null); setIsMapRadarScanning(false); }} style={{ padding: '5px 10px', borderRadius: '15px', border: 'none', backgroundColor: '#fff', color: '#1e293b', outline: 'none', cursor: 'pointer', fontSize: '0.85rem' }}>
                     <option value="">ทุกภูมิภาค</option>{Object.keys(regionMapping).map(r => <option key={r} value={r}>{r}</option>)}
                   </select>
                 </div>
                 <div style={{ width: '1px', height: '15px', backgroundColor: 'rgba(255,255,255,0.3)' }}></div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <label style={{ fontWeight: 'bold', fontSize: '0.85rem' }}>🗺️</label>
-                  <select value={selectedProvince} onChange={(e) => { setSelectedProvince(e.target.value); setSelectedStationId(''); setActiveStation(null); setShowRadar(false); setIsMobileListOpen(false); setMapRadarResult(null); }} style={{ padding: '5px 10px', borderRadius: '15px', border: 'none', backgroundColor: '#fff', color: '#1e293b', outline: 'none', cursor: 'pointer', fontSize: '0.85rem' }}>
+                  <select value={selectedProvince} onChange={(e) => { setSelectedProvince(e.target.value); setSelectedStationId(''); setActiveStation(null); setIsMobileListOpen(false); setMapRadarResult(null); setIsMapRadarScanning(false); }} style={{ padding: '5px 10px', borderRadius: '15px', border: 'none', backgroundColor: '#fff', color: '#1e293b', outline: 'none', cursor: 'pointer', fontSize: '0.85rem' }}>
                     <option value="">ทุกจังหวัด</option>{availableProvinces.map(p => (<option key={p} value={p}>{p}</option>))}
                   </select>
                 </div>
                 <div style={{ width: '1px', height: '15px', backgroundColor: 'rgba(255,255,255,0.3)' }}></div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1 }}>
                   <label style={{ fontWeight: 'bold', fontSize: '0.85rem' }}>📌</label>
-                  <select value={selectedStationId} onChange={(e) => { setSelectedStationId(e.target.value); const stat = filteredStations.find(s => s.stationID === e.target.value); if(stat) {setActiveStation(stat); setShowRadar(false); setIsMobileListOpen(false); setMapRadarResult(null);} }} style={{ width: '100%', minWidth: '150px', padding: '5px 10px', borderRadius: '15px', border: 'none', backgroundColor: '#fff', color: '#1e293b', outline: 'none', cursor: 'pointer', fontSize: '0.85rem', textOverflow: 'ellipsis' }}>
+                  <select value={selectedStationId} onChange={(e) => { setSelectedStationId(e.target.value); const stat = filteredStations.find(s => s.stationID === e.target.value); if(stat) {setActiveStation(stat); setIsMobileListOpen(false); setMapRadarResult(null); setIsMapRadarScanning(false);} }} style={{ width: '100%', minWidth: '150px', padding: '5px 10px', borderRadius: '15px', border: 'none', backgroundColor: '#fff', color: '#1e293b', outline: 'none', cursor: 'pointer', fontSize: '0.85rem', textOverflow: 'ellipsis' }}>
                     <option value="">-- เลือกสถานี --</option>{filteredStations.slice().sort((a, b) => a.nameTH.localeCompare(b.nameTH, 'th')).map(s => (<option key={s.stationID} value={s.stationID}>{s.nameTH}</option>))}
                   </select>
                 </div>
@@ -760,7 +778,6 @@ export default function App() {
               {showRadar && (
                 <>
                   <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 450, backgroundColor: darkMode ? '#0f172a' : '#fff' }}>
-                    {/* ล็อค iframe ไม่ให้กวนตอนสแกน หรือตอนโชว์ผลลัพธ์ */}
                     <iframe 
                       width="100%" 
                       height="100%" 
@@ -770,12 +787,19 @@ export default function App() {
                     ></iframe>
                   </div>
 
-                  {/* 🌟 อัปเดต: เลื่อนปุ่มควบคุม AI ลงมาตรงกลางล่าง หลบแถบของ Windy */}
+                  {/* แผงควบคุมลอยตัว (Floating Control Panel) */}
                   {!isMapRadarScanning && !mapRadarResult && (
-                    <div style={{ position: 'absolute', bottom: '20px', left: '50%', transform: 'translateX(-50%)', zIndex: 600, display: 'flex', gap: '10px' }}>
-                      <button onClick={() => handleMapRadarScan()} style={{ padding: '12px 24px', borderRadius: '30px', backgroundColor: '#8b5cf6', color: '#fff', border: '1px solid rgba(255,255,255,0.2)', fontWeight: 'bold', fontSize: '1rem', cursor: 'pointer', boxShadow: '0 4px 20px rgba(139, 92, 246, 0.5)', display: 'flex', alignItems: 'center', gap: '8px', animation: 'pulseGlow 2s infinite', backdropFilter: 'blur(5px)' }}>
-                        <span style={{ fontSize: '1.2rem' }}>🔍</span> AI วิเคราะห์ฝน
-                      </button>
+                    <div style={{ position: 'absolute', bottom: '30px', left: '50%', transform: 'translateX(-50%)', zIndex: 600, display: 'flex', flexDirection: 'column', gap: '10px', background: darkMode ? 'rgba(30, 41, 59, 0.85)' : 'rgba(255, 255, 255, 0.85)', padding: '15px', borderRadius: '20px', backdropFilter: 'blur(10px)', border: `1px solid ${borderColor}`, boxShadow: '0 10px 30px rgba(0,0,0,0.15)', width: '90%', maxWidth: '400px' }}>
+                      <div style={{ textAlign: 'center', color: textColor, fontWeight: 'bold', fontSize: '0.9rem' }}>🎯 เล็งเป้าหมายให้ AI วิเคราะห์ฝน</div>
+                      
+                      <div style={{ display: 'flex', gap: '10px' }}>
+                        <button onClick={() => handleMapRadarScan(true)} style={{ flex: 1, padding: '10px', borderRadius: '12px', backgroundColor: '#0ea5e9', color: '#fff', border: 'none', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                          📍 ตำแหน่งฉัน
+                        </button>
+                        <button onClick={() => handleMapRadarScan(false)} style={{ flex: 2, padding: '10px', borderRadius: '12px', backgroundColor: '#8b5cf6', color: '#fff', border: 'none', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', animation: 'pulseGlow 2s infinite' }}>
+                          🔍 สแกน {selectedProvince ? `จ.${selectedProvince}` : 'พิกัดที่เลือก'}
+                        </button>
+                      </div>
                     </div>
                   )}
 
@@ -806,6 +830,7 @@ export default function App() {
                       </div>
                       <p style={{ margin: 0, color: textColor, fontSize: '0.9rem', lineHeight: '1.6' }}>{mapRadarResult.desc}</p>
                       
+                      {/* ป้ายชื่อสถานที่เป้าหมาย */}
                       <div style={{ marginTop: '10px', fontSize: '0.8rem', color: subTextColor, borderTop: `1px solid ${borderColor}`, paddingTop: '10px' }}>
                         📍 สแกนที่: <strong>{radarTarget.name}</strong>
                       </div>
@@ -861,7 +886,7 @@ export default function App() {
               </MapContainer>
             </div>
 
-            {/* SIDEBAR RIGHT LIST */}
+            {/* SIDEBAR RIGHT LIST (ซ่อนเมื่อเปิดเรดาร์เพื่อความสวยงามใน Desktop) */}
             <div style={{ 
               flex: window.innerWidth < 768 ? 'none' : 3, 
               display: (window.innerWidth < 768 && isMobileListOpen && !showRadar) || (window.innerWidth >= 768 && !showRadar) ? 'flex' : 'none',
