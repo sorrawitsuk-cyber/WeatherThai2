@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap, LayersControl } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { LineChart, Line, BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend as RechartsLegend, ResponsiveContainer } from 'recharts';
 import './App.css';
 
 // ==============================================================
@@ -33,13 +33,14 @@ const legendData = {
   wind: { title: 'ความเร็วลม', items: [{color:'#00b0f0',label:'0-10 (ลมอ่อน)'},{color:'#2ecc71',label:'11-25 (ลมปานกลาง)'},{color:'#f1c40f',label:'26-40 (ลมแรง)'},{color:'#e67e22',label:'41-60 (ลมแรงมาก)'},{color:'#e74c3c',label:'> 60 (พายุ)'}] }
 };
 
+// 🌟 อัปเดต: บังคับให้เป็น line chart ล้วนทุกโหมด เพื่อความสบายตา
 const chartConfigs = { 
-  pm25: { key: 'pm25', name: 'PM2.5', color: '#f59e0b', type: 'area', domain: [0, max => Math.max(100, Math.ceil(max))] }, 
-  temp: { key: 'temp', keyLY: 'tempLY', name: 'อุณหภูมิสูงสุด', color: '#ef4444', hasLY: true, type: 'line', domain: [min => Math.min(20, Math.floor(min)), max => Math.max(45, Math.ceil(max))] }, 
-  heat: { key: 'heat', keyLY: 'heatLY', name: 'Heat Index สูงสุด', color: '#ea580c', hasLY: true, type: 'line', domain: [min => Math.min(25, Math.floor(min)), max => Math.max(55, Math.ceil(max))] }, 
-  uv: { key: 'uv', keyLY: null, name: 'รังสี UV สูงสุด', color: '#a855f7', type: 'area', domain: [0, max => Math.max(12, Math.ceil(max))] }, 
-  rain: { key: 'rain', keyLY: 'rainLY', name: 'ปริมาณฝนสะสม', color: '#3b82f6', hasLY: true, type: 'bar', domain: [0, max => Math.max(20, Math.ceil(max))] }, 
-  wind: { key: 'wind', keyLY: 'windLY', name: 'ความเร็วลมสูงสุด', color: '#64748b', hasLY: true, type: 'line', domain: [0, max => Math.max(40, Math.ceil(max))] } 
+  pm25: { key: 'pm25', name: 'PM2.5', color: '#f59e0b', domain: [0, max => Math.max(100, Math.ceil(max))] }, 
+  temp: { key: 'temp', keyLY: 'tempLY', name: 'อุณหภูมิสูงสุด', color: '#ef4444', hasLY: true, domain: [min => Math.min(20, Math.floor(min)), max => Math.max(45, Math.ceil(max))] }, 
+  heat: { key: 'heat', keyLY: 'heatLY', name: 'Heat Index สูงสุด', color: '#ea580c', hasLY: true, domain: [min => Math.min(25, Math.floor(min)), max => Math.max(55, Math.ceil(max))] }, 
+  uv: { key: 'uv', keyLY: null, name: 'รังสี UV สูงสุด', color: '#a855f7', domain: [0, max => Math.max(12, Math.ceil(max))] }, 
+  rain: { key: 'rain', keyLY: 'rainLY', name: 'ปริมาณฝนสะสม', color: '#3b82f6', hasLY: true, domain: [0, max => Math.max(20, Math.ceil(max))] }, 
+  wind: { key: 'wind', keyLY: 'windLY', name: 'ความเร็วลมสูงสุด', color: '#64748b', hasLY: true, domain: [0, max => Math.max(40, Math.ceil(max))] } 
 };
 
 // 2. Map Components & Skeleton
@@ -83,7 +84,7 @@ export default function App() {
   const [selectedProvince, setSelectedProvince] = useState('กรุงเทพมหานคร');
   
   const [selectedStationId, setSelectedStationId] = useState('');
-  const [viewMode, setViewMode] = useState('pm25'); 
+  const [viewMode, setViewMode] = useState('temp'); 
   const [sortOrder, setSortOrder] = useState('desc'); 
   const [stationTemps, setStationTemps] = useState({});
   const [activeStation, setActiveStation] = useState(null);
@@ -108,8 +109,6 @@ export default function App() {
 
   const [alertsData, setAlertsData] = useState({ urgent: [], daily: [], tomorrow: [], rawHourlyText: '', tomorrowHourlyText: '' }); 
   const [alertsLoading, setAlertsLoading] = useState(false);
-  
-  // 🌟 แก้บั๊ก 1: ล้างค่าเริ่มต้นให้ว่างเปล่า เพื่อให้ดึงข้อมูลออโต้ตอนเริ่ม
   const [alertsLocationName, setAlertsLocationName] = useState('');
   const [nationwideSummary, setNationwideSummary] = useState(null);
 
@@ -264,7 +263,8 @@ export default function App() {
     setDashTitle(titleText); setDashLoading(true);
     try {
       const today = new Date(); 
-      const lyEnd = new Date(); lyEnd.setFullYear(today.getFullYear() - 1); lyEnd.setDate(lyEnd.getDate() + 7); 
+      // 🌟 ดึงข้อมูล 10 ปีที่แล้ว
+      const lyEnd = new Date(); lyEnd.setFullYear(today.getFullYear() - 10); lyEnd.setDate(lyEnd.getDate() + 7); 
       const lyStart = new Date(lyEnd); lyStart.setDate(lyStart.getDate() - 21); 
       
       const urlW = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,apparent_temperature_max,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,uv_index_max&past_days=14&forecast_days=7&timezone=Asia%2FBangkok`;
@@ -452,7 +452,6 @@ export default function App() {
     }
   };
 
-  // 🌟 แก้บั๊ก 2: ให้ดึงข้อมูล กทม. อัตโนมัติเมื่อเปิดหน้ามาและสถานะเป็นค่าว่าง
   useEffect(() => {
     if (currentPage === 'forecast' && alertsLocationName === '') {
       if (stations.length > 0) {
@@ -976,7 +975,7 @@ export default function App() {
                           <div key={i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', fontSize:'0.9rem', color:textColor, padding:'8px', background:darkMode?'#1e293b':'#fff', borderRadius:'6px' }}>
                             <span><strong style={{color:'#94a3b8'}}>{i+1}.</strong> {item.prov}</span>
                             <span style={{ fontWeight:'bold', color: item.rain >= 70 ? '#dc2626' : '#2563eb' }}>
-                              โอกาสฝน {item.rain}% {item.wind > 20 ? <span style={{fontSize:'0.75rem', color:'#64748b'}}>(ลม {item.wind} km/h)</span> : ''}
+                              โอกาสฝน {item.rain}% {item.wind > 0 ? <span style={{fontSize:'0.75rem', color:'#64748b'}}>| ลม {item.wind} km/h</span> : ''}
                             </span>
                           </div>
                         )) : <div style={{ fontSize:'0.85rem', color:'#16a34a', textAlign:'center', padding:'10px' }}>ไม่มีจังหวัดที่เสี่ยงรุนแรง</div>}
@@ -1033,69 +1032,33 @@ export default function App() {
                       <h4 style={{ fontSize: '1rem', color: textColor, textAlign: 'center', fontWeight:'bold', marginBottom: '15px' }}>ย้อนหลัง 14 วัน</h4>
                       <div style={{ height: '220px' }}>
                         <ResponsiveContainer>
-                          {activeChart.type === 'bar' ? (
-                            <BarChart data={dashHistory} margin={{ top:5, right:10, bottom:5, left:-20 }}>
-                              <CartesianGrid strokeDasharray="3 3" stroke={borderColor} />
-                              <XAxis dataKey="date" stroke={subTextColor} fontSize={10} />
-                              <YAxis stroke={subTextColor} fontSize={10} domain={activeChart.domain} />
-                              <RechartsTooltip />
-                              <Bar dataKey={activeChart.key} name={activeChart.name} fill={activeChart.color} radius={[4,4,0,0]} />
-                              {activeChart.hasLY && <Bar dataKey={activeChart.keyLY} name="สถิติปีที่แล้ว" fill="#94a3b8" radius={[4,4,0,0]} />}
-                            </BarChart>
-                          ) : activeChart.type === 'area' ? (
-                            <AreaChart data={dashHistory} margin={{ top:5, right:10, bottom:5, left:-20 }}>
-                              <CartesianGrid strokeDasharray="3 3" stroke={borderColor} />
-                              <XAxis dataKey="date" stroke={subTextColor} fontSize={10} />
-                              <YAxis stroke={subTextColor} fontSize={10} domain={activeChart.domain} />
-                              <RechartsTooltip />
-                              <Area type="monotone" dataKey={activeChart.key} name={activeChart.name} stroke={activeChart.color} fill={activeChart.color} fillOpacity={0.4} strokeWidth={2} />
-                            </AreaChart>
-                          ) : (
-                            <LineChart data={dashHistory} margin={{ top:5, right:10, bottom:5, left:-20 }}>
-                              <CartesianGrid strokeDasharray="3 3" stroke={borderColor} />
-                              <XAxis dataKey="date" stroke={subTextColor} fontSize={10} />
-                              <YAxis stroke={subTextColor} fontSize={10} domain={activeChart.domain} />
-                              <RechartsTooltip />
-                              <Line type="monotone" dataKey={activeChart.key} name={activeChart.name} stroke={activeChart.color} strokeWidth={3} />
-                              {activeChart.hasLY && <Line type="monotone" dataKey={activeChart.keyLY} name="สถิติปีที่แล้ว" stroke="#94a3b8" strokeDasharray="4 4" strokeWidth={2} />}
-                            </LineChart>
-                          )}
+                          <LineChart data={dashHistory} margin={{ top:5, right:10, bottom:5, left:-20 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke={borderColor} vertical={false} />
+                            <XAxis dataKey="date" stroke={subTextColor} fontSize={10} tickMargin={5} />
+                            <YAxis stroke={subTextColor} fontSize={10} domain={activeChart.domain} />
+                            <RechartsTooltip contentStyle={{ borderRadius: '8px', border: `1px solid ${borderColor}`, backgroundColor: cardBg, color: textColor }} />
+                            <RechartsLegend wrapperStyle={{ fontSize: '0.8rem', paddingTop: '10px' }} />
+                            {activeChart.hasLY && <Line type="monotone" dataKey={activeChart.keyLY} name="สถิติอดีต (10 ปีที่แล้ว)" stroke="#94a3b8" strokeDasharray="5 5" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />}
+                            <Line type="monotone" dataKey={activeChart.key} name={`ปัจจุบัน (${activeChart.name})`} stroke={activeChart.color} strokeWidth={3} dot={{ r: 3, fill: activeChart.color }} activeDot={{ r: 6 }} />
+                          </LineChart>
                         </ResponsiveContainer>
                       </div>
                     </div>
 
                     {/* กราฟพยากรณ์ล่วงหน้า 7 วัน */}
                     <div style={{ background: darkMode?'#0f172a':'#f8fafc', padding: '15px', borderRadius: '12px', border: `1px solid ${borderColor}` }}>
-                      <h4 style={{ fontSize: '1rem', color: textColor, textAlign: 'center', fontWeight:'bold', marginBottom: '15px' }}>พยากรณ์ล่วงหน้า 7 วัน (เทียบปีที่แล้ว)</h4>
+                      <h4 style={{ fontSize: '1rem', color: textColor, textAlign: 'center', fontWeight:'bold', marginBottom: '15px' }}>พยากรณ์ล่วงหน้า 7 วัน</h4>
                       <div style={{ height: '220px' }}>
                         <ResponsiveContainer>
-                          {activeChart.type === 'bar' ? (
-                            <BarChart data={validForecast} margin={{ top:5, right:10, bottom:5, left:-20 }}>
-                              <CartesianGrid strokeDasharray="3 3" stroke={borderColor} />
-                              <XAxis dataKey="date" stroke={subTextColor} fontSize={10} />
-                              <YAxis stroke={subTextColor} fontSize={10} domain={activeChart.domain} />
-                              <RechartsTooltip />
-                              <Bar dataKey={activeChart.key} name={activeChart.name} fill={activeChart.color} radius={[4,4,0,0]} />
-                              {activeChart.hasLY && <Bar dataKey={activeChart.keyLY} name="สถิติปีที่แล้ว" fill="#94a3b8" radius={[4,4,0,0]} />}
-                            </BarChart>
-                          ) : activeChart.type === 'area' ? (
-                             <AreaChart data={validForecast} margin={{ top:5, right:10, bottom:5, left:-20 }}>
-                              <CartesianGrid strokeDasharray="3 3" stroke={borderColor} />
-                              <XAxis dataKey="date" stroke={subTextColor} fontSize={10} />
-                              <YAxis stroke={subTextColor} fontSize={10} domain={activeChart.domain} />
-                              <RechartsTooltip />
-                              <Area type="monotone" dataKey={activeChart.key} name={activeChart.name} stroke={activeChart.color} fill={activeChart.color} fillOpacity={0.4} strokeWidth={3} />
-                            </AreaChart>
-                          ) : (
-                            <LineChart data={validForecast} margin={{ top:5, right:10, bottom:5, left:-20 }}>
-                              <CartesianGrid strokeDasharray="3 3" stroke={borderColor} />
-                              <XAxis dataKey="date" stroke={subTextColor} fontSize={10} />
-                              <YAxis stroke={subTextColor} fontSize={10} domain={activeChart.domain} />
-                              <RechartsTooltip />
-                              <Line type="monotone" dataKey={activeChart.key} name={activeChart.name} stroke={activeChart.color} strokeWidth={3} />
-                              {activeChart.hasLY && <Line type="monotone" dataKey={activeChart.keyLY} name="สถิติปีที่แล้ว" stroke="#94a3b8" strokeDasharray="4 4" strokeWidth={2} />}
-                            </LineChart>
-                          )}
+                          <LineChart data={validForecast} margin={{ top:5, right:10, bottom:5, left:-20 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke={borderColor} vertical={false} />
+                            <XAxis dataKey="date" stroke={subTextColor} fontSize={10} tickMargin={5} />
+                            <YAxis stroke={subTextColor} fontSize={10} domain={activeChart.domain} />
+                            <RechartsTooltip contentStyle={{ borderRadius: '8px', border: `1px solid ${borderColor}`, backgroundColor: cardBg, color: textColor }} />
+                            <RechartsLegend wrapperStyle={{ fontSize: '0.8rem', paddingTop: '10px' }} />
+                            {activeChart.hasLY && <Line type="monotone" dataKey={activeChart.keyLY} name="สถิติอดีต (10 ปีที่แล้ว)" stroke="#94a3b8" strokeDasharray="5 5" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />}
+                            <Line type="monotone" dataKey={activeChart.key} name={`คาดการณ์ (${activeChart.name})`} stroke={activeChart.color} strokeWidth={3} dot={{ r: 3, fill: activeChart.color }} activeDot={{ r: 6 }} />
+                          </LineChart>
                         </ResponsiveContainer>
                       </div>
                     </div>
