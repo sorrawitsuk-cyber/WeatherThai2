@@ -130,10 +130,6 @@ export default function App() {
   
   useEffect(() => { setAiSummaryJson(null); setAiTimestamp(''); setNowcastAlert(null); }, [alertsLocationName, activeStation, aiTargetDay]);
 
-<<<<<<< HEAD
-=======
-  // 🌟 จุดที่มีการแก้ไข: ไม่ให้แผนที่ซูมออกเวลาเปลี่ยนโหมด
->>>>>>> 3ccbef092ae59b5dae5e57d34753c334e5cad979
   const handleViewModeChange = (mode) => { setViewMode(mode); setSortOrder(mode === 'temp' ? 'asc' : 'desc'); setShowRadar(false); setIsMobileListOpen(false); };
 
   const toggleRadar = async () => { if (!showRadar) { try { const res = await fetch('https://api.rainviewer.com/public/weather-maps.json'); const data = await res.json(); setRadarTime(data.radar.past[data.radar.past.length - 1].time); } catch (err) { console.error(err); } } setShowRadar(!showRadar); };
@@ -438,33 +434,6 @@ export default function App() {
     }
     
     const locName = alertsLocationName || 'พิกัดปัจจุบัน';
-    
-    setAlertsLoading(true);
-    try {
-      const res = await fetch('/api/radar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lat: parseFloat(targetLat), lon: parseFloat(targetLon) })
-      });
-      const data = await res.json();
-      
-      if (data.intensity) {
-        alert(`🛰️ รายงานวิเคราะห์ข้อมูลเรดาร์ (Nowcast)\n📍 พื้นที่เป้าหมาย: ${locName}\n\nสถานะกลุ่มฝน ณ ปัจจุบัน:\n${data.intensity}\n\n🕒 อ้างอิงข้อมูลภาพถ่ายดาวเทียมเวลา: ${data.radarTime}`);
-      } else {
-        alert("⚠️ ระบบขัดข้อง: " + data.error);
-      }
-    } catch(e) {
-      alert("⚠️ เกิดข้อผิดพลาดในการเชื่อมต่อศูนย์ข้อมูลเรดาร์");
-    } finally {
-      setAlertsLoading(false);
-    }
-  };
-
-  // 🌟 ฟังก์ชันสแกนเรดาร์ (ทางการ)
-  const handleRadarPixelScan = async () => {
-    const targetLat = activeStation ? activeStation.lat : 13.75;
-    const targetLon = activeStation ? activeStation.long : 100.5;
-    const locName = activeStation ? activeStation.nameTH : (alertsLocationName || 'พิกัดปัจจุบัน');
     
     setAlertsLoading(true);
     try {
@@ -927,11 +896,6 @@ export default function App() {
                   <button onClick={() => generateAISummary('lifestyle')} disabled={isGeneratingAI} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #10b981`, backgroundColor: darkMode ? 'rgba(16,185,129,0.1)' : '#f0fdf4', color: '#10b981', fontSize: '0.85rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold' }}>👕 ซักผ้า/ล้างรถ</button>
                   <button onClick={() => generateAISummary('exercise')} disabled={isGeneratingAI} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #f59e0b`, backgroundColor: darkMode ? 'rgba(245,158,11,0.1)' : '#fffbeb', color: '#f59e0b', fontSize: '0.85rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold' }}>🏃‍♂️ ออกกำลังกาย</button>
                   <button onClick={() => generateAISummary('health')} disabled={isGeneratingAI} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #ef4444`, backgroundColor: darkMode ? 'rgba(239,68,68,0.1)' : '#fef2f2', color: '#ef4444', fontSize: '0.85rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold' }}>😷 สุขภาพ/ภูมิแพ้</button>
-<<<<<<< HEAD
-=======
-                  <button onClick={() => generateAISummary('travel')} disabled={isGeneratingAI} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #db2777`, backgroundColor: darkMode ? 'rgba(219,39,119,0.1)' : '#fce7f3', color: '#db2777', fontSize: '0.85rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold' }}>🎒 ท่องเที่ยว</button>
-                  <button onClick={() => generateAISummary('agriculture')} disabled={isGeneratingAI} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #84cc16`, backgroundColor: darkMode ? 'rgba(132,204,22,0.1)' : '#ecfccb', color: '#65a30d', fontSize: '0.85rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold' }}>🌾 เกษตรกร</button>
->>>>>>> 3ccbef092ae59b5dae5e57d34753c334e5cad979
                   <button onClick={handleRadarPixelScan} disabled={alertsLoading} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #14b8a6`, backgroundColor: darkMode ? 'rgba(20,184,166,0.1)' : '#ccfbf1', color: '#0d9488', fontSize: '0.85rem', cursor: alertsLoading?'wait':'pointer', fontWeight:'bold' }}>📡 ตรวจสอบเรดาร์</button>
                 </div>
 
