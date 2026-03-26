@@ -331,7 +331,7 @@ export default function App() {
     navigator.geolocation.getCurrentPosition((pos) => {
       let nearest = null; let minD = Infinity;
       stations.forEach(s => { const d = getDistanceFromLatLonInKm(pos.coords.latitude, pos.coords.longitude, parseFloat(s.lat), parseFloat(s.long)); if (d<minD){minD=d; nearest=s;} });
-      if (nearest) { const prov = extractProvince(nearest.areaTH); setSelectedRegion(getRegion(prov)); setSelectedProvince(prov); setSelectedStationId(nearest.stationID); setActiveStation(nearest); setIsMobileListOpen(false); setCurrentPage('map'); window.scrollTo({top:0, behavior:'smooth'}); }
+      if (nearest) { const prov = extractProvince(nearest.areaTH); setSelectedRegion(getRegion(prov)); setSelectedProvince(prov); setSelectedStationId(nearest.stationID); setActiveStation(nearest); setShowRadar(false); setIsMobileListOpen(false); setCurrentPage('map'); window.scrollTo({top:0, behavior:'smooth'}); }
       setLocating(false);
     }, () => { alert('ดึงพิกัดไม่ได้'); setLocating(false); });
   };
@@ -430,6 +430,57 @@ export default function App() {
     } catch(e) { console.error("Error setting alerts:", e); } finally { setAlertsLoading(false); }
   };
 
+  // 🌟 (1) นี่คือฟังก์ชันที่อัปเดตใหม่ครับ! ของปุ่มตรวจเรดาร์หน้าพยากรณ์
+  const handleRadarPixelScan = async () => {
+    let targetLat = 13.75;
+    let targetLon = 100.5;
+    let windDir = 0;
+    let windSpeed = 0;
+
+    if (activeStation) {
+      targetLat = activeStation.lat; targetLon = activeStation.long;
+      const tObj = stationTemps[activeStation.stationID];
+      if (tObj) { windDir = tObj.windDir; windSpeed = tObj.windSpeed; }
+    } else if (alertsLocationName.includes('จ.')) {
+      const provName = alertsLocationName.replace('จ.', '');
+      const provStations = stations.filter(s => extractProvince(s.areaTH) === provName);
+      if (provStations.length > 0) {
+        targetLat = provStations[0].lat; targetLon = provStations[0].long;
+        const tObj = stationTemps[provStations[0].stationID];
+        if (tObj) { windDir = tObj.windDir; windSpeed = tObj.windSpeed; }
+      }
+    }
+    
+    setIsGeneratingAI(true);
+    setAiSummaryJson(null);
+    
+    try {
+      const res = await fetch('/api/radar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lat: parseFloat(targetLat), lon: parseFloat(targetLon), windDir, windSpeed })
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+
+      // ดึงข้อมูลที่วิเคราะห์แล้วจากหลังบ้านมาสร้างการ์ดตรงๆ เลย
+      setAiSummaryJson([{
+          title: data.cardTitle,
+          icon: data.cardIcon,
+          color: data.cardColor,
+          tag: data.cardTag,
+          desc: data.cardDesc
+      }]);
+      setAiTimestamp(`${data.radarTime} น. (ระบบสแกนล่วงหน้ารัศมี 60 กม.)`);
+
+    } catch(e) {
+      setAiSummaryJson([{ title: "ระบบขัดข้อง", icon: "⚠️", color: "red", tag: "Error", desc: "ไม่สามารถประมวลผลภาพเรดาร์ได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง" }]);
+    } finally {
+      setIsGeneratingAI(false);
+    }
+  };
+
+  // 🌟 (2) นี่ก็อัปเดตใหม่ครับ! ฟังก์ชันหลักที่สั่งยิง API
   const executeRadarScan = async (lat, lon, windDir, windSpeed, locName) => {
     setIsMapRadarScanning(true);
     setMapRadarResult(null);
@@ -441,21 +492,16 @@ export default function App() {
         body: JSON.stringify({ lat, lon, windDir, windSpeed })
       });
       const data = await res.json();
+      if (data.error) throw new Error(data.error);
       
-      const realLocName = data.currentLocName || locName;
-      let resultCard = {};
-
-      if (data.alertLevel === 3) {
-          resultCard = { title: "ระวังพายุฝนรุนแรง!", icon: "🚨", color: "red", tag: "ฝนตกหนัก", desc: `เรดาร์ตรวจพบพายุฝนกำลังแรงปกคลุมบริเวณ ${realLocName} เสี่ยงน้ำท่วมขัง ${data.windText}` };
-      } else if (data.alertLevel === 2) {
-          resultCard = { title: "มีฝนตกปานกลาง", icon: "🌧️", color: "yellow", tag: "มีฝนตก", desc: `ตรวจพบกลุ่มฝนระดับปานกลางปกคลุมพื้นที่ ${realLocName} การเดินทางควรพกร่ม ${data.windText}` };
-      } else if (data.alertLevel === 1) {
-          resultCard = { title: "มีฝนตกปรอยๆ", icon: "🌦️", color: "green", tag: "ฝนเล็กน้อย", desc: `พบเมฆครึ้มหรือมีฝนตกปรอยๆ บริเวณ ${realLocName} ${data.windText}` };
-      } else {
-          resultCard = { title: "ท้องฟ้าโปร่ง ไม่มีฝน", icon: "☀️", color: "blue", tag: "ปลอดภัย", desc: `เรดาร์ไม่พบกลุ่มฝนบริเวณ ${realLocName} ในขณะนี้ (กรองเมฆรบกวนแล้ว) สามารถทำกิจกรรมได้ตามปกติ` };
-      }
-
-      setMapRadarResult(resultCard);
+      // ดึงข้อมูลที่วิเคราะห์แล้วจากหลังบ้านมาสร้างการ์ดตรงๆ เลย
+      setMapRadarResult({ 
+          title: data.cardTitle, 
+          icon: data.cardIcon, 
+          color: data.cardColor, 
+          tag: data.cardTag, 
+          desc: data.cardDesc 
+      });
 
     } catch(e) {
       setMapRadarResult({ title: "ระบบขัดข้อง", icon: "⚠️", color: "red", tag: "Error", desc: "ไม่สามารถประมวลผลภาพเรดาร์ได้ในขณะนี้" });
@@ -464,6 +510,7 @@ export default function App() {
     }
   };
 
+  // ส่วนนี้คือโค้ดเดิมของคุณที่ผมบอกว่าไม่ต้องลบ เก็บไว้เรียกใช้งาน 2 ตัวบนครับ
   const handleMapRadarScan = async (useGps = false) => {
     let targetLat = 13.75;
     let targetLon = 100.5;
@@ -620,7 +667,7 @@ export default function App() {
   const todayDateText = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
   const currentHr = new Date().getHours(); const next3Hr = (currentHr + 3) % 24; const timeStr3h = `${String(currentHr).padStart(2, '0')}:00 - ${String(next3Hr).padStart(2, '0')}:00 น.`;
 
-  // อัปเดตศูนย์กลางแผนที่
+  // อัปเดตศูนย์กลางแผนที่ตอนกดเรดาร์ (ดึงพิกัดจริงๆ ของจังหวัด)
   let radarLat = 13.75;
   let radarLon = 100.5;
   let radarZoom = 6;
@@ -638,7 +685,7 @@ export default function App() {
     }
   }
 
-  // ใช้ตำแหน่งที่ตั้งไว้ล่าสุดเพื่อบังคับ iframe ให้ล็อคเป้า
+  // ล็อคเป้าแผนที่ตอนกำลังสแกน หรือโชว์ผลลัพธ์
   if (isMapRadarScanning || mapRadarResult) {
      radarLat = radarTarget.lat;
      radarLon = radarTarget.lon;
@@ -664,7 +711,6 @@ export default function App() {
               <div className="hide-scrollbar" style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: 'rgba(255,255,255,0.15)', padding: '5px 12px', borderRadius: '30px', overflowX: 'auto', whiteSpace: 'nowrap', flex: 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <label style={{ fontWeight: 'bold', fontSize: '0.85rem' }}>📍</label>
-                  {/* 🌟 ปลดล็อคคำสั่งปิดเรดาร์ออกแล้ว */}
                   <select value={selectedRegion} onChange={(e) => { setSelectedRegion(e.target.value); setSelectedProvince(''); setSelectedStationId(''); setActiveStation(null); setIsMobileListOpen(false); setMapRadarResult(null); setIsMapRadarScanning(false); }} style={{ padding: '5px 10px', borderRadius: '15px', border: 'none', backgroundColor: '#fff', color: '#1e293b', outline: 'none', cursor: 'pointer', fontSize: '0.85rem' }}>
                     <option value="">ทุกภูมิภาค</option>{Object.keys(regionMapping).map(r => <option key={r} value={r}>{r}</option>)}
                   </select>
@@ -830,7 +876,6 @@ export default function App() {
                       </div>
                       <p style={{ margin: 0, color: textColor, fontSize: '0.9rem', lineHeight: '1.6' }}>{mapRadarResult.desc}</p>
                       
-                      {/* ป้ายชื่อสถานที่เป้าหมาย */}
                       <div style={{ marginTop: '10px', fontSize: '0.8rem', color: subTextColor, borderTop: `1px solid ${borderColor}`, paddingTop: '10px' }}>
                         📍 สแกนที่: <strong>{radarTarget.name}</strong>
                       </div>
@@ -1056,6 +1101,7 @@ export default function App() {
                   <button onClick={() => generateAISummary('health')} disabled={isGeneratingAI} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #ef4444`, backgroundColor: darkMode ? 'rgba(239,68,68,0.1)' : '#fef2f2', color: '#ef4444', fontSize: '0.85rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold' }}>😷 สุขภาพ/ภูมิแพ้</button>
                   <button onClick={() => generateAISummary('travel')} disabled={isGeneratingAI} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #db2777`, backgroundColor: darkMode ? 'rgba(219,39,119,0.1)' : '#fce7f3', color: '#db2777', fontSize: '0.85rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold' }}>🎒 ท่องเที่ยว</button>
                   <button onClick={() => generateAISummary('agriculture')} disabled={isGeneratingAI} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #84cc16`, backgroundColor: darkMode ? 'rgba(132,204,22,0.1)' : '#ecfccb', color: '#65a30d', fontSize: '0.85rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold' }}>🌾 เกษตรกร</button>
+                  <button onClick={handleRadarPixelScan} disabled={alertsLoading} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #14b8a6`, backgroundColor: darkMode ? 'rgba(20,184,166,0.1)' : '#ccfbf1', color: '#0d9488', fontSize: '0.85rem', cursor: alertsLoading?'wait':'pointer', fontWeight:'bold' }}>📡 AI สแกนพายุ</button>
                 </div>
 
                 <div style={{ backgroundColor: darkMode ? '#1e293b' : '#f8fafc', padding: isGeneratingAI || aiSummaryJson ? '15px' : '0', borderRadius: '12px', border: aiSummaryJson ? `1px dashed #8b5cf6` : 'none', transition: 'all 0.3s' }}>
