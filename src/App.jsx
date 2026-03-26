@@ -115,7 +115,7 @@ export default function App() {
   const [dashLoading, setDashLoading] = useState(false);
   const [dashTitle, setDashTitle] = useState('ภาพรวมทั้งประเทศ');
 
-  const [currentPage, setCurrentPage] = useState(window.innerWidth < 768 ? 'map' : 'map'); 
+  const [currentPage, setCurrentPage] = useState(window.innerWidth < 768 ? 'forecast' : 'forecast'); 
   const [showLegend, setShowLegend] = useState(window.innerWidth >= 768);
   const [isMobileListOpen, setIsMobileListOpen] = useState(false);
 
@@ -142,6 +142,12 @@ export default function App() {
   
   const [radarTarget, setRadarTarget] = useState({ lat: 13.75, lon: 100.5, name: 'พิกัดที่กำหนด' });
 
+  // 🌟 ฟีเจอร์ใหม่: สถานที่โปรด (Favorite Locations)
+  const [favLocations, setFavLocations] = useState(() => JSON.parse(localStorage.getItem('weatherFavs')) || ['กรุงเทพมหานคร']);
+
+  // 🌟 ฟีเจอร์ใหม่: PWA Install Prompt
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+
   const cardRefs = useRef({});
   const markerRefs = useRef({});
 
@@ -150,6 +156,32 @@ export default function App() {
   useEffect(() => { localStorage.setItem('darkMode', darkMode); if(darkMode) document.body.classList.add('dark-theme'); else document.body.classList.remove('dark-theme'); }, [darkMode]);
   
   useEffect(() => { setAiSummaryJson(null); setAiTimestamp(''); setNowcastAlert(null); }, [alertsLocationName, activeStation, aiTargetDay]);
+
+  // ดักจับ Event สำหรับการติดตั้ง PWA
+  useEffect(() => {
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    });
+  }, []);
+
+  const handleInstallClick = () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then((choiceResult) => {
+        if (choiceResult.outcome === 'accepted') console.log('User accepted the install prompt');
+        setDeferredPrompt(null);
+      });
+    }
+  };
+
+  const toggleFavorite = (prov) => {
+    let newFavs = [...favLocations];
+    if (newFavs.includes(prov)) newFavs = newFavs.filter(l => l !== prov);
+    else newFavs.push(prov);
+    setFavLocations(newFavs);
+    localStorage.setItem('weatherFavs', JSON.stringify(newFavs));
+  };
 
   const handleViewModeChange = (mode) => { setViewMode(mode); setSortOrder(mode === 'temp' ? 'asc' : 'desc'); setShowRadar(false); setIsMobileListOpen(false); setMapRadarResult(null); };
 
@@ -430,87 +462,6 @@ export default function App() {
     } catch(e) { console.error("Error setting alerts:", e); } finally { setAlertsLoading(false); }
   };
 
-  // 🌟 (1) นี่คือฟังก์ชันที่อัปเดตใหม่ครับ! ของปุ่มตรวจเรดาร์หน้าพยากรณ์
-  const handleRadarPixelScan = async () => {
-    let targetLat = 13.75;
-    let targetLon = 100.5;
-    let windDir = 0;
-    let windSpeed = 0;
-
-    if (activeStation) {
-      targetLat = activeStation.lat; targetLon = activeStation.long;
-      const tObj = stationTemps[activeStation.stationID];
-      if (tObj) { windDir = tObj.windDir; windSpeed = tObj.windSpeed; }
-    } else if (alertsLocationName.includes('จ.')) {
-      const provName = alertsLocationName.replace('จ.', '');
-      const provStations = stations.filter(s => extractProvince(s.areaTH) === provName);
-      if (provStations.length > 0) {
-        targetLat = provStations[0].lat; targetLon = provStations[0].long;
-        const tObj = stationTemps[provStations[0].stationID];
-        if (tObj) { windDir = tObj.windDir; windSpeed = tObj.windSpeed; }
-      }
-    }
-    
-    setIsGeneratingAI(true);
-    setAiSummaryJson(null);
-    
-    try {
-      const res = await fetch('/api/radar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lat: parseFloat(targetLat), lon: parseFloat(targetLon), windDir, windSpeed })
-      });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-
-      // ดึงข้อมูลที่วิเคราะห์แล้วจากหลังบ้านมาสร้างการ์ดตรงๆ เลย
-      setAiSummaryJson([{
-          title: data.cardTitle,
-          icon: data.cardIcon,
-          color: data.cardColor,
-          tag: data.cardTag,
-          desc: data.cardDesc
-      }]);
-      setAiTimestamp(`${data.radarTime} น. (ระบบสแกนล่วงหน้ารัศมี 60 กม.)`);
-
-    } catch(e) {
-      setAiSummaryJson([{ title: "ระบบขัดข้อง", icon: "⚠️", color: "red", tag: "Error", desc: "ไม่สามารถประมวลผลภาพเรดาร์ได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง" }]);
-    } finally {
-      setIsGeneratingAI(false);
-    }
-  };
-
-  // 🌟 (2) นี่ก็อัปเดตใหม่ครับ! ฟังก์ชันหลักที่สั่งยิง API
-  const executeRadarScan = async (lat, lon, windDir, windSpeed, locName) => {
-    setIsMapRadarScanning(true);
-    setMapRadarResult(null);
-    
-    try {
-      const res = await fetch('/api/radar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lat, lon, windDir, windSpeed })
-      });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      
-      // ดึงข้อมูลที่วิเคราะห์แล้วจากหลังบ้านมาสร้างการ์ดตรงๆ เลย
-      setMapRadarResult({ 
-          title: data.cardTitle, 
-          icon: data.cardIcon, 
-          color: data.cardColor, 
-          tag: data.cardTag, 
-          desc: data.cardDesc 
-      });
-
-    } catch(e) {
-      setMapRadarResult({ title: "ระบบขัดข้อง", icon: "⚠️", color: "red", tag: "Error", desc: "ไม่สามารถประมวลผลภาพเรดาร์ได้ในขณะนี้" });
-    } finally {
-      setIsMapRadarScanning(false);
-    }
-  };
-
-  // ส่วนนี้คือโค้ดเดิมของคุณที่ผมบอกว่าไม่ต้องลบ เก็บไว้เรียกใช้งาน 2 ตัวบนครับ
   const handleMapRadarScan = async (useGps = false) => {
     let targetLat = 13.75;
     let targetLon = 100.5;
@@ -556,6 +507,82 @@ export default function App() {
     
     setRadarTarget({ lat: targetLat, lon: targetLon, name: locName });
     await executeRadarScan(targetLat, targetLon, windDir, windSpeed, locName);
+  };
+
+  const executeRadarScan = async (lat, lon, windDir, windSpeed, locName) => {
+    setIsMapRadarScanning(true);
+    setMapRadarResult(null);
+    
+    try {
+      const res = await fetch('/api/radar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lat, lon, windDir, windSpeed })
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      
+      setMapRadarResult({ 
+          title: data.cardTitle, 
+          icon: data.cardIcon, 
+          color: data.cardColor, 
+          tag: data.cardTag, 
+          desc: data.cardDesc 
+      });
+
+    } catch(e) {
+      setMapRadarResult({ title: "ระบบขัดข้อง", icon: "⚠️", color: "red", tag: "Error", desc: "ไม่สามารถประมวลผลภาพเรดาร์ได้ในขณะนี้" });
+    } finally {
+      setIsMapRadarScanning(false);
+    }
+  };
+
+  const handleRadarPixelScan = async () => {
+    let targetLat = 13.75;
+    let targetLon = 100.5;
+    let windDir = 0;
+    let windSpeed = 0;
+
+    if (activeStation) {
+      targetLat = activeStation.lat; targetLon = activeStation.long;
+      const tObj = stationTemps[activeStation.stationID];
+      if (tObj) { windDir = tObj.windDir; windSpeed = tObj.windSpeed; }
+    } else if (alertsLocationName.includes('จ.')) {
+      const provName = alertsLocationName.replace('จ.', '');
+      const provStations = stations.filter(s => extractProvince(s.areaTH) === provName);
+      if (provStations.length > 0) {
+        targetLat = provStations[0].lat; targetLon = provStations[0].long;
+        const tObj = stationTemps[provStations[0].stationID];
+        if (tObj) { windDir = tObj.windDir; windSpeed = tObj.windSpeed; }
+      }
+    }
+    
+    setIsGeneratingAI(true);
+    setAiSummaryJson(null);
+    
+    try {
+      const res = await fetch('/api/radar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lat: parseFloat(targetLat), lon: parseFloat(targetLon), windDir, windSpeed })
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+
+      setAiSummaryJson([{
+          title: data.cardTitle,
+          icon: data.cardIcon,
+          color: data.cardColor,
+          tag: data.cardTag,
+          desc: data.cardDesc
+      }]);
+      setAiTimestamp(`${data.radarTime} น. (ระบบสแกนล่วงหน้ารัศมี 60 กม.)`);
+
+    } catch(e) {
+      setAiSummaryJson([{ title: "ระบบขัดข้อง", icon: "⚠️", color: "red", tag: "Error", desc: "ไม่สามารถประมวลผลภาพเรดาร์ได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง" }]);
+    } finally {
+      setIsGeneratingAI(false);
+    }
   };
 
   useEffect(() => {
@@ -654,20 +681,41 @@ export default function App() {
     if (navigator.share) { navigator.share({ title: 'สรุปสภาพอากาศจาก AI', text: shareText }).catch(console.error); } else { navigator.clipboard.writeText(shareText); alert('คัดลอกข้อความสรุปแล้ว! สามารถนำไปวางส่งให้เพื่อนได้เลยครับ'); }
   };
 
+  // 🌟 ฟังก์ชัน Dynamic Background
+  const getDynamicBackground = () => {
+    if (alertsLoading || loading) return darkMode ? '#0f172a' : '#f1f5f9';
+    
+    // ดูจากค่าพยากรณ์ปัจจุบัน (nowcastAlert หรือ daily alert)
+    let hasRain = nowcastAlert || alertsData.urgent?.some(a => a.level >= 2 && a.title.includes('ฝน'));
+    let isHot = alertsData.urgent?.some(a => a.level >= 3 && a.title.includes('ร้อน'));
+    
+    if (hasRain) {
+      return darkMode ? 'linear-gradient(135deg, #1e3a8a 0%, #020617 100%)' : 'linear-gradient(135deg, #93c5fd 0%, #cbd5e1 100%)';
+    } else if (isHot) {
+      return darkMode ? 'linear-gradient(135deg, #7f1d1d 0%, #0f172a 100%)' : 'linear-gradient(135deg, #fef08a 0%, #fed7aa 100%)';
+    }
+    
+    return darkMode ? 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' : 'linear-gradient(135deg, #e0f2fe 0%, #f1f5f9 100%)';
+  };
+
   if (loading) return <SkeletonLoading darkMode={darkMode} />;
 
   const isPm25Mode = viewMode === 'pm25'; const isTempMode = viewMode === 'temp'; const isHeatMode = viewMode === 'heat';
   const isUvMode = viewMode === 'uv'; const isRainMode = viewMode === 'rain'; const isWindMode = viewMode === 'wind';
-  const themeBg = darkMode ? '#0f172a' : '#f1f5f9'; const cardBg = darkMode ? '#1e293b' : '#ffffff';
-  const textColor = darkMode ? '#f8fafc' : '#1e293b'; const subTextColor = darkMode ? '#94a3b8' : '#64748b';
-  const borderColor = darkMode ? '#334155' : '#e2e8f0';
+  
+  // 🌟 Bento UI Variables (Glassmorphism)
+  const themeBg = getDynamicBackground();
+  const cardBg = darkMode ? 'rgba(30, 41, 59, 0.7)' : 'rgba(255, 255, 255, 0.85)';
+  const textColor = darkMode ? '#f8fafc' : '#1e293b'; const subTextColor = darkMode ? '#e2e8f0' : '#475569';
+  const borderColor = darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.5)';
+  const backdropBlur = 'blur(16px)';
+  
   const activeChart = chartConfigs[viewMode] || chartConfigs['pm25']; 
 
   const validForecast = dashForecast.filter(d => d[activeChart.key] != null);
   const todayDateText = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
   const currentHr = new Date().getHours(); const next3Hr = (currentHr + 3) % 24; const timeStr3h = `${String(currentHr).padStart(2, '0')}:00 - ${String(next3Hr).padStart(2, '0')}:00 น.`;
 
-  // อัปเดตศูนย์กลางแผนที่ตอนกดเรดาร์ (ดึงพิกัดจริงๆ ของจังหวัด)
   let radarLat = 13.75;
   let radarLon = 100.5;
   let radarZoom = 6;
@@ -685,7 +733,6 @@ export default function App() {
     }
   }
 
-  // ล็อคเป้าแผนที่ตอนกำลังสแกน หรือโชว์ผลลัพธ์
   if (isMapRadarScanning || mapRadarResult) {
      radarLat = radarTarget.lat;
      radarLon = radarTarget.lon;
@@ -693,15 +740,15 @@ export default function App() {
   }
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100vh', width:'100vw', backgroundColor:themeBg, fontFamily:"'Kanit', sans-serif", overflowY:'hidden', overflowX:'hidden' }}>
+    <div style={{ display:'flex', flexDirection:'column', height:'100vh', width:'100vw', background: themeBg, fontFamily:"'Kanit', sans-serif", overflowY:'hidden', overflowX:'hidden', transition: 'background 1s ease' }}>
       
-      {/* HEADER */}
-      <header style={{ flexShrink: 0, minHeight: '65px', background: darkMode ? 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)' : '#1da1f2', color: '#fff', padding: '10px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '15px', flexWrap: 'nowrap', overflowX: 'auto', zIndex: 900 }} className="hide-scrollbar">
+      {/* HEADER (Glassmorphism) */}
+      <header style={{ flexShrink: 0, minHeight: '65px', background: darkMode ? 'rgba(15, 23, 42, 0.8)' : 'rgba(29, 161, 242, 0.9)', backdropFilter: backdropBlur, color: '#fff', padding: '10px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '15px', flexWrap: 'nowrap', overflowX: 'auto', zIndex: 900, borderBottom: `1px solid ${borderColor}` }} className="hide-scrollbar">
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
-          <div style={{ fontSize: '1.8rem', background: '#fff', borderRadius: '50%', width: '48px', height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 5px rgba(0,0,0,0.15)' }}>{darkMode ? '🌙' : '🌤️'}</div>
+          <div style={{ fontSize: '1.8rem', background: 'rgba(255,255,255,0.2)', borderRadius: '12px', width: '48px', height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(5px)', border: '1px solid rgba(255,255,255,0.3)' }}>{darkMode ? '🌙' : '🌤️'}</div>
           <div style={{ display: window.innerWidth < 1024 ? 'none' : 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-            <h1 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 'bold', whiteSpace: 'nowrap', lineHeight: '1.1', textShadow: '1px 1px 2px rgba(0,0,0,0.1)' }}>Thai Weather Dashboard</h1>
-            <span style={{ fontSize: '0.8rem', color: darkMode ? '#94a3b8' : '#e0f2fe', whiteSpace: 'nowrap', fontWeight: 'normal' }}>ระบบพยากรณ์และเตือนภัย</span>
+            <h1 style={{ margin: 0, fontSize: '1.3rem', fontWeight: 'bold', whiteSpace: 'nowrap', lineHeight: '1.1', textShadow: '1px 1px 2px rgba(0,0,0,0.1)' }}>Thai Weather</h1>
+            <span style={{ fontSize: '0.8rem', color: darkMode ? '#cbd5e1' : '#e0f2fe', whiteSpace: 'nowrap', fontWeight: 'normal' }}>Dashboard v2.0</span>
           </div>
         </div>
 
@@ -721,6 +768,12 @@ export default function App() {
                   <select value={selectedProvince} onChange={(e) => { setSelectedProvince(e.target.value); setSelectedStationId(''); setActiveStation(null); setIsMobileListOpen(false); setMapRadarResult(null); setIsMapRadarScanning(false); }} style={{ padding: '5px 10px', borderRadius: '15px', border: 'none', backgroundColor: '#fff', color: '#1e293b', outline: 'none', cursor: 'pointer', fontSize: '0.85rem' }}>
                     <option value="">ทุกจังหวัด</option>{availableProvinces.map(p => (<option key={p} value={p}>{p}</option>))}
                   </select>
+                  {/* 🌟 ปุ่ม Favorite Location */}
+                  {selectedProvince && (
+                     <button onClick={() => toggleFavorite(selectedProvince)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem', padding: '0 5px' }} title="บันทึกสถานที่โปรด">
+                        {favLocations.includes(selectedProvince) ? '⭐' : '☆'}
+                     </button>
+                  )}
                 </div>
                 <div style={{ width: '1px', height: '15px', backgroundColor: 'rgba(255,255,255,0.3)' }}></div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1 }}>
@@ -738,11 +791,19 @@ export default function App() {
         )}
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0, marginLeft: 'auto' }}>
+          
+          {/* 🌟 ปุ่ม Install PWA (แสดงเฉพาะถ้าติดตั้งได้) */}
+          {deferredPrompt && (
+             <button onClick={handleInstallClick} style={{ padding: '6px 12px', borderRadius: '20px', backgroundColor: '#fbbf24', color: '#78350f', border: 'none', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }}>
+                📲 ติดตั้งแอป
+             </button>
+          )}
+
           {window.innerWidth >= 768 && (
             <div style={{ display: 'flex', backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: '25px', padding: '4px' }}>
               <button onClick={() => { setCurrentPage('map'); setIsMobileListOpen(false); }} style={{ padding: '5px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem', backgroundColor: currentPage === 'map' ? '#fff' : 'transparent', color: currentPage === 'map' ? '#0ea5e9' : '#fff' }}>🗺️ แผนที่</button>
               <button onClick={() => { setCurrentPage('forecast'); }} style={{ padding: '5px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem', backgroundColor: currentPage === 'forecast' ? '#fff' : 'transparent', color: currentPage === 'forecast' ? '#0ea5e9' : '#fff' }}>🌤️ พยากรณ์</button>
-              <button onClick={() => { setCurrentPage('climate'); }} style={{ padding: '5px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem', backgroundColor: currentPage === 'climate' ? '#fff' : 'transparent', color: currentPage === 'climate' ? '#0ea5e9' : '#fff' }}>🌍 ข่าว & เตือนภัย</button>
+              <button onClick={() => { setCurrentPage('climate'); }} style={{ padding: '5px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem', backgroundColor: currentPage === 'climate' ? '#fff' : 'transparent', color: currentPage === 'climate' ? '#0ea5e9' : '#fff' }}>📰 ข่าว & เตือนภัย</button>
             </div>
           )}
           <button onClick={() => setDarkMode(!darkMode)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '50%', width: '36px', height: '36px', cursor: 'pointer', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{darkMode ? '☀️' : '🌙'}</button>
@@ -752,26 +813,39 @@ export default function App() {
       {/* BODY CONTENT */}
       {currentPage === 'map' ? (
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1, paddingBottom: window.innerWidth < 768 ? '65px' : '0', overflow: 'hidden' }}>
+          
+          {/* 🌟 แถบ Favorite Locations (Bento Style) */}
+          {favLocations.length > 0 && !showRadar && (
+            <div style={{ padding: '10px 15px 0 15px', display: 'flex', gap: '10px', overflowX: 'auto' }} className="hide-scrollbar">
+              <span style={{ fontSize: '0.85rem', color: darkMode ? '#cbd5e1' : '#475569', display: 'flex', alignItems: 'center' }}>⭐️ พื้นที่โปรด:</span>
+              {favLocations.map(prov => (
+                <button key={prov} onClick={() => { setSelectedRegion(''); setSelectedProvince(prov); setSelectedStationId(''); setActiveStation(null); }} style={{ padding: '4px 12px', borderRadius: '20px', backgroundColor: cardBg, backdropFilter: backdropBlur, border: `1px solid ${borderColor}`, color: textColor, fontSize: '0.85rem', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                  {prov}
+                </button>
+              ))}
+            </div>
+          )}
+
           <div style={{ display: 'flex', gap: '15px', flexDirection: window.innerWidth < 768 ? 'column' : 'row', padding: '15px', height: '100%' }}>
             
-            {/* MAP AREA */}
-            <div style={{ flex: 7, width: '100%', borderRadius: '12px', overflow: 'hidden', position: 'relative', border: `1px solid ${borderColor}`, height: window.innerWidth < 768 ? '100%' : '100%' }}>
+            {/* MAP AREA (Bento Style) */}
+            <div style={{ flex: 7, width: '100%', borderRadius: '20px', overflow: 'hidden', position: 'relative', border: `1px solid ${borderColor}`, height: window.innerWidth < 768 ? '100%' : '100%', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }}>
               
               <div 
                 className="hide-scrollbar" 
                 onTouchStart={(e) => e.stopPropagation()} 
                 onMouseDown={(e) => e.stopPropagation()} 
                 onWheel={(e) => e.stopPropagation()} 
-                style={{ position: 'absolute', top: '15px', right: '15px', zIndex: 500, background: darkMode ? 'rgba(30,41,59,0.9)' : 'rgba(255,255,255,0.9)', padding: '5px 10px', borderRadius: '30px', display: 'flex', gap: '8px', overflowX: 'auto', whiteSpace: 'nowrap', boxShadow: '0 4px 15px rgba(0,0,0,0.1)', maxWidth: window.innerWidth < 768 ? 'calc(100vw - 30px)' : 'auto' }}
+                style={{ position: 'absolute', top: '15px', right: '15px', zIndex: 500, background: cardBg, backdropFilter: backdropBlur, padding: '5px 10px', borderRadius: '30px', display: 'flex', gap: '8px', overflowX: 'auto', whiteSpace: 'nowrap', boxShadow: '0 4px 15px rgba(0,0,0,0.1)', maxWidth: window.innerWidth < 768 ? 'calc(100vw - 30px)' : 'auto', border: `1px solid ${borderColor}` }}
               >
                 {!showRadar ? (
                   <>
-                    <button onClick={() => handleViewModeChange('pm25')} style={{ padding: '6px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: isPm25Mode ? '#0ea5e9' : 'transparent', color: isPm25Mode ? '#fff' : subTextColor }}>☁️ PM2.5</button>
-                    <button onClick={() => handleViewModeChange('temp')} style={{ padding: '6px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: isTempMode ? '#22c55e' : 'transparent', color: isTempMode ? '#fff' : subTextColor }}>🌡️ อุณหภูมิ</button>
-                    <button onClick={() => handleViewModeChange('heat')} style={{ padding: '6px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: isHeatMode ? '#f97316' : 'transparent', color: isHeatMode ? '#fff' : subTextColor }}>🥵 Heat</button>
-                    <button onClick={() => handleViewModeChange('uv')} style={{ padding: '6px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: isUvMode ? '#a855f7' : 'transparent', color: isUvMode ? '#fff' : subTextColor }}>☀️ UV</button>
-                    <button onClick={() => handleViewModeChange('rain')} style={{ padding: '6px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: isRainMode ? '#3b82f6' : 'transparent', color: isRainMode ? '#fff' : subTextColor }}>🌧️ ฝน</button>
-                    <button onClick={() => handleViewModeChange('wind')} style={{ padding: '6px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: isWindMode ? '#475569' : 'transparent', color: isWindMode ? '#fff' : subTextColor }}>🌬️ ลม</button>
+                    <button onClick={() => handleViewModeChange('pm25')} style={{ padding: '6px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: isPm25Mode ? '#0ea5e9' : 'transparent', color: isPm25Mode ? '#fff' : textColor }}>☁️ PM2.5</button>
+                    <button onClick={() => handleViewModeChange('temp')} style={{ padding: '6px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: isTempMode ? '#22c55e' : 'transparent', color: isTempMode ? '#fff' : textColor }}>🌡️ อุณหภูมิ</button>
+                    <button onClick={() => handleViewModeChange('heat')} style={{ padding: '6px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: isHeatMode ? '#f97316' : 'transparent', color: isHeatMode ? '#fff' : textColor }}>🥵 Heat</button>
+                    <button onClick={() => handleViewModeChange('uv')} style={{ padding: '6px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: isUvMode ? '#a855f7' : 'transparent', color: isUvMode ? '#fff' : textColor }}>☀️ UV</button>
+                    <button onClick={() => handleViewModeChange('rain')} style={{ padding: '6px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: isRainMode ? '#3b82f6' : 'transparent', color: isRainMode ? '#fff' : textColor }}>🌧️ ฝน</button>
+                    <button onClick={() => handleViewModeChange('wind')} style={{ padding: '6px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: isWindMode ? '#475569' : 'transparent', color: isWindMode ? '#fff' : textColor }}>🌬️ ลม</button>
                     <div style={{ width: '2px', backgroundColor: borderColor, margin: '0 4px' }}></div>
                   </>
                 ) : (
@@ -779,40 +853,40 @@ export default function App() {
                     🔴 โหมดเรดาร์ดาวเทียม
                   </div>
                 )}
-                <button onClick={toggleRadar} style={{ padding: '6px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: showRadar ? '#ef4444' : 'transparent', color: showRadar ? '#fff' : subTextColor }}>{showRadar ? 'ปิดเรดาร์' : '📡 เรดาร์ฝน'}</button>
+                <button onClick={toggleRadar} style={{ padding: '6px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: showRadar ? '#ef4444' : 'transparent', color: showRadar ? '#fff' : textColor }}>{showRadar ? 'ปิดเรดาร์' : '📡 เรดาร์ฝน'}</button>
               </div>
 
               {!showRadar && (
-                <div style={{ position: 'absolute', bottom: '25px', right: window.innerWidth < 768 ? '70px' : '70px', zIndex: 500, background: darkMode ? 'rgba(30,41,59,0.95)' : 'rgba(255,255,255,0.95)', padding: '6px 14px', borderRadius: '20px', fontSize: '0.75rem', color: subTextColor, backdropFilter: 'blur(4px)', border: `1px solid ${borderColor}`, display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
+                <div style={{ position: 'absolute', bottom: '25px', right: window.innerWidth < 768 ? '70px' : '70px', zIndex: 500, background: cardBg, padding: '6px 14px', borderRadius: '20px', fontSize: '0.75rem', color: textColor, backdropFilter: backdropBlur, border: `1px solid ${borderColor}`, display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
                   <span style={{ fontSize: '1rem' }}>⏱️</span> อัปเดต: {lastUpdateText || 'กำลังโหลด...'}
                   <button onClick={() => fetchAirQuality(false)} style={{ background: 'none', border: 'none', padding: '0 0 0 4px', cursor: 'pointer', fontSize: '1rem', color: '#0ea5e9' }} title="โหลดข้อมูลล่าสุด">🔄</button>
                 </div>
               )}
 
               {window.innerWidth < 768 && !isMobileListOpen && !showRadar && (
-                <button onClick={() => setIsMobileListOpen(true)} title="ดูรายชื่อสถานี" style={{ position: 'absolute', bottom: '85px', right: '15px', zIndex: 600, width: '44px', height: '44px', borderRadius: '50%', backgroundColor: cardBg, color: '#0ea5e9', border: `1px solid ${borderColor}`, cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', display: 'flex', justifyContent: 'center', alignItems: 'center', transition: 'all 0.2s' }}>
+                <button onClick={() => setIsMobileListOpen(true)} title="ดูรายชื่อสถานี" style={{ position: 'absolute', bottom: '85px', right: '15px', zIndex: 600, width: '44px', height: '44px', borderRadius: '50%', backgroundColor: cardBg, color: '#0ea5e9', border: `1px solid ${borderColor}`, backdropFilter: backdropBlur, cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', display: 'flex', justifyContent: 'center', alignItems: 'center', transition: 'all 0.2s' }}>
                    <span style={{ fontSize: '1.2rem' }}>📋</span>
                    <span style={{ position: 'absolute', top: '-5px', right: '-5px', background: '#ef4444', color: 'white', fontSize: '0.65rem', padding: '2px 6px', borderRadius: '10px', fontWeight: 'bold', border: `1px solid ${cardBg}` }}>{filteredStations.length}</span>
                 </button>
               )}
 
               {!showRadar && (
-                <button onClick={handleFindNearest} disabled={locating} title="ตำแหน่งปัจจุบัน" style={{ position: 'absolute', bottom: '25px', right: '15px', zIndex: 500, width: '44px', height: '44px', borderRadius: '50%', backgroundColor: cardBg, color: locating ? subTextColor : '#0ea5e9', border: `1px solid ${borderColor}`, cursor: locating ? 'wait' : 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', display: 'flex', justifyContent: 'center', alignItems: 'center', transition: 'all 0.2s' }}>
+                <button onClick={handleFindNearest} disabled={locating} title="ตำแหน่งปัจจุบัน" style={{ position: 'absolute', bottom: '25px', right: '15px', zIndex: 500, width: '44px', height: '44px', borderRadius: '50%', backgroundColor: cardBg, color: locating ? subTextColor : '#0ea5e9', backdropFilter: backdropBlur, border: `1px solid ${borderColor}`, cursor: locating ? 'wait' : 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', display: 'flex', justifyContent: 'center', alignItems: 'center', transition: 'all 0.2s' }}>
                   {locating ? <span style={{ fontSize: '1.2rem' }}>⏳</span> : <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="6"></circle><line x1="12" y1="2" x2="12" y2="6"></line><line x1="12" y1="18" x2="12" y2="22"></line><line x1="2" y1="12" x2="6" y2="12"></line><line x1="18" y1="12" x2="22" y2="12"></line></svg>}
                 </button>
               )}
 
               {!showRadar && (
                 <div style={{ position: 'absolute', bottom: '25px', left: window.innerWidth < 768 ? '15px' : '60px', zIndex: 500, display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-                  <button onClick={() => setShowLegend(!showLegend)} style={{ padding: '6px 12px', borderRadius: '20px', backgroundColor: darkMode ? '#1e293b' : '#fff', color: textColor, border: `1px solid ${borderColor}`, fontWeight: 'bold', fontSize: '0.8rem', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', marginBottom: showLegend ? '8px' : '0', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <button onClick={() => setShowLegend(!showLegend)} style={{ padding: '6px 12px', borderRadius: '20px', backgroundColor: cardBg, backdropFilter: backdropBlur, color: textColor, border: `1px solid ${borderColor}`, fontWeight: 'bold', fontSize: '0.8rem', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', marginBottom: showLegend ? '8px' : '0', display: 'flex', alignItems: 'center', gap: '6px' }}>
                     🗺️ สัญลักษณ์ <span style={{fontSize:'0.6rem'}}>{showLegend ? '▼' : '▲'}</span>
                   </button>
                   {showLegend && (
-                    <div style={{ background: darkMode ? 'rgba(30,41,59,0.95)' : 'rgba(255,255,255,0.95)', padding: '12px', borderRadius: '10px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}>
+                    <div style={{ background: cardBg, backdropFilter: backdropBlur, padding: '12px', borderRadius: '15px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}>
                       <h4 style={{ margin: '0 0 8px 0', fontSize: '0.85rem', color: textColor }}>{legendData[viewMode].title}</h4>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                         {legendData[viewMode].items.map((item, idx) => (
-                          <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><span style={{ width: '14px', height: '14px', backgroundColor: item.color, borderRadius: '50%' }}></span><span style={{ fontSize: '0.8rem', color: subTextColor }}>{item.label}</span></div>
+                          <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><span style={{ width: '14px', height: '14px', backgroundColor: item.color, borderRadius: '50%' }}></span><span style={{ fontSize: '0.8rem', color: textColor }}>{item.label}</span></div>
                         ))}
                       </div>
                     </div>
@@ -820,7 +894,6 @@ export default function App() {
                 </div>
               )}
 
-              {/* 🌟 หน้าต่างเรดาร์เต็มจอ (HUD Mode) */}
               {showRadar && (
                 <>
                   <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 450, backgroundColor: darkMode ? '#0f172a' : '#fff' }}>
@@ -833,9 +906,8 @@ export default function App() {
                     ></iframe>
                   </div>
 
-                  {/* แผงควบคุมลอยตัว (Floating Control Panel) */}
                   {!isMapRadarScanning && !mapRadarResult && (
-                    <div style={{ position: 'absolute', bottom: '30px', left: '50%', transform: 'translateX(-50%)', zIndex: 600, display: 'flex', flexDirection: 'column', gap: '10px', background: darkMode ? 'rgba(30, 41, 59, 0.85)' : 'rgba(255, 255, 255, 0.85)', padding: '15px', borderRadius: '20px', backdropFilter: 'blur(10px)', border: `1px solid ${borderColor}`, boxShadow: '0 10px 30px rgba(0,0,0,0.15)', width: '90%', maxWidth: '400px' }}>
+                    <div style={{ position: 'absolute', bottom: '30px', left: '50%', transform: 'translateX(-50%)', zIndex: 600, display: 'flex', flexDirection: 'column', gap: '10px', background: cardBg, padding: '15px', borderRadius: '20px', backdropFilter: backdropBlur, border: `1px solid ${borderColor}`, boxShadow: '0 10px 30px rgba(0,0,0,0.15)', width: '90%', maxWidth: '400px' }}>
                       <div style={{ textAlign: 'center', color: textColor, fontWeight: 'bold', fontSize: '0.9rem' }}>🎯 เล็งเป้าหมายให้ AI วิเคราะห์ฝน</div>
                       
                       <div style={{ display: 'flex', gap: '10px' }}>
@@ -865,8 +937,8 @@ export default function App() {
                   )}
 
                   {mapRadarResult && (
-                    <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 600, width: '90%', maxWidth: '350px', backgroundColor: darkMode ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)', padding: '20px', borderRadius: '16px', border: `1px solid ${mapRadarResult.color === 'red' ? '#ef4444' : mapRadarResult.color === 'yellow' ? '#f59e0b' : mapRadarResult.color === 'green' ? '#10b981' : '#0ea5e9'}`, boxShadow: '0 10px 30px rgba(0,0,0,0.2)', backdropFilter: 'blur(8px)', animation: 'slideUp 0.3s ease-out' }}>
-                      <button onClick={() => setMapRadarResult(null)} style={{ position: 'absolute', top: '10px', right: '10px', background: 'transparent', border: 'none', fontSize: '1.2rem', color: subTextColor, cursor: 'pointer' }}>✕</button>
+                    <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 600, width: '90%', maxWidth: '350px', backgroundColor: cardBg, padding: '20px', borderRadius: '16px', border: `1px solid ${mapRadarResult.color === 'red' ? '#ef4444' : mapRadarResult.color === 'yellow' ? '#f59e0b' : mapRadarResult.color === 'green' ? '#10b981' : '#0ea5e9'}`, boxShadow: '0 10px 30px rgba(0,0,0,0.2)', backdropFilter: backdropBlur, animation: 'slideUp 0.3s ease-out' }}>
+                      <button onClick={() => setMapRadarResult(null)} style={{ position: 'absolute', top: '10px', right: '10px', background: 'transparent', border: 'none', fontSize: '1.2rem', color: textColor, cursor: 'pointer' }}>✕</button>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '15px' }}>
                         <div style={{ fontSize: '2.5rem' }}>{mapRadarResult.icon}</div>
                         <div>
@@ -880,7 +952,7 @@ export default function App() {
                         📍 สแกนที่: <strong>{radarTarget.name}</strong>
                       </div>
 
-                      <button onClick={() => setMapRadarResult(null)} style={{ width: '100%', padding: '10px', marginTop: '15px', borderRadius: '8px', border: 'none', backgroundColor: darkMode ? '#334155' : '#f1f5f9', color: textColor, fontWeight: 'bold', cursor: 'pointer' }}>รับทราบ</button>
+                      <button onClick={() => setMapRadarResult(null)} style={{ width: '100%', padding: '10px', marginTop: '15px', borderRadius: '8px', border: 'none', backgroundColor: darkMode ? '#334155' : '#e2e8f0', color: textColor, fontWeight: 'bold', cursor: 'pointer' }}>รับทราบ</button>
                     </div>
                   )}
                 </>
@@ -931,7 +1003,7 @@ export default function App() {
               </MapContainer>
             </div>
 
-            {/* SIDEBAR RIGHT LIST (ซ่อนเมื่อเปิดเรดาร์เพื่อความสวยงามใน Desktop) */}
+            {/* SIDEBAR RIGHT LIST (Bento Style) */}
             <div style={{ 
               flex: window.innerWidth < 768 ? 'none' : 3, 
               display: (window.innerWidth < 768 && isMobileListOpen && !showRadar) || (window.innerWidth >= 768 && !showRadar) ? 'flex' : 'none',
@@ -941,27 +1013,28 @@ export default function App() {
               width: window.innerWidth < 768 ? '100vw' : 'auto',
               height: window.innerWidth < 768 ? 'calc(100vh - 130px)' : '100%',
               minWidth: window.innerWidth < 768 ? '100%' : '380px', maxWidth: window.innerWidth < 768 ? '100%' : '450px', 
-              backgroundColor: cardBg, borderRadius: window.innerWidth < 768 ? '0' : '12px', 
-              flexDirection: 'column', border: window.innerWidth < 768 ? 'none' : `1px solid ${borderColor}`, 
+              backgroundColor: cardBg, borderRadius: window.innerWidth < 768 ? '20px 20px 0 0' : '20px', 
+              backdropFilter: backdropBlur,
+              flexDirection: 'column', border: `1px solid ${borderColor}`, 
               zIndex: window.innerWidth < 768 ? 1000 : 10,
-              boxShadow: window.innerWidth < 768 ? '0 -10px 20px rgba(0,0,0,0.2)' : 'none',
+              boxShadow: window.innerWidth < 768 ? '0 -10px 20px rgba(0,0,0,0.2)' : '0 10px 25px rgba(0,0,0,0.1)',
               animation: window.innerWidth < 768 ? 'slideUp 0.3s ease-out' : 'none'
             }}>
-              <div style={{ padding: '15px', background: darkMode ? '#0f172a' : '#f0f9ff', borderBottom: `1px solid ${borderColor}`, position: 'sticky', top: 0, zIndex: 10 }}>
+              <div style={{ padding: '15px', borderBottom: `1px solid ${borderColor}`, position: 'sticky', top: 0, zIndex: 10, borderRadius: window.innerWidth < 768 ? '20px 20px 0 0' : '20px 20px 0 0' }}>
                 {window.innerWidth < 768 && (
-                  <button onClick={() => setIsMobileListOpen(false)} style={{ width: '100%', padding: '10px', backgroundColor: '#e2e8f0', color: '#334155', border: 'none', borderRadius: '10px', fontWeight: 'bold', marginBottom: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                  <button onClick={() => setIsMobileListOpen(false)} style={{ width: '100%', padding: '10px', backgroundColor: 'rgba(0,0,0,0.05)', color: textColor, border: 'none', borderRadius: '10px', fontWeight: 'bold', marginBottom: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                     ⬇️ ย่อกลับไปดูแผนที่
                   </button>
                 )}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <h2 style={{ fontSize: '1rem', color: textColor, margin: 0, fontWeight: 'bold' }}>{activeChart.name} <span style={{fontSize:'0.85rem', color:subTextColor}}>({filteredStations.length} จุด)</span></h2>
-                  <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} style={{ padding: '4px', borderRadius: '6px', backgroundColor: cardBg, color: textColor, outline:'none', border: `1px solid ${borderColor}` }}>
+                  <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} style={{ padding: '4px', borderRadius: '6px', backgroundColor: darkMode?'rgba(0,0,0,0.3)':'rgba(255,255,255,0.5)', color: textColor, outline:'none', border: `1px solid ${borderColor}` }}>
                     <option value="desc">⬇️ มากไปน้อย</option><option value="asc">⬆️ น้อยไปมาก</option>
                   </select>
                 </div>
               </div>
 
-              <div style={{ flex: 1, overflowY: 'auto', padding: '15px' }}>
+              <div style={{ flex: 1, overflowY: 'auto', padding: '15px' }} className="hide-scrollbar">
                 {filteredStations.map((station) => {
                   const pmVal = Number(station.AQILast?.PM25?.value); const tObj = stationTemps[station.stationID]; const isActive = activeStation?.stationID === station.stationID;
                   
@@ -976,22 +1049,22 @@ export default function App() {
                   let hAdv = isPm25Mode?getPM25HealthAdvice(pmVal):isHeatMode?getHeatHealthAdvice(tObj?.feelsLike):isUvMode?getUvHealthAdvice(tObj?.uvMax):null;
 
                   return (
-                    <div key={station.stationID} ref={el=>cardRefs.current[station.stationID]=el} onClick={()=>setActiveStation(station)} style={{ display:'flex', flexDirection:'column', background:isActive?(darkMode?'#334155':'#f8fafc'):cardBg, border:isActive?'1px solid #3b82f6':`1px solid ${borderColor}`, borderLeft:`6px solid ${boxBg}`, borderRadius:'10px', padding:'15px', marginBottom:'15px', cursor:'pointer', boxShadow: isActive ? '0 4px 10px rgba(0,0,0,0.1)' : '0 1px 3px rgba(0,0,0,0.02)' }}>
+                    <div key={station.stationID} ref={el=>cardRefs.current[station.stationID]=el} onClick={()=>setActiveStation(station)} style={{ display:'flex', flexDirection:'column', background:isActive?(darkMode?'rgba(51, 65, 85, 0.8)':'rgba(241, 245, 249, 0.9)'):'rgba(0,0,0,0.02)', border:isActive?'1px solid #3b82f6':`1px solid transparent`, borderLeft:`6px solid ${boxBg}`, borderRadius:'12px', padding:'15px', marginBottom:'15px', cursor:'pointer', boxShadow: isActive ? '0 4px 10px rgba(0,0,0,0.1)' : 'none', transition: 'all 0.2s' }}>
                       <div style={{ display:'flex', justifyContent:'space-between' }}>
                         <div style={{ flex:1 }}>
                           <h4 style={{ margin:'0 0 2px 0', color:textColor, fontSize:'1rem' }}>{station.nameTH}</h4>
                           <p style={{ margin:0, color:'#3b82f6', fontSize:'0.8rem', fontWeight:'bold' }}>{extractProvince(station.areaTH)}</p>
-                          <div style={{ marginTop:'10px', fontSize:'0.85rem', color:subTextColor, fontWeight:'bold' }}>
-                            {isPm25Mode ? <span title="ค่า AQI คือดัชนีภาพรวมที่รวมค่าฝุ่นและก๊าซพิษเข้าด้วยกัน">AQI: {station.AQILast?.AQI?.aqi||'--'} <span style={{cursor:'help',color:'#94a3b8'}}>ⓘ</span></span> : tObj ? (isUvMode?`ระดับ: ${getUvColor(tObj?.uvMax).label}`:isRainMode?`💧 ชื้น: ${tObj.humidity}%`:isWindMode?`ลมสูงสุด: ${tObj.windMax} km/h`:`ต่ำ ${tObj.tempMin!=null?Number(tObj.tempMin).toFixed(1):'-'}° | สูง ${tObj.tempMax!=null?Number(tObj.tempMax).toFixed(1):'-'}°`) : 'ไม่มีข้อมูล'}
+                          <div style={{ marginTop:'10px', fontSize:'0.85rem', color:textColor, fontWeight:'bold' }}>
+                            {isPm25Mode ? <span title="ค่า AQI คือดัชนีภาพรวมที่รวมค่าฝุ่นและก๊าซพิษเข้าด้วยกัน">AQI: {station.AQILast?.AQI?.aqi||'--'} <span style={{cursor:'help',color:subTextColor}}>ⓘ</span></span> : tObj ? (isUvMode?`ระดับ: ${getUvColor(tObj?.uvMax).label}`:isRainMode?`💧 ชื้น: ${tObj.humidity}%`:isWindMode?`ลมสูงสุด: ${tObj.windMax} km/h`:`ต่ำ ${tObj.tempMin!=null?Number(tObj.tempMin).toFixed(1):'-'}° | สูง ${tObj.tempMax!=null?Number(tObj.tempMax).toFixed(1):'-'}°`) : 'ไม่มีข้อมูล'}
                           </div>
                         </div>
-                        <div style={{ backgroundColor:boxBg, color:(isPm25Mode && pmVal>25&&pmVal<=37.5) || (isUvMode&&tObj?.uvMax<=5)?'#1e293b':'#fff', width:'60px', height:'60px', borderRadius:'12px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center' }}>
+                        <div style={{ backgroundColor:boxBg, color:(isPm25Mode && pmVal>25&&pmVal<=37.5) || (isUvMode&&tObj?.uvMax<=5)?'#1e293b':'#fff', width:'60px', height:'60px', borderRadius:'12px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', boxShadow: '0 4px 10px rgba(0,0,0,0.1)' }}>
                           <span style={{ fontSize:'1.3rem', fontWeight:'bold' }}>{disp}</span><span style={{ fontSize:'0.65rem', fontWeight:'bold' }}>{unit}</span>
                         </div>
                       </div>
                       
                       {hAdv && (isActive || ['🚨','🚑','⛔'].includes(hAdv.icon)) && (
-                        <div style={{ marginTop:'12px', padding:'10px', background:darkMode?'#1e293b':'#f8fafc', borderRadius:'8px', display:'flex', gap:'8px', border: `1px dashed ${boxBg}` }}><span>{hAdv.icon}</span><span style={{fontSize:'0.8rem',color:textColor}}>{hAdv.text}</span></div>
+                        <div style={{ marginTop:'12px', padding:'10px', background:'rgba(0,0,0,0.05)', borderRadius:'8px', display:'flex', gap:'8px', border: `1px dashed ${boxBg}` }}><span>{hAdv.icon}</span><span style={{fontSize:'0.8rem',color:textColor}}>{hAdv.text}</span></div>
                       )}
                     </div>
                   );
@@ -1001,15 +1074,15 @@ export default function App() {
           </div>
         </div>
       ) : currentPage === 'forecast' ? (
-        // ======================= FORECAST TAB (พยากรณ์รวม) =======================
-        <div style={{ flex: 1, padding: '20px', paddingBottom: window.innerWidth < 768 ? '90px' : '20px', maxWidth: '1200px', margin: '0 auto', width: '100%', overflowY: 'auto' }}>
+        // ======================= FORECAST TAB (Bento UI) =======================
+        <div style={{ flex: 1, padding: '20px', paddingBottom: window.innerWidth < 768 ? '90px' : '20px', maxWidth: '1200px', margin: '0 auto', width: '100%', overflowY: 'auto' }} className="hide-scrollbar">
           
           <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-            <h2 style={{ fontSize: '2rem', color: textColor, marginBottom: '5px', fontWeight:'bold' }}>🌤️ ศูนย์พยากรณ์และสถิติเชิงลึก</h2>
+            <h2 style={{ fontSize: '2rem', color: textColor, marginBottom: '5px', fontWeight:'bold', textShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>🌤️ ศูนย์พยากรณ์และสถิติเชิงลึก</h2>
             <p style={{ color: subTextColor, fontSize:'1.1rem', marginBottom: '20px' }}>อัปเดตสถานการณ์สภาพอากาศ ประจำวันที่ <strong style={{color: '#0ea5e9'}}>{todayDateText}</strong></p>
             
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 15px', backgroundColor: darkMode ? '#1e293b' : '#f0f9ff', borderRadius: '30px', border: `1px solid ${borderColor}` }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 15px', backgroundColor: cardBg, backdropFilter: backdropBlur, borderRadius: '30px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.05)' }}>
                 <label style={{ fontWeight: 'bold', color: '#0ea5e9', fontSize: '0.95rem' }}>🎯</label>
                 
                 <select 
@@ -1033,11 +1106,16 @@ export default function App() {
                     <option key={p} value={p}>จ.{p}</option>
                   ))}
                 </select>
+                {alertsLocationName && !alertsLocationName.includes('พื้นที่:') && (
+                   <button onClick={() => toggleFavorite(alertsLocationName.replace('จ.', ''))} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem', padding: '0 5px' }} title="บันทึกสถานที่โปรด">
+                      {favLocations.includes(alertsLocationName.replace('จ.', '')) ? '⭐' : '☆'}
+                   </button>
+                )}
               </div>
             </div>
             
             {alertsLocationName && !alertsLocationName.includes('พื้นที่:') && !alertsLoading && (
-              <div style={{ marginTop: '15px', display: 'inline-flex', padding: '8px 15px', backgroundColor: darkMode ? '#0f172a' : '#f0fdf4', borderRadius: '30px', color: '#16a34a', fontWeight: 'bold', border: `1px solid #bbf7d0`, fontSize: '0.9rem', alignItems: 'center', gap: '6px' }}>
+              <div style={{ marginTop: '15px', display: 'inline-flex', padding: '8px 15px', backgroundColor: darkMode ? 'rgba(15, 23, 42, 0.6)' : 'rgba(255, 255, 255, 0.6)', backdropFilter: backdropBlur, borderRadius: '30px', color: '#16a34a', fontWeight: 'bold', border: `1px solid rgba(187, 247, 208, 0.5)`, fontSize: '0.9rem', alignItems: 'center', gap: '6px', boxShadow: '0 4px 10px rgba(0,0,0,0.05)' }}>
                 ✅ แสดงข้อมูลภาพรวม: {alertsLocationName}
               </div>
             )}
@@ -1047,42 +1125,44 @@ export default function App() {
              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 15px' }}>
                 <style>{`@keyframes spin { 100% { transform: rotate(360deg); } }`}</style>
                 <div style={{ width: '50px', height: '50px', border: '4px solid rgba(16, 185, 129, 0.2)', borderTopColor: '#10b981', borderRadius: '50%', animation: 'spin 1s linear infinite', marginBottom: '15px' }}></div>
-                <div style={{ color: '#10b981', fontSize: '1.2rem', fontWeight: 'bold', animation: 'pulseGlow 1.5s infinite' }}>กำลังรวบรวมข้อมูล...</div>
+                <div style={{ color: '#10b981', fontSize: '1.2rem', fontWeight: 'bold', animation: 'pulseGlow 1.5s infinite', textShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>กำลังรวบรวมข้อมูล...</div>
              </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
               
+              {/* NOWCAST ALERT */}
               {nowcastAlert && (
-                <div style={{ backgroundColor: '#fef2f2', borderRadius: '16px', padding: '20px', border: '2px solid #ef4444', display: 'flex', alignItems: 'center', gap: '15px', animation: 'alertPulse 2s infinite' }}>
+                <div style={{ backgroundColor: darkMode ? 'rgba(127, 29, 29, 0.7)' : 'rgba(254, 242, 242, 0.85)', backdropFilter: backdropBlur, borderRadius: '20px', padding: '20px', border: '1px solid #ef4444', display: 'flex', alignItems: 'center', gap: '15px', animation: 'alertPulse 2s infinite', boxShadow: '0 10px 25px rgba(239, 68, 68, 0.2)' }}>
                   <style>{`@keyframes alertPulse { 0% { boxShadow: 0 0 0 0 rgba(239, 68, 68, 0.4); } 70% { boxShadow: 0 0 0 15px rgba(239, 68, 68, 0); } 100% { boxShadow: 0 0 0 0 rgba(239, 68, 68, 0); } }`}</style>
                   <div style={{ fontSize: '3rem' }}>🚨</div>
                   <div>
-                    <h3 style={{ margin: '0 0 5px 0', color: '#dc2626', fontSize: '1.2rem', fontWeight: 'bold' }}>แจ้งเตือนด่วนพิเศษ (Nowcast)</h3>
-                    <p style={{ margin: 0, color: '#7f1d1d', fontSize: '1rem' }}>
+                    <h3 style={{ margin: '0 0 5px 0', color: darkMode ? '#fca5a5' : '#dc2626', fontSize: '1.2rem', fontWeight: 'bold' }}>แจ้งเตือนด่วนพิเศษ (Nowcast)</h3>
+                    <p style={{ margin: 0, color: textColor, fontSize: '1rem' }}>
                       {nowcastAlert.mins <= 5 ? (
                         <>ขณะนี้กำลังมีพายุฝนตก<strong>{nowcastAlert.intensity}</strong> ในพื้นที่ของคุณ!</>
                       ) : (
                         <>คาดว่าจะมีพายุฝนตก<strong>{nowcastAlert.intensity}</strong> ในอีก <strong style={{fontSize:'1.2rem'}}>{nowcastAlert.mins} นาที</strong> (เวลาประมาณ {nowcastAlert.time} น.)</>
                       )}
                     </p>
-                    <div style={{ fontSize: '0.8rem', color: '#dc2626', marginTop: '8px', fontWeight: 'bold' }}>
+                    <div style={{ fontSize: '0.8rem', color: darkMode ? '#fca5a5' : '#dc2626', marginTop: '8px', fontWeight: 'bold' }}>
                       📡 อ้างอิงข้อมูล Real-time จาก: {nowcastAlert.source}
                     </div>
                   </div>
                 </div>
               )}
 
-              <div style={{ backgroundColor: cardBg, borderRadius: '16px', padding: '20px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.03)', position: 'relative', overflow: 'hidden' }}>
-                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: 'linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899)' }}></div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '15px' }}>
-                  <h3 style={{ fontSize: '1.2rem', color: textColor, margin: 0, display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>
-                    <span style={{ fontSize: '1.5rem' }}>✨</span> AI ผู้ช่วยส่วนตัว
+              {/* AI ASSISTANT CARD */}
+              <div style={{ backgroundColor: cardBg, backdropFilter: backdropBlur, borderRadius: '20px', padding: '25px', border: `1px solid ${borderColor}`, boxShadow: '0 10px 30px rgba(0,0,0,0.05)', position: 'relative', overflow: 'hidden' }}>
+                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '6px', background: 'linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899)' }}></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '20px' }}>
+                  <h3 style={{ fontSize: '1.4rem', color: textColor, margin: 0, display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>
+                    <span style={{ fontSize: '1.8rem' }}>✨</span> AI ผู้ช่วยส่วนตัว
                   </h3>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px', padding: '10px', backgroundColor: darkMode ? 'rgba(0,0,0,0.2)' : '#f0f9ff', borderRadius: '12px', border: `1px solid ${borderColor}` }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', padding: '12px 15px', backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: '15px', border: `1px solid ${borderColor}` }}>
                   <span style={{ fontSize: '0.9rem', color: textColor, fontWeight: 'bold' }}>📅 เลือกวันวิเคราะห์:</span>
-                  <select value={aiTargetDay} onChange={(e) => setAiTargetDay(Number(e.target.value))} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #0ea5e9`, backgroundColor: darkMode ? '#1e293b' : '#fff', color: '#0ea5e9', outline: 'none', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold' }}>
+                  <select value={aiTargetDay} onChange={(e) => setAiTargetDay(Number(e.target.value))} style={{ padding: '8px 16px', borderRadius: '20px', border: `1px solid #0ea5e9`, backgroundColor: darkMode ? '#1e293b' : '#fff', color: '#0ea5e9', outline: 'none', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 'bold', boxShadow: '0 2px 10px rgba(14,165,233,0.1)' }}>
                     {dashForecast.slice(0, 7).map((item, idx) => {
                       const d = new Date(); d.setDate(d.getDate() + idx);
                       const dateStr = d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
@@ -1092,149 +1172,150 @@ export default function App() {
                   </select>
                 </div>
 
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '15px' }}>
-                  <button onClick={() => generateAISummary('general')} disabled={isGeneratingAI} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #3b82f6`, backgroundColor: darkMode ? 'rgba(59,130,246,0.1)' : '#eff6ff', color: '#3b82f6', fontSize: '0.85rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold' }}>🌤️ สรุปภาพรวม</button>
-                  <button onClick={() => generateAISummary('rain')} disabled={isGeneratingAI} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #0ea5e9`, backgroundColor: darkMode ? 'rgba(14,165,233,0.1)' : '#e0f2fe', color: '#0ea5e9', fontSize: '0.85rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold' }}>☔ เช็คเวลาฝนตก</button>
-                  <button onClick={() => generateAISummary('hourly')} disabled={isGeneratingAI} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #6366f1`, backgroundColor: darkMode ? 'rgba(99,102,241,0.1)' : '#e0e7ff', color: '#4f46e5', fontSize: '0.85rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold' }}>⏱️ วางแผนราย ชม.</button>
-                  <button onClick={() => generateAISummary('lifestyle')} disabled={isGeneratingAI} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #10b981`, backgroundColor: darkMode ? 'rgba(16,185,129,0.1)' : '#f0fdf4', color: '#10b981', fontSize: '0.85rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold' }}>👕 ซักผ้า/ล้างรถ</button>
-                  <button onClick={() => generateAISummary('exercise')} disabled={isGeneratingAI} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #f59e0b`, backgroundColor: darkMode ? 'rgba(245,158,11,0.1)' : '#fffbeb', color: '#f59e0b', fontSize: '0.85rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold' }}>🏃‍♂️ ออกกำลังกาย</button>
-                  <button onClick={() => generateAISummary('health')} disabled={isGeneratingAI} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #ef4444`, backgroundColor: darkMode ? 'rgba(239,68,68,0.1)' : '#fef2f2', color: '#ef4444', fontSize: '0.85rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold' }}>😷 สุขภาพ/ภูมิแพ้</button>
-                  <button onClick={() => generateAISummary('travel')} disabled={isGeneratingAI} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #db2777`, backgroundColor: darkMode ? 'rgba(219,39,119,0.1)' : '#fce7f3', color: '#db2777', fontSize: '0.85rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold' }}>🎒 ท่องเที่ยว</button>
-                  <button onClick={() => generateAISummary('agriculture')} disabled={isGeneratingAI} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #84cc16`, backgroundColor: darkMode ? 'rgba(132,204,22,0.1)' : '#ecfccb', color: '#65a30d', fontSize: '0.85rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold' }}>🌾 เกษตรกร</button>
-                  <button onClick={handleRadarPixelScan} disabled={alertsLoading} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid #14b8a6`, backgroundColor: darkMode ? 'rgba(20,184,166,0.1)' : '#ccfbf1', color: '#0d9488', fontSize: '0.85rem', cursor: alertsLoading?'wait':'pointer', fontWeight:'bold' }}>📡 AI สแกนพายุ</button>
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '20px' }}>
+                  <button onClick={() => generateAISummary('general')} disabled={isGeneratingAI} style={{ padding: '8px 16px', borderRadius: '20px', border: `1px solid #3b82f6`, backgroundColor: darkMode ? 'rgba(59,130,246,0.15)' : '#eff6ff', color: '#3b82f6', fontSize: '0.9rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold', transition:'0.2s', boxShadow: '0 2px 5px rgba(59,130,246,0.1)' }}>🌤️ สรุปภาพรวม</button>
+                  <button onClick={() => generateAISummary('rain')} disabled={isGeneratingAI} style={{ padding: '8px 16px', borderRadius: '20px', border: `1px solid #0ea5e9`, backgroundColor: darkMode ? 'rgba(14,165,233,0.15)' : '#e0f2fe', color: '#0ea5e9', fontSize: '0.9rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold', transition:'0.2s', boxShadow: '0 2px 5px rgba(14,165,233,0.1)' }}>☔ เช็คเวลาฝนตก</button>
+                  <button onClick={() => generateAISummary('hourly')} disabled={isGeneratingAI} style={{ padding: '8px 16px', borderRadius: '20px', border: `1px solid #6366f1`, backgroundColor: darkMode ? 'rgba(99,102,241,0.15)' : '#e0e7ff', color: '#4f46e5', fontSize: '0.9rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold', transition:'0.2s', boxShadow: '0 2px 5px rgba(99,102,241,0.1)' }}>⏱️ วางแผนราย ชม.</button>
+                  <button onClick={() => generateAISummary('lifestyle')} disabled={isGeneratingAI} style={{ padding: '8px 16px', borderRadius: '20px', border: `1px solid #10b981`, backgroundColor: darkMode ? 'rgba(16,185,129,0.15)' : '#f0fdf4', color: '#10b981', fontSize: '0.9rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold', transition:'0.2s', boxShadow: '0 2px 5px rgba(16,185,129,0.1)' }}>👕 ซักผ้า/ล้างรถ</button>
+                  <button onClick={() => generateAISummary('exercise')} disabled={isGeneratingAI} style={{ padding: '8px 16px', borderRadius: '20px', border: `1px solid #f59e0b`, backgroundColor: darkMode ? 'rgba(245,158,11,0.15)' : '#fffbeb', color: '#d97706', fontSize: '0.9rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold', transition:'0.2s', boxShadow: '0 2px 5px rgba(245,158,11,0.1)' }}>🏃‍♂️ ออกกำลังกาย</button>
+                  <button onClick={() => generateAISummary('health')} disabled={isGeneratingAI} style={{ padding: '8px 16px', borderRadius: '20px', border: `1px solid #ef4444`, backgroundColor: darkMode ? 'rgba(239,68,68,0.15)' : '#fef2f2', color: '#ef4444', fontSize: '0.9rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold', transition:'0.2s', boxShadow: '0 2px 5px rgba(239,68,68,0.1)' }}>😷 สุขภาพ/ภูมิแพ้</button>
+                  <button onClick={() => generateAISummary('travel')} disabled={isGeneratingAI} style={{ padding: '8px 16px', borderRadius: '20px', border: `1px solid #db2777`, backgroundColor: darkMode ? 'rgba(219,39,119,0.15)' : '#fce7f3', color: '#db2777', fontSize: '0.9rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold', transition:'0.2s', boxShadow: '0 2px 5px rgba(219,39,119,0.1)' }}>🎒 ท่องเที่ยว</button>
+                  <button onClick={() => generateAISummary('agriculture')} disabled={isGeneratingAI} style={{ padding: '8px 16px', borderRadius: '20px', border: `1px solid #84cc16`, backgroundColor: darkMode ? 'rgba(132,204,22,0.15)' : '#ecfccb', color: '#65a30d', fontSize: '0.9rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold', transition:'0.2s', boxShadow: '0 2px 5px rgba(132,204,22,0.1)' }}>🌾 เกษตรกร</button>
                 </div>
 
-                <div style={{ backgroundColor: darkMode ? '#1e293b' : '#f8fafc', padding: isGeneratingAI || aiSummaryJson ? '15px' : '0', borderRadius: '12px', border: aiSummaryJson ? `1px dashed #8b5cf6` : 'none', transition: 'all 0.3s' }}>
+                <div style={{ backgroundColor: 'rgba(0,0,0,0.02)', padding: isGeneratingAI || aiSummaryJson ? '20px' : '0', borderRadius: '15px', border: aiSummaryJson ? `1px dashed rgba(139, 92, 246, 0.5)` : 'none', transition: 'all 0.3s' }}>
                   {isGeneratingAI ? ( 
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '30px 15px' }}>
                         <style>{`
-                          @keyframes ai-pulse { 0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.7); } 70% { transform: scale(1); box-shadow: 0 0 0 15px rgba(139, 92, 246, 0); } 100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(139, 92, 246, 0); } }
-                          .ai-brain { width: 60px; height: 60px; background: linear-gradient(135deg, #8b5cf6, #ec4899); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; color: white; margin-bottom: 15px; animation: ai-pulse 1.5s infinite; }
+                          @keyframes ai-pulse { 0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.7); } 70% { transform: scale(1); box-shadow: 0 0 0 20px rgba(139, 92, 246, 0); } 100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(139, 92, 246, 0); } }
+                          .ai-brain { width: 70px; height: 70px; background: linear-gradient(135deg, #8b5cf6, #ec4899); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2rem; color: white; margin-bottom: 20px; animation: ai-pulse 1.5s infinite; box-shadow: 0 10px 20px rgba(139,92,246,0.3); }
                         `}</style>
                         <div className="ai-brain">✨</div>
                         <div style={{ color: '#8b5cf6', fontWeight: 'bold', fontSize: '1.2rem', marginBottom: '8px', animation: 'pulseGlow 1.5s infinite' }}>AI กำลังประมวลผล...</div>
-                        <div style={{ color: subTextColor, fontSize: '0.9rem' }}>กรุณารอสักครู่ ระบบกำลังวิเคราะห์สภาพอากาศเชิงลึก 🛰️</div>
+                        <div style={{ color: textColor, fontSize: '0.95rem' }}>กรุณารอสักครู่ ระบบกำลังวิเคราะห์สภาพอากาศเชิงลึก 🛰️</div>
                       </div>
                   ) : aiSummaryJson ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                         {aiSummaryJson.map((item, i) => {
                           let statusColor, statusBg;
-                          if (item.color === 'green') { statusColor = '#16a34a'; statusBg = darkMode ? 'rgba(22,163,74,0.15)' : '#dcfce7'; } 
-                          else if (item.color === 'red') { statusColor = '#dc2626'; statusBg = darkMode ? 'rgba(220,38,38,0.15)' : '#fee2e2'; } 
-                          else if (item.color === 'blue') { statusColor = '#0ea5e9'; statusBg = darkMode ? 'rgba(14,165,233,0.15)' : '#e0f2fe'; }
-                          else { statusColor = '#d97706'; statusBg = darkMode ? 'rgba(217,119,6,0.15)' : '#fffbeb'; } 
+                          if (item.color === 'green') { statusColor = '#16a34a'; statusBg = darkMode ? 'rgba(22,163,74,0.2)' : '#dcfce7'; } 
+                          else if (item.color === 'red') { statusColor = '#dc2626'; statusBg = darkMode ? 'rgba(220,38,38,0.2)' : '#fee2e2'; } 
+                          else if (item.color === 'blue') { statusColor = '#0ea5e9'; statusBg = darkMode ? 'rgba(14,165,233,0.2)' : '#e0f2fe'; }
+                          else { statusColor = '#d97706'; statusBg = darkMode ? 'rgba(217,119,6,0.2)' : '#fffbeb'; } 
                           
                           return (
-                            <div key={i} style={{ display: 'flex', gap: '15px', backgroundColor: darkMode ? 'rgba(0,0,0,0.2)' : '#fff', padding: '15px', borderRadius: '10px', border: `1px solid ${borderColor}`, boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
-                              <div style={{ fontSize: '1.8rem', width: '45px', height: '45px', background: statusBg, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{item.icon}</div>
+                            <div key={i} style={{ display: 'flex', gap: '15px', backgroundColor: darkMode ? 'rgba(15,23,42,0.6)' : 'rgba(255,255,255,0.7)', padding: '18px', borderRadius: '15px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
+                              <div style={{ fontSize: '2rem', width: '55px', height: '55px', background: statusBg, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{item.icon}</div>
                               <div style={{ flex: 1 }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap', gap: '5px' }}>
-                                  <h4 style={{ margin: '0', fontSize: '1.05rem', color: textColor, fontWeight: 'bold' }}>{item.title}</h4>
-                                  <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: statusColor, display: 'flex', alignItems: 'center', gap: '4px', background: statusBg, padding: '4px 10px', borderRadius: '12px' }}>{item.tag}</span>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '5px' }}>
+                                  <h4 style={{ margin: '0', fontSize: '1.1rem', color: textColor, fontWeight: 'bold' }}>{item.title}</h4>
+                                  <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: statusColor, display: 'flex', alignItems: 'center', gap: '4px', background: statusBg, padding: '4px 12px', borderRadius: '12px' }}>{item.tag}</span>
                                 </div>
-                                <p style={{ margin: 0, color: subTextColor, lineHeight: 1.5, fontSize: '0.9rem' }}>{item.desc}</p>
+                                <p style={{ margin: 0, color: textColor, lineHeight: 1.6, fontSize: '0.95rem' }}>{item.desc}</p>
                               </div>
                             </div>
                           );
                         })}
-                        {aiTimestamp && <div style={{ textAlign: 'right', fontSize: '0.75rem', color: subTextColor, marginTop: '5px', fontStyle: 'italic' }}>AI วิเคราะห์ข้อมูลล่าสุดเมื่อ: {aiTimestamp}</div>}
+                        {aiTimestamp && <div style={{ textAlign: 'right', fontSize: '0.8rem', color: textColor, marginTop: '10px', opacity: 0.8 }}>AI วิเคราะห์ข้อมูลล่าสุดเมื่อ: {aiTimestamp}</div>}
                       </div>
-                  ) : ( <div style={{ color: subTextColor, fontSize: '0.9rem', textAlign: 'center', padding: '10px' }}>👆 กดปุ่มด้านบนเพื่อให้ AI วิเคราะห์สภาพอากาศตามที่คุณต้องการได้เลยครับ</div> )}
+                  ) : ( <div style={{ color: textColor, fontSize: '0.95rem', textAlign: 'center', padding: '15px', opacity: 0.8 }}>👆 กดปุ่มด้านบนเพื่อให้ AI วิเคราะห์สภาพอากาศตามที่คุณต้องการได้เลยครับ</div> )}
                 </div>
               </div>
 
+              {/* ALERT CARDS (Bento Box Grid) */}
               <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth < 768 ? '1fr' : (window.innerWidth < 1024 ? '1fr 1fr' : '1fr 1fr 1fr'), gap: '20px' }}>
-                <div style={{ backgroundColor: cardBg, borderRadius: '16px', padding: '20px', border: `1px solid ${borderColor}`, borderTop: alertsData?.urgent?.some(a => a.level >= 2) ? '4px solid #ef4444' : '4px solid #10b981', boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
-                  <h3 style={{ fontSize: '1.2rem', color: alertsData?.urgent?.some(a => a.level >= 2) ? '#ef4444' : '#10b981', margin: '0 0 15px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    {alertsData?.urgent?.some(a => a.level >= 2) ? `🚨 พยากรณ์ 3 ชม. (${timeStr3h})` : `✅ พยากรณ์ 3 ชม. (${timeStr3h})`}
+                <div style={{ backgroundColor: cardBg, backdropFilter: backdropBlur, borderRadius: '20px', padding: '25px', border: `1px solid ${borderColor}`, borderTop: alertsData?.urgent?.some(a => a.level >= 2) ? '6px solid #ef4444' : '6px solid #10b981', boxShadow: '0 10px 25px rgba(0,0,0,0.05)' }}>
+                  <h3 style={{ fontSize: '1.3rem', color: alertsData?.urgent?.some(a => a.level >= 2) ? '#ef4444' : '#10b981', margin: '0 0 15px 0', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>
+                    {alertsData?.urgent?.some(a => a.level >= 2) ? `🚨 พยากรณ์ 3 ชม.` : `✅ พยากรณ์ 3 ชม.`}
+                    <span style={{ fontSize: '0.85rem', color: textColor, fontWeight: 'normal', opacity: 0.7 }}>({timeStr3h})</span>
                   </h3>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                     {alertsData?.urgent?.map((al, idx) => (
-                      <div key={idx} style={{ display: 'flex', gap: '15px', backgroundColor: darkMode?'#0f172a':'#fff', padding: '15px', borderRadius: '10px', borderLeft: `4px solid ${al.color}`, border: darkMode ? '1px solid #334155' : '1px solid #f1f5f9' }}>
-                        <div style={{ fontSize: '1.8rem', display:'flex', alignItems:'center' }}>{al.icon}</div>
-                        <div><h4 style={{ margin: '0 0 4px 0', fontSize: '1rem', color: al.color, fontWeight:'bold' }}>{al.title}</h4><p style={{ margin: 0, color: textColor, lineHeight:1.4, fontSize:'0.85rem' }}>{al.desc}</p></div>
+                      <div key={idx} style={{ display: 'flex', gap: '15px', backgroundColor: 'rgba(0,0,0,0.03)', padding: '15px', borderRadius: '15px', borderLeft: `4px solid ${al.color}` }}>
+                        <div style={{ fontSize: '2rem', display:'flex', alignItems:'center' }}>{al.icon}</div>
+                        <div><h4 style={{ margin: '0 0 6px 0', fontSize: '1.05rem', color: al.color, fontWeight:'bold' }}>{al.title}</h4><p style={{ margin: 0, color: textColor, lineHeight:1.5, fontSize:'0.9rem' }}>{al.desc}</p></div>
                       </div>
                     ))}
                   </div>
                 </div>
 
-                <div style={{ backgroundColor: cardBg, borderRadius: '16px', padding: '20px', border: `1px solid ${borderColor}`, borderTop: '4px solid #0ea5e9', boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
-                  <h3 style={{ fontSize: '1.2rem', color: '#0ea5e9', margin: '0 0 15px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>📅 ภาพรวมของวันนี้</h3>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div style={{ backgroundColor: cardBg, backdropFilter: backdropBlur, borderRadius: '20px', padding: '25px', border: `1px solid ${borderColor}`, borderTop: '6px solid #0ea5e9', boxShadow: '0 10px 25px rgba(0,0,0,0.05)' }}>
+                  <h3 style={{ fontSize: '1.3rem', color: '#0ea5e9', margin: '0 0 15px 0', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>📅 ภาพรวมของวันนี้</h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                     {alertsData?.daily?.map((al, idx) => (
-                      <div key={idx} style={{ display: 'flex', gap: '15px', backgroundColor: darkMode?'#0f172a':'#f8fafc', padding: '15px', borderRadius: '10px' }}>
-                        <div style={{ fontSize: '1.5rem', display:'flex', alignItems:'center' }}>{al.icon}</div>
-                        <div><h4 style={{ margin: '0 0 4px 0', fontSize: '0.95rem', color: al.color, fontWeight:'bold' }}>{al.title}</h4><p style={{ margin: 0, color: subTextColor, lineHeight:1.4, fontSize:'0.85rem' }}>{al.desc}</p></div>
+                      <div key={idx} style={{ display: 'flex', gap: '15px', backgroundColor: 'rgba(0,0,0,0.03)', padding: '15px', borderRadius: '15px' }}>
+                        <div style={{ fontSize: '1.8rem', display:'flex', alignItems:'center' }}>{al.icon}</div>
+                        <div><h4 style={{ margin: '0 0 6px 0', fontSize: '1rem', color: al.color, fontWeight:'bold' }}>{al.title}</h4><p style={{ margin: 0, color: textColor, lineHeight:1.5, fontSize:'0.9rem', opacity: 0.9 }}>{al.desc}</p></div>
                       </div>
                     ))}
                   </div>
                 </div>
 
-                <div style={{ backgroundColor: cardBg, borderRadius: '16px', padding: '20px', border: `1px solid ${borderColor}`, borderTop: '4px solid #8b5cf6', boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
-                  <h3 style={{ fontSize: '1.2rem', color: '#8b5cf6', margin: '0 0 15px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>🔮 พยากรณ์วันพรุ่งนี้</h3>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div style={{ backgroundColor: cardBg, backdropFilter: backdropBlur, borderRadius: '20px', padding: '25px', border: `1px solid ${borderColor}`, borderTop: '6px solid #8b5cf6', boxShadow: '0 10px 25px rgba(0,0,0,0.05)' }}>
+                  <h3 style={{ fontSize: '1.3rem', color: '#8b5cf6', margin: '0 0 15px 0', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>🔮 พยากรณ์วันพรุ่งนี้</h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                     {alertsData?.tomorrow?.length > 0 ? alertsData.tomorrow.map((al, idx) => (
-                      <div key={idx} style={{ display: 'flex', gap: '15px', backgroundColor: darkMode?'#0f172a':'#f3e8ff', padding: '15px', borderRadius: '10px' }}>
-                        <div style={{ fontSize: '1.5rem', display:'flex', alignItems:'center' }}>{al.icon}</div>
-                        <div><h4 style={{ margin: '0 0 4px 0', fontSize: '0.95rem', color: al.color, fontWeight:'bold' }}>{al.title}</h4><p style={{ margin: 0, color: subTextColor, lineHeight:1.4, fontSize:'0.85rem' }}>{al.desc}</p></div>
+                      <div key={idx} style={{ display: 'flex', gap: '15px', backgroundColor: 'rgba(0,0,0,0.03)', padding: '15px', borderRadius: '15px' }}>
+                        <div style={{ fontSize: '1.8rem', display:'flex', alignItems:'center' }}>{al.icon}</div>
+                        <div><h4 style={{ margin: '0 0 6px 0', fontSize: '1rem', color: al.color, fontWeight:'bold' }}>{al.title}</h4><p style={{ margin: 0, color: textColor, lineHeight:1.5, fontSize:'0.9rem', opacity: 0.9 }}>{al.desc}</p></div>
                       </div>
-                    )) : <div style={{ textAlign:'center', color:subTextColor, padding:'20px' }}>กำลังดึงข้อมูลวันพรุ่งนี้...</div>}
+                    )) : <div style={{ textAlign:'center', color:textColor, padding:'30px', opacity: 0.5 }}>กำลังดึงข้อมูลวันพรุ่งนี้...</div>}
                   </div>
                 </div>
               </div>
 
               {nationwideSummary && (
-                <div style={{ backgroundColor: cardBg, borderRadius: '16px', padding: '25px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
-                  <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-                    <h3 style={{ fontSize: '1.4rem', color: textColor, margin: '0 0 5px 0', fontWeight:'bold' }}>🏆 5 อันดับจังหวัดเฝ้าระวังสูงสุด (ทั่วประเทศ)</h3>
+                <div style={{ backgroundColor: cardBg, backdropFilter: backdropBlur, borderRadius: '20px', padding: '30px', border: `1px solid ${borderColor}`, boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
+                  <div style={{ textAlign: 'center', marginBottom: '25px' }}>
+                    <h3 style={{ fontSize: '1.6rem', color: textColor, margin: '0 0 5px 0', fontWeight:'bold' }}>🏆 5 อันดับจังหวัดเฝ้าระวังสูงสุด (ทั่วประเทศ)</h3>
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth < 1024 ? '1fr' : '1fr 1fr 1fr', gap: '15px' }}>
-                    <div style={{ padding: '15px', backgroundColor: darkMode ? '#0f172a' : '#eff6ff', borderRadius: '12px', border: `1px solid ${darkMode?'#1e3a8a':'#bfdbfe'}` }}>
-                      <h4 style={{ margin: '0 0 15px 0', fontSize: '1rem', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}><span>⛈️ เสี่ยงพายุฝน</span></h4>
-                      <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth < 1024 ? '1fr' : '1fr 1fr 1fr', gap: '20px' }}>
+                    <div style={{ padding: '20px', backgroundColor: darkMode ? 'rgba(30,58,138,0.3)' : 'rgba(239,246,255,0.8)', borderRadius: '15px', border: `1px solid ${darkMode?'#1e3a8a':'#bfdbfe'}` }}>
+                      <h4 style={{ margin: '0 0 15px 0', fontSize: '1.1rem', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: 'bold' }}><span>⛈️ เสี่ยงพายุฝน</span></h4>
+                      <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
                         {nationwideSummary.storm.length > 0 ? nationwideSummary.storm.map((item, i) => (
-                          <div key={i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', fontSize:'0.9rem', color:textColor, padding:'8px', background:darkMode?'#1e293b':'#fff', borderRadius:'6px' }}>
-                            <span><strong style={{color:'#94a3b8'}}>{i+1}.</strong> {item.prov}</span>
+                          <div key={i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', fontSize:'0.95rem', color:textColor, padding:'10px', background:'rgba(255,255,255,0.4)', borderRadius:'8px' }}>
+                            <span><strong style={{opacity:0.6}}>{i+1}.</strong> {item.prov}</span>
                             <span style={{ fontWeight:'bold', color: item.rain >= 70 ? '#dc2626' : '#2563eb' }}>
-                              โอกาสฝน {item.rain}% {item.wind > 0 ? <span style={{fontSize:'0.75rem', color:'#64748b'}}>| ลม {item.wind} km/h</span> : ''}
+                              โอกาสฝน {item.rain}% {item.wind > 0 ? <span style={{fontSize:'0.8rem', opacity:0.6}}>| ลม {item.wind} km/h</span> : ''}
                             </span>
                           </div>
-                        )) : <div style={{ fontSize:'0.85rem', color:'#16a34a', textAlign:'center', padding:'10px' }}>ไม่มีจังหวัดที่เสี่ยงรุนแรง</div>}
+                        )) : <div style={{ fontSize:'0.9rem', color:'#16a34a', textAlign:'center', padding:'15px' }}>ไม่มีจังหวัดที่เสี่ยงรุนแรง</div>}
                       </div>
                     </div>
-                    <div style={{ padding: '15px', backgroundColor: darkMode ? '#0f172a' : '#fffbeb', borderRadius: '12px', border: `1px solid ${darkMode?'#78350f':'#fde68a'}` }}>
-                      <h4 style={{ margin: '0 0 15px 0', fontSize: '1rem', color: '#d97706', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}><span>😷 ฝุ่น PM2.5 สะสม</span></h4>
-                      <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+                    <div style={{ padding: '20px', backgroundColor: darkMode ? 'rgba(120,53,15,0.3)' : 'rgba(255,251,235,0.8)', borderRadius: '15px', border: `1px solid ${darkMode?'#78350f':'#fde68a'}` }}>
+                      <h4 style={{ margin: '0 0 15px 0', fontSize: '1.1rem', color: '#d97706', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: 'bold' }}><span>😷 ฝุ่น PM2.5 สะสม</span></h4>
+                      <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
                         {nationwideSummary.pm25.length > 0 ? nationwideSummary.pm25.map((item, i) => (
-                          <div key={i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', fontSize:'0.9rem', color:textColor, padding:'8px', background:darkMode?'#1e293b':'#fff', borderRadius:'6px' }}>
-                            <span><strong style={{color:'#94a3b8'}}>{i+1}.</strong> {item.prov}</span>
+                          <div key={i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', fontSize:'0.95rem', color:textColor, padding:'10px', background:'rgba(255,255,255,0.4)', borderRadius:'8px' }}>
+                            <span><strong style={{opacity:0.6}}>{i+1}.</strong> {item.prov}</span>
                             <span style={{ fontWeight:'bold', color: item.val >= 75 ? '#dc2626' : '#d97706' }}>{item.val} µg/m³</span>
                           </div>
-                        )) : <div style={{ fontSize:'0.85rem', color:'#16a34a', textAlign:'center', padding:'10px' }}>อากาศดีทั่วประเทศ</div>}
+                        )) : <div style={{ fontSize:'0.9rem', color:'#16a34a', textAlign:'center', padding:'15px' }}>อากาศดีทั่วประเทศ</div>}
                       </div>
                     </div>
-                    <div style={{ padding: '15px', backgroundColor: darkMode ? '#0f172a' : '#fef2f2', borderRadius: '12px', border: `1px solid ${darkMode?'#7f1d1d':'#fecaca'}` }}>
-                      <h4 style={{ margin: '0 0 15px 0', fontSize: '1rem', color: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}><span>🥵 ดัชนีความร้อนสูงสุด</span></h4>
-                      <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
+                    <div style={{ padding: '20px', backgroundColor: darkMode ? 'rgba(127,29,29,0.3)' : 'rgba(254,242,242,0.8)', borderRadius: '15px', border: `1px solid ${darkMode?'#7f1d1d':'#fecaca'}` }}>
+                      <h4 style={{ margin: '0 0 15px 0', fontSize: '1.1rem', color: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: 'bold' }}><span>🥵 ดัชนีความร้อนสูงสุด</span></h4>
+                      <div style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
                         {nationwideSummary.heat.length > 0 ? nationwideSummary.heat.map((item, i) => (
-                          <div key={i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', fontSize:'0.9rem', color:textColor, padding:'8px', background:darkMode?'#1e293b':'#fff', borderRadius:'6px' }}>
-                            <span><strong style={{color:'#94a3b8'}}>{i+1}.</strong> {item.prov}</span>
+                          <div key={i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', fontSize:'0.95rem', color:textColor, padding:'10px', background:'rgba(255,255,255,0.4)', borderRadius:'8px' }}>
+                            <span><strong style={{opacity:0.6}}>{i+1}.</strong> {item.prov}</span>
                             <span style={{ fontWeight:'bold', color: '#dc2626' }}>{item.val}°C</span>
                           </div>
-                        )) : <div style={{ fontSize:'0.85rem', color:'#16a34a', textAlign:'center', padding:'10px' }}>อุณหภูมิปกติทั่วประเทศ</div>}
+                        )) : <div style={{ fontSize:'0.9rem', color:'#16a34a', textAlign:'center', padding:'15px' }}>อุณหภูมิปกติทั่วประเทศ</div>}
                       </div>
                     </div>
                   </div>
                 </div>
               )}
 
-              <div style={{ backgroundColor: cardBg, borderRadius: '16px', padding: '25px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
+              <div style={{ backgroundColor: cardBg, backdropFilter: backdropBlur, borderRadius: '20px', padding: '30px', border: `1px solid ${borderColor}`, boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', flexWrap: 'wrap', gap: '15px' }}>
                   <div>
-                    <h3 style={{ fontSize: '1.4rem', color: textColor, margin: '0 0 5px 0', fontWeight:'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>📊 สถิติเชิงลึก: {activeChart.name}</h3>
-                    <p style={{ margin: 0, color: subTextColor, fontSize: '0.95rem' }}>พื้นที่วิเคราะห์: <strong style={{color: '#0ea5e9'}}>{dashTitle}</strong></p>
+                    <h3 style={{ fontSize: '1.5rem', color: textColor, margin: '0 0 8px 0', fontWeight:'bold', display: 'flex', alignItems: 'center', gap: '10px' }}>📊 สถิติเชิงลึก: {activeChart.name}</h3>
+                    <p style={{ margin: 0, color: textColor, fontSize: '1rem', opacity: 0.8 }}>พื้นที่วิเคราะห์: <strong style={{color: '#0ea5e9'}}>{dashTitle}</strong></p>
                   </div>
-                  <select value={viewMode} onChange={(e) => handleViewModeChange(e.target.value)} style={{ padding: '8px 12px', borderRadius: '10px', backgroundColor: darkMode?'#0f172a':'#f1f5f9', color: textColor, border: `1px solid ${borderColor}`, outline:'none', fontWeight: 'bold', cursor: 'pointer' }}>
+                  <select value={viewMode} onChange={(e) => handleViewModeChange(e.target.value)} style={{ padding: '10px 15px', borderRadius: '15px', backgroundColor: 'rgba(0,0,0,0.05)', color: textColor, border: `1px solid ${borderColor}`, outline:'none', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.95rem' }}>
                     <option value="temp">🌡️ ดูกราฟอุณหภูมิ</option>
                     <option value="rain">🌧️ ดูกราฟปริมาณฝน</option>
                     <option value="pm25">☁️ ดูกราฟฝุ่น PM2.5</option>
@@ -1244,106 +1325,106 @@ export default function App() {
                 </div>
 
                 {dashLoading ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '50px 15px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 15px' }}>
                     <style>{`@keyframes spin { 100% { transform: rotate(360deg); } }`}</style>
-                    <div style={{ width: '45px', height: '45px', border: '4px solid rgba(14, 165, 233, 0.2)', borderTopColor: '#0ea5e9', borderRadius: '50%', animation: 'spin 1s linear infinite', marginBottom: '15px' }}></div>
-                    <div style={{ color: '#0ea5e9', fontSize: '1.1rem', fontWeight: 'bold', animation: 'pulseGlow 1.5s infinite' }}>กำลังซิงค์ข้อมูลดาวเทียมย้อนหลัง...</div>
+                    <div style={{ width: '50px', height: '50px', border: '4px solid rgba(14, 165, 233, 0.2)', borderTopColor: '#0ea5e9', borderRadius: '50%', animation: 'spin 1s linear infinite', marginBottom: '15px' }}></div>
+                    <div style={{ color: '#0ea5e9', fontSize: '1.2rem', fontWeight: 'bold', animation: 'pulseGlow 1.5s infinite' }}>กำลังซิงค์ข้อมูลดาวเทียมย้อนหลัง...</div>
                   </div>
                 ) : dashHistory.length > 0 ? (
-                  <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth < 1024 ? '1fr' : '1fr 1fr', gap: '20px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth < 1024 ? '1fr' : '1fr 1fr', gap: '25px' }}>
                     
                     {/* กราฟย้อนหลัง 14 วัน */}
-                    <div style={{ background: darkMode?'#0f172a':'#f8fafc', padding: '15px', borderRadius: '12px', border: `1px solid ${borderColor}` }}>
-                      <h4 style={{ fontSize: '1rem', color: textColor, textAlign: 'center', fontWeight:'bold', marginBottom: '15px' }}>ย้อนหลัง 14 วัน</h4>
-                      <div style={{ height: '220px' }}>
+                    <div style={{ background: 'rgba(0,0,0,0.02)', padding: '20px', borderRadius: '15px', border: `1px solid ${borderColor}` }}>
+                      <h4 style={{ fontSize: '1.1rem', color: textColor, textAlign: 'center', fontWeight:'bold', marginBottom: '20px' }}>ย้อนหลัง 14 วัน</h4>
+                      <div style={{ height: '250px' }}>
                         <ResponsiveContainer>
                           <LineChart data={dashHistory} margin={{ top:5, right:10, bottom:5, left:-20 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke={borderColor} vertical={false} />
-                            <XAxis dataKey="date" stroke={subTextColor} fontSize={10} tickMargin={5} />
-                            <YAxis stroke={subTextColor} fontSize={10} domain={activeChart.domain} />
-                            <RechartsTooltip contentStyle={{ borderRadius: '8px', border: `1px solid ${borderColor}`, backgroundColor: cardBg, color: textColor }} />
-                            <RechartsLegend wrapperStyle={{ fontSize: '0.8rem', paddingTop: '10px' }} />
-                            {activeChart.hasLY && <Line type="monotone" dataKey={activeChart.keyLY} name="ค่าเฉลี่ย 10 ปีที่)" stroke="#94a3b8" strokeDasharray="5 5" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />}
-                            <Line type="monotone" dataKey={activeChart.key} name={`ปัจจุบัน (${activeChart.name})`} stroke={activeChart.color} strokeWidth={3} dot={{ r: 3, fill: activeChart.color }} activeDot={{ r: 6 }} />
+                            <XAxis dataKey="date" stroke={textColor} opacity={0.7} fontSize={11} tickMargin={8} />
+                            <YAxis stroke={textColor} opacity={0.7} fontSize={11} domain={activeChart.domain} />
+                            <RechartsTooltip contentStyle={{ borderRadius: '12px', border: `1px solid ${borderColor}`, backgroundColor: darkMode?'#1e293b':'#fff', color: textColor, backdropFilter: 'blur(10px)' }} />
+                            <RechartsLegend wrapperStyle={{ fontSize: '0.85rem', paddingTop: '15px', opacity: 0.8 }} />
+                            {activeChart.hasLY && <Line type="monotone" dataKey={activeChart.keyLY} name="ค่าเฉลี่ย 10 ปี" stroke="#94a3b8" strokeDasharray="5 5" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />}
+                            <Line type="monotone" dataKey={activeChart.key} name={`ปัจจุบัน (${activeChart.name})`} stroke={activeChart.color} strokeWidth={4} dot={{ r: 4, fill: activeChart.color, strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 7 }} />
                           </LineChart>
                         </ResponsiveContainer>
                       </div>
                     </div>
 
                     {/* กราฟพยากรณ์ล่วงหน้า 7 วัน */}
-                    <div style={{ background: darkMode?'#0f172a':'#f8fafc', padding: '15px', borderRadius: '12px', border: `1px solid ${borderColor}` }}>
-                      <h4 style={{ fontSize: '1rem', color: textColor, textAlign: 'center', fontWeight:'bold', marginBottom: '15px' }}>พยากรณ์ล่วงหน้า 7 วัน (เทียบปีที่แล้ว)</h4>
-                      <div style={{ height: '220px' }}>
+                    <div style={{ background: 'rgba(0,0,0,0.02)', padding: '20px', borderRadius: '15px', border: `1px solid ${borderColor}` }}>
+                      <h4 style={{ fontSize: '1.1rem', color: textColor, textAlign: 'center', fontWeight:'bold', marginBottom: '20px' }}>พยากรณ์ล่วงหน้า 7 วัน</h4>
+                      <div style={{ height: '250px' }}>
                         <ResponsiveContainer>
                           <LineChart data={validForecast} margin={{ top:5, right:10, bottom:5, left:-20 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke={borderColor} vertical={false} />
-                            <XAxis dataKey="date" stroke={subTextColor} fontSize={10} tickMargin={5} />
-                            <YAxis stroke={subTextColor} fontSize={10} domain={activeChart.domain} />
-                            <RechartsTooltip contentStyle={{ borderRadius: '8px', border: `1px solid ${borderColor}`, backgroundColor: cardBg, color: textColor }} />
-                            <RechartsLegend wrapperStyle={{ fontSize: '0.8rem', paddingTop: '10px' }} />
+                            <XAxis dataKey="date" stroke={textColor} opacity={0.7} fontSize={11} tickMargin={8} />
+                            <YAxis stroke={textColor} opacity={0.7} fontSize={11} domain={activeChart.domain} />
+                            <RechartsTooltip contentStyle={{ borderRadius: '12px', border: `1px solid ${borderColor}`, backgroundColor: darkMode?'#1e293b':'#fff', color: textColor, backdropFilter: 'blur(10px)' }} />
+                            <RechartsLegend wrapperStyle={{ fontSize: '0.85rem', paddingTop: '15px', opacity: 0.8 }} />
                             {activeChart.hasLY && <Line type="monotone" dataKey={activeChart.keyLY} name="ค่าเฉลี่ย 10 ปี" stroke="#94a3b8" strokeDasharray="5 5" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />}
-                            <Line type="monotone" dataKey={activeChart.key} name={`คาดการณ์ (${activeChart.name})`} stroke={activeChart.color} strokeWidth={3} dot={{ r: 3, fill: activeChart.color }} activeDot={{ r: 6 }} />
+                            <Line type="monotone" dataKey={activeChart.key} name={`คาดการณ์ (${activeChart.name})`} stroke={activeChart.color} strokeWidth={4} dot={{ r: 4, fill: activeChart.color, strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 7 }} />
                           </LineChart>
                         </ResponsiveContainer>
                       </div>
                     </div>
                   </div>
-                ) : <div style={{ textAlign:'center', color:subTextColor, padding:'40px' }}>ไม่มีข้อมูลสถิติของพื้นที่นี้</div>}
+                ) : <div style={{ textAlign:'center', color:textColor, padding:'50px', opacity: 0.5 }}>ไม่มีข้อมูลสถิติของพื้นที่นี้</div>}
               </div>
 
             </div>
           )}
         </div>
       ) : (
-        // ======================= 🌟 ภูมิอากาศ TAB (Climate Center) 🌟 =======================
-        <div style={{ flex: 1, padding: '20px', paddingBottom: window.innerWidth < 768 ? '90px' : '20px', maxWidth: '1200px', margin: '0 auto', width: '100%', overflowY: 'auto' }}>
+        // ======================= 🌟 ข่าว & เตือนภัย TAB (Climate Center Bento UI) 🌟 =======================
+        <div style={{ flex: 1, padding: '20px', paddingBottom: window.innerWidth < 768 ? '90px' : '20px', maxWidth: '1200px', margin: '0 auto', width: '100%', overflowY: 'auto' }} className="hide-scrollbar">
           <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-            <h2 style={{ fontSize: '2rem', color: textColor, marginBottom: '5px', fontWeight:'bold' }}>🌍 ศูนย์ข้อมูลภูมิอากาศและเตือนภัย</h2>
-            <p style={{ color: subTextColor, fontSize:'1.1rem', marginBottom: '20px' }}>เฝ้าระวังพายุ ข่าวสาร และการเปลี่ยนแปลงสภาพภูมิอากาศ</p>
+            <h2 style={{ fontSize: '2rem', color: textColor, marginBottom: '5px', fontWeight:'bold', textShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>🌍 ศูนย์วิเคราะห์ภูมิอากาศและภัยพิบัติ</h2>
+            <p style={{ color: textColor, opacity: 0.8, fontSize:'1.1rem', marginBottom: '20px' }}>เฝ้าระวังพายุ ข่าวสาร และการเปลี่ยนแปลงสภาพภูมิอากาศ</p>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
             
             {/* โซนที่ 1: ข่าวสารและประกาศ (News) */}
-            <div style={{ backgroundColor: cardBg, borderRadius: '16px', padding: '25px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
-              <h3 style={{ fontSize: '1.4rem', color: '#0ea5e9', margin: '0 0 20px 0', fontWeight:'bold', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span style={{ fontSize: '1.6rem' }}>📰</span> ข่าวสารและประกาศเตือนภัย
+            <div style={{ backgroundColor: cardBg, backdropFilter: backdropBlur, borderRadius: '20px', padding: '30px', border: `1px solid ${borderColor}`, boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
+              <h3 style={{ fontSize: '1.5rem', color: '#0ea5e9', margin: '0 0 25px 0', fontWeight:'bold', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <span style={{ fontSize: '1.8rem' }}>📰</span> ข่าวสารและประกาศเตือนภัย
               </h3>
               
-              <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth < 768 ? '1fr' : '1fr 1fr', gap: '15px' }}>
-                <div style={{ padding: '15px', backgroundColor: darkMode ? '#0f172a' : '#fef2f2', borderLeft: '4px solid #ef4444', borderRadius: '8px', border: `1px solid ${darkMode?'#7f1d1d':'#fecaca'}` }}>
-                   <h4 style={{ margin: '0 0 8px 0', color: '#dc2626', fontSize: '1.1rem' }}>พายุฤดูร้อนบริเวณประเทศไทยตอนบน</h4>
-                   <p style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: textColor }}>ภาคเหนือ อีสาน และกลาง เตรียมรับมือพายุฝนฟ้าคะนอง ลมกระโชกแรง และลูกเห็บตกบางแห่ง ควรเลี่ยงที่โล่งแจ้ง ต้นไม้ใหญ่</p>
-                   <span style={{ fontSize: '0.75rem', color: subTextColor }}>อัปเดต: วันนี้ 05:00 น. | ที่มา: กรมอุตุนิยมวิทยา</span>
+              <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth < 768 ? '1fr' : '1fr 1fr', gap: '20px' }}>
+                <div style={{ padding: '20px', backgroundColor: darkMode ? 'rgba(127,29,29,0.3)' : 'rgba(254,242,242,0.8)', borderLeft: '6px solid #ef4444', borderRadius: '15px', border: `1px solid ${darkMode?'#7f1d1d':'#fecaca'}` }}>
+                   <h4 style={{ margin: '0 0 10px 0', color: '#dc2626', fontSize: '1.2rem', fontWeight: 'bold' }}>พายุฤดูร้อนบริเวณประเทศไทยตอนบน</h4>
+                   <p style={{ margin: '0 0 15px 0', fontSize: '0.95rem', color: textColor, lineHeight: 1.6 }}>ภาคเหนือ อีสาน และกลาง เตรียมรับมือพายุฝนฟ้าคะนอง ลมกระโชกแรง และลูกเห็บตกบางแห่ง ควรเลี่ยงที่โล่งแจ้ง ต้นไม้ใหญ่</p>
+                   <span style={{ fontSize: '0.8rem', color: textColor, opacity: 0.7 }}>อัปเดต: วันนี้ 05:00 น. | ที่มา: กรมอุตุนิยมวิทยา</span>
                 </div>
-                <div style={{ padding: '15px', backgroundColor: darkMode ? '#0f172a' : '#fffbeb', borderLeft: '4px solid #f59e0b', borderRadius: '8px', border: `1px solid ${darkMode?'#78350f':'#fde68a'}` }}>
-                   <h4 style={{ margin: '0 0 8px 0', color: '#d97706', fontSize: '1.1rem' }}>เฝ้าระวังฝุ่น PM2.5 ภาคเหนือ</h4>
-                   <p style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: textColor }}>เนื่องจากลมอ่อนและการระบายอากาศไม่ดี ทำให้ฝุ่นควันสะสมตัวสูงในพื้นที่ เชียงใหม่ เชียงราย และแม่ฮ่องสอน</p>
-                   <span style={{ fontSize: '0.75rem', color: subTextColor }}>อัปเดต: วันนี้ 07:00 น. | ที่มา: กรมควบคุมมลพิษ</span>
+                <div style={{ padding: '20px', backgroundColor: darkMode ? 'rgba(120,53,15,0.3)' : 'rgba(255,251,235,0.8)', borderLeft: '6px solid #f59e0b', borderRadius: '15px', border: `1px solid ${darkMode?'#78350f':'#fde68a'}` }}>
+                   <h4 style={{ margin: '0 0 10px 0', color: '#d97706', fontSize: '1.2rem', fontWeight: 'bold' }}>เฝ้าระวังฝุ่น PM2.5 ภาคเหนือ</h4>
+                   <p style={{ margin: '0 0 15px 0', fontSize: '0.95rem', color: textColor, lineHeight: 1.6 }}>เนื่องจากลมอ่อนและการระบายอากาศไม่ดี ทำให้ฝุ่นควันสะสมตัวสูงในพื้นที่ เชียงใหม่ เชียงราย และแม่ฮ่องสอน</p>
+                   <span style={{ fontSize: '0.8rem', color: textColor, opacity: 0.7 }}>อัปเดต: วันนี้ 07:00 น. | ที่มา: กรมควบคุมมลพิษ</span>
                 </div>
               </div>
             </div>
 
             {/* โซนที่ 2: ศูนย์เฝ้าระวังพายุ (Storm Watch) */}
-            <div style={{ backgroundColor: cardBg, borderRadius: '16px', padding: '25px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
-                <h3 style={{ fontSize: '1.4rem', color: '#8b5cf6', margin: 0, fontWeight:'bold', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <span style={{ fontSize: '1.6rem' }}>🌪️</span> เฝ้าระวังพายุและทิศทางลม
+            <div style={{ backgroundColor: cardBg, backdropFilter: backdropBlur, borderRadius: '20px', padding: '30px', border: `1px solid ${borderColor}`, boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', flexWrap: 'wrap', gap: '15px' }}>
+                <h3 style={{ fontSize: '1.5rem', color: '#8b5cf6', margin: 0, fontWeight:'bold', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span style={{ fontSize: '1.8rem' }}>🌪️</span> เฝ้าระวังพายุและทิศทางลม
                 </h3>
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  <select value={windyLayer} onChange={(e) => setWindyLayer(e.target.value)} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid ${borderColor}`, backgroundColor: darkMode ? '#1e293b' : '#f8fafc', color: textColor, outline: 'none', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold' }}>
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                  <select value={windyLayer} onChange={(e) => setWindyLayer(e.target.value)} style={{ padding: '8px 16px', borderRadius: '20px', border: `1px solid ${borderColor}`, backgroundColor: 'rgba(0,0,0,0.05)', color: textColor, outline: 'none', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 'bold' }}>
                     <option value="wind">🌬️ กระแสลม (Wind)</option>
                     <option value="rain">🌧️ เมฆและฝน (Rain, Thunder)</option>
                     <option value="radar">📡 เรดาร์สภาพอากาศ (Radar)</option>
                     <option value="temp">🌡️ อุณหภูมิ (Temperature)</option>
                   </select>
-                  <button onClick={() => setShowIsobars(!showIsobars)} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid ${showIsobars ? '#8b5cf6' : borderColor}`, backgroundColor: showIsobars ? (darkMode ? 'rgba(139,92,246,0.2)' : '#f3e8ff') : (darkMode ? '#1e293b' : '#f8fafc'), color: showIsobars ? '#8b5cf6' : subTextColor, fontSize: '0.85rem', cursor: 'pointer', fontWeight: 'bold', transition: 'all 0.2s' }}>
+                  <button onClick={() => setShowIsobars(!showIsobars)} style={{ padding: '8px 16px', borderRadius: '20px', border: `1px solid ${showIsobars ? '#8b5cf6' : borderColor}`, backgroundColor: showIsobars ? (darkMode ? 'rgba(139,92,246,0.3)' : '#f3e8ff') : 'rgba(0,0,0,0.05)', color: showIsobars ? '#8b5cf6' : textColor, fontSize: '0.9rem', cursor: 'pointer', fontWeight: 'bold', transition: 'all 0.2s' }}>
                     {showIsobars ? '✅ เส้นความกดอากาศ' : '⬜ เส้นความกดอากาศ'}
                   </button>
                 </div>
               </div>
               
-              <div style={{ width: '100%', height: window.innerWidth < 768 ? '350px' : '450px', borderRadius: '12px', overflow: 'hidden', border: `1px solid ${borderColor}`, backgroundColor: darkMode ? '#0f172a' : '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: '100%', height: window.innerWidth < 768 ? '350px' : '500px', borderRadius: '15px', overflow: 'hidden', border: `1px solid ${borderColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                  <iframe 
                     width="100%" 
                     height="100%" 
@@ -1351,54 +1432,53 @@ export default function App() {
                     frameBorder="0"
                  ></iframe>
               </div>
-              <p style={{ fontSize: '0.85rem', color: subTextColor, marginTop: '10px', textAlign: 'right' }}>อ้างอิงข้อมูลจาก Windy.com (โมเดล ECMWF)</p>
+              <p style={{ fontSize: '0.85rem', color: textColor, opacity: 0.7, marginTop: '15px', textAlign: 'right' }}>อ้างอิงข้อมูลจาก Windy.com (โมเดล ECMWF)</p>
             </div>
 
             {/* โซนที่ 3: ปรากฏการณ์โลก เอลนีโญ / ลานีญา */}
-            <div style={{ backgroundColor: cardBg, borderRadius: '16px', padding: '25px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
-              <h3 style={{ fontSize: '1.4rem', color: '#10b981', margin: '0 0 20px 0', fontWeight:'bold', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span style={{ fontSize: '1.6rem' }}>🌡️</span> มาตรวัด เอลนีโญ / ลานีญา (ENSO Tracker)
+            <div style={{ backgroundColor: cardBg, backdropFilter: backdropBlur, borderRadius: '20px', padding: '30px', border: `1px solid ${borderColor}`, boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
+              <h3 style={{ fontSize: '1.5rem', color: '#10b981', margin: '0 0 25px 0', fontWeight:'bold', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <span style={{ fontSize: '1.8rem' }}>🌡️</span> มาตรวัด เอลนีโญ / ลานีญา (ENSO Tracker)
               </h3>
 
-              <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth < 1024 ? '1fr' : '1fr 1fr', gap: '30px', alignItems: 'center' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth < 1024 ? '1fr' : '1fr 1.5fr', gap: '40px', alignItems: 'center' }}>
                 
-                {/* หน้าปัด Gauge จำลองด้วย CSS */}
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', backgroundColor: darkMode ? '#0f172a' : '#f8fafc', padding: '30px', borderRadius: '12px', border: `1px solid ${borderColor}` }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.03)', padding: '40px 20px', borderRadius: '20px', border: `1px solid ${borderColor}` }}>
                   <style>{`
-                    .enso-gauge-container { position: relative; width: 240px; height: 120px; overflow: hidden; }
-                    .enso-gauge-bg { position: absolute; top: 0; left: 0; width: 240px; height: 240px; border-radius: 50%; background: conic-gradient(from 270deg, #3b82f6 0deg 60deg, #10b981 60deg 120deg, #ef4444 120deg 180deg, transparent 180deg); }
-                    .enso-gauge-inner { position: absolute; top: 30px; left: 30px; width: 180px; height: 180px; border-radius: 50%; background-color: ${darkMode ? '#0f172a' : '#f8fafc'}; }
-                    .enso-needle { position: absolute; bottom: 0; left: 118px; width: 4px; height: 90px; background-color: ${textColor}; transform-origin: bottom center; transform: rotate(10deg); border-radius: 4px; transition: transform 1s ease-out; }
-                    .enso-dot { position: absolute; bottom: -8px; left: 112px; width: 16px; height: 16px; background-color: ${textColor}; border-radius: 50%; }
+                    .enso-gauge-container { position: relative; width: 260px; height: 130px; overflow: hidden; }
+                    .enso-gauge-bg { position: absolute; top: 0; left: 0; width: 260px; height: 260px; border-radius: 50%; background: conic-gradient(from 270deg, #3b82f6 0deg 60deg, #10b981 60deg 120deg, #ef4444 120deg 180deg, transparent 180deg); }
+                    .enso-gauge-inner { position: absolute; top: 35px; left: 35px; width: 190px; height: 190px; border-radius: 50%; background-color: ${darkMode ? '#1e293b' : '#f8fafc'}; }
+                    .enso-needle { position: absolute; bottom: 0; left: 128px; width: 4px; height: 100px; background-color: ${textColor}; transform-origin: bottom center; transform: rotate(10deg); border-radius: 4px; transition: transform 1s ease-out; }
+                    .enso-dot { position: absolute; bottom: -8px; left: 122px; width: 16px; height: 16px; background-color: ${textColor}; border-radius: 50%; }
                   `}</style>
                   
                   <div className="enso-gauge-container">
                     <div className="enso-gauge-bg"></div>
-                    <div className="enso-gauge-inner"></div>
+                    <div className="enso-gauge-inner" style={{ background: cardBg }}></div>
                     <div className="enso-needle"></div>
                     <div className="enso-dot"></div>
                   </div>
                   
-                  <div style={{ display: 'flex', justifyContent: 'space-between', width: '260px', marginTop: '10px', fontSize: '0.85rem', fontWeight: 'bold' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', width: '280px', marginTop: '15px', fontSize: '0.9rem', fontWeight: 'bold' }}>
                     <span style={{ color: '#3b82f6' }}>ลานีญา (ฝนชุก)</span>
                     <span style={{ color: '#10b981' }}>ปกติ</span>
                     <span style={{ color: '#ef4444' }}>เอลนีโญ (แล้ง)</span>
                   </div>
 
-                  <div style={{ marginTop: '20px', textAlign: 'center' }}>
-                    <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#10b981' }}>สภาวะปกติ (Neutral)</div>
-                    <p style={{ margin: '5px 0 0 0', color: subTextColor, fontSize: '0.9rem' }}>มีแนวโน้มเปลี่ยนเข้าสู่ 'ลานีญา' ในช่วงครึ่งปีหลัง</p>
+                  <div style={{ marginTop: '25px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#10b981', textShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>สภาวะปกติ (Neutral)</div>
+                    <p style={{ margin: '8px 0 0 0', color: textColor, opacity: 0.8, fontSize: '1rem' }}>มีแนวโน้มเปลี่ยนเข้าสู่ 'ลานีญา' ในช่วงครึ่งปีหลัง</p>
                   </div>
                 </div>
 
                 <div>
-                   <h4 style={{ fontSize: '1.1rem', color: textColor, marginBottom: '10px' }}>ผลกระทบต่อประเทศไทย</h4>
-                   <ul style={{ color: textColor, fontSize: '0.95rem', lineHeight: '1.8', paddingLeft: '20px' }}>
+                   <h4 style={{ fontSize: '1.2rem', color: textColor, marginBottom: '15px', fontWeight: 'bold' }}>ผลกระทบต่อประเทศไทย</h4>
+                   <ul style={{ color: textColor, fontSize: '1rem', lineHeight: '1.9', paddingLeft: '20px', opacity: 0.9 }}>
                      <li><strong>ปริมาณฝน:</strong> คาดว่าจะกลับมาตกชุกและมีปริมาณมากกว่าค่าปกติในช่วงฤดูฝน เสี่ยงต่อน้ำท่วมขัง</li>
                      <li><strong>อุณหภูมิ:</strong> อากาศจะคลายความร้อนลงบ้างเมื่อเทียบกับปีที่แล้วที่แล้งจัด</li>
                      <li><strong>การเกษตร:</strong> ควรเตรียมแหล่งรับน้ำและวางแผนระบายน้ำสำหรับพืชผลที่อาจได้รับความเสียหายจากน้ำท่วม</li>
                    </ul>
-                   <button style={{ padding: '8px 16px', borderRadius: '20px', border: `1px solid #10b981`, backgroundColor: darkMode ? 'rgba(16,185,129,0.1)' : '#dcfce7', color: '#059669', fontSize: '0.9rem', cursor: 'pointer', fontWeight:'bold', marginTop: '15px' }}>
+                   <button style={{ padding: '10px 20px', borderRadius: '30px', border: `1px solid #10b981`, backgroundColor: darkMode ? 'rgba(16,185,129,0.2)' : '#dcfce7', color: '#059669', fontSize: '1rem', cursor: 'pointer', fontWeight:'bold', marginTop: '20px', transition: '0.2s', boxShadow: '0 4px 10px rgba(16,185,129,0.15)' }}>
                      🤖 ให้ AI วิเคราะห์เชิงลึก
                    </button>
                 </div>
@@ -1414,18 +1494,18 @@ export default function App() {
       {/* 📱 MOBILE UX: Bottom Navigation Bar */}
       {/* ========================================== */}
       {window.innerWidth < 768 && (
-        <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, height: '65px', backgroundColor: darkMode ? '#1e293b' : '#ffffff', borderTop: `1px solid ${borderColor}`, display: 'flex', justifyContent: 'space-around', alignItems: 'center', zIndex: 9000, paddingBottom: 'env(safe-area-inset-bottom)', boxShadow: '0 -4px 15px rgba(0,0,0,0.08)' }}>
+        <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, height: '70px', background: darkMode ? 'rgba(15, 23, 42, 0.9)' : 'rgba(255, 255, 255, 0.9)', backdropFilter: backdropBlur, borderTop: `1px solid ${borderColor}`, display: 'flex', justifyContent: 'space-around', alignItems: 'center', zIndex: 9000, paddingBottom: 'env(safe-area-inset-bottom)', boxShadow: '0 -10px 25px rgba(0,0,0,0.05)' }}>
           <div onClick={() => { setCurrentPage('map'); setIsMobileListOpen(false); window.scrollTo({top:0, behavior:'smooth'}); }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', color: currentPage === 'map' ? '#0ea5e9' : subTextColor, cursor: 'pointer', flex: 1, padding: '5px' }}>
-            <span style={{ fontSize: '1.4rem', marginBottom: '2px', filter: currentPage === 'map' ? 'none' : 'grayscale(100%) opacity(50%)', transition: 'all 0.2s' }}>🗺️</span>
+            <span style={{ fontSize: '1.6rem', marginBottom: '4px', filter: currentPage === 'map' ? 'none' : 'grayscale(100%) opacity(50%)', transition: 'all 0.2s', transform: currentPage === 'map' ? 'scale(1.1)' : 'scale(1)' }}>🗺️</span>
             <span style={{ fontSize: '0.75rem', fontWeight: currentPage === 'map' ? 'bold' : 'normal', transition: 'all 0.2s' }}>แผนที่</span>
           </div>
           <div onClick={() => { setCurrentPage('forecast'); window.scrollTo({top:0, behavior:'smooth'}); }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', color: currentPage === 'forecast' ? '#0ea5e9' : subTextColor, cursor: 'pointer', flex: 1, padding: '5px' }}>
-            <span style={{ fontSize: '1.4rem', marginBottom: '2px', filter: currentPage === 'forecast' ? 'none' : 'grayscale(100%) opacity(50%)', transition: 'all 0.2s' }}>🌤️</span>
+            <span style={{ fontSize: '1.6rem', marginBottom: '4px', filter: currentPage === 'forecast' ? 'none' : 'grayscale(100%) opacity(50%)', transition: 'all 0.2s', transform: currentPage === 'forecast' ? 'scale(1.1)' : 'scale(1)' }}>🌤️</span>
             <span style={{ fontSize: '0.75rem', fontWeight: currentPage === 'forecast' ? 'bold' : 'normal', transition: 'all 0.2s' }}>พยากรณ์</span>
           </div>
           <div onClick={() => { setCurrentPage('climate'); window.scrollTo({top:0, behavior:'smooth'}); }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', color: currentPage === 'climate' ? '#0ea5e9' : subTextColor, cursor: 'pointer', flex: 1, padding: '5px' }}>
-            <span style={{ fontSize: '1.4rem', marginBottom: '2px', filter: currentPage === 'climate' ? 'none' : 'grayscale(100%) opacity(50%)', transition: 'all 0.2s' }}>🌍</span>
-            <span style={{ fontSize: '0.75rem', fontWeight: currentPage === 'climate' ? 'bold' : 'normal', transition: 'all 0.2s' }}>ข้อมูลภูมิอากาศ</span>
+            <span style={{ fontSize: '1.6rem', marginBottom: '4px', filter: currentPage === 'climate' ? 'none' : 'grayscale(100%) opacity(50%)', transition: 'all 0.2s', transform: currentPage === 'climate' ? 'scale(1.1)' : 'scale(1)' }}>📰</span>
+            <span style={{ fontSize: '0.75rem', fontWeight: currentPage === 'climate' ? 'bold' : 'normal', transition: 'all 0.2s' }}>ข่าว & เตือนภัย</span>
           </div>
         </div>
       )}
