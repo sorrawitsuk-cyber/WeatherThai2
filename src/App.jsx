@@ -61,7 +61,6 @@ function FitBounds({ stations, activeStation, selectedProvince, selectedRegion }
   return null; 
 }
 function FlyToActiveStation({ activeStation }) { const map = useMap(); useEffect(() => { if (activeStation && !isNaN(parseFloat(activeStation.lat))) map.flyTo([parseFloat(activeStation.lat), parseFloat(activeStation.long)], 13, { duration: 1.5 }); }, [activeStation, map]); return null; }
-function RadarMapHandler({ showRadar }) { const map = useMap(); useEffect(() => { if (showRadar && map.getZoom() > 8) map.flyTo([13.5, 101.0], 6, { duration: 1.2 }); }, [showRadar, map]); return null; }
 function MapFix() { const map = useMap(); useEffect(() => { const timer = setTimeout(() => { map.invalidateSize(); }, 400); return () => clearTimeout(timer); }, [map]); return null; }
 function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) { var R = 6371; var dLat = deg2rad(lat2-lat1); var dLon = deg2rad(lon2-lon1); var a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * Math.sin(dLon/2) * Math.sin(dLon/2); var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); return R * c; }
 function deg2rad(deg) { return deg * (Math.PI/180) }
@@ -106,8 +105,6 @@ export default function App() {
   const [lastUpdateText, setLastUpdateText] = useState('');
   const [locating, setLocating] = useState(false);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('darkMode') === 'true');
-  
-  // สถานะเปิด/ปิด เรดาร์
   const [showRadar, setShowRadar] = useState(false);
   
   const [activeWeather, setActiveWeather] = useState(null); 
@@ -137,6 +134,10 @@ export default function App() {
 
   const [showMobileFilters, setShowMobileFilters] = useState(false);
 
+  // 🌟 เพิ่ม State จัดการ Windy Map
+  const [windyLayer, setWindyLayer] = useState('wind');
+  const [showIsobars, setShowIsobars] = useState(false);
+
   const cardRefs = useRef({});
   const markerRefs = useRef({});
 
@@ -148,7 +149,6 @@ export default function App() {
 
   const handleViewModeChange = (mode) => { setViewMode(mode); setSortOrder(mode === 'temp' ? 'asc' : 'desc'); setShowRadar(false); setIsMobileListOpen(false); };
 
-  // 🌟 อัปเดต: สลับเรดาร์ Windy
   const toggleRadar = () => { setShowRadar(!showRadar); };
 
   const fetchOpenMeteoBulk = async (stationsList) => {
@@ -673,8 +673,7 @@ export default function App() {
                 <button onClick={() => handleViewModeChange('rain')} style={{ padding: '6px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: isRainMode ? '#3b82f6' : 'transparent', color: isRainMode ? '#fff' : subTextColor }}>🌧️ ฝน</button>
                 <button onClick={() => handleViewModeChange('wind')} style={{ padding: '6px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: isWindMode ? '#475569' : 'transparent', color: isWindMode ? '#fff' : subTextColor }}>🌬️ ลม</button>
                 <div style={{ width: '2px', backgroundColor: borderColor, margin: '0 4px' }}></div>
-                {/* 🌟 เปลี่ยนปุ่มกด ให้พลิกหน้าจอไปแสดง Windy */}
-                <button onClick={toggleRadar} style={{ padding: '6px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: showRadar ? '#ef4444' : 'transparent', color: showRadar ? '#fff' : subTextColor }}>{showRadar ? '📡 ปิดเรดาร์' : '📡 เรดาร์ฝน'}</button>
+                <button onClick={toggleRadar} style={{ padding: '6px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: showRadar ? '#ef4444' : 'transparent', color: showRadar ? '#fff' : subTextColor }}>{showRadar ? '📡 ปิดเรดาร์' : '📡 เรดาร์ฝน (Windy)'}</button>
               </div>
 
               <div style={{ position: 'absolute', bottom: '25px', right: window.innerWidth < 768 ? '70px' : '70px', zIndex: 500, background: darkMode ? 'rgba(30,41,59,0.95)' : 'rgba(255,255,255,0.95)', padding: '6px 14px', borderRadius: '20px', fontSize: '0.75rem', color: subTextColor, backdropFilter: 'blur(4px)', border: `1px solid ${borderColor}`, display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
@@ -711,7 +710,7 @@ export default function App() {
                 </div>
               )}
 
-              {/* 🌟 ใหม่: นำจอ Windy เรดาร์มาซ้อนทับแผนที่เดิมเมื่อกดปุ่ม "เรดาร์ฝน" */}
+              {/* 🌟 แทนที่เรดาร์เดิมด้วย Windy Interactive Radar */}
               {showRadar && (
                 <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 450, backgroundColor: darkMode ? '#0f172a' : '#fff' }}>
                   <iframe 
@@ -1172,6 +1171,18 @@ export default function App() {
                 <h3 style={{ fontSize: '1.4rem', color: '#8b5cf6', margin: 0, fontWeight:'bold', display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <span style={{ fontSize: '1.6rem' }}>🌪️</span> เฝ้าระวังพายุและทิศทางลม
                 </h3>
+                {/* 🌟 ใหม่: ปุ่มควบคุมแผนที่ Windy */}
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <select value={windyLayer} onChange={(e) => setWindyLayer(e.target.value)} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid ${borderColor}`, backgroundColor: darkMode ? '#1e293b' : '#f8fafc', color: textColor, outline: 'none', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold' }}>
+                    <option value="wind">🌬️ กระแสลม (Wind)</option>
+                    <option value="rain">🌧️ เมฆและฝน (Rain, Thunder)</option>
+                    <option value="radar">📡 เรดาร์สภาพอากาศ (Radar)</option>
+                    <option value="temp">🌡️ อุณหภูมิ (Temperature)</option>
+                  </select>
+                  <button onClick={() => setShowIsobars(!showIsobars)} style={{ padding: '6px 12px', borderRadius: '20px', border: `1px solid ${showIsobars ? '#8b5cf6' : borderColor}`, backgroundColor: showIsobars ? (darkMode ? 'rgba(139,92,246,0.2)' : '#f3e8ff') : (darkMode ? '#1e293b' : '#f8fafc'), color: showIsobars ? '#8b5cf6' : subTextColor, fontSize: '0.85rem', cursor: 'pointer', fontWeight: 'bold', transition: 'all 0.2s' }}>
+                    {showIsobars ? '✅ เส้นความกดอากาศ' : '⬜ เส้นความกดอากาศ'}
+                  </button>
+                </div>
               </div>
               
               {/* แผนที่ลมจาก Windy.com */}
@@ -1179,11 +1190,11 @@ export default function App() {
                  <iframe 
                     width="100%" 
                     height="100%" 
-                    src="https://embed.windy.com/embed.html?type=map&location=coordinates&metricRain=mm&metricTemp=°C&metricWind=km/h&zoom=5&overlay=wind&product=ecmwf&level=surface&lat=13.75&lon=100.5" 
+                    src={`https://embed.windy.com/embed.html?type=map&location=coordinates&metricRain=mm&metricTemp=°C&metricWind=km/h&zoom=5&overlay=${windyLayer}&product=ecmwf&level=surface&lat=13.75&lon=100.5${showIsobars ? '&pressure=true' : ''}`} 
                     frameBorder="0"
                  ></iframe>
               </div>
-              <p style={{ fontSize: '0.85rem', color: subTextColor, marginTop: '10px', textAlign: 'right' }}>อ้างอิงข้อมูลกระแสลมจาก Windy.com (โมเดล ECMWF)</p>
+              <p style={{ fontSize: '0.85rem', color: subTextColor, marginTop: '10px', textAlign: 'right' }}>อ้างอิงข้อมูลจาก Windy.com (โมเดล ECMWF)</p>
             </div>
 
             {/* โซนที่ 3: ปรากฏการณ์โลก เอลนีโญ / ลานีญา */}
