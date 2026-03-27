@@ -51,13 +51,15 @@ const createCustomMarker = (viewMode, value, extraData) => {
 
 function FitBounds({ stations, activeStation, selectedProvince, selectedRegion }) { 
   const map = useMap(); 
+  const filterKey = `${selectedRegion || 'all'}-${selectedProvince || 'all'}-${stations.length}`;
+
   useEffect(() => { 
     if (activeStation) return; 
     if (stations && stations.length > 0) { 
       if (!selectedProvince && !selectedRegion) { map.flyTo([13.5, 101.0], 6, { duration: 1.5 }); } 
       else { const validStations = stations.filter(s => s.lat && s.long && !isNaN(parseFloat(s.lat)) && !isNaN(parseFloat(s.long)) && parseFloat(s.lat) !== 0); if (validStations.length > 0) { const bounds = L.latLngBounds(validStations.map(s => [parseFloat(s.lat), parseFloat(s.long)])); map.fitBounds(bounds, { padding: [40, 40], maxZoom: 11 }); } } 
     } 
-  }, [stations, map, activeStation, selectedProvince, selectedRegion]); 
+  }, [filterKey, map, activeStation]); 
   return null; 
 }
 function FlyToActiveStation({ activeStation }) { const map = useMap(); useEffect(() => { if (activeStation && !isNaN(parseFloat(activeStation.lat))) map.flyTo([parseFloat(activeStation.lat), parseFloat(activeStation.long)], 13, { duration: 1.5 }); }, [activeStation, map]); return null; }
@@ -110,6 +112,8 @@ export default function App() {
     const saved = localStorage.getItem('darkMode');
     return saved ? saved === 'true' : false;
   });
+  
+  // 🌟 ปรับ Show Radar ให้เหลือแค่เป็น Toggle เปิดปิดแผนที่
   const [showRadar, setShowRadar] = useState(false);
   
   const [activeWeather, setActiveWeather] = useState(null); 
@@ -142,11 +146,6 @@ export default function App() {
   const [windyLayer, setWindyLayer] = useState('wind');
   const [showIsobars, setShowIsobars] = useState(false);
 
-  const [isMapRadarScanning, setIsMapRadarScanning] = useState(false);
-  const [mapRadarResult, setMapRadarResult] = useState(null);
-  
-  const [radarTarget, setRadarTarget] = useState({ lat: 13.75, lon: 100.5, name: 'พิกัดที่กำหนด' });
-
   const [favLocations, setFavLocations] = useState(() => JSON.parse(localStorage.getItem('weatherFavs')) || ['กรุงเทพมหานคร']);
 
   const cardRefs = useRef({});
@@ -166,9 +165,13 @@ export default function App() {
     localStorage.setItem('weatherFavs', JSON.stringify(newFavs));
   };
 
-  const handleViewModeChange = (mode) => { setViewMode(mode); setSortOrder(mode === 'temp' ? 'asc' : 'desc'); setShowRadar(false); setIsMobileListOpen(false); setMapRadarResult(null); };
+  const handleViewModeChange = (mode) => { 
+    setViewMode(mode); 
+    setSortOrder(mode === 'temp' ? 'asc' : 'desc'); 
+    setShowRadar(false); 
+  };
 
-  const toggleRadar = () => { setShowRadar(!showRadar); setMapRadarResult(null); };
+  const toggleRadar = () => { setShowRadar(!showRadar); };
 
   const fetchOpenMeteoBulk = async (stationsList) => {
     try {
@@ -259,7 +262,7 @@ export default function App() {
     if (activeStation && currentPage === 'map') {
       if (cardRefs.current[activeStation.stationID] && (window.innerWidth >= 768 || isMobileListOpen)) { cardRefs.current[activeStation.stationID].scrollIntoView({ behavior: 'smooth', block: 'center' }); }
       const marker = markerRefs.current[activeStation.stationID]; if (marker && !showRadar) marker.openPopup(); 
-      setActiveWeather(null); setActiveForecast(null); setMapRadarResult(null);
+      setActiveWeather(null); setActiveForecast(null);
       
       const fetchCardDetails = async () => {
         try {
@@ -339,7 +342,7 @@ export default function App() {
     } catch (e) { console.error(e); } finally { setDashLoading(false); }
   };
 
-  const handleReset = () => { setSelectedRegion(''); setSelectedProvince(''); setSelectedStationId(''); setActiveStation(null); setShowRadar(false); setIsMobileListOpen(false); setMapRadarResult(null); setCurrentPage('map'); window.scrollTo({top:0, behavior:'smooth'}); };
+  const handleReset = () => { setSelectedRegion(''); setSelectedProvince(''); setSelectedStationId(''); setActiveStation(null); setShowRadar(false); setIsMobileListOpen(false); setCurrentPage('map'); window.scrollTo({top:0, behavior:'smooth'}); };
   
   const handleFindNearest = () => {
     if (!navigator.geolocation) return alert('ไม่รองรับ GPS'); setLocating(true);
@@ -443,129 +446,6 @@ export default function App() {
 
       setAlertsData({ urgent, daily, tomorrow, rawHourlyText: hourlyRawData, tomorrowHourlyText: tomorrowHourlyRawData });
     } catch(e) { console.error("Error setting alerts:", e); } finally { setAlertsLoading(false); }
-  };
-
-  const handleMapRadarScan = async (useGps = false) => {
-    let targetLat = 13.75;
-    let targetLon = 100.5;
-    let windDir = 0;
-    let windSpeed = 0;
-    let locName = 'พิกัดที่กำหนด';
-
-    if (useGps) {
-      if (!navigator.geolocation) return alert('อุปกรณ์ของคุณไม่รองรับ GPS');
-      setIsMapRadarScanning(true);
-      setMapRadarResult(null);
-      
-      navigator.geolocation.getCurrentPosition(async (pos) => {
-        targetLat = pos.coords.latitude;
-        targetLon = pos.coords.longitude;
-        locName = 'พิกัดปัจจุบันของคุณ';
-        
-        setRadarTarget({ lat: targetLat, lon: targetLon, name: locName });
-        await executeRadarScan(targetLat, targetLon, 0, 0, locName); 
-      }, () => {
-        alert('ไม่สามารถเข้าถึงตำแหน่ง GPS ได้');
-        setIsMapRadarScanning(false);
-      });
-      return; 
-    }
-
-    if (activeStation && !isNaN(parseFloat(activeStation.lat))) {
-      targetLat = parseFloat(activeStation.lat); 
-      targetLon = parseFloat(activeStation.long); 
-      locName = activeStation.nameTH;
-      const tObj = stationTemps[activeStation.stationID];
-      if (tObj) { windDir = tObj.windDir; windSpeed = tObj.windSpeed; }
-    } else if (selectedProvince) {
-      const provStations = stations.filter(s => extractProvince(s.areaTH) === selectedProvince && !isNaN(parseFloat(s.lat)));
-      if (provStations.length > 0) {
-        targetLat = provStations.reduce((sum, s) => sum + parseFloat(s.lat), 0) / provStations.length;
-        targetLon = provStations.reduce((sum, s) => sum + parseFloat(s.long), 0) / provStations.length;
-        locName = `จ.${selectedProvince}`;
-        const tObj = stationTemps[provStations[0].stationID];
-        if (tObj) { windDir = tObj.windDir; windSpeed = tObj.windSpeed; }
-      }
-    }
-    
-    setRadarTarget({ lat: targetLat, lon: targetLon, name: locName });
-    await executeRadarScan(targetLat, targetLon, windDir, windSpeed, locName);
-  };
-
-  const executeRadarScan = async (lat, lon, windDir, windSpeed, locName) => {
-    setIsMapRadarScanning(true);
-    setMapRadarResult(null);
-    
-    try {
-      const res = await fetch('/api/radar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lat, lon, windDir, windSpeed })
-      });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      
-      setMapRadarResult({ 
-          title: data.cardTitle, 
-          icon: data.cardIcon, 
-          color: data.cardColor, 
-          tag: data.cardTag, 
-          desc: data.cardDesc 
-      });
-
-    } catch(e) {
-      setMapRadarResult({ title: "ระบบขัดข้อง", icon: "⚠️", color: "red", tag: "Error", desc: "ไม่สามารถประมวลผลภาพเรดาร์ได้ในขณะนี้" });
-    } finally {
-      setIsMapRadarScanning(false);
-    }
-  };
-
-  const handleRadarPixelScan = async () => {
-    let targetLat = 13.75;
-    let targetLon = 100.5;
-    let windDir = 0;
-    let windSpeed = 0;
-
-    if (activeStation) {
-      targetLat = activeStation.lat; targetLon = activeStation.long;
-      const tObj = stationTemps[activeStation.stationID];
-      if (tObj) { windDir = tObj.windDir; windSpeed = tObj.windSpeed; }
-    } else if (alertsLocationName.includes('จ.')) {
-      const provName = alertsLocationName.replace('จ.', '');
-      const provStations = stations.filter(s => extractProvince(s.areaTH) === provName);
-      if (provStations.length > 0) {
-        targetLat = provStations[0].lat; targetLon = provStations[0].long;
-        const tObj = stationTemps[provStations[0].stationID];
-        if (tObj) { windDir = tObj.windDir; windSpeed = tObj.windSpeed; }
-      }
-    }
-    
-    setIsGeneratingAI(true);
-    setAiSummaryJson(null);
-    
-    try {
-      const res = await fetch('/api/radar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lat: parseFloat(targetLat), lon: parseFloat(targetLon), windDir, windSpeed })
-      });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-
-      setAiSummaryJson([{
-          title: data.cardTitle,
-          icon: data.cardIcon,
-          color: data.cardColor,
-          tag: data.cardTag,
-          desc: data.cardDesc
-      }]);
-      setAiTimestamp(`${data.radarTime} น. (ระบบสแกนล่วงหน้ารัศมี 60 กม.)`);
-
-    } catch(e) {
-      setAiSummaryJson([{ title: "ระบบขัดข้อง", icon: "⚠️", color: "red", tag: "Error", desc: "ไม่สามารถประมวลผลภาพเรดาร์ได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง" }]);
-    } finally {
-      setIsGeneratingAI(false);
-    }
   };
 
   useEffect(() => {
@@ -702,7 +582,6 @@ export default function App() {
     const provStations = stations.filter(s => extractProvince(s.areaTH) === selectedProvince && !isNaN(parseFloat(s.lat)));
     if (provStations.length > 0) { radarLat = provStations.reduce((sum, s) => sum + parseFloat(s.lat), 0) / provStations.length; radarLon = provStations.reduce((sum, s) => sum + parseFloat(s.long), 0) / provStations.length; radarZoom = 8; }
   }
-  if (isMapRadarScanning || mapRadarResult) { radarLat = radarTarget.lat; radarLon = radarTarget.lon; radarZoom = 11; }
 
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100vh', width:'100vw', background: themeBg, fontFamily:"'Kanit', sans-serif", overflowY:'hidden', overflowX:'hidden', transition: 'background 1s ease' }}>
@@ -723,21 +602,21 @@ export default function App() {
               <div className="hide-scrollbar" style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: 'rgba(255,255,255,0.15)', padding: '5px 12px', borderRadius: '30px', overflowX: 'auto', whiteSpace: 'nowrap', flex: 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <label style={{ fontWeight: 'bold', fontSize: '0.85rem' }}>📍</label>
-                  <select value={selectedRegion} onChange={(e) => { setSelectedRegion(e.target.value); setSelectedProvince(''); setSelectedStationId(''); setActiveStation(null); setIsMobileListOpen(false); setMapRadarResult(null); setIsMapRadarScanning(false); }} style={{ padding: '5px 10px', borderRadius: '15px', border: 'none', backgroundColor: '#fff', color: '#1e293b', outline: 'none', cursor: 'pointer', fontSize: '0.85rem' }}>
+                  <select value={selectedRegion} onChange={(e) => { setSelectedRegion(e.target.value); setSelectedProvince(''); setSelectedStationId(''); setActiveStation(null); setIsMobileListOpen(false); setShowRadar(false); }} style={{ padding: '5px 10px', borderRadius: '15px', border: 'none', backgroundColor: '#fff', color: '#1e293b', outline: 'none', cursor: 'pointer', fontSize: '0.85rem' }}>
                     <option value="">ทุกภูมิภาค</option>{Object.keys(regionMapping).map(r => <option key={r} value={r}>{r}</option>)}
                   </select>
                 </div>
                 <div style={{ width: '1px', height: '15px', backgroundColor: 'rgba(255,255,255,0.3)' }}></div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <label style={{ fontWeight: 'bold', fontSize: '0.85rem' }}>🗺️</label>
-                  <select value={selectedProvince} onChange={(e) => { setSelectedProvince(e.target.value); setSelectedStationId(''); setActiveStation(null); setIsMobileListOpen(false); setMapRadarResult(null); setIsMapRadarScanning(false); }} style={{ padding: '5px 10px', borderRadius: '15px', border: 'none', backgroundColor: '#fff', color: '#1e293b', outline: 'none', cursor: 'pointer', fontSize: '0.85rem' }}>
+                  <select value={selectedProvince} onChange={(e) => { setSelectedProvince(e.target.value); setSelectedStationId(''); setActiveStation(null); setIsMobileListOpen(false); setShowRadar(false); }} style={{ padding: '5px 10px', borderRadius: '15px', border: 'none', backgroundColor: '#fff', color: '#1e293b', outline: 'none', cursor: 'pointer', fontSize: '0.85rem' }}>
                     <option value="">ทุกจังหวัด</option>{availableProvinces.map(p => (<option key={p} value={p}>{p}</option>))}
                   </select>
                 </div>
                 <div style={{ width: '1px', height: '15px', backgroundColor: 'rgba(255,255,255,0.3)' }}></div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1 }}>
                   <label style={{ fontWeight: 'bold', fontSize: '0.85rem' }}>📌</label>
-                  <select value={selectedStationId} onChange={(e) => { setSelectedStationId(e.target.value); const stat = filteredStations.find(s => s.stationID === e.target.value); if(stat) {setActiveStation(stat); setIsMobileListOpen(false); setMapRadarResult(null); setIsMapRadarScanning(false);} }} style={{ width: '100%', minWidth: '150px', padding: '5px 10px', borderRadius: '15px', border: 'none', backgroundColor: '#fff', color: '#1e293b', outline: 'none', cursor: 'pointer', fontSize: '0.85rem', textOverflow: 'ellipsis' }}>
+                  <select value={selectedStationId} onChange={(e) => { setSelectedStationId(e.target.value); const stat = filteredStations.find(s => s.stationID === e.target.value); if(stat) {setActiveStation(stat); setIsMobileListOpen(false); setShowRadar(false);} }} style={{ width: '100%', minWidth: '150px', padding: '5px 10px', borderRadius: '15px', border: 'none', backgroundColor: '#fff', color: '#1e293b', outline: 'none', cursor: 'pointer', fontSize: '0.85rem', textOverflow: 'ellipsis' }}>
                     <option value="">-- เลือกสถานี --</option>{filteredStations.slice().sort((a, b) => a.nameTH.localeCompare(b.nameTH, 'th')).map(s => (<option key={s.stationID} value={s.stationID}>{s.nameTH}</option>))}
                   </select>
                 </div>
@@ -754,7 +633,7 @@ export default function App() {
             <div style={{ display: 'flex', backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: '25px', padding: '4px' }}>
               <button onClick={() => { setCurrentPage('map'); setIsMobileListOpen(false); }} style={{ padding: '5px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem', backgroundColor: currentPage === 'map' ? '#fff' : 'transparent', color: currentPage === 'map' ? '#0ea5e9' : '#fff' }}>🗺️ แผนที่</button>
               <button onClick={() => { setCurrentPage('forecast'); }} style={{ padding: '5px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem', backgroundColor: currentPage === 'forecast' ? '#fff' : 'transparent', color: currentPage === 'forecast' ? '#0ea5e9' : '#fff' }}>🌤️ พยากรณ์</button>
-              <button onClick={() => { setCurrentPage('climate'); }} style={{ padding: '5px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem', backgroundColor: currentPage === 'climate' ? '#fff' : 'transparent', color: currentPage === 'climate' ? '#0ea5e9' : '#fff' }}>📰 ข่าว & เตือนภัย</button>
+              <button onClick={() => { setCurrentPage('climate'); }} style={{ padding: '5px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem', backgroundColor: currentPage === 'climate' ? '#fff' : 'transparent', color: currentPage === 'climate' ? '#0ea5e9' : '#fff' }}>📰 ข่าว & เฝ้าระวัง</button>
             </div>
           )}
           <button onClick={() => setDarkMode(!darkMode)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '50%', width: '36px', height: '36px', cursor: 'pointer', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{darkMode ? '☀️' : '🌙'}</button>
@@ -833,71 +712,20 @@ export default function App() {
                 </div>
               )}
 
+              {/* 🌟 แสดงแผนที่เรดาร์แบบเต็มจอและโต้ตอบได้ 100% ไม่มีกรอบบังแล้ว! */}
               {showRadar && (
-                <>
                   <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 450, backgroundColor: darkMode ? '#0f172a' : '#fff' }}>
                     <iframe 
                       width="100%" 
                       height="100%" 
                       src={`https://embed.windy.com/embed.html?type=map&location=coordinates&metricRain=mm&metricTemp=°C&metricWind=km/h&zoom=${radarZoom}&overlay=radar&product=radar&level=surface&lat=${radarLat}&lon=${radarLon}`} 
                       frameBorder="0"
-                      style={{ pointerEvents: (isMapRadarScanning || mapRadarResult) ? 'none' : 'auto' }}
+                      style={{ pointerEvents: 'auto' }}
                     ></iframe>
                   </div>
-
-                  {!isMapRadarScanning && !mapRadarResult && (
-                    <div style={{ position: 'absolute', bottom: '30px', left: '50%', transform: 'translateX(-50%)', zIndex: 600, display: 'flex', flexDirection: 'column', gap: '10px', background: cardBg, padding: '15px', borderRadius: '20px', backdropFilter: backdropBlur, border: `1px solid ${borderColor}`, boxShadow: '0 10px 30px rgba(0,0,0,0.15)', width: '90%', maxWidth: '400px' }}>
-                      <div style={{ textAlign: 'center', color: textColor, fontWeight: 'bold', fontSize: '0.95rem', marginBottom: '5px' }}>🎯 เล็งเป้าหมายให้ AI วิเคราะห์ฝน</div>
-                      
-                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
-                        <button onClick={() => handleMapRadarScan(true)} style={{ flex: '1 1 auto', padding: '8px 15px', borderRadius: '25px', backgroundColor: '#0ea5e9', color: '#fff', border: 'none', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '0.9rem', whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(14,165,233,0.3)' }}>
-                          📍 ตำแหน่งฉัน
-                        </button>
-                        <button onClick={() => handleMapRadarScan(false)} style={{ flex: '2 1 auto', padding: '8px 15px', borderRadius: '25px', backgroundColor: '#8b5cf6', color: '#fff', border: 'none', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', animation: 'pulseGlow 2s infinite', fontSize: '0.9rem', whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(139,92,246,0.3)' }}>
-                          🔍 สแกน {selectedProvince ? `จ.${selectedProvince}` : 'พิกัดที่เลือก'}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {isMapRadarScanning && (
-                    <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 600, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                      <style>{`
-                        @keyframes radarScan { 0% { transform: scale(0.8); opacity: 0; } 50% { opacity: 1; } 100% { transform: scale(2.5); opacity: 0; } }
-                        .radar-target { width: 100px; height: 100px; border: 2px dashed #0ea5e9; border-radius: 50%; position: relative; display: flex; justify-content: center; align-items: center; }
-                        .radar-target::before { content: ''; position: absolute; width: 10px; height: 10px; background: #ef4444; border-radius: 50%; }
-                        .radar-wave { position: absolute; width: 100%; height: 100%; border: 2px solid #0ea5e9; border-radius: 50%; animation: radarScan 1.5s linear infinite; }
-                      `}</style>
-                      <div className="radar-target"><div className="radar-wave"></div></div>
-                      <div style={{ marginTop: '20px', padding: '8px 16px', background: 'rgba(15, 23, 42, 0.8)', color: '#fff', borderRadius: '20px', fontWeight: 'bold', backdropFilter: 'blur(4px)', border: '1px solid #334155' }}>
-                        กำลังให้ AI วิเคราะห์ทิศทางพายุ...
-                      </div>
-                    </div>
-                  )}
-
-                  {mapRadarResult && (
-                    <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 600, width: '90%', maxWidth: '350px', backgroundColor: cardBg, padding: '20px', borderRadius: '16px', border: `1px solid ${mapRadarResult.color === 'red' ? '#ef4444' : mapRadarResult.color === 'yellow' ? '#f59e0b' : mapRadarResult.color === 'green' ? '#10b981' : '#0ea5e9'}`, boxShadow: '0 10px 30px rgba(0,0,0,0.2)', backdropFilter: backdropBlur, animation: 'slideUp 0.3s ease-out' }}>
-                      <button onClick={() => setMapRadarResult(null)} style={{ position: 'absolute', top: '10px', right: '10px', background: 'transparent', border: 'none', fontSize: '1.2rem', color: textColor, cursor: 'pointer' }}>✕</button>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '15px' }}>
-                        <div style={{ fontSize: '2.5rem' }}>{mapRadarResult.icon}</div>
-                        <div>
-                          <h3 style={{ margin: 0, color: textColor, fontSize: '1.1rem', fontWeight: 'bold' }}>{mapRadarResult.title}</h3>
-                          <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#fff', background: mapRadarResult.color === 'red' ? '#ef4444' : mapRadarResult.color === 'yellow' ? '#f59e0b' : mapRadarResult.color === 'green' ? '#10b981' : '#0ea5e9', padding: '2px 8px', borderRadius: '12px', display: 'inline-block', marginTop: '4px' }}>{mapRadarResult.tag}</span>
-                        </div>
-                      </div>
-                      <p style={{ margin: 0, color: textColor, fontSize: '0.9rem', lineHeight: '1.6' }}>{mapRadarResult.desc}</p>
-                      
-                      <div style={{ marginTop: '10px', fontSize: '0.8rem', color: subTextColor, borderTop: `1px solid ${borderColor}`, paddingTop: '10px' }}>
-                        📍 สแกนที่: <strong>{radarTarget.name}</strong>
-                      </div>
-
-                      <button onClick={() => setMapRadarResult(null)} style={{ width: '100%', padding: '10px', marginTop: '15px', borderRadius: '8px', border: 'none', backgroundColor: darkMode ? '#334155' : '#e2e8f0', color: textColor, fontWeight: 'bold', cursor: 'pointer' }}>รับทราบ</button>
-                    </div>
-                  )}
-                </>
               )}
 
-              <MapContainer center={[13.75, 100.5]} zoom={10} style={{ height: '100%', width: '100%', zIndex: 1, backgroundColor: darkMode ? '#1a202c' : '#bae6fd' }}>
+              <MapContainer center={[13.75, 100.5]} zoom={10} style={{ height: '100%', width: '100%', zIndex: 1, backgroundColor: darkMode ? '#1a202c' : '#bae6fd', display: showRadar ? 'none' : 'block' }}>
                 <LayersControl position="bottomleft">
                   <LayersControl.BaseLayer checked name="🗺️ แผนที่ปกติ (Default)">
                     <TileLayer url={darkMode ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"} />
@@ -973,7 +801,6 @@ export default function App() {
                   </select>
                 </div>
 
-                {/* 🌟 พื้นที่โปรด ย้ายมาซ่อนไว้อย่างสวยงามตรงนี้ครับ */}
                 {favLocations.length > 0 && (
                    <div style={{ marginTop: '15px', display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '5px' }} className="hide-scrollbar">
                       <span style={{ fontSize: '0.8rem', color: subTextColor, display: 'flex', alignItems: 'center', whiteSpace: 'nowrap' }}>⭐️ โปรด:</span>
@@ -1019,7 +846,6 @@ export default function App() {
                         <div style={{ marginTop:'12px', padding:'10px', background:'rgba(0,0,0,0.05)', borderRadius:'8px', display:'flex', gap:'8px', border: `1px dashed ${boxBg}` }}><span>{hAdv.icon}</span><span style={{fontSize:'0.8rem',color:textColor}}>{hAdv.text}</span></div>
                       )}
 
-                      {/* 🌟 กู้คืนมินิกราฟพยากรณ์ ให้แสดงตอนถูกคลิก (Active) เท่านั้น */}
                       {isActive && (
                         <div style={{ marginTop: '15px', paddingTop: '15px', borderTop: `1px dashed ${borderColor}` }}>
                           <h5 style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: textColor, display: 'flex', alignItems: 'center', gap: '5px' }}>📊 แนวโน้ม {activeChart.name}</h5>
@@ -1549,7 +1375,7 @@ export default function App() {
           </div>
           <div onClick={() => { setCurrentPage('climate'); window.scrollTo({top:0, behavior:'smooth'}); }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', color: currentPage === 'climate' ? '#0ea5e9' : subTextColor, cursor: 'pointer', flex: 1, padding: '5px' }}>
             <span style={{ fontSize: '1.6rem', marginBottom: '4px', filter: currentPage === 'climate' ? 'none' : 'grayscale(100%) opacity(50%)', transition: 'all 0.2s', transform: currentPage === 'climate' ? 'scale(1.1)' : 'scale(1)' }}>📰</span>
-            <span style={{ fontSize: '0.75rem', fontWeight: currentPage === 'climate' ? 'bold' : 'normal', transition: 'all 0.2s' }}>ข่าว & เตือนภัย</span>
+            <span style={{ fontSize: '0.75rem', fontWeight: currentPage === 'climate' ? 'bold' : 'normal', transition: 'all 0.2s' }}>ข่าว & เฝ้าระวัง</span>
           </div>
         </div>
       )}
@@ -1579,7 +1405,7 @@ export default function App() {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <label style={{ fontSize: '0.85rem', color: subTextColor, fontWeight: 'bold' }}>สถานี</label>
-              <select value={selectedStationId} onChange={(e) => { setSelectedStationId(e.target.value); const stat = filteredStations.find(s => s.stationID === e.target.value); if(stat) {setActiveStation(stat); setShowMobileFilters(false); setIsMobileListOpen(false); setMapRadarResult(null); setIsMapRadarScanning(false);} }} style={{ padding: '10px', borderRadius: '12px', border: `1px solid ${borderColor}`, backgroundColor: darkMode ? '#1e293b' : '#f8fafc', color: textColor, outline: 'none', fontSize: '1rem' }}>
+              <select value={selectedStationId} onChange={(e) => { setSelectedStationId(e.target.value); const stat = filteredStations.find(s => s.stationID === e.target.value); if(stat) {setActiveStation(stat); setShowMobileFilters(false); setIsMobileListOpen(false); setShowRadar(false);} }} style={{ padding: '10px', borderRadius: '12px', border: `1px solid ${borderColor}`, backgroundColor: darkMode ? '#1e293b' : '#f8fafc', color: textColor, outline: 'none', fontSize: '1rem' }}>
                 <option value="">-- เลือกสถานี --</option>{filteredStations.slice().sort((a, b) => a.nameTH.localeCompare(b.nameTH, 'th')).map(s => (<option key={s.stationID} value={s.stationID}>{s.nameTH}</option>))}
               </select>
             </div>
