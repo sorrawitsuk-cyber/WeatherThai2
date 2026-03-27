@@ -97,14 +97,22 @@ export default function App() {
   const [selectedProvince, setSelectedProvince] = useState('กรุงเทพมหานคร');
   
   const [selectedStationId, setSelectedStationId] = useState('');
-  const [viewMode, setViewMode] = useState('temp'); 
+  
+  // 🌟 อัปเดต 1: เริ่มต้นที่โหมดฝุ่น PM2.5 ทันทีที่เปิดแอป
+  const [viewMode, setViewMode] = useState('pm25'); 
   const [sortOrder, setSortOrder] = useState('desc'); 
   const [stationTemps, setStationTemps] = useState({});
   const [activeStation, setActiveStation] = useState(null);
   const [loading, setLoading] = useState(true);
   const [lastUpdateText, setLastUpdateText] = useState('');
   const [locating, setLocating] = useState(false);
-  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('darkMode') === 'true');
+  
+  // 🌟 อัปเดต 2: บังคับให้เป็นโหมดสว่าง (Light Mode) ทุกครั้งที่เปิดแอป (โดยตั้งค่าเริ่มต้นเป็น false)
+  const [darkMode, setDarkMode] = useState(() => {
+    // อ่านค่าเก่ามา แต่ถ้าไม่เคยตั้งค่าให้เป็น false (สว่าง)
+    const saved = localStorage.getItem('darkMode');
+    return saved ? saved === 'true' : false;
+  });
   const [showRadar, setShowRadar] = useState(false);
   
   const [activeWeather, setActiveWeather] = useState(null); 
@@ -115,7 +123,7 @@ export default function App() {
   const [dashLoading, setDashLoading] = useState(false);
   const [dashTitle, setDashTitle] = useState('ภาพรวมทั้งประเทศ');
 
-  const [currentPage, setCurrentPage] = useState(window.innerWidth < 768 ? 'forecast' : 'forecast'); 
+  const [currentPage, setCurrentPage] = useState(window.innerWidth < 768 ? 'map' : 'map'); 
   const [showLegend, setShowLegend] = useState(window.innerWidth >= 768);
   const [isMobileListOpen, setIsMobileListOpen] = useState(false);
 
@@ -788,7 +796,7 @@ export default function App() {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0, marginLeft: 'auto' }}>
           
-          {/* 🌟 ปุ่ม Install PWA */}
+          {/* 🌟 ปุ่ม Install PWA (แสดงเฉพาะถ้าติดตั้งได้) */}
           {deferredPrompt && (
              <button onClick={handleInstallClick} style={{ padding: '6px 12px', borderRadius: '20px', backgroundColor: '#fbbf24', color: '#78350f', border: 'none', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', boxShadow: '0 2px 5px rgba(0,0,0,0.2)' }}>
                 📲 ติดตั้งแอป
@@ -1503,6 +1511,43 @@ export default function App() {
           <div onClick={() => { setCurrentPage('climate'); window.scrollTo({top:0, behavior:'smooth'}); }} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', color: currentPage === 'climate' ? '#0ea5e9' : subTextColor, cursor: 'pointer', flex: 1, padding: '5px' }}>
             <span style={{ fontSize: '1.6rem', marginBottom: '4px', filter: currentPage === 'climate' ? 'none' : 'grayscale(100%) opacity(50%)', transition: 'all 0.2s', transform: currentPage === 'climate' ? 'scale(1.1)' : 'scale(1)' }}>📰</span>
             <span style={{ fontSize: '0.75rem', fontWeight: currentPage === 'climate' ? 'bold' : 'normal', transition: 'all 0.2s' }}>ข่าว & เตือนภัย</span>
+          </div>
+        </div>
+      )}
+
+      {/* 🌟 MOBILE FILTERS MODAL */}
+      {window.innerWidth < 768 && showMobileFilters && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px', backdropFilter: 'blur(4px)' }}>
+          <div style={{ backgroundColor: cardBg, borderRadius: '20px', padding: '25px', width: '100%', maxWidth: '400px', display: 'flex', flexDirection: 'column', gap: '15px', boxShadow: '0 10px 25px rgba(0,0,0,0.2)', border: `1px solid ${borderColor}`, backdropFilter: backdropBlur }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+              <h3 style={{ margin: 0, color: textColor }}>🔍 ค้นหาสถานี</h3>
+              <button onClick={() => setShowMobileFilters(false)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', color: subTextColor, cursor: 'pointer' }}>✕</button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <label style={{ fontSize: '0.85rem', color: subTextColor, fontWeight: 'bold' }}>ภูมิภาค</label>
+              <select value={selectedRegion} onChange={(e) => { setSelectedRegion(e.target.value); setSelectedProvince(''); setSelectedStationId(''); setActiveStation(null); }} style={{ padding: '10px', borderRadius: '12px', border: `1px solid ${borderColor}`, backgroundColor: darkMode ? '#1e293b' : '#f8fafc', color: textColor, outline: 'none', fontSize: '1rem' }}>
+                <option value="">ทุกภูมิภาค</option>{Object.keys(regionMapping).map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <label style={{ fontSize: '0.85rem', color: subTextColor, fontWeight: 'bold' }}>จังหวัด</label>
+              <select value={selectedProvince} onChange={(e) => { setSelectedProvince(e.target.value); setSelectedStationId(''); setActiveStation(null); }} style={{ padding: '10px', borderRadius: '12px', border: `1px solid ${borderColor}`, backgroundColor: darkMode ? '#1e293b' : '#f8fafc', color: textColor, outline: 'none', fontSize: '1rem' }}>
+                <option value="">ทุกจังหวัด</option>{availableProvinces.map(p => (<option key={p} value={p}>{p}</option>))}
+              </select>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <label style={{ fontSize: '0.85rem', color: subTextColor, fontWeight: 'bold' }}>สถานี</label>
+              <select value={selectedStationId} onChange={(e) => { setSelectedStationId(e.target.value); const stat = filteredStations.find(s => s.stationID === e.target.value); if(stat) {setActiveStation(stat); setShowMobileFilters(false); setIsMobileListOpen(false); setMapRadarResult(null); setIsMapRadarScanning(false);} }} style={{ padding: '10px', borderRadius: '12px', border: `1px solid ${borderColor}`, backgroundColor: darkMode ? '#1e293b' : '#f8fafc', color: textColor, outline: 'none', fontSize: '1rem' }}>
+                <option value="">-- เลือกสถานี --</option>{filteredStations.slice().sort((a, b) => a.nameTH.localeCompare(b.nameTH, 'th')).map(s => (<option key={s.stationID} value={s.stationID}>{s.nameTH}</option>))}
+              </select>
+            </div>
+
+            <button onClick={() => setShowMobileFilters(false)} style={{ marginTop: '10px', padding: '12px', borderRadius: '12px', backgroundColor: '#0ea5e9', color: '#fff', border: 'none', fontWeight: 'bold', fontSize: '1rem', cursor: 'pointer' }}>
+              ตกลง
+            </button>
           </div>
         </div>
       )}
