@@ -1,5 +1,3 @@
-import { Jimp, intToRGBA } from 'jimp';
-
 const getWindDirectionText = (degree) => {
     if (degree === undefined || degree === null) return '';
     if (degree >= 337.5 || degree < 22.5) return 'เหนือ';
@@ -33,165 +31,145 @@ const getLocationName = async (lat, lon) => {
     } catch (e) { return null; }
 };
 
+// 🌟 ฟังก์ชันคำนวณพิกัดล้อมรอบ (สร้างเรดาร์จำลอง)
+const getDestinationPoint = (lat, lon, distanceKm, bearingDeg) => {
+    const R = 6371; // รัศมีโลก
+    const d = distanceKm;
+    const brng = bearingDeg * Math.PI / 180;
+    const lat1 = lat * Math.PI / 180;
+    const lon1 = lon * Math.PI / 180;
+
+    let lat2 = Math.asin(Math.sin(lat1) * Math.cos(d / R) + Math.cos(lat1) * Math.sin(d / R) * Math.cos(brng));
+    let lon2 = lon1 + Math.atan2(Math.sin(brng) * Math.sin(d / R) * Math.cos(lat1), Math.cos(d / R) - Math.sin(lat1) * Math.sin(lat2));
+
+    return { lat: (lat2 * 180 / Math.PI).toFixed(4), lon: (lon2 * 180 / Math.PI).toFixed(4) };
+};
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
-  const { lat, lon, windDir, windSpeed } = req.body;
+  const { lat, lon } = req.body;
   if (!lat || !lon) return res.status(400).json({ error: 'Missing lat/lon' });
 
   try {
-    const rvDataRes = await fetch('https://api.rainviewer.com/public/weather-maps.json');
-    const rvData = await rvDataRes.json();
     let targetDistrict = await getLocationName(lat, lon);
+    const radarTime = new Date().toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit' });
 
-    // 🌟 ขยายเลนส์ดาวเทียมเป็น 512x512 เพื่อความแม่นยำและไม่ตกขอบ
-    const zoom = 6;
-    const tileSize = 512;
-    const n = Math.pow(2, zoom);
-    const x = (lon + 180) / 360 * n;
-    const latRad = lat * Math.PI / 180;
-    const y = (1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * n;
+    // 🌟 สร้างจุด Probe 9 จุด (ศูนย์กลาง 1 + ล้อมรอบ 8 ทิศทาง ระยะ 40 กม.)
+    const points = [{ lat: lat.toFixed(4), lon: lon.toFixed(4), bearing: 0, distance: 0 }];
+    const bearings = [0, 45, 90, 135, 180, 225, 270, 315];
+    const probeDistance = 40; // รัศมี 40 กม. รอบตัว
+    
+    bearings.forEach(b => {
+        const pt = getDestinationPoint(lat, lon, probeDistance, b);
+        points.push({ ...pt, bearing: b, distance: probeDistance });
+    });
 
-    const tileX = Math.floor(x);
-    const tileY = Math.floor(y);
-    const pixelX = Math.floor((x - tileX) * tileSize);
-    const pixelY = Math.floor((y - tileY) * tileSize);
+    const latsStr = points.map(p => p.lat).join(',');
+    const lonsStr = points.map(p => p.lon).join(',');
 
-    let image = null;
-    let validTimeStr = '';
+    // 🌟 ยิง API ขอดึงข้อมูลสภาพอากาศแบบเจาะจงจุด ทั้ง 9 จุดพร้อมกัน!
+    const openMeteoUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latsStr}&longitude=${lonsStr}&current=precipitation,wind_speed_10m,wind_direction_10m&timezone=Asia/Bangkok`;
+    const weatherRes = await fetch(openMeteoUrl);
+    const weatherData = await weatherRes.json();
 
-    // 🌟 พระเอกของงานนี้: ระบบ Time Machine ถอยหลังหาภาพที่สมบูรณ์ที่สุด (สูงสุดถอยหลัง 40 นาที)
-    const pastFrames = rvData.radar.past;
-    for (let i = pastFrames.length - 1; i >= Math.max(0, pastFrames.length - 4); i--) {
-        const time = pastFrames[i].time;
-        const tileUrl = `https://tilecache.rainviewer.com/v2/radar/${time}/${tileSize}/${zoom}/${tileX}/${tileY}/2/1_1.png`;
-        
-        try {
-            image = await Jimp.read(tileUrl);
-            validTimeStr = new Date(time * 1000).toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit' });
-            console.log(`Successfully loaded radar tile from time: ${validTimeStr}`);
-            break; // ถ้าโหลดภาพสำเร็จ ให้หยุดค้นหาทันที
-        } catch (imgError) {
-            console.log(`Tile not ready for time ${time}, trying previous frame...`);
-        }
+    if (!Array.isArray(weatherData)) {
+        throw new Error("Invalid API response");
     }
 
-    // ถ้าถอยไป 40 นาทีแล้วยังไม่มีรูป แสดงว่าฟ้าโปร่งจริงๆ
-    if (!image) {
-        return res.status(200).json({
-            radarTime: new Date().toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit' }),
-            currentLocName: targetDistrict,
-            alertLevel: 0,
-            cardTitle: 'ท้องฟ้าโปร่ง ไม่มีฝน',
-            cardDesc: `สแกนเรดาร์รัศมี 60 กม. รอบ ${targetDistrict || 'พื้นที่เป้าหมาย'} ไม่พบกลุ่มเมฆฝน ท้องฟ้าโปร่งครับ`,
-            cardColor: 'blue',
-            cardIcon: '☀️',
-            cardTag: 'ปลอดภัย'
-        });
-    }
-
-    // 🌟 คำนวณรัศมี 60 กม. (1 พิกเซล ที่ Zoom 6 ขนาด 512 = ประมาณ 2.4 กม.)
-    const kmPerPixel = 2.4;
-    const maxRadiusKm = 60; 
-    const maxRadiusPx = Math.floor(maxRadiusKm / kmPerPixel); 
-
-    let centerAlertLevel = 0;
-    let nearestStormDistPx = Infinity;
-    let nearestStormLevel = 0;
-    let nearestStormDx = 0;
-    let nearestStormDy = 0;
-
-    for (let dy = -maxRadiusPx; dy <= maxRadiusPx; dy++) {
-        for (let dx = -maxRadiusPx; dx <= maxRadiusPx; dx++) {
-            
-            const distPx = Math.sqrt(dx*dx + dy*dy);
-            if (distPx > maxRadiusPx) continue; 
-
-            const checkX = pixelX + dx;
-            const checkY = pixelY + dy;
-
-            if (checkX >= 0 && checkX < tileSize && checkY >= 0 && checkY < tileSize) {
-                const hexColor = image.getPixelColor(checkX, checkY);
-                const rgba = intToRGBA(hexColor);
-
-                // เจอเมฆ/ฝน (ความเข้มสี > 10)
-                if (rgba.a > 10) { 
-                    let level = 1; 
-                    if (rgba.r > 200 && rgba.g < 150) level = 3; 
-                    else if (rgba.r > 150 || rgba.g > 150) level = 2; 
-
-                    // ฝนตกตรงหัวพอดี (รัศมี ~4.8 กม.)
-                    if (distPx <= 2) { 
-                        if (level > centerAlertLevel) centerAlertLevel = level;
-                    }
-
-                    // หาพายุลูกที่อยู่ใกล้เราที่สุด (แต่อยู่นอกพื้นที่ตรงกลาง)
-                    if (distPx <= maxRadiusPx && distPx > 2 && distPx < nearestStormDistPx) {
-                        nearestStormDistPx = distPx;
-                        nearestStormLevel = level;
-                        nearestStormDx = dx;
-                        nearestStormDy = dy;
-                    }
-                }
-            }
-        }
-    }
-
+    const centerData = weatherData[0].current;
     let resultData = {
-        radarTime: validTimeStr,
+        radarTime: radarTime,
         currentLocName: targetDistrict,
         alertLevel: 0,
         cardTitle: 'ท้องฟ้าโปร่ง ไม่มีฝน',
-        cardDesc: `สแกนเรดาร์รัศมี ${maxRadiusKm} กม. รอบ ${targetDistrict} ไม่พบกลุ่มฝน สามารถทำกิจกรรมหรือเดินทางได้ตามปกติครับ`,
+        cardDesc: `สแกนสภาพอากาศรัศมี ${probeDistance} กม. รอบ ${targetDistrict || 'พื้นที่เป้าหมาย'} ไม่พบกลุ่มเมฆฝน สามารถทำกิจกรรมหรือเดินทางได้ตามปกติครับ`,
         cardColor: 'blue',
         cardIcon: '☀️',
         cardTag: 'ปลอดภัย'
     };
 
-    if (centerAlertLevel > 0) {
-        const levelText = centerAlertLevel === 3 ? "หนักมาก!" : centerAlertLevel === 2 ? "ปานกลาง" : "ปรอยๆ";
-        resultData.alertLevel = centerAlertLevel;
-        resultData.cardColor = centerAlertLevel === 3 ? "red" : centerAlertLevel === 2 ? "yellow" : "green";
-        resultData.cardIcon = centerAlertLevel === 3 ? "🚨" : "🌧️";
+    // 🌟 กรณีที่ 1: ฝนกำลังตกตรงจุดศูนย์กลางพอดี
+    if (centerData.precipitation > 0.1) {
+        let level = 1;
+        if (centerData.precipitation >= 5.0) level = 3; // หนักมาก
+        else if (centerData.precipitation >= 1.5) level = 2; // ปานกลาง
+
+        const levelText = level === 3 ? "หนักมาก!" : level === 2 ? "ปานกลาง" : "ปรอยๆ";
+        resultData.alertLevel = level;
+        resultData.cardColor = level === 3 ? "red" : level === 2 ? "yellow" : "green";
+        resultData.cardIcon = level === 3 ? "🚨" : "🌧️";
         resultData.cardTitle = `ฝนตก${levelText}ในพื้นที่!`;
         resultData.cardTag = "ฝนตกขณะนี้";
-        resultData.cardDesc = `เรดาร์ตรวจพบกลุ่มฝนระดับ${levelText} กำลังปกคลุมพื้นที่ ${targetDistrict} โดยตรง ขอให้ระมัดระวังในการเดินทางครับ`;
-    
-    } else if (nearestStormDistPx !== Infinity) {
-        const distKm = Math.round(nearestStormDistPx * kmPerPixel);
-        const bearingToStorm = (Math.atan2(nearestStormDx, -nearestStormDy) * 180 / Math.PI + 360) % 360;
-        const stormDirText = getWindDirectionText(bearingToStorm);
+        resultData.cardDesc = `แบบจำลองตรวจพบกลุ่มฝนระดับ${levelText} กำลังปกคลุมพื้นที่ ${targetDistrict} โดยตรง ขอให้ระมัดระวังในการเดินทางครับ`;
         
-        let angleDiff = Math.abs(bearingToStorm - (windDir || 0));
-        if (angleDiff > 180) angleDiff = 360 - angleDiff;
-        const isApproaching = windSpeed > 5 && angleDiff <= 45;
+        return res.status(200).json(resultData);
+    }
 
-        const stormLevelText = nearestStormLevel === 3 ? "รุนแรง" : nearestStormLevel === 2 ? "ปานกลาง" : "เล็กน้อย";
+    // 🌟 กรณีที่ 2: ศูนย์กลางไม่ตก ให้วิเคราะห์จุดล้อมรอบหาพายุที่กำลังพุ่งชน
+    let highestThreat = null;
 
-        if (isApproaching) {
-            const timeHours = distKm / windSpeed;
-            const timeMins = Math.round(timeHours * 60);
-            
-            resultData.alertLevel = 2;
-            resultData.cardColor = nearestStormLevel === 3 ? 'red' : 'yellow';
-            resultData.cardIcon = "⏳";
-            resultData.cardTitle = "ระวัง! กลุ่มฝนกำลังพัดเข้ามา";
-            resultData.cardTag = "พยากรณ์ล่วงหน้า";
-            resultData.cardDesc = `พบกลุ่มฝน${stormLevelText} ห่างออกไป ${distKm} กม. ทางทิศ${stormDirText} ลมกำลังพัดเข้าหาคุณ คาดว่าจะถึง ${targetDistrict} ในอีกประมาณ ${timeMins} นาที! วางแผนการเดินทางด่วนครับ`;
-        } else {
+    for (let i = 1; i < points.length; i++) {
+        const ptWeather = weatherData[i].current;
+        const precip = ptWeather.precipitation;
+
+        if (precip > 0.5) { // พบกลุ่มพายุในจุดล้อมรอบ
+            const windDir = ptWeather.wind_direction_10m;
+            const windSpeed = ptWeather.wind_speed_10m; // km/h
+            const stormBearing = points[i].bearing; // ทิศทางที่พายุอยู่ (เทียบกับเรา)
+
+            // เช็คว่าลมพัดตรงมาหาศูนย์กลางหรือไม่? 
+            // (ทิศลมพัดเข้าหาตัวเรา คือ ทิศเดียวกับที่พายุอยู่)
+            let angleDiff = Math.abs(stormBearing - windDir);
+            if (angleDiff > 180) angleDiff = 360 - angleDiff;
+
+            // ถ้าทิศทางลมทำมุมพุ่งเข้าหาเรา (คลาดเคลื่อนไม่เกิน 45 องศา) และลมแรงพอสมควร
+            const isApproaching = angleDiff <= 45 && windSpeed > 5;
+
+            if (isApproaching) {
+                const threatLevel = precip >= 5.0 ? 3 : (precip >= 1.5 ? 2 : 1);
+                const etaHours = probeDistance / windSpeed;
+                const etaMins = Math.max(10, Math.round(etaHours * 60)); // ประเมินเวลาถึงอย่างต่ำ 10 นาที
+
+                if (!highestThreat || threatLevel > highestThreat.level) {
+                    highestThreat = {
+                        level: threatLevel,
+                        bearing: stormBearing,
+                        speed: windSpeed,
+                        eta: etaMins
+                    };
+                }
+            }
+        }
+    }
+
+    if (highestThreat) {
+        const stormLevelText = highestThreat.level === 3 ? "รุนแรง" : highestThreat.level === 2 ? "ปานกลาง" : "เล็กน้อย";
+        const stormDirText = getWindDirectionText(highestThreat.bearing);
+
+        resultData.alertLevel = 2;
+        resultData.cardColor = highestThreat.level === 3 ? 'red' : 'yellow';
+        resultData.cardIcon = "⏳";
+        resultData.cardTitle = "ระวัง! กลุ่มฝนกำลังเคลื่อนตัวเข้าหา";
+        resultData.cardTag = "พยากรณ์ล่วงหน้า";
+        resultData.cardDesc = `พบกลุ่มฝน${stormLevelText} ห่างออกไป ${probeDistance} กม. ทางทิศ${stormDirText} ลมกำลังพัดเข้าหาคุณ! คาดว่าจะถึง ${targetDistrict} ในอีกประมาณ ${highestThreat.eta} นาที วางแผนการเดินทางด่วนครับ`;
+    } else {
+        // ลองหาพายุเฉยๆ แม้ลมจะไม่พัดมา
+        const nearbyStorm = weatherData.slice(1).find(w => w.current.precipitation > 0.5);
+        if (nearbyStorm) {
             resultData.alertLevel = 1;
             resultData.cardColor = 'green';
             resultData.cardIcon = "👀";
-            resultData.cardTitle = "พบกลุ่มฝนบริเวณใกล้เคียง";
+            resultData.cardTitle = "พบพายุบริเวณใกล้เคียง";
             resultData.cardTag = "เฝ้าระวัง";
-            resultData.cardDesc = `พบกลุ่มฝน${stormLevelText} ห่างออกไป ${distKm} กม. ทางทิศ${stormDirText} แต่กระแสลมปัจจุบันไม่ได้พัดมาทางนี้ พื้นที่ ${targetDistrict} ค่อนข้างปลอดภัยครับ`;
+            resultData.cardDesc = `พบกลุ่มฝนห่างออกไป ${probeDistance} กม. แต่กระแสลมปัจจุบันไม่ได้พัดมาทางนี้ พื้นที่ ${targetDistrict} ค่อนข้างปลอดภัยครับ`;
         }
     }
 
     return res.status(200).json(resultData);
 
   } catch (error) {
-    console.error("Radar Scanner Error:", error);
+    console.error("Advanced Radar Scanner Error:", error);
     return res.status(500).json({ error: error.message });
   }
 }
