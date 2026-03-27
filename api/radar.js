@@ -42,12 +42,11 @@ export default async function handler(req, res) {
   try {
     const rvDataRes = await fetch('https://api.rainviewer.com/public/weather-maps.json');
     const rvData = await rvDataRes.json();
-    const latestTime = rvData.radar.past[rvData.radar.past.length - 1].time;
-    const timeStr = new Date(latestTime * 1000).toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit' });
     let targetDistrict = await getLocationName(lat, lon);
 
-    // Zoom 7: 1 พิกเซล = พื้นที่กว้างประมาณ 1.2 กิโลเมตร
-    const zoom = 7;
+    // 🌟 ขยายเลนส์ดาวเทียมเป็น 512x512 เพื่อความแม่นยำและไม่ตกขอบ
+    const zoom = 6;
+    const tileSize = 512;
     const n = Math.pow(2, zoom);
     const x = (lon + 180) / 360 * n;
     const latRad = lat * Math.PI / 180;
@@ -55,29 +54,44 @@ export default async function handler(req, res) {
 
     const tileX = Math.floor(x);
     const tileY = Math.floor(y);
-    const pixelX = Math.floor((x - tileX) * 256);
-    const pixelY = Math.floor((y - tileY) * 256);
+    const pixelX = Math.floor((x - tileX) * tileSize);
+    const pixelY = Math.floor((y - tileY) * tileSize);
 
-    const tileUrl = `https://tilecache.rainviewer.com/v2/radar/${latestTime}/256/${zoom}/${tileX}/${tileY}/2/1_1.png`;
-    
-    let image;
-    try {
-        image = await Jimp.read(tileUrl);
-    } catch (imgError) {
-        console.log("No radar tile found (Clear sky). URL:", tileUrl);
+    let image = null;
+    let validTimeStr = '';
+
+    // 🌟 พระเอกของงานนี้: ระบบ Time Machine ถอยหลังหาภาพที่สมบูรณ์ที่สุด (สูงสุดถอยหลัง 40 นาที)
+    const pastFrames = rvData.radar.past;
+    for (let i = pastFrames.length - 1; i >= Math.max(0, pastFrames.length - 4); i--) {
+        const time = pastFrames[i].time;
+        const tileUrl = `https://tilecache.rainviewer.com/v2/radar/${time}/${tileSize}/${zoom}/${tileX}/${tileY}/2/1_1.png`;
+        
+        try {
+            image = await Jimp.read(tileUrl);
+            validTimeStr = new Date(time * 1000).toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit' });
+            console.log(`Successfully loaded radar tile from time: ${validTimeStr}`);
+            break; // ถ้าโหลดภาพสำเร็จ ให้หยุดค้นหาทันที
+        } catch (imgError) {
+            console.log(`Tile not ready for time ${time}, trying previous frame...`);
+        }
+    }
+
+    // ถ้าถอยไป 40 นาทีแล้วยังไม่มีรูป แสดงว่าฟ้าโปร่งจริงๆ
+    if (!image) {
         return res.status(200).json({
-            radarTime: timeStr,
+            radarTime: new Date().toLocaleTimeString('th-TH', { timeZone: 'Asia/Bangkok', hour: '2-digit', minute: '2-digit' }),
             currentLocName: targetDistrict,
             alertLevel: 0,
             cardTitle: 'ท้องฟ้าโปร่ง ไม่มีฝน',
-            cardDesc: `สแกนเรดาร์รัศมี 60 กม. รอบ ${targetDistrict || 'พื้นที่เป้าหมาย'} ไม่พบกลุ่มเมฆฝน ท้องฟ้าโปร่งครับ (ภาพดาวเทียมล่าสุด)`,
+            cardDesc: `สแกนเรดาร์รัศมี 60 กม. รอบ ${targetDistrict || 'พื้นที่เป้าหมาย'} ไม่พบกลุ่มเมฆฝน ท้องฟ้าโปร่งครับ`,
             cardColor: 'blue',
             cardIcon: '☀️',
             cardTag: 'ปลอดภัย'
         });
     }
 
-    const kmPerPixel = 1.2;
+    // 🌟 คำนวณรัศมี 60 กม. (1 พิกเซล ที่ Zoom 6 ขนาด 512 = ประมาณ 2.4 กม.)
+    const kmPerPixel = 2.4;
     const maxRadiusKm = 60; 
     const maxRadiusPx = Math.floor(maxRadiusKm / kmPerPixel); 
 
@@ -96,26 +110,23 @@ export default async function handler(req, res) {
             const checkX = pixelX + dx;
             const checkY = pixelY + dy;
 
-            // ตรวจสอบพิกเซลภายในเขตของ Tile
-            if (checkX >= 0 && checkX < 256 && checkY >= 0 && checkY < 256) {
+            if (checkX >= 0 && checkX < tileSize && checkY >= 0 && checkY < tileSize) {
                 const hexColor = image.getPixelColor(checkX, checkY);
                 const rgba = intToRGBA(hexColor);
 
-                // 🌟 อัปเดตแก้บั๊ก: ลดการกรองลงเหลือ Alpha > 10 (จับได้แม้กระทั่งเมฆสีฟ้า/เขียวจางๆ)
+                // เจอเมฆ/ฝน (ความเข้มสี > 10)
                 if (rgba.a > 10) { 
-                    let level = 1; // เริ่มต้นที่เบาที่สุด (สีฟ้า/เขียว)
-                    
-                    // วิเคราะห์จากค่าสีแดง (Red) และเขียว (Green)
-                    if (rgba.r > 200 && rgba.g < 150) level = 3; // สีแดง/ม่วง (ตกหนักมาก)
-                    else if (rgba.r > 150 && rgba.g >= 150) level = 2; // สีเหลือง/ส้ม (ตกปานกลาง)
+                    let level = 1; 
+                    if (rgba.r > 200 && rgba.g < 150) level = 3; 
+                    else if (rgba.r > 150 || rgba.g > 150) level = 2; 
 
-                    // ถ้าระยะห่างไม่เกิน 3 กม. ถือว่าตกอยู่ "บนหัวเรา" เลย
-                    if (distPx <= 2.5) { 
+                    // ฝนตกตรงหัวพอดี (รัศมี ~4.8 กม.)
+                    if (distPx <= 2) { 
                         if (level > centerAlertLevel) centerAlertLevel = level;
                     }
 
-                    // หาพายุลูกที่อยู่ใกล้เราที่สุด (แต่อยู่นอกรัศมี 3 กม.)
-                    if (distPx <= maxRadiusPx && distPx > 2.5 && distPx < nearestStormDistPx) {
+                    // หาพายุลูกที่อยู่ใกล้เราที่สุด (แต่อยู่นอกพื้นที่ตรงกลาง)
+                    if (distPx <= maxRadiusPx && distPx > 2 && distPx < nearestStormDistPx) {
                         nearestStormDistPx = distPx;
                         nearestStormLevel = level;
                         nearestStormDx = dx;
@@ -127,7 +138,7 @@ export default async function handler(req, res) {
     }
 
     let resultData = {
-        radarTime: timeStr,
+        radarTime: validTimeStr,
         currentLocName: targetDistrict,
         alertLevel: 0,
         cardTitle: 'ท้องฟ้าโปร่ง ไม่มีฝน',
