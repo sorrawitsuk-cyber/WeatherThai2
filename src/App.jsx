@@ -113,7 +113,6 @@ export default function App() {
     return saved ? saved === 'true' : false;
   });
   
-  // 🌟 ปรับ Show Radar ให้เหลือแค่เป็น Toggle เปิดปิดแผนที่
   const [showRadar, setShowRadar] = useState(false);
   
   const [activeWeather, setActiveWeather] = useState(null); 
@@ -262,7 +261,7 @@ export default function App() {
     if (activeStation && currentPage === 'map') {
       if (cardRefs.current[activeStation.stationID] && (window.innerWidth >= 768 || isMobileListOpen)) { cardRefs.current[activeStation.stationID].scrollIntoView({ behavior: 'smooth', block: 'center' }); }
       const marker = markerRefs.current[activeStation.stationID]; if (marker && !showRadar) marker.openPopup(); 
-      setActiveWeather(null); setActiveForecast(null);
+      setActiveWeather(null); setActiveForecast(null); 
       
       const fetchCardDetails = async () => {
         try {
@@ -505,8 +504,14 @@ export default function App() {
       else if (topic === 'travel') { promptText = `คุณคือไกด์นำเที่ยว วิเคราะห์สภาพอากาศ **${dayWord}** แนะนำการท่องเที่ยว: 1.กิจกรรมกลางแจ้ง 2.สถานที่แนะนำ 3.อุปสรรคการเดินทาง:\n\n${contextData}`; }
       else if (topic === 'lifestyle') { promptText = `คุณคือผู้ช่วยแม่บ้าน วิเคราะห์สภาพอากาศ **${dayWord}**: 1.เวลาตากผ้า 2.เวลาล้างรถ 3.ต้องพกร่มไหม:\n\n${contextData}`; } 
       else if (topic === 'exercise') { promptText = `คุณคือเทรนเนอร์ฟิตเนส วิเคราะห์สภาพอากาศ **${dayWord}**: 1.ออกกำลังกายกลางแจ้งได้ไหม 2.ช่วงเวลาที่ดีที่สุด 3.ข้อควรระวัง:\n\n${contextData}`; } 
-      else if (topic === 'health') { promptText = `คุณคือแพทย์ภูมิแพ้ วิเคราะห์สภาพอากาศ **${dayWord}**: 1.คุณภาพอากาศ/PM2.5 2.ความปลอดภัยแดด/UV 3.คำแนะนำพิเศษ:\n\n${contextData}`; }
+      // 🌟 อัปเดต Prompt หมวดสุขภาพ/เช็คฝุ่น
+      else if (topic === 'health') { promptText = `คุณคือแพทย์ผู้เชี่ยวชาญด้านทางเดินหายใจ วิเคราะห์สภาพอากาศ **${dayWord}**: 1.คุณภาพอากาศ/ระดับฝุ่น PM2.5 2.ความปลอดภัยในการทำกิจกรรม 3.คำแนะนำการสวมหน้ากากและการดูแลสุขภาพ:\n\n${contextData}`; }
       else if (topic === 'agriculture') { promptText = `คุณคือผู้เชี่ยวชาญการเกษตร วิเคราะห์สภาพอากาศ **${dayWord}**: 1.พ่นปุ๋ย/ยา 2.การรดน้ำ 3.ตากผลผลิต:\n\n${contextData}`; }
+      // 🌟 เพิ่ม 4 หมวดหมู่ใหม่
+      else if (topic === 'pet') { promptText = `คุณคือสัตวแพทย์ วิเคราะห์สภาพอากาศ **${dayWord}**: 1.เวลาพาสัตว์เลี้ยงเดินเล่นที่ปลอดภัย 2.การระวังฮีทสโตรกและฝุ่น PM2.5 3.การจัดการที่นอนและความชื้น:\n\n${contextData}`; }
+      else if (topic === 'vendor') { promptText = `คุณคือที่ปรึกษาพ่อค้าแม่ค้าตลาดนัด วิเคราะห์สภาพอากาศ **${dayWord}**: 1.การตั้งร้าน/กางเต็นท์ (ระวังลมและฝน) 2.คาดการณ์คนเดินตลาด 3.การเก็บรักษาสินค้าตามสภาพอากาศ:\n\n${contextData}`; }
+      else if (topic === 'construction') { promptText = `คุณคือวิศวกรควบคุมงานก่อสร้าง วิเคราะห์สภาพอากาศ **${dayWord}**: 1.งานทาสี/เทปูน (พิจารณาฝนและความชื้น) 2.ทำงานบนหลังคา/ที่สูง (พิจารณาลมและพายุ) 3.ความปลอดภัยคนงาน (ฮีทสโตรก):\n\n${contextData}`; }
+      else if (topic === 'solar') { promptText = `คุณคือผู้เชี่ยวชาญด้านพลังงานโซลาร์เซลล์ วิเคราะห์สภาพอากาศ **${dayWord}**: 1.ประสิทธิภาพการผลิตไฟวันนี้ (พิจารณา UV และเมฆ) 2.การวางแผนใช้ไฟฟ้าในบ้าน 3.ควรล้างแผงโซลาร์เซลล์หรือไม่ (ดูแนวโน้มฝุ่นและฝน):\n\n${contextData}`; }
 
       promptText += jsonInstruction;
 
@@ -612,6 +617,11 @@ export default function App() {
                   <select value={selectedProvince} onChange={(e) => { setSelectedProvince(e.target.value); setSelectedStationId(''); setActiveStation(null); setIsMobileListOpen(false); setShowRadar(false); }} style={{ padding: '5px 10px', borderRadius: '15px', border: 'none', backgroundColor: '#fff', color: '#1e293b', outline: 'none', cursor: 'pointer', fontSize: '0.85rem' }}>
                     <option value="">ทุกจังหวัด</option>{availableProvinces.map(p => (<option key={p} value={p}>{p}</option>))}
                   </select>
+                  {selectedProvince && (
+                     <button onClick={() => toggleFavorite(selectedProvince)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem', padding: '0 5px' }} title="บันทึกสถานที่โปรด">
+                        {favLocations.includes(selectedProvince) ? '⭐' : '☆'}
+                     </button>
+                  )}
                 </div>
                 <div style={{ width: '1px', height: '15px', backgroundColor: 'rgba(255,255,255,0.3)' }}></div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1 }}>
@@ -846,6 +856,7 @@ export default function App() {
                         <div style={{ marginTop:'12px', padding:'10px', background:'rgba(0,0,0,0.05)', borderRadius:'8px', display:'flex', gap:'8px', border: `1px dashed ${boxBg}` }}><span>{hAdv.icon}</span><span style={{fontSize:'0.8rem',color:textColor}}>{hAdv.text}</span></div>
                       )}
 
+                      {/* 🌟 กู้คืนมินิกราฟพยากรณ์ */}
                       {isActive && (
                         <div style={{ marginTop: '15px', paddingTop: '15px', borderTop: `1px dashed ${borderColor}` }}>
                           <h5 style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: textColor, display: 'flex', alignItems: 'center', gap: '5px' }}>📊 แนวโน้ม {activeChart.name}</h5>
@@ -989,14 +1000,19 @@ export default function App() {
                 </div>
 
                 <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '20px' }}>
+                  {/* 🌟 อัปเดตปุ่ม AI ให้ครบทุกหมวดหมู่ที่คุยกันไว้ */}
                   <button onClick={() => generateAISummary('general')} disabled={isGeneratingAI} style={{ padding: '8px 16px', borderRadius: '20px', border: `1px solid #3b82f6`, backgroundColor: darkMode ? 'rgba(59,130,246,0.15)' : '#eff6ff', color: '#3b82f6', fontSize: '0.9rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold', transition:'0.2s', boxShadow: '0 2px 5px rgba(59,130,246,0.1)' }}>🌤️ สรุปภาพรวม</button>
                   <button onClick={() => generateAISummary('rain')} disabled={isGeneratingAI} style={{ padding: '8px 16px', borderRadius: '20px', border: `1px solid #0ea5e9`, backgroundColor: darkMode ? 'rgba(14,165,233,0.15)' : '#e0f2fe', color: '#0ea5e9', fontSize: '0.9rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold', transition:'0.2s', boxShadow: '0 2px 5px rgba(14,165,233,0.1)' }}>☔ เช็คเวลาฝนตก</button>
                   <button onClick={() => generateAISummary('hourly')} disabled={isGeneratingAI} style={{ padding: '8px 16px', borderRadius: '20px', border: `1px solid #6366f1`, backgroundColor: darkMode ? 'rgba(99,102,241,0.15)' : '#e0e7ff', color: '#4f46e5', fontSize: '0.9rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold', transition:'0.2s', boxShadow: '0 2px 5px rgba(99,102,241,0.1)' }}>⏱️ วางแผนราย ชม.</button>
                   <button onClick={() => generateAISummary('lifestyle')} disabled={isGeneratingAI} style={{ padding: '8px 16px', borderRadius: '20px', border: `1px solid #10b981`, backgroundColor: darkMode ? 'rgba(16,185,129,0.15)' : '#f0fdf4', color: '#10b981', fontSize: '0.9rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold', transition:'0.2s', boxShadow: '0 2px 5px rgba(16,185,129,0.1)' }}>👕 ซักผ้า/ล้างรถ</button>
                   <button onClick={() => generateAISummary('exercise')} disabled={isGeneratingAI} style={{ padding: '8px 16px', borderRadius: '20px', border: `1px solid #f59e0b`, backgroundColor: darkMode ? 'rgba(245,158,11,0.15)' : '#fffbeb', color: '#d97706', fontSize: '0.9rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold', transition:'0.2s', boxShadow: '0 2px 5px rgba(245,158,11,0.1)' }}>🏃‍♂️ ออกกำลังกาย</button>
-                  <button onClick={() => generateAISummary('health')} disabled={isGeneratingAI} style={{ padding: '8px 16px', borderRadius: '20px', border: `1px solid #ef4444`, backgroundColor: darkMode ? 'rgba(239,68,68,0.15)' : '#fef2f2', color: '#ef4444', fontSize: '0.9rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold', transition:'0.2s', boxShadow: '0 2px 5px rgba(239,68,68,0.1)' }}>😷 สุขภาพ/ภูมิแพ้</button>
+                  <button onClick={() => generateAISummary('health')} disabled={isGeneratingAI} style={{ padding: '8px 16px', borderRadius: '20px', border: `1px solid #ef4444`, backgroundColor: darkMode ? 'rgba(239,68,68,0.15)' : '#fef2f2', color: '#ef4444', fontSize: '0.9rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold', transition:'0.2s', boxShadow: '0 2px 5px rgba(239,68,68,0.1)' }}>😷 สุขภาพ/เช็คฝุ่น</button>
                   <button onClick={() => generateAISummary('travel')} disabled={isGeneratingAI} style={{ padding: '8px 16px', borderRadius: '20px', border: `1px solid #db2777`, backgroundColor: darkMode ? 'rgba(219,39,119,0.15)' : '#fce7f3', color: '#db2777', fontSize: '0.9rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold', transition:'0.2s', boxShadow: '0 2px 5px rgba(219,39,119,0.1)' }}>🎒 ท่องเที่ยว</button>
                   <button onClick={() => generateAISummary('agriculture')} disabled={isGeneratingAI} style={{ padding: '8px 16px', borderRadius: '20px', border: `1px solid #84cc16`, backgroundColor: darkMode ? 'rgba(132,204,22,0.15)' : '#ecfccb', color: '#65a30d', fontSize: '0.9rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold', transition:'0.2s', boxShadow: '0 2px 5px rgba(132,204,22,0.1)' }}>🌾 เกษตรกร</button>
+                  <button onClick={() => generateAISummary('pet')} disabled={isGeneratingAI} style={{ padding: '8px 16px', borderRadius: '20px', border: `1px solid #f43f5e`, backgroundColor: darkMode ? 'rgba(244,63,94,0.15)' : '#fff1f2', color: '#f43f5e', fontSize: '0.9rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold', transition:'0.2s', boxShadow: '0 2px 5px rgba(244,63,94,0.1)' }}>🐶 สัตว์เลี้ยง</button>
+                  <button onClick={() => generateAISummary('vendor')} disabled={isGeneratingAI} style={{ padding: '8px 16px', borderRadius: '20px', border: `1px solid #8b5cf6`, backgroundColor: darkMode ? 'rgba(139,92,246,0.15)' : '#f5f3ff', color: '#8b5cf6', fontSize: '0.9rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold', transition:'0.2s', boxShadow: '0 2px 5px rgba(139,92,246,0.1)' }}>⛺ พ่อค้าแม่ค้า</button>
+                  <button onClick={() => generateAISummary('construction')} disabled={isGeneratingAI} style={{ padding: '8px 16px', borderRadius: '20px', border: `1px solid #78716c`, backgroundColor: darkMode ? 'rgba(120,113,108,0.15)' : '#f5f5f4', color: '#57534e', fontSize: '0.9rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold', transition:'0.2s', boxShadow: '0 2px 5px rgba(120,113,108,0.1)' }}>👷‍♂️ งานช่าง/ก่อสร้าง</button>
+                  <button onClick={() => generateAISummary('solar')} disabled={isGeneratingAI} style={{ padding: '8px 16px', borderRadius: '20px', border: `1px solid #eab308`, backgroundColor: darkMode ? 'rgba(234,179,8,0.15)' : '#fefce8', color: '#ca8a04', fontSize: '0.9rem', cursor: isGeneratingAI?'wait':'pointer', fontWeight:'bold', transition:'0.2s', boxShadow: '0 2px 5px rgba(234,179,8,0.1)' }}>☀️ โซลาร์เซลล์</button>
                 </div>
 
                 <div style={{ backgroundColor: 'rgba(0,0,0,0.02)', padding: isGeneratingAI || aiSummaryJson ? '20px' : '0', borderRadius: '15px', border: aiSummaryJson ? `1px dashed rgba(139, 92, 246, 0.5)` : 'none', transition: 'all 0.3s' }}>
@@ -1239,7 +1255,6 @@ export default function App() {
                     <option value="rain">🌧️ เมฆและฝน (Rain, Thunder)</option>
                     <option value="radar">📡 เรดาร์สภาพอากาศ (Radar)</option>
                     <option value="temp">🌡️ อุณหภูมิ (Temperature)</option>
-                    {/* 🌟 เพิ่มตัวเลือกภาพดาวเทียมของจริงตามคำขอครับ */}
                     <option value="satellite">🛰️ ภาพถ่ายดาวเทียม (Satellite)</option>
                   </select>
                   <button onClick={() => setShowIsobars(!showIsobars)} style={{ padding: '8px 16px', borderRadius: '20px', border: `1px solid ${showIsobars ? '#8b5cf6' : borderColor}`, backgroundColor: showIsobars ? (darkMode ? 'rgba(139,92,246,0.3)' : '#f3e8ff') : 'rgba(0,0,0,0.05)', color: showIsobars ? '#8b5cf6' : textColor, fontSize: '0.9rem', cursor: 'pointer', fontWeight: 'bold', transition: 'all 0.2s' }}>
