@@ -767,7 +767,7 @@ export default function App() {
 
           <div style={{ display: 'flex', gap: '15px', flexDirection: window.innerWidth < 768 ? 'column' : 'row', padding: '15px', flex: 1, minHeight: 0 }}>
             
-            {/* MAP AREA */}
+            {/* MAP AREA (Bento Style) */}
             <div style={{ flex: 7, width: '100%', borderRadius: '20px', overflow: 'hidden', position: 'relative', border: `1px solid ${borderColor}`, height: window.innerWidth < 768 ? '100%' : '100%', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }}>
               
               <div 
@@ -845,7 +845,6 @@ export default function App() {
                     ></iframe>
                   </div>
 
-                  {/* 🌟 ปรับปรุงปุ่ม UI เรดาร์ใหม่ ไม่ให้ล้นกรอบ */}
                   {!isMapRadarScanning && !mapRadarResult && (
                     <div style={{ position: 'absolute', bottom: '30px', left: '50%', transform: 'translateX(-50%)', zIndex: 600, display: 'flex', flexDirection: 'column', gap: '10px', background: cardBg, padding: '15px', borderRadius: '20px', backdropFilter: backdropBlur, border: `1px solid ${borderColor}`, boxShadow: '0 10px 30px rgba(0,0,0,0.15)', width: '90%', maxWidth: '400px' }}>
                       <div style={{ textAlign: 'center', color: textColor, fontWeight: 'bold', fontSize: '0.95rem', marginBottom: '5px' }}>🎯 เล็งเป้าหมายให้ AI วิเคราะห์ฝน</div>
@@ -943,7 +942,7 @@ export default function App() {
               </MapContainer>
             </div>
 
-            {/* SIDEBAR RIGHT LIST */}
+            {/* SIDEBAR RIGHT LIST (Bento Style) */}
             <div style={{ 
               flex: window.innerWidth < 768 ? 'none' : 3, 
               display: (window.innerWidth < 768 && isMobileListOpen && !showRadar) || (window.innerWidth >= 768 && !showRadar) ? 'flex' : 'none',
@@ -1020,7 +1019,7 @@ export default function App() {
                         <div style={{ marginTop:'12px', padding:'10px', background:'rgba(0,0,0,0.05)', borderRadius:'8px', display:'flex', gap:'8px', border: `1px dashed ${boxBg}` }}><span>{hAdv.icon}</span><span style={{fontSize:'0.8rem',color:textColor}}>{hAdv.text}</span></div>
                       )}
 
-                      {/* 🌟 กู้คืนมินิกราฟพยากรณ์ */}
+                      {/* 🌟 กู้คืนมินิกราฟพยากรณ์ ให้แสดงตอนถูกคลิก (Active) เท่านั้น */}
                       {isActive && (
                         <div style={{ marginTop: '15px', paddingTop: '15px', borderTop: `1px dashed ${borderColor}` }}>
                           <h5 style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: textColor, display: 'flex', alignItems: 'center', gap: '5px' }}>📊 แนวโน้ม {activeChart.name}</h5>
@@ -1414,6 +1413,8 @@ export default function App() {
                     <option value="rain">🌧️ เมฆและฝน (Rain, Thunder)</option>
                     <option value="radar">📡 เรดาร์สภาพอากาศ (Radar)</option>
                     <option value="temp">🌡️ อุณหภูมิ (Temperature)</option>
+                    {/* 🌟 เพิ่มตัวเลือกภาพดาวเทียมของจริงตามคำขอครับ */}
+                    <option value="satellite">🛰️ ภาพถ่ายดาวเทียม (Satellite)</option>
                   </select>
                   <button onClick={() => setShowIsobars(!showIsobars)} style={{ padding: '8px 16px', borderRadius: '20px', border: `1px solid ${showIsobars ? '#8b5cf6' : borderColor}`, backgroundColor: showIsobars ? (darkMode ? 'rgba(139,92,246,0.3)' : '#f3e8ff') : 'rgba(0,0,0,0.05)', color: showIsobars ? '#8b5cf6' : textColor, fontSize: '0.9rem', cursor: 'pointer', fontWeight: 'bold', transition: 'all 0.2s' }}>
                     {showIsobars ? '✅ เส้นความกดอากาศ' : '⬜ เส้นความกดอากาศ'}
