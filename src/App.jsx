@@ -19,6 +19,13 @@ const getRainColor = (val) => { return (isNaN(val)||val===null)?{bg:'#ccc',text:
 const getWindColor = (val) => { return (isNaN(val)||val===null)?{bg:'#ccc',text:'#333',bar:'#ccc',label:'ไม่มีข้อมูล'}:val<=10?{bg:'#00b0f0',text:'#fff',bar:'#00b0f0',label:'ลมอ่อน'}:val<=25?{bg:'#2ecc71',text:'#fff',bar:'#2ecc71',label:'ลมปานกลาง'}:val<=40?{bg:'#f1c40f',text:'#222',bar:'#f1c40f',label:'ลมแรง'}:val<=60?{bg:'#e67e22',text:'#fff',bar:'#e67e22',label:'ลมแรงมาก'}:{bg:'#e74c3c',text:'#fff',bar:'#e74c3c',label:'พายุ'}; };
 const getWeatherIcon = (c) => { if(c===undefined||c===null)return{icon:'❓',text:'ไม่ทราบ'}; if(c===0)return{icon:'☀️',text:'แจ่มใส'}; if(c===1)return{icon:'🌤️',text:'มีเมฆบางส่วน'}; if(c===2)return{icon:'⛅',text:'มีเมฆ'}; if(c===3)return{icon:'☁️',text:'มีเมฆมาก'}; if([45,48].includes(c))return{icon:'🌫️',text:'มีหมอก'}; if([51,53,55,56,57].includes(c))return{icon:'🌧️',text:'ฝนปรอย'}; if([61,63,65,66,67].includes(c))return{icon:'🌧️',text:'ฝนตก'}; if([71,73,75,77,85,86].includes(c))return{icon:'❄️',text:'หิมะ'}; if([80,81,82].includes(c))return{icon:'🌦️',text:'ฝนตกหย่อมๆ'}; if([95,96,99].includes(c))return{icon:'⛈️',text:'พายุฝน'}; return{icon:'🌤️',text:'ปกติ'}; };
 
+// 🌟 ฟังก์ชันหาวันที่สำหรับดาวเทียม NASA 
+const getGibsDate = () => {
+  const d = new Date();
+  d.setHours(d.getHours() - 12); // ย้อนหลังไป 12 ชม. เพื่อให้แน่ใจว่า NASA ประมวลผลภาพเสร็จแล้วชัวร์ๆ
+  return d.toISOString().split('T')[0];
+};
+
 const regionMapping = { "ภาคเหนือ": ["เชียงใหม่", "เชียงราย", "แพร่", "น่าน", "พะเยา", "ลำปาง", "ลำพูน", "แม่ฮ่องสอน", "อุตรดิตถ์"], "ภาคตะวันออกเฉียงเหนือ": ["กาฬสินธุ์", "ขอนแก่น", "ชัยภูมิ", "นครพนม", "นครราชสีมา", "บึงกาฬ", "บุรีรัมย์", "มหาสารคาม", "มุกดาหาร", "ยโสธร", "ร้อยเอ็ด", "เลย", "สกลนคร", "สุรินทร์", "ศรีสะเกษ", "หนองคาย", "หนองบัวลำภู", "อุดรธานี", "อุบลราชธานี", "อำนาจเจริญ"], "ภาคกลาง": ["กรุงเทพมหานคร", "กำแพงเพชร", "ชัยนาท", "นครนายก", "นครปฐม", "นครสวรรค์", "นนทบุรี", "ปทุมธานี", "พระนครศรีอยุธยา", "พิจิตร", "พิษณุโลก", "เพชรบูรณ์", "ลพบุรี", "สมุทรปราการ", "สมุทรสงคราม", "สมุทรสาคร", "สิงห์บุรี", "สุโขทัย", "สุพรรณบุรี", "สระบุรี", "อ่างทอง", "อุทัยธานี"], "ภาคตะวันออก": ["จันทบุรี", "ฉะเชิงเทรา", "ชลบุรี", "ตราด", "ปราจีนบุรี", "ระยอง", "สระแก้ว"], "ภาคตะวันตก": ["กาญจนบุรี", "ตาก", "ประจวบคีรีขันธ์", "เพชรบุรี", "ราชบุรี"], "ภาคใต้": ["กระบี่", "ชุมพร", "ตรัง", "นครศรีธรรมราช", "นราธิวาส", "ปัตตานี", "พังงา", "พัทลุง", "ภูเก็ต", "ระนอง", "สตูล", "สงขลา", "สุราษฎร์ธานี", "ยะลา"] };
 const thaiProvinces = Object.values(regionMapping).flat();
 const getRegion = (province) => { for (const [region, provinces] of Object.entries(regionMapping)) { if (provinces.includes(province)) return region; } return "อื่นๆ"; };
@@ -30,7 +37,8 @@ const legendData = {
   heat: { title: 'ดัชนีความร้อน', items: [{color:'#3b82f6',label:'< 27.0 (ปกติ)'},{color:'#22c55e',label:'27.0-32.9 (เฝ้าระวัง)'},{color:'#eab308',label:'33.0-41.9 (เตือนภัย)'},{color:'#f97316',label:'42.0-51.9 (อันตราย)'},{color:'#ef4444',label:'≥ 52.0 (อันตรายมาก)'}] },
   uv: { title: 'รังสี UV สูงสุด', items: [{color:'#2ecc71',label:'0-2 (ต่ำ)'},{color:'#f1c40f',label:'3-5 (ปานกลาง)'},{color:'#e67e22',label:'6-7 (สูง)'},{color:'#e74c3c',label:'8-10 (สูงมาก)'},{color:'#9b59b6',label:'> 10 (อันตราย)'}] },
   rain: { title: 'โอกาสเกิดฝน', items: [{color:'#95a5a6',label:'0 (ไม่มีฝน)'},{color:'#74b9ff',label:'1-30 (โอกาสต่ำ)'},{color:'#0984e3',label:'31-60 (ปานกลาง)'},{color:'#273c75',label:'61-80 (โอกาสสูง)'},{color:'#192a56',label:'> 80 (ตกหนัก)'}] },
-  wind: { title: 'ความเร็วลม', items: [{color:'#00b0f0',label:'0-10 (ลมอ่อน)'},{color:'#2ecc71',label:'11-25 (ลมปานกลาง)'},{color:'#f1c40f',label:'26-40 (ลมแรง)'},{color:'#e67e22',label:'41-60 (ลมแรงมาก)'},{color:'#e74c3c',label:'> 60 (พายุ)'}] }
+  wind: { title: 'ความเร็วลม', items: [{color:'#00b0f0',label:'0-10 (ลมอ่อน)'},{color:'#2ecc71',label:'11-25 (ลมปานกลาง)'},{color:'#f1c40f',label:'26-40 (ลมแรง)'},{color:'#e67e22',label:'41-60 (ลมแรงมาก)'},{color:'#e74c3c',label:'> 60 (พายุ)'}] },
+  hotspot: { title: 'ดาวเทียม NASA', items: [{color:'#ef4444',label:'จุดความร้อน (ไฟป่า/การเผา)'}] } // 🌟 เพิ่ม Legend สำหรับ Hotspot
 };
 
 const chartConfigs = { 
@@ -39,7 +47,8 @@ const chartConfigs = {
   heat: { key: 'heat', keyLY: 'heatLY', name: 'Heat Index สูงสุด', color: '#ea580c', hasLY: true, domain: [min => Math.min(25, Math.floor(min)), max => Math.max(55, Math.ceil(max))] }, 
   uv: { key: 'uv', keyLY: null, name: 'รังสี UV สูงสุด', color: '#a855f7', domain: [0, max => Math.max(12, Math.ceil(max))] }, 
   rain: { key: 'rain', keyLY: 'rainLY', name: 'ปริมาณฝนสะสม', color: '#3b82f6', hasLY: true, domain: [0, max => Math.max(20, Math.ceil(max))] }, 
-  wind: { key: 'wind', keyLY: 'windLY', name: 'ความเร็วลมสูงสุด', color: '#64748b', hasLY: true, domain: [0, max => Math.max(40, Math.ceil(max))] } 
+  wind: { key: 'wind', keyLY: 'windLY', name: 'ความเร็วลมสูงสุด', color: '#64748b', hasLY: true, domain: [0, max => Math.max(40, Math.ceil(max))] },
+  hotspot: { key: 'pm25', name: 'จุดความร้อน (Hot spot)', color: '#ef4444', domain: [0, 500] }
 };
 
 // 2. Map Components & Skeleton
@@ -114,7 +123,6 @@ export default function App() {
   });
   
   const [showRadar, setShowRadar] = useState(false);
-  const [showHotspots, setShowHotspots] = useState(false);
   
   const [activeWeather, setActiveWeather] = useState(null); 
   const [activeForecast, setActiveForecast] = useState(null); 
@@ -245,12 +253,13 @@ export default function App() {
     if (selectedStationId) result = result.filter(s => s.stationID === selectedStationId);
     result.sort((a, b) => {
       let vA, vB;
-      if (viewMode==='pm25') { vA = Number(a.AQILast?.PM25?.value); vB = Number(b.AQILast?.PM25?.value); }
+      if (viewMode==='pm25' || viewMode==='hotspot') { vA = Number(a.AQILast?.PM25?.value); vB = Number(b.AQILast?.PM25?.value); }
       else if (viewMode==='temp') { vA = stationTemps[a.stationID]?.temp; vB = stationTemps[b.stationID]?.temp; }
       else if (viewMode==='heat') { vA = stationTemps[a.stationID]?.feelsLike; vB = stationTemps[b.stationID]?.feelsLike; }
       else if (viewMode==='uv') { vA = stationTemps[a.stationID]?.uvMax; vB = stationTemps[b.stationID]?.uvMax; }
       else if (viewMode==='rain') { vA = stationTemps[a.stationID]?.rainProb; vB = stationTemps[b.stationID]?.rainProb; }
       else if (viewMode==='wind') { vA = stationTemps[a.stationID]?.windSpeed; vB = stationTemps[b.stationID]?.windSpeed; }
+      
       const validA = vA!=null && !isNaN(vA) && (viewMode==='rain'?true:vA!==0); const validB = vB!=null && !isNaN(vB) && (viewMode==='rain'?true:vB!==0);
       if (!validA && validB) return 1; if (validA && !validB) return -1; if (!validA && !validB) return 0;
       return sortOrder === 'desc' ? vB - vA : vA - vB;
@@ -342,14 +351,14 @@ export default function App() {
     } catch (e) { console.error(e); } finally { setDashLoading(false); }
   };
 
-  const handleReset = () => { setSelectedRegion(''); setSelectedProvince(''); setSelectedStationId(''); setActiveStation(null); setShowRadar(false); setShowHotspots(false); setIsMobileListOpen(false); setCurrentPage('map'); window.scrollTo({top:0, behavior:'smooth'}); };
+  const handleReset = () => { setSelectedRegion(''); setSelectedProvince(''); setSelectedStationId(''); setActiveStation(null); setShowRadar(false); setViewMode('pm25'); setIsMobileListOpen(false); setCurrentPage('map'); window.scrollTo({top:0, behavior:'smooth'}); };
   
   const handleFindNearest = () => {
     if (!navigator.geolocation) return alert('ไม่รองรับ GPS'); setLocating(true);
     navigator.geolocation.getCurrentPosition((pos) => {
       let nearest = null; let minD = Infinity;
       stations.forEach(s => { const d = getDistanceFromLatLonInKm(pos.coords.latitude, pos.coords.longitude, parseFloat(s.lat), parseFloat(s.long)); if (d<minD){minD=d; nearest=s;} });
-      if (nearest) { const prov = extractProvince(nearest.areaTH); setSelectedRegion(getRegion(prov)); setSelectedProvince(prov); setSelectedStationId(nearest.stationID); setActiveStation(nearest); setShowRadar(false); setIsMobileListOpen(false); setCurrentPage('map'); window.scrollTo({top:0, behavior:'smooth'}); }
+      if (nearest) { const prov = extractProvince(nearest.areaTH); setSelectedRegion(getRegion(prov)); setSelectedProvince(prov); setSelectedStationId(nearest.stationID); setActiveStation(nearest); setShowRadar(false); setViewMode('pm25'); setIsMobileListOpen(false); setCurrentPage('map'); window.scrollTo({top:0, behavior:'smooth'}); }
       setLocating(false);
     }, () => { alert('ดึงพิกัดไม่ได้'); setLocating(false); });
   };
@@ -574,7 +583,8 @@ export default function App() {
   const borderColor = darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.5)';
   const backdropBlur = 'blur(16px)';
   
-  const activeChart = chartConfigs[viewMode] || chartConfigs['pm25']; 
+  // 🌟 จัดการ Chart ให้แสดง PM2.5 ถ้าผู้ใช้อยู่โหมด Hotspot
+  const activeChart = chartConfigs[viewMode === 'hotspot' ? 'pm25' : viewMode] || chartConfigs['pm25']; 
 
   const validForecast = dashForecast.filter(d => d[activeChart.key] != null);
   const todayDateText = new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
@@ -586,6 +596,13 @@ export default function App() {
     const provStations = stations.filter(s => extractProvince(s.areaTH) === selectedProvince && !isNaN(parseFloat(s.lat)));
     if (provStations.length > 0) { radarLat = provStations.reduce((sum, s) => sum + parseFloat(s.lat), 0) / provStations.length; radarLon = provStations.reduce((sum, s) => sum + parseFloat(s.long), 0) / provStations.length; radarZoom = 8; }
   }
+
+  // 🌟 ดึงวันที่ย้อนหลัง 12 ชั่วโมงเพื่อความชัวร์ของข้อมูลดาวเทียม NASA
+  const getGibsDateStr = () => {
+    const d = new Date();
+    d.setHours(d.getHours() - 12);
+    return d.toISOString().split('T')[0];
+  };
 
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100vh', width:'100vw', background: themeBg, fontFamily:"'Kanit', sans-serif", overflowY:'hidden', overflowX:'hidden', transition: 'background 1s ease' }}>
@@ -606,14 +623,14 @@ export default function App() {
               <div className="hide-scrollbar" style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: 'rgba(255,255,255,0.15)', padding: '5px 12px', borderRadius: '30px', overflowX: 'auto', whiteSpace: 'nowrap', flex: 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <label style={{ fontWeight: 'bold', fontSize: '0.85rem' }}>📍</label>
-                  <select value={selectedRegion} onChange={(e) => { setSelectedRegion(e.target.value); setSelectedProvince(''); setSelectedStationId(''); setActiveStation(null); setIsMobileListOpen(false); setShowRadar(false); setShowHotspots(false); }} style={{ padding: '5px 10px', borderRadius: '15px', border: 'none', backgroundColor: '#fff', color: '#1e293b', outline: 'none', cursor: 'pointer', fontSize: '0.85rem' }}>
+                  <select value={selectedRegion} onChange={(e) => { setSelectedRegion(e.target.value); setSelectedProvince(''); setSelectedStationId(''); setActiveStation(null); setIsMobileListOpen(false); setShowRadar(false); }} style={{ padding: '5px 10px', borderRadius: '15px', border: 'none', backgroundColor: '#fff', color: '#1e293b', outline: 'none', cursor: 'pointer', fontSize: '0.85rem' }}>
                     <option value="">ทุกภูมิภาค</option>{Object.keys(regionMapping).map(r => <option key={r} value={r}>{r}</option>)}
                   </select>
                 </div>
                 <div style={{ width: '1px', height: '15px', backgroundColor: 'rgba(255,255,255,0.3)' }}></div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <label style={{ fontWeight: 'bold', fontSize: '0.85rem' }}>🗺️</label>
-                  <select value={selectedProvince} onChange={(e) => { setSelectedProvince(e.target.value); setSelectedStationId(''); setActiveStation(null); setIsMobileListOpen(false); setShowRadar(false); setShowHotspots(false); }} style={{ padding: '5px 10px', borderRadius: '15px', border: 'none', backgroundColor: '#fff', color: '#1e293b', outline: 'none', cursor: 'pointer', fontSize: '0.85rem' }}>
+                  <select value={selectedProvince} onChange={(e) => { setSelectedProvince(e.target.value); setSelectedStationId(''); setActiveStation(null); setIsMobileListOpen(false); setShowRadar(false); }} style={{ padding: '5px 10px', borderRadius: '15px', border: 'none', backgroundColor: '#fff', color: '#1e293b', outline: 'none', cursor: 'pointer', fontSize: '0.85rem' }}>
                     <option value="">ทุกจังหวัด</option>{availableProvinces.map(p => (<option key={p} value={p}>{p}</option>))}
                   </select>
                   {selectedProvince && (
@@ -625,7 +642,7 @@ export default function App() {
                 <div style={{ width: '1px', height: '15px', backgroundColor: 'rgba(255,255,255,0.3)' }}></div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1 }}>
                   <label style={{ fontWeight: 'bold', fontSize: '0.85rem' }}>📌</label>
-                  <select value={selectedStationId} onChange={(e) => { setSelectedStationId(e.target.value); const stat = filteredStations.find(s => s.stationID === e.target.value); if(stat) {setActiveStation(stat); setIsMobileListOpen(false); setShowRadar(false); setShowHotspots(false);} }} style={{ width: '100%', minWidth: '150px', padding: '5px 10px', borderRadius: '15px', border: 'none', backgroundColor: '#fff', color: '#1e293b', outline: 'none', cursor: 'pointer', fontSize: '0.85rem', textOverflow: 'ellipsis' }}>
+                  <select value={selectedStationId} onChange={(e) => { setSelectedStationId(e.target.value); const stat = filteredStations.find(s => s.stationID === e.target.value); if(stat) {setActiveStation(stat); setIsMobileListOpen(false); setShowRadar(false);} }} style={{ width: '100%', minWidth: '150px', padding: '5px 10px', borderRadius: '15px', border: 'none', backgroundColor: '#fff', color: '#1e293b', outline: 'none', cursor: 'pointer', fontSize: '0.85rem', textOverflow: 'ellipsis' }}>
                     <option value="">-- เลือกสถานี --</option>{filteredStations.slice().sort((a, b) => a.nameTH.localeCompare(b.nameTH, 'th')).map(s => (<option key={s.stationID} value={s.stationID}>{s.nameTH}</option>))}
                   </select>
                 </div>
@@ -674,9 +691,10 @@ export default function App() {
                     <button onClick={() => handleViewModeChange('rain')} style={{ padding: '6px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: isRainMode ? '#3b82f6' : 'transparent', color: isRainMode ? '#fff' : textColor }}>🌧️ ฝน</button>
                     <button onClick={() => handleViewModeChange('wind')} style={{ padding: '6px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: isWindMode ? '#475569' : 'transparent', color: isWindMode ? '#fff' : textColor }}>🌬️ ลม</button>
                     
+                    {/* 🌟 ปุ่มสลับดูจุดไฟป่า NASA FIRMS (กดแล้วเปลี่ยนเป็นโหมด Hotspot) */}
                     <div style={{ width: '2px', backgroundColor: borderColor, margin: '0 4px' }}></div>
-                    <button onClick={() => setShowHotspots(!showHotspots)} style={{ padding: '6px 14px', borderRadius: '20px', border: showHotspots ? 'none' : `1px solid ${borderColor}`, fontWeight: 'bold', cursor: 'pointer', backgroundColor: showHotspots ? '#f43f5e' : 'transparent', color: showHotspots ? '#fff' : textColor, transition: 'all 0.2s', boxShadow: showHotspots ? '0 2px 8px rgba(244, 63, 94, 0.4)' : 'none' }}>
-                      {showHotspots ? '🔥 ปิดจุดความร้อน' : '🔥 จุดความร้อน NASA'}
+                    <button onClick={() => handleViewModeChange(viewMode === 'hotspot' ? 'pm25' : 'hotspot')} style={{ padding: '6px 14px', borderRadius: '20px', border: viewMode === 'hotspot' ? 'none' : `1px solid ${borderColor}`, fontWeight: 'bold', cursor: 'pointer', backgroundColor: viewMode === 'hotspot' ? '#f43f5e' : 'transparent', color: viewMode === 'hotspot' ? '#fff' : textColor, transition: 'all 0.2s', boxShadow: viewMode === 'hotspot' ? '0 2px 8px rgba(244, 63, 94, 0.4)' : 'none' }}>
+                      {viewMode === 'hotspot' ? '🔥 ปิด Hot spot' : '🔥 Hot spot'}
                     </button>
                   </>
                 ) : (
@@ -696,13 +714,14 @@ export default function App() {
                 </div>
               )}
 
-              {!showRadar && showHotspots && (
+              {/* ป้ายกำกับอธิบายจุดไฟป่าตอนเปิดใช้งาน */}
+              {viewMode === 'hotspot' && !showRadar && (
                 <div style={{ position: 'absolute', top: '70px', right: '15px', zIndex: 500, background: 'rgba(0,0,0,0.7)', color: 'white', padding: '8px 12px', borderRadius: '12px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '6px', backdropFilter: 'blur(4px)', border: '1px solid rgba(255,255,255,0.2)' }}>
-                  <span style={{ display:'inline-block', width:'10px', height:'10px', background:'#ff0000', borderRadius:'50%' }}></span> ตรวจพบความร้อนโดยดาวเทียม NASA (VIIRS/MODIS)
+                  <span style={{ display:'inline-block', width:'10px', height:'10px', background:'#ff0000', borderRadius:'50%' }}></span> ตรวจพบ Hot spot โดยดาวเทียม NASA
                 </div>
               )}
 
-              {window.innerWidth < 768 && !isMobileListOpen && !showRadar && (
+              {window.innerWidth < 768 && !isMobileListOpen && !showRadar && viewMode !== 'hotspot' && (
                 <button onClick={() => setIsMobileListOpen(true)} title="ดูรายชื่อสถานี" style={{ position: 'absolute', bottom: '85px', right: '15px', zIndex: 600, width: '44px', height: '44px', borderRadius: '50%', backgroundColor: cardBg, color: '#0ea5e9', border: `1px solid ${borderColor}`, backdropFilter: backdropBlur, cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', display: 'flex', justifyContent: 'center', alignItems: 'center', transition: 'all 0.2s' }}>
                    <span style={{ fontSize: '1.2rem' }}>📋</span>
                    <span style={{ position: 'absolute', top: '-5px', right: '-5px', background: '#ef4444', color: 'white', fontSize: '0.65rem', padding: '2px 6px', borderRadius: '10px', fontWeight: 'bold', border: `1px solid ${cardBg}` }}>{filteredStations.length}</span>
@@ -722,9 +741,9 @@ export default function App() {
                   </button>
                   {showLegend && (
                     <div style={{ background: cardBg, backdropFilter: backdropBlur, padding: '12px', borderRadius: '15px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}>
-                      <h4 style={{ margin: '0 0 8px 0', fontSize: '0.85rem', color: textColor }}>{legendData[viewMode].title}</h4>
+                      <h4 style={{ margin: '0 0 8px 0', fontSize: '0.85rem', color: textColor }}>{legendData[viewMode === 'hotspot' ? 'hotspot' : viewMode]?.title || 'สัญลักษณ์'}</h4>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                        {legendData[viewMode].items.map((item, idx) => (
+                        {legendData[viewMode === 'hotspot' ? 'hotspot' : viewMode]?.items.map((item, idx) => (
                           <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><span style={{ width: '14px', height: '14px', backgroundColor: item.color, borderRadius: '50%' }}></span><span style={{ fontSize: '0.8rem', color: textColor }}>{item.label}</span></div>
                         ))}
                       </div>
@@ -757,18 +776,19 @@ export default function App() {
                 </LayersControl>
 
                 {/* 🌟 พระเอกของเรา Layer แสดงจุดความร้อน NASA (VIIRS/MODIS) */}
-                {showHotspots && (
+                {viewMode === 'hotspot' && !showRadar && (
                   <TileLayer 
-                    url="https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_SNPP_Thermal_Anomalies_375m_All/default/current/GoogleMapsCompatible_Level8/{z}/{y}/{x}.png" 
+                    url={`https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_SNPP_Thermal_Anomalies_375m_All/default/${getGibsDateStr()}/GoogleMapsCompatible_Level8/{z}/{y}/{x}.png`} 
                     maxNativeZoom={8} 
-                    opacity={0.9} 
+                    opacity={1} 
                     zIndex={500} 
                   />
                 )}
                 
                 <MapFix /> <FitBounds stations={filteredStations} activeStation={activeStation} selectedProvince={selectedProvince} selectedRegion={selectedRegion} /> <FlyToActiveStation activeStation={activeStation} /> 
                 
-                {!showRadar && filteredStations.map((station) => {
+                {/* 🌟 ปิดโหมดอื่นไปเลย: ซ่อน Marker ทั้งหมดถ้าอยู่ในโหมด Hotspot */}
+                {!showRadar && viewMode !== 'hotspot' && filteredStations.map((station) => {
                   const lat = parseFloat(station.lat); const lon = parseFloat(station.long); if (isNaN(lat) || isNaN(lon)) return null;
                   const pmVal = Number(station.AQILast?.PM25?.value); const tObj = stationTemps[station.stationID];
                   let mVal = null; if(isPm25Mode) mVal=pmVal; else if(isTempMode) mVal=tObj?.temp; else if(isHeatMode) mVal=tObj?.feelsLike; else if(isUvMode) mVal=tObj?.uvMax; else if(isRainMode) mVal=tObj?.rainProb; else if(isWindMode) mVal=tObj?.windSpeed;
@@ -818,105 +838,130 @@ export default function App() {
               boxShadow: window.innerWidth < 768 ? '0 -10px 20px rgba(0,0,0,0.2)' : '0 10px 25px rgba(0,0,0,0.1)',
               animation: window.innerWidth < 768 ? 'slideUp 0.3s ease-out' : 'none'
             }}>
-              <div style={{ padding: '15px', borderBottom: `1px solid ${borderColor}`, position: 'sticky', top: 0, zIndex: 10, borderRadius: window.innerWidth < 768 ? '20px 20px 0 0' : '20px 20px 0 0', backgroundColor: cardBg, backdropFilter: backdropBlur }}>
-                {window.innerWidth < 768 && (
-                  <button onClick={() => setIsMobileListOpen(false)} style={{ width: '100%', padding: '10px', backgroundColor: 'rgba(0,0,0,0.05)', color: textColor, border: 'none', borderRadius: '10px', fontWeight: 'bold', marginBottom: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                    ⬇️ ย่อกลับไปดูแผนที่
-                  </button>
-                )}
-                
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <h2 style={{ fontSize: '1rem', color: textColor, margin: '0', fontWeight: 'bold' }}>{activeChart.name} <span style={{fontSize:'0.85rem', color:subTextColor}}>({filteredStations.length} จุด)</span></h2>
-                  <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} style={{ padding: '4px', borderRadius: '6px', backgroundColor: darkMode?'rgba(0,0,0,0.3)':'rgba(255,255,255,0.5)', color: textColor, outline:'none', border: `1px solid ${borderColor}` }}>
-                    <option value="desc">⬇️ มากไปน้อย</option><option value="asc">⬆️ น้อยไปมาก</option>
-                  </select>
-                </div>
+              
+              {/* 🌟 ถ้าเป็นโหมด Hotspot เปลี่ยน Sidebar เป็นป้ายอธิบาย */}
+              {viewMode === 'hotspot' ? (
+                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', padding: '20px', textAlign: 'center', color: textColor }}>
+                    <div style={{ fontSize: '4rem', marginBottom: '15px' }}>🔥</div>
+                    <h3 style={{ margin: '0 0 10px 0', fontSize: '1.4rem', color: '#ef4444', fontWeight: 'bold' }}>โหมด Hot spot</h3>
+                    <p style={{ fontSize: '0.95rem', opacity: 0.8, lineHeight: 1.6, marginBottom: '20px' }}>กำลังแสดงจุดความร้อนสะสมรายวันจาก<br/>ดาวเทียม <strong>NASA FIRMS (VIIRS/MODIS)</strong></p>
+                    
+                    <div style={{ padding: '15px', backgroundColor: darkMode ? 'rgba(0,0,0,0.2)' : 'rgba(239, 68, 68, 0.05)', borderRadius: '15px', border: `1px solid ${darkMode ? '#334155' : '#fca5a5'}`, textAlign: 'left', width: '100%' }}>
+                      <strong style={{ color: '#ef4444', display: 'block', marginBottom: '10px' }}>💡 คำแนะนำ:</strong>
+                      <ul style={{ paddingLeft: '20px', margin: 0, fontSize: '0.85rem', lineHeight: 1.6 }}>
+                         <li>ซูมเข้า/ออกเพื่อดูตำแหน่งไฟป่าและพื้นที่เผาไหม้ทางการเกษตร</li>
+                         <li>จุดสีแดงหนาแน่น หมายถึงต้นตอของฝุ่น PM2.5 ที่จะถูกลมหอบเข้าพื้นที่ใกล้เคียง</li>
+                         <li>(ซ่อนสถานีตรวจวัดชั่วคราวเพื่อให้เห็นดาวเทียมชัดเจน)</li>
+                      </ul>
+                    </div>
 
-                {favLocations.length > 0 && (
-                   <div style={{ marginTop: '15px', display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '5px' }} className="hide-scrollbar">
-                      <span style={{ fontSize: '0.8rem', color: subTextColor, display: 'flex', alignItems: 'center', whiteSpace: 'nowrap' }}>⭐️ โปรด:</span>
-                      {favLocations.map(prov => (
-                        <button key={prov} onClick={() => { setSelectedRegion(''); setSelectedProvince(prov); setSelectedStationId(''); setActiveStation(null); }} style={{ padding: '4px 10px', borderRadius: '15px', backgroundColor: darkMode?'rgba(0,0,0,0.3)':'rgba(255,255,255,0.5)', border: `1px solid ${borderColor}`, color: textColor, fontSize: '0.75rem', cursor: 'pointer', whiteSpace: 'nowrap', transition: '0.2s', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
-                          {prov}
-                        </button>
-                      ))}
-                   </div>
-                )}
-              </div>
+                    <button onClick={() => setViewMode('pm25')} style={{ marginTop: '30px', padding: '10px 20px', borderRadius: '20px', backgroundColor: '#0ea5e9', color: '#fff', border: 'none', fontWeight: 'bold', fontSize: '1rem', cursor: 'pointer', boxShadow: '0 4px 10px rgba(14,165,233,0.3)' }}>
+                      กลับไปดูค่าฝุ่น PM2.5
+                    </button>
+                 </div>
+              ) : (
+                <>
+                  <div style={{ padding: '15px', borderBottom: `1px solid ${borderColor}`, position: 'sticky', top: 0, zIndex: 10, borderRadius: window.innerWidth < 768 ? '20px 20px 0 0' : '20px 20px 0 0', backgroundColor: cardBg, backdropFilter: backdropBlur }}>
+                    {window.innerWidth < 768 && (
+                      <button onClick={() => setIsMobileListOpen(false)} style={{ width: '100%', padding: '10px', backgroundColor: 'rgba(0,0,0,0.05)', color: textColor, border: 'none', borderRadius: '10px', fontWeight: 'bold', marginBottom: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                        ⬇️ ย่อกลับไปดูแผนที่
+                      </button>
+                    )}
+                    
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <h2 style={{ fontSize: '1rem', color: textColor, margin: 0, fontWeight: 'bold' }}>{activeChart.name} <span style={{fontSize:'0.85rem', color:subTextColor}}>({filteredStations.length} จุด)</span></h2>
+                      <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} style={{ padding: '4px', borderRadius: '6px', backgroundColor: darkMode?'rgba(0,0,0,0.3)':'rgba(255,255,255,0.5)', color: textColor, outline:'none', border: `1px solid ${borderColor}` }}>
+                        <option value="desc">⬇️ มากไปน้อย</option><option value="asc">⬆️ น้อยไปมาก</option>
+                      </select>
+                    </div>
 
-              <div style={{ flex: 1, overflowY: 'auto', padding: '15px' }} className="hide-scrollbar">
-                {filteredStations.map((station) => {
-                  const pmVal = Number(station.AQILast?.PM25?.value); const tObj = stationTemps[station.stationID]; const isActive = activeStation?.stationID === station.stationID;
-                  
-                  let disp = '-', unit = '', boxBg = '#ccc';
-                  if(isPm25Mode){ disp=isNaN(pmVal)?'-':pmVal; unit='µg/m³'; boxBg=getPM25Color(pmVal); }
-                  else if(isTempMode){ disp=tObj?.temp!=null?Number(tObj.temp).toFixed(1):'-'; unit='°C'; boxBg=getTempColor(tObj?.temp).bar; }
-                  else if(isHeatMode){ disp=tObj?.feelsLike!=null?Number(tObj.feelsLike).toFixed(1):'-'; unit='°C'; boxBg=tObj?getHeatIndexAlert(tObj.feelsLike).bar:'#ccc'; }
-                  else if(isUvMode){ disp=tObj?.uvMax!=null?tObj.uvMax:'-'; unit='UV'; boxBg=tObj?getUvColor(tObj.uvMax).bar:'#ccc'; }
-                  else if(isRainMode){ disp=tObj?.rainProb!=null?`${tObj.rainProb}%`:'-'; unit='ตก'; boxBg=tObj?getRainColor(tObj.rainProb).bar:'#ccc'; }
-                  else if(isWindMode){ disp=tObj?.windSpeed!=null?tObj.windSpeed:'-'; unit='km/h'; boxBg=tObj?getWindColor(tObj.windSpeed).bar:'#ccc'; }
-                  
-                  let hAdv = isPm25Mode?getPM25HealthAdvice(pmVal):isHeatMode?getHeatHealthAdvice(tObj?.feelsLike):isUvMode?getUvHealthAdvice(tObj?.uvMax):null;
+                    {favLocations.length > 0 && (
+                       <div style={{ marginTop: '15px', display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '5px' }} className="hide-scrollbar">
+                          <span style={{ fontSize: '0.8rem', color: subTextColor, display: 'flex', alignItems: 'center', whiteSpace: 'nowrap' }}>⭐️ โปรด:</span>
+                          {favLocations.map(prov => (
+                            <button key={prov} onClick={() => { setSelectedRegion(''); setSelectedProvince(prov); setSelectedStationId(''); setActiveStation(null); }} style={{ padding: '4px 10px', borderRadius: '15px', backgroundColor: darkMode?'rgba(0,0,0,0.3)':'rgba(255,255,255,0.5)', border: `1px solid ${borderColor}`, color: textColor, fontSize: '0.75rem', cursor: 'pointer', whiteSpace: 'nowrap', transition: '0.2s', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
+                              {prov}
+                            </button>
+                          ))}
+                       </div>
+                    )}
+                  </div>
 
-                  return (
-                    <div key={station.stationID} ref={el=>cardRefs.current[station.stationID]=el} onClick={()=>setActiveStation(station)} style={{ display:'flex', flexDirection:'column', background:isActive?(darkMode?'rgba(51, 65, 85, 0.8)':'rgba(241, 245, 249, 0.9)'):'rgba(0,0,0,0.02)', border:isActive?'1px solid #3b82f6':`1px solid transparent`, borderLeft:`6px solid ${boxBg}`, borderRadius:'12px', padding:'15px', marginBottom:'15px', cursor:'pointer', boxShadow: isActive ? '0 4px 10px rgba(0,0,0,0.1)' : 'none', transition: 'all 0.2s' }}>
-                      <div style={{ display:'flex', justifyContent:'space-between' }}>
-                        <div style={{ flex:1 }}>
-                          <h4 style={{ margin:'0 0 2px 0', color:textColor, fontSize:'1rem' }}>{station.nameTH}</h4>
-                          <p style={{ margin:0, color:'#3b82f6', fontSize:'0.8rem', fontWeight:'bold' }}>{extractProvince(station.areaTH)}</p>
-                          <div style={{ marginTop:'10px', fontSize:'0.85rem', color:textColor, fontWeight:'bold' }}>
-                            {isPm25Mode ? <span title="ค่า AQI คือดัชนีภาพรวมที่รวมค่าฝุ่นและก๊าซพิษเข้าด้วยกัน">AQI: {station.AQILast?.AQI?.aqi||'--'} <span style={{cursor:'help',color:subTextColor}}>ⓘ</span></span> : tObj ? (isUvMode?`ระดับ: ${getUvColor(tObj?.uvMax).label}`:isRainMode?`💧 ชื้น: ${tObj.humidity}%`:isWindMode?`ลมสูงสุด: ${tObj.windMax} km/h`:`ต่ำ ${tObj.tempMin!=null?Number(tObj.tempMin).toFixed(1):'-'}° | สูง ${tObj.tempMax!=null?Number(tObj.tempMax).toFixed(1):'-'}°`) : 'ไม่มีข้อมูล'}
-                          </div>
-                        </div>
-                        <div style={{ backgroundColor:boxBg, color:(isPm25Mode && pmVal>25&&pmVal<=37.5) || (isUvMode&&tObj?.uvMax<=5)?'#1e293b':'#fff', width:'60px', height:'60px', borderRadius:'12px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', boxShadow: '0 4px 10px rgba(0,0,0,0.1)' }}>
-                          <span style={{ fontSize:'1.3rem', fontWeight:'bold' }}>{disp}</span><span style={{ fontSize:'0.65rem', fontWeight:'bold' }}>{unit}</span>
-                        </div>
-                      </div>
+                  <div style={{ flex: 1, overflowY: 'auto', padding: '15px' }} className="hide-scrollbar">
+                    {filteredStations.map((station) => {
+                      const pmVal = Number(station.AQILast?.PM25?.value); const tObj = stationTemps[station.stationID]; const isActive = activeStation?.stationID === station.stationID;
                       
-                      {hAdv && (isActive || ['🚨','🚑','⛔'].includes(hAdv.icon)) && (
-                        <div style={{ marginTop:'12px', padding:'10px', background:'rgba(0,0,0,0.05)', borderRadius:'8px', display:'flex', gap:'8px', border: `1px dashed ${boxBg}` }}><span>{hAdv.icon}</span><span style={{fontSize:'0.8rem',color:textColor}}>{hAdv.text}</span></div>
-                      )}
+                      let disp = '-', unit = '', boxBg = '#ccc';
+                      if(isPm25Mode){ disp=isNaN(pmVal)?'-':pmVal; unit='µg/m³'; boxBg=getPM25Color(pmVal); }
+                      else if(isTempMode){ disp=tObj?.temp!=null?Number(tObj.temp).toFixed(1):'-'; unit='°C'; boxBg=getTempColor(tObj?.temp).bar; }
+                      else if(isHeatMode){ disp=tObj?.feelsLike!=null?Number(tObj.feelsLike).toFixed(1):'-'; unit='°C'; boxBg=tObj?getHeatIndexAlert(tObj.feelsLike).bar:'#ccc'; }
+                      else if(isUvMode){ disp=tObj?.uvMax!=null?tObj.uvMax:'-'; unit='UV'; boxBg=tObj?getUvColor(tObj.uvMax).bar:'#ccc'; }
+                      else if(isRainMode){ disp=tObj?.rainProb!=null?`${tObj.rainProb}%`:'-'; unit='ตก'; boxBg=tObj?getRainColor(tObj.rainProb).bar:'#ccc'; }
+                      else if(isWindMode){ disp=tObj?.windSpeed!=null?tObj.windSpeed:'-'; unit='km/h'; boxBg=tObj?getWindColor(tObj.windSpeed).bar:'#ccc'; }
+                      
+                      let hAdv = isPm25Mode?getPM25HealthAdvice(pmVal):isHeatMode?getHeatHealthAdvice(tObj?.feelsLike):isUvMode?getUvHealthAdvice(tObj?.uvMax):null;
 
-                      {isActive && (
-                        <div style={{ marginTop: '15px', paddingTop: '15px', borderTop: `1px dashed ${borderColor}` }}>
-                          <h5 style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: textColor, display: 'flex', alignItems: 'center', gap: '5px' }}>📊 แนวโน้ม {activeChart.name}</h5>
-                          {activeWeather && activeForecast ? (
-                            <div style={{ height: '120px', width: '100%' }}>
-                              <ResponsiveContainer>
-                                {isPm25Mode ? (
-                                  <BarChart data={activeForecast} margin={{ top: 5, right: 5, bottom: 5, left: -25 }}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke={borderColor} vertical={false} />
-                                    <XAxis dataKey="time" stroke={subTextColor} fontSize={10} tickMargin={5} />
-                                    <YAxis stroke={subTextColor} fontSize={10} domain={activeChart.domain} />
-                                    <RechartsTooltip contentStyle={{ borderRadius: '8px', backgroundColor: cardBg, color: textColor, border: `1px solid ${borderColor}`, padding: '5px 10px' }} cursor={{ fill: 'rgba(0,0,0,0.05)' }} />
-                                    <Bar dataKey="val" name="PM2.5" fill={activeChart.color} radius={[4, 4, 0, 0]} />
-                                  </BarChart>
-                                ) : (
-                                  <AreaChart data={ isTempMode ? activeWeather.tempForecast : isHeatMode ? activeWeather.heatForecast : isUvMode ? activeWeather.uvForecast : isRainMode ? activeWeather.rainForecast : activeWeather.windForecast } margin={{ top: 5, right: 5, bottom: 5, left: -25 }}>
-                                    <defs>
-                                      <linearGradient id={`colorGradient-${activeChart.key}`} x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor={activeChart.color} stopOpacity={0.4}/>
-                                        <stop offset="95%" stopColor={activeChart.color} stopOpacity={0}/>
-                                      </linearGradient>
-                                    </defs>
-                                    <CartesianGrid strokeDasharray="3 3" stroke={borderColor} vertical={false} />
-                                    <XAxis dataKey="time" stroke={subTextColor} fontSize={10} tickMargin={5} />
-                                    <YAxis stroke={subTextColor} fontSize={10} domain={activeChart.domain} />
-                                    <RechartsTooltip contentStyle={{ borderRadius: '8px', backgroundColor: cardBg, color: textColor, border: `1px solid ${borderColor}`, padding: '5px 10px' }} />
-                                    <Area type="monotone" dataKey="val" name={activeChart.name} stroke={activeChart.color} strokeWidth={3} fillOpacity={1} fill={`url(#colorGradient-${activeChart.key})`} />
-                                  </AreaChart>
-                                )}
-                              </ResponsiveContainer>
+                      return (
+                        <div key={station.stationID} ref={el=>cardRefs.current[station.stationID]=el} onClick={()=>setActiveStation(station)} style={{ display:'flex', flexDirection:'column', background:isActive?(darkMode?'rgba(51, 65, 85, 0.8)':'rgba(241, 245, 249, 0.9)'):'rgba(0,0,0,0.02)', border:isActive?'1px solid #3b82f6':`1px solid transparent`, borderLeft:`6px solid ${boxBg}`, borderRadius:'12px', padding:'15px', marginBottom:'15px', cursor:'pointer', boxShadow: isActive ? '0 4px 10px rgba(0,0,0,0.1)' : 'none', transition: 'all 0.2s' }}>
+                          <div style={{ display:'flex', justifyContent:'space-between' }}>
+                            <div style={{ flex:1 }}>
+                              <h4 style={{ margin:'0 0 2px 0', color:textColor, fontSize:'1rem' }}>{station.nameTH}</h4>
+                              <p style={{ margin:0, color:'#3b82f6', fontSize:'0.8rem', fontWeight:'bold' }}>{extractProvince(station.areaTH)}</p>
+                              <div style={{ marginTop:'10px', fontSize:'0.85rem', color:textColor, fontWeight:'bold' }}>
+                                {isPm25Mode ? <span title="ค่า AQI คือดัชนีภาพรวมที่รวมค่าฝุ่นและก๊าซพิษเข้าด้วยกัน">AQI: {station.AQILast?.AQI?.aqi||'--'} <span style={{cursor:'help',color:subTextColor}}>ⓘ</span></span> : tObj ? (isUvMode?`ระดับ: ${getUvColor(tObj?.uvMax).label}`:isRainMode?`💧 ชื้น: ${tObj.humidity}%`:isWindMode?`ลมสูงสุด: ${tObj.windMax} km/h`:`ต่ำ ${tObj.tempMin!=null?Number(tObj.tempMin).toFixed(1):'-'}° | สูง ${tObj.tempMax!=null?Number(tObj.tempMax).toFixed(1):'-'}°`) : 'ไม่มีข้อมูล'}
+                              </div>
                             </div>
-                          ) : (
-                            <div style={{ textAlign: 'center', color: subTextColor, fontSize: '0.8rem', padding: '20px' }}>กำลังโหลดกราฟ...</div>
+                            <div style={{ backgroundColor:boxBg, color:(isPm25Mode && pmVal>25&&pmVal<=37.5) || (isUvMode&&tObj?.uvMax<=5)?'#1e293b':'#fff', width:'60px', height:'60px', borderRadius:'12px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', boxShadow: '0 4px 10px rgba(0,0,0,0.1)' }}>
+                              <span style={{ fontSize:'1.3rem', fontWeight:'bold' }}>{disp}</span><span style={{ fontSize:'0.65rem', fontWeight:'bold' }}>{unit}</span>
+                            </div>
+                          </div>
+                          
+                          {hAdv && (isActive || ['🚨','🚑','⛔'].includes(hAdv.icon)) && (
+                            <div style={{ marginTop:'12px', padding:'10px', background:'rgba(0,0,0,0.05)', borderRadius:'8px', display:'flex', gap:'8px', border: `1px dashed ${boxBg}` }}><span>{hAdv.icon}</span><span style={{fontSize:'0.8rem',color:textColor}}>{hAdv.text}</span></div>
+                          )}
+
+                          {isActive && (
+                            <div style={{ marginTop: '15px', paddingTop: '15px', borderTop: `1px dashed ${borderColor}` }}>
+                              <h5 style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: textColor, display: 'flex', alignItems: 'center', gap: '5px' }}>📊 แนวโน้ม {activeChart.name}</h5>
+                              {activeWeather && activeForecast ? (
+                                <div style={{ height: '120px', width: '100%' }}>
+                                  <ResponsiveContainer>
+                                    {isPm25Mode ? (
+                                      <BarChart data={activeForecast} margin={{ top: 5, right: 5, bottom: 5, left: -25 }}>
+                                        <CartesianGrid strokeDasharray="3 3" stroke={borderColor} vertical={false} />
+                                        <XAxis dataKey="time" stroke={subTextColor} fontSize={10} tickMargin={5} />
+                                        <YAxis stroke={subTextColor} fontSize={10} domain={activeChart.domain} />
+                                        <RechartsTooltip contentStyle={{ borderRadius: '8px', backgroundColor: cardBg, color: textColor, border: `1px solid ${borderColor}`, padding: '5px 10px' }} cursor={{ fill: 'rgba(0,0,0,0.05)' }} />
+                                        <Bar dataKey="val" name="PM2.5" fill={activeChart.color} radius={[4, 4, 0, 0]} />
+                                      </BarChart>
+                                    ) : (
+                                      <AreaChart data={ isTempMode ? activeWeather.tempForecast : isHeatMode ? activeWeather.heatForecast : isUvMode ? activeWeather.uvForecast : isRainMode ? activeWeather.rainForecast : activeWeather.windForecast } margin={{ top: 5, right: 5, bottom: 5, left: -25 }}>
+                                        <defs>
+                                          <linearGradient id={`colorGradient-${activeChart.key}`} x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor={activeChart.color} stopOpacity={0.4}/>
+                                            <stop offset="95%" stopColor={activeChart.color} stopOpacity={0}/>
+                                          </linearGradient>
+                                        </defs>
+                                        <CartesianGrid strokeDasharray="3 3" stroke={borderColor} vertical={false} />
+                                        <XAxis dataKey="time" stroke={subTextColor} fontSize={10} tickMargin={5} />
+                                        <YAxis stroke={subTextColor} fontSize={10} domain={activeChart.domain} />
+                                        <RechartsTooltip contentStyle={{ borderRadius: '8px', backgroundColor: cardBg, color: textColor, border: `1px solid ${borderColor}`, padding: '5px 10px' }} />
+                                        <Area type="monotone" dataKey="val" name={activeChart.name} stroke={activeChart.color} strokeWidth={3} fillOpacity={1} fill={`url(#colorGradient-${activeChart.key})`} />
+                                      </AreaChart>
+                                    )}
+                                  </ResponsiveContainer>
+                                </div>
+                              ) : (
+                                <div style={{ textAlign: 'center', color: subTextColor, fontSize: '0.8rem', padding: '20px' }}>กำลังโหลดกราฟ...</div>
+                              )}
+                            </div>
                           )}
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
