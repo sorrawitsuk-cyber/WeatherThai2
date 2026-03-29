@@ -798,10 +798,11 @@ export default function App() {
                   
                   return (
                     <CircleMarker
-                      key={`hotspot-${idx}`}
-                      center={[lat, lon]}
-                      radius={isHigh ? 5 : 3}
-                      pathOptions={{ color: spotColor, fillColor: spotColor, fillOpacity: 0.8, weight: 1 }}
+                             key={`hotspot-${idx}`}
+                           center={[lat, lon]}
+                           pane="markerPane" // เพิ่มบรรทัดนี้
+                           radius={isHigh ? 6 : 4} // ปรับขนาดให้ใหญ่ขึ้นเล็กน้อยเพื่อให้สังเกตง่าย
+                           pathOptions={{ color: spotColor, fillColor: spotColor, fillOpacity: 0.9, weight: 2 }}
                     >
                       <Popup>
                         <div style={{ fontFamily: 'Kanit', fontSize: '0.9rem', color: '#1e293b' }}>
