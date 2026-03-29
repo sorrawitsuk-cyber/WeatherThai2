@@ -800,13 +800,13 @@ export default function App() {
                     <CircleMarker
                       key={`hotspot-${idx}`}
                       center={[lat, lon]}
-                      radius={8} // ปรับจาก 3-5 เป็น 8 ให้เห็นชัดๆ
-                      pane="markerPane" // บังคับให้จุดลอยมาอยู่บนสุดเหนือแผนที่
+                      radius={8} // เปลี่ยนจาก 3-5 เป็น 8 เพื่อให้เห็นชัดเจนบนหน้าจอมือถือ
+                      pane="markerPane" // บังคับให้ลอยทับแผนที่
                       pathOptions={{ 
-                        color: '#ffffff', // ขอบสีขาว
-                        fillColor: '#ff0000', // สีแดงสด
+                        color: '#ffffff', 
+                        fillColor: '#ff0000', // ใช้สีแดงสด
                         fillOpacity: 1, 
-                        weight: 2 
+                        weight: 1 
                       }}
                     >
                       <Popup>

@@ -26,17 +26,23 @@ export default async function handler(req, res) {
     lines.shift();
     
     const hotspots = lines.map(line => {
-      const values = line.split(',');
-      // รูปแบบ CSV ของ VIIRS: country_id(0), lat(1), lon(2), brightness(3), ... confidence(10)
-      return {
-        lat: parseFloat(values[1]),
-        lon: parseFloat(values[2]),
-        brightness: parseFloat(values[3]),
-        acq_date: values[6],
-        acq_time: values[7], // เวลาเป็น UTC
-        confidence: values[10] // 'n' = ปานกลาง(nominal), 'l' = ต่ำ(low), 'h' = สูง(high)
-      };
-    }).filter(spot => !isNaN(spot.lat) && !isNaN(spot.lon));
+  const values = line.split(',');
+  if (values.length < 3) return null;
+
+  // ปรับ Index ให้ตรงตามมาตรฐาน VIIRS CSV (Lat อยู่ช่อง 1, Lon อยู่ช่อง 2)
+  // แต่เพิ่มการตรวจสอบว่าต้องเป็นตัวเลขจริงๆ
+  const lat = parseFloat(values[1]);
+  const lon = parseFloat(values[2]);
+
+  return {
+    lat: lat,
+    lon: lon,
+    brightness: parseFloat(values[3]),
+    acq_date: values[6],
+    acq_time: values[7],
+    confidence: values[10] 
+  };
+}).filter(spot => spot !== null && !isNaN(spot.lat) && !isNaN(spot.lon));
 
     return res.status(200).json(hotspots);
   } catch (error) {
