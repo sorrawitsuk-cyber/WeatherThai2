@@ -88,7 +88,6 @@ const SkeletonLoading = ({ darkMode }) => {
     </div>
   );
 };
-
 // ==============================================================
 // 3. Main App Component
 // ==============================================================
@@ -117,7 +116,7 @@ export default function App() {
   
   const [showRadar, setShowRadar] = useState(false);
   
-  // 🌟 เพิ่ม State สำหรับ Hotspots จาก NASA FIRMS API (และลบ realGibsDate เดิมทิ้ง)
+  // 🌟 เพิ่ม State สำหรับ Hotspots จาก NASA FIRMS
   const [hotspots, setHotspots] = useState([]);
   const [loadingHotspots, setLoadingHotspots] = useState(false);
 
@@ -162,7 +161,7 @@ export default function App() {
   
   useEffect(() => { setAiSummaryJson(null); setAiTimestamp(''); setNowcastAlert(null); }, [alertsLocationName, activeStation, aiTargetDay]);
 
-  // ฟังก์ชันดึงพิกัด Hotspot แบบ Real-Time เมื่อผู้ใช้กดดูโหมด 'hotspot'
+  // 🌟 ฟังก์ชันดึงพิกัด Hotspot
   useEffect(() => {
     if (viewMode === 'hotspot' && hotspots.length === 0) {
       const fetchHotspots = async () => {
@@ -197,7 +196,6 @@ export default function App() {
     setShowRadar(false); 
   };
 
-  // 🌟 พระเอกที่แก้บั๊ก ReferenceError! นำฟังก์ชันนี้กลับมาแล้วครับ
   const toggleRadar = () => { 
     setShowRadar(!showRadar); 
   };
@@ -208,22 +206,12 @@ export default function App() {
       for (let i = 0; i < stationsList.length; i += chunkSize) {
         const chunk = stationsList.slice(i, i + chunkSize); if(chunk.length === 0) continue;
         const lats = chunk.map(s => s.lat).join(','); const lons = chunk.map(s => s.long).join(',');
-        // เพิ่ม hourly=uv_index และ forecast_days=1 เข้าไปใน URL
-        const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,wind_direction_10m,weather_code&hourly=uv_index&daily=temperature_2m_max,temperature_2m_min,apparent_temperature_max,uv_index_max,precipitation_probability_max,wind_speed_10m_max&timezone=Asia%2FBangkok&forecast_days=1`;
-        
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,wind_direction_10m,weather_code&daily=temperature_2m_max,temperature_2m_min,apparent_temperature_max,uv_index_max,precipitation_probability_max,wind_speed_10m_max&timezone=Asia%2FBangkok`;
         const res = await fetch(url); const data = await res.json(); const results = Array.isArray(data) ? data : [data];
         results.forEach((r, idx) => {
            if (r && r.current && r.daily) {
-             const currentHour = new Date().getHours();
-             // ดึง UV รายชั่วโมง ณ เวลาปัจจุบัน ถ้าไม่มีข้อมูลให้ fallback กลับไปใช้ค่า max ของวัน
-             const currentUv = (r.hourly && r.hourly.uv_index && r.hourly.uv_index[currentHour] != null) 
-                                ? r.hourly.uv_index[currentHour] 
-                                : r.daily.uv_index_max[0];
-             
              allWeather[chunk[idx].stationID] = {
-               temp: r.current.temperature_2m, feelsLike: r.current.apparent_temperature, humidity: r.current.relative_humidity_2m, windSpeed: r.current.wind_speed_10m, windDir: r.current.wind_direction_10m, weatherCode: r.current.weather_code, tempMin: r.daily.temperature_2m_min[0], tempMax: r.daily.temperature_2m_max[0], heatMin: r.daily.temperature_2m_min[0], heatMax: r.daily.apparent_temperature_max[0], 
-               uvMax: currentUv, // ใช้ UV ปัจจุบันแล้ว
-               rainProb: r.daily.precipitation_probability_max[0], windMax: r.daily.wind_speed_10m_max[0]
+               temp: r.current.temperature_2m, feelsLike: r.current.apparent_temperature, humidity: r.current.relative_humidity_2m, windSpeed: r.current.wind_speed_10m, windDir: r.current.wind_direction_10m, weatherCode: r.current.weather_code, tempMin: r.daily.temperature_2m_min[0], tempMax: r.daily.temperature_2m_max[0], heatMin: r.daily.temperature_2m_min[0], heatMax: r.daily.apparent_temperature_max[0], uvMax: r.daily.uv_index_max[0], rainProb: r.daily.precipitation_probability_max[0], windMax: r.daily.wind_speed_10m_max[0]
              };
            }
         });
@@ -555,7 +543,7 @@ export default function App() {
       else if (topic === 'vendor') { promptText = `คุณคือที่ปรึกษาพ่อค้าแม่ค้าตลาดนัด วิเคราะห์สภาพอากาศ **${dayWord}**: 1.การตั้งร้าน/กางเต็นท์ (ระวังลมและฝน) 2.คาดการณ์คนเดินตลาด 3.การเก็บรักษาสินค้าตามสภาพอากาศ:\n\n${contextData}`; }
       else if (topic === 'construction') { promptText = `คุณคือวิศวกรควบคุมงานก่อสร้าง วิเคราะห์สภาพอากาศ **${dayWord}**: 1.งานทาสี/เทปูน (พิจารณาฝนและความชื้น) 2.ทำงานบนหลังคา/ที่สูง (พิจารณาลมและพายุ) 3.ความปลอดภัยคนงาน (ฮีทสโตรก):\n\n${contextData}`; }
       else if (topic === 'solar') { promptText = `คุณคือผู้เชี่ยวชาญด้านพลังงานโซลาร์เซลล์ วิเคราะห์สภาพอากาศ **${dayWord}**: 1.ประสิทธิภาพการผลิตไฟวันนี้ (พิจารณา UV และเมฆ) 2.การวางแผนใช้ไฟฟ้าในบ้าน 3.ควรล้างแผงโซลาร์เซลล์หรือไม่ (ดูแนวโน้มฝุ่นและฝน):\n\n${contextData}`; }
-      else if (topic === 'hotspot') { promptText = `คุณคือผู้เชี่ยวชาญด้านมลพิษและภาพถ่ายดาวเทียม วิเคราะห์สถานการณ์ **${dayWord}**: 1. สรุปความเสี่ยงจากจุดความร้อน (Hotspots) และทิศทางลม 2. ผลกระทบต่อระดับฝุ่น PM2.5 ในพื้นที่เป้าหมาย 3. คำแนะนำขั้นเด็ดขาดในการป้องกันสุขภาพ:\n\n${contextData}`; }
+      else if (topic === 'hotspot') { promptText = `คุณคือผู้เชี่ยวชาญด้านมลพิษและภาพถ่ายดาวเทียม วิเคราะห์สถานการณ์ **${dayWord}**: 1. สรุปความเสี่ยงจากจุดความร้อน (Hotspots) และทิศทางลม 2. ผลกระทบต่อระดับฝุ่น PM2.5ในพื้นที่เป้าหมาย 3. คำแนะนำขั้นเด็ดขาดในการป้องกันสุขภาพ:\n\n${contextData}`; }
 
       promptText += jsonInstruction;
 
@@ -626,7 +614,6 @@ export default function App() {
     const provStations = stations.filter(s => extractProvince(s.areaTH) === selectedProvince && !isNaN(parseFloat(s.lat)));
     if (provStations.length > 0) { radarLat = provStations.reduce((sum, s) => sum + parseFloat(s.lat), 0) / provStations.length; radarLon = provStations.reduce((sum, s) => sum + parseFloat(s.long), 0) / provStations.length; radarZoom = 8; }
   }
-
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100vh', width:'100vw', background: themeBg, fontFamily:"'Kanit', sans-serif", overflowY:'hidden', overflowX:'hidden', transition: 'background 1s ease' }}>
       
@@ -646,6 +633,7 @@ export default function App() {
               <div className="hide-scrollbar" style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: 'rgba(255,255,255,0.15)', padding: '5px 12px', borderRadius: '30px', overflowX: 'auto', whiteSpace: 'nowrap', flex: 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <label style={{ fontWeight: 'bold', fontSize: '0.85rem' }}>📍</label>
+                  {/* 🌟 แก้ไข: เพิ่มเงื่อนไขสีพื้นหลัง select */}
                   <select value={selectedRegion} onChange={(e) => { setSelectedRegion(e.target.value); setSelectedProvince(''); setSelectedStationId(''); setActiveStation(null); setIsMobileListOpen(false); setShowRadar(false); }} style={{ padding: '5px 10px', borderRadius: '15px', border: 'none', backgroundColor: darkMode ? '#1e293b' : '#fff', color: darkMode ? '#f8fafc' : '#1e293b', outline: 'none', cursor: 'pointer', fontSize: '0.85rem' }}>
                     <option value="">ทุกภูมิภาค</option>{Object.keys(regionMapping).map(r => <option key={r} value={r}>{r}</option>)}
                   </select>
@@ -714,7 +702,6 @@ export default function App() {
                     <button onClick={() => handleViewModeChange('rain')} style={{ padding: '6px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: isRainMode ? '#3b82f6' : 'transparent', color: isRainMode ? '#fff' : textColor }}>🌧️ ฝน</button>
                     <button onClick={() => handleViewModeChange('wind')} style={{ padding: '6px 14px', borderRadius: '20px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: isWindMode ? '#475569' : 'transparent', color: isWindMode ? '#fff' : textColor }}>🌬️ ลม</button>
                     
-                    {/* 🌟 ปุ่มสลับดูจุดไฟป่า NASA FIRMS (กดแล้วเปลี่ยนเป็นโหมด Hotspot) */}
                     <div style={{ width: '2px', backgroundColor: borderColor, margin: '0 4px' }}></div>
                     <button onClick={() => handleViewModeChange(viewMode === 'hotspot' ? 'pm25' : 'hotspot')} style={{ padding: '6px 14px', borderRadius: '20px', border: viewMode === 'hotspot' ? 'none' : `1px solid ${borderColor}`, fontWeight: 'bold', cursor: 'pointer', backgroundColor: viewMode === 'hotspot' ? '#f43f5e' : 'transparent', color: viewMode === 'hotspot' ? '#fff' : textColor, transition: 'all 0.2s', boxShadow: viewMode === 'hotspot' ? '0 2px 8px rgba(244, 63, 94, 0.4)' : 'none' }}>
                       {viewMode === 'hotspot' ? '🔥 ปิด Hot spot' : '🔥 Hot spot'}
@@ -737,7 +724,6 @@ export default function App() {
                 </div>
               )}
 
-              {/* ป้ายกำกับอธิบายจุดไฟป่าตอนเปิดใช้งาน */}
               {viewMode === 'hotspot' && !showRadar && (
                 <div style={{ position: 'absolute', top: '70px', right: '15px', zIndex: 500, background: 'rgba(0,0,0,0.7)', color: 'white', padding: '8px 12px', borderRadius: '12px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '6px', backdropFilter: 'blur(4px)', border: '1px solid rgba(255,255,255,0.2)' }}>
                   <span style={{ display:'inline-block', width:'10px', height:'10px', background:'#ff0000', borderRadius:'50%' }}></span> ตรวจพบ Hot spot โดยดาวเทียม NASA
@@ -766,7 +752,6 @@ export default function App() {
                     <div style={{ background: cardBg, backdropFilter: backdropBlur, padding: '12px', borderRadius: '15px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}>
                       <h4 style={{ margin: '0 0 8px 0', fontSize: '0.85rem', color: textColor }}>{legendData[viewMode === 'hotspot' ? 'hotspot' : viewMode]?.title || 'สัญลักษณ์'}</h4>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                        {/* 🌟 ป้องกันพังด้วย Optional Chaining (?.) */}
                         {legendData[viewMode === 'hotspot' ? 'hotspot' : viewMode]?.items?.map((item, idx) => (
                           <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><span style={{ width: '14px', height: '14px', backgroundColor: item.color, borderRadius: '50%' }}></span><span style={{ fontSize: '0.8rem', color: textColor }}>{item.label}</span></div>
                         ))}
@@ -776,7 +761,6 @@ export default function App() {
                 </div>
               )}
 
-              {/* 🌟 แสดงแผนที่เรดาร์แบบเต็มจอและโต้ตอบได้ 100% ไม่มีกรอบบังแล้ว! */}
               {showRadar && (
                   <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 450, backgroundColor: darkMode ? '#0f172a' : '#fff' }}>
                     <iframe 
@@ -799,19 +783,41 @@ export default function App() {
                   </LayersControl.BaseLayer>
                 </LayersControl>
 
-                {/* 🌟 พระเอกของเรา Layer แสดงจุดความร้อน NASA ดึง Real Date ทะลุการจำลองเวลา */}
-                {viewMode === 'hotspot' && !showRadar && realGibsDate && (
-                  <TileLayer 
-                    url={`https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/VIIRS_SNPP_Thermal_Anomalies_375m_All/default/${realGibsDate}/GoogleMapsCompatible_Level8/{z}/{y}/{x}.png`} 
-                    maxNativeZoom={8} 
-                    opacity={1} 
-                    zIndex={500} 
-                  />
-                )}
-                
                 <MapFix /> <FitBounds stations={filteredStations} activeStation={activeStation} selectedProvince={selectedProvince} selectedRegion={selectedRegion} /> <FlyToActiveStation activeStation={activeStation} /> 
                 
-                {/* 🌟 ปิดโหมดอื่นไปเลย: ซ่อน Marker ทั้งหมดถ้าอยู่ในโหมด Hotspot */}
+                {/* 🌟 แสดงจุดความร้อนแบบ Real-Time (NASA FIRMS) วาดด้วย CircleMarker */}
+                {viewMode === 'hotspot' && !showRadar && Array.isArray(hotspots) && hotspots.map((spot, idx) => {
+                  const lat = Number(spot?.lat);
+                  const lon = Number(spot?.lon);
+                  
+                  // กันแครชถ้าพิกัดว่างหรือโหลดไม่ขึ้น
+                  if (!lat || !lon || isNaN(lat) || isNaN(lon)) return null;
+
+                  const isHigh = spot.confidence === 'h';
+                  const spotColor = isHigh ? '#dc2626' : '#f97316'; 
+                  
+                  return (
+                    <CircleMarker
+                      key={`hotspot-${idx}`}
+                      center={[lat, lon]}
+                      radius={isHigh ? 5 : 3}
+                      pathOptions={{ color: spotColor, fillColor: spotColor, fillOpacity: 0.8, weight: 1 }}
+                    >
+                      <Popup>
+                        <div style={{ fontFamily: 'Kanit', fontSize: '0.9rem', color: '#1e293b' }}>
+                          <strong style={{ color: '#ef4444' }}>🔥 พบจุดความร้อน (Hot spot)</strong><br/>
+                          <div style={{ marginTop: '5px', padding: '8px', background: '#f1f5f9', borderRadius: '8px' }}>
+                            ตรวจพบเมื่อ: {spot.acq_date || '-'}<br/>
+                            เวลา: {spot.acq_time || '-'} UTC<br/>
+                            ระดับความรุนแรง: <strong>{spot.confidence === 'h' ? 'สูง' : spot.confidence === 'n' ? 'ปานกลาง' : 'ต่ำ'}</strong><br/>
+                            ความสว่าง: {spot.brightness || '-'}K
+                          </div>
+                        </div>
+                      </Popup>
+                    </CircleMarker>
+                  );
+                })}
+
                 {!showRadar && viewMode !== 'hotspot' && filteredStations.map((station) => {
                   const lat = parseFloat(station.lat); const lon = parseFloat(station.long); if (isNaN(lat) || isNaN(lon)) return null;
                   const pmVal = Number(station.AQILast?.PM25?.value); const tObj = stationTemps[station.stationID];
@@ -863,7 +869,6 @@ export default function App() {
               animation: window.innerWidth < 768 ? 'slideUp 0.3s ease-out' : 'none'
             }}>
               
-              {/* 🌟 ถ้าเป็นโหมด Hotspot เปลี่ยน Sidebar เป็นป้ายอธิบาย */}
               {viewMode === 'hotspot' ? (
                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', padding: '20px', textAlign: 'center', color: textColor }}>
                     <div style={{ fontSize: '4rem', marginBottom: '15px' }}>🔥</div>
@@ -894,7 +899,8 @@ export default function App() {
                     
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <h2 style={{ fontSize: '1rem', color: textColor, margin: '0', fontWeight: 'bold' }}>{activeChart.name} <span style={{fontSize:'0.85rem', color:subTextColor}}>({filteredStations.length} จุด)</span></h2>
-                      <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} style={{ padding: '4px', borderRadius: '6px', backgroundColor: darkMode ? '#334155' : 'rgba(255,255,255,0.5)', color: textColor, outline:'none', border: `1px solid ${borderColor}` }}>
+                      {/* 🌟 แก้ไข: เพิ่มเงื่อนไขสีพื้นหลัง select */}
+                      <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} style={{ padding: '4px', borderRadius: '6px', backgroundColor: darkMode?'#1e293b':'#fff', color: textColor, outline:'none', border: `1px solid ${borderColor}` }}>
                         <option value="desc">⬇️ มากไปน้อย</option><option value="asc">⬆️ น้อยไปมาก</option>
                       </select>
                     </div>
@@ -1001,6 +1007,7 @@ export default function App() {
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 15px', backgroundColor: cardBg, backdropFilter: backdropBlur, borderRadius: '30px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.05)' }}>
                 <label style={{ fontWeight: 'bold', color: '#0ea5e9', fontSize: '0.95rem' }}>🎯</label>
                 
+                {/* 🌟 แก้ไข: เพิ่มเงื่อนไขสีพื้นหลัง select */}
                 <select 
                   value={alertsLocationName.replace('จ.', '')} 
                   onChange={(e) => {
@@ -1236,6 +1243,7 @@ export default function App() {
                     <h3 style={{ fontSize: '1.5rem', color: textColor, margin: '0 0 8px 0', fontWeight:'bold', display: 'flex', alignItems: 'center', gap: '10px' }}>📊 สถิติเชิงลึก: {activeChart.name}</h3>
                     <p style={{ margin: 0, color: textColor, fontSize: '1rem', opacity: 0.8 }}>พื้นที่วิเคราะห์: <strong style={{color: '#0ea5e9'}}>{dashTitle}</strong></p>
                   </div>
+                  {/* 🌟 แก้ไข: เพิ่มเงื่อนไขสีพื้นหลัง select */}
                   <select value={viewMode} onChange={(e) => handleViewModeChange(e.target.value)} style={{ padding: '10px 15px', borderRadius: '15px', backgroundColor: darkMode ? '#1e293b' : 'rgba(0,0,0,0.05)', color: textColor, border: `1px solid ${borderColor}`, outline:'none', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.95rem' }}>
                     <option value="temp">🌡️ ดูกราฟอุณหภูมิ</option>
                     <option value="rain">🌧️ ดูกราฟปริมาณฝน</option>
@@ -1306,13 +1314,12 @@ export default function App() {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
             
-            {/* โซนที่ 1: ข่าวสารและประกาศ (News) - 🌟 ปรับให้ดู Realtime มากขึ้น */}
             <div style={{ backgroundColor: cardBg, backdropFilter: backdropBlur, borderRadius: '20px', padding: '30px', border: `1px solid ${borderColor}`, boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
               <h3 style={{ fontSize: '1.5rem', color: '#0ea5e9', margin: '0 0 25px 0', fontWeight:'bold', display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <span style={{ fontSize: '1.8rem' }}>📰</span> ข่าวสารและประกาศเตือนภัยล่าสุด
               </h3>
               
-             <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth < 768 ? '1fr' : '1fr 1fr', gap: '20px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth < 768 ? '1fr' : '1fr 1fr', gap: '20px' }}>
                 {(() => {
                     let newsItems = [];
                     if (nationwideSummary) {
@@ -1326,11 +1333,9 @@ export default function App() {
                             newsItems.push({ title: `อากาศร้อนจัด จ.${nationwideSummary.heat[0].prov}`, tag: 'เตือนภัย', tagBg: '#ea580c', color: '#c2410c', border: darkMode?'#9a3412':'#ffedd5', bg: darkMode ? 'rgba(154,52,18,0.3)' : 'rgba(255,237,213,0.8)', desc: `ดัชนีความร้อนสูงทะลุ ${nationwideSummary.heat[0].val}°C ระวังอันตรายจากฮีทสโตรก ควรดื่มน้ำและอยู่ในที่ร่ม` });
                         }
                     }
-                    
                     if (newsItems.length === 0) {
                         newsItems.push({ title: `สภาพอากาศปกติ`, tag: 'ปลอดภัย', tagBg: '#10b981', color: '#059669', border: darkMode?'#064e3b':'#dcfce7', bg: darkMode ? 'rgba(22,163,74,0.1)' : 'rgba(220,252,231,0.8)', desc: `ขณะนี้ไม่มีการแจ้งเตือนสภาพอากาศรุนแรง สภาพอากาศโดยรวมทั่วประเทศอยู่ในเกณฑ์ปกติ สามารถเดินทางและทำกิจกรรมได้` });
                     }
-
                     return newsItems.slice(0, 2).map((item, idx) => (
                         <div key={idx} style={{ padding: '20px', backgroundColor: item.bg, borderLeft: `6px solid ${item.tagBg}`, borderRadius: '15px', border: `1px solid ${item.border}` }}>
                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
@@ -1345,13 +1350,13 @@ export default function App() {
               </div>
             </div>
 
-            {/* โซนที่ 2: ศูนย์เฝ้าระวังพายุ (Storm Watch) */}
             <div style={{ backgroundColor: cardBg, backdropFilter: backdropBlur, borderRadius: '20px', padding: '30px', border: `1px solid ${borderColor}`, boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', flexWrap: 'wrap', gap: '15px' }}>
                 <h3 style={{ fontSize: '1.5rem', color: '#8b5cf6', margin: 0, fontWeight:'bold', display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <span style={{ fontSize: '1.8rem' }}>🌪️</span> ศูนย์เฝ้าระวังดาวเทียม (Satellite)
                 </h3>
                 <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                  {/* 🌟 แก้ไข: เพิ่มเงื่อนไขสีพื้นหลัง select */}
                   <select value={windyLayer} onChange={(e) => setWindyLayer(e.target.value)} style={{ padding: '8px 16px', borderRadius: '20px', border: `1px solid ${borderColor}`, backgroundColor: darkMode ? '#1e293b' : 'rgba(0,0,0,0.05)', color: textColor, outline: 'none', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 'bold' }}>
                     <option value="wind">🌬️ กระแสลม (Wind)</option>
                     <option value="rain">🌧️ เมฆและฝน (Rain, Thunder)</option>
@@ -1376,7 +1381,6 @@ export default function App() {
               <p style={{ fontSize: '0.85rem', color: textColor, opacity: 0.7, marginTop: '15px', textAlign: 'right' }}>อ้างอิงข้อมูลจาก Windy.com (โมเดล ECMWF)</p>
             </div>
 
-            {/* 🌟 โซนที่ 3: ปรากฏการณ์โลก (พยากรณ์ความน่าจะเป็น 3/6/12 เดือน) */}
             <div style={{ backgroundColor: cardBg, backdropFilter: backdropBlur, borderRadius: '20px', padding: '30px', border: `1px solid ${borderColor}`, boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
               <h3 style={{ fontSize: '1.5rem', color: '#10b981', margin: '0 0 25px 0', fontWeight:'bold', display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <span style={{ fontSize: '1.8rem' }}>🌡️</span> สถานการณ์ เอลนีโญ / ลานีญา (ENSO) & Niño 3.4
@@ -1396,7 +1400,6 @@ export default function App() {
                   <div className="enso-gauge-container">
                     <div className="enso-gauge-bg"></div>
                     <div className="enso-gauge-inner" style={{ background: cardBg }}></div>
-                    {/* เข็มชี้ไปทาง ลานีญาอ่อนๆ (-30deg) */}
                     <div className="enso-needle"></div>
                     <div className="enso-dot"></div>
                   </div>
@@ -1416,7 +1419,6 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* 🌟 พยากรณ์ความน่าจะเป็น */}
                 <div>
                    <h4 style={{ fontSize: '1.2rem', color: textColor, marginBottom: '15px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
                      📊 พยากรณ์ความน่าจะเป็นและผลกระทบ (ระยะยาว)
@@ -1426,7 +1428,6 @@ export default function App() {
                    </p>
                    
                    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                     {/* 1-3 Months */}
                      <div style={{ backgroundColor: 'rgba(59,130,246,0.05)', padding: '15px', borderRadius: '12px', borderLeft: '4px solid #3b82f6', border: `1px solid ${borderColor}`, borderLeftWidth: '4px' }}>
                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                          <strong style={{ color: textColor, fontSize: '1rem' }}>ระยะสั้น (1-3 เดือน)</strong>
@@ -1437,7 +1438,6 @@ export default function App() {
                        </p>
                      </div>
 
-                     {/* 3-6 Months */}
                      <div style={{ backgroundColor: 'rgba(16,185,129,0.05)', padding: '15px', borderRadius: '12px', borderLeft: '4px solid #10b981', border: `1px solid ${borderColor}`, borderLeftWidth: '4px' }}>
                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                          <strong style={{ color: textColor, fontSize: '1rem' }}>ระยะกลาง (3-6 เดือน)</strong>
@@ -1448,7 +1448,6 @@ export default function App() {
                        </p>
                      </div>
 
-                     {/* 6-12 Months */}
                      <div style={{ backgroundColor: 'rgba(245,158,11,0.05)', padding: '15px', borderRadius: '12px', borderLeft: '4px solid #f59e0b', border: `1px solid ${borderColor}`, borderLeftWidth: '4px' }}>
                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                          <strong style={{ color: textColor, fontSize: '1rem' }}>ระยะยาว (6 เดือน - 1 ปี)</strong>
