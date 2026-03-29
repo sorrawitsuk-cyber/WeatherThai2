@@ -200,12 +200,22 @@ export default function App() {
       for (let i = 0; i < stationsList.length; i += chunkSize) {
         const chunk = stationsList.slice(i, i + chunkSize); if(chunk.length === 0) continue;
         const lats = chunk.map(s => s.lat).join(','); const lons = chunk.map(s => s.long).join(',');
-        const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,wind_direction_10m,weather_code&daily=temperature_2m_max,temperature_2m_min,apparent_temperature_max,uv_index_max,precipitation_probability_max,wind_speed_10m_max&timezone=Asia%2FBangkok`;
+        // เพิ่ม hourly=uv_index และ forecast_days=1 เข้าไปใน URL
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,wind_direction_10m,weather_code&hourly=uv_index&daily=temperature_2m_max,temperature_2m_min,apparent_temperature_max,uv_index_max,precipitation_probability_max,wind_speed_10m_max&timezone=Asia%2FBangkok&forecast_days=1`;
+        
         const res = await fetch(url); const data = await res.json(); const results = Array.isArray(data) ? data : [data];
         results.forEach((r, idx) => {
            if (r && r.current && r.daily) {
+             const currentHour = new Date().getHours();
+             // ดึง UV รายชั่วโมง ณ เวลาปัจจุบัน ถ้าไม่มีข้อมูลให้ fallback กลับไปใช้ค่า max ของวัน
+             const currentUv = (r.hourly && r.hourly.uv_index && r.hourly.uv_index[currentHour] != null) 
+                                ? r.hourly.uv_index[currentHour] 
+                                : r.daily.uv_index_max[0];
+             
              allWeather[chunk[idx].stationID] = {
-               temp: r.current.temperature_2m, feelsLike: r.current.apparent_temperature, humidity: r.current.relative_humidity_2m, windSpeed: r.current.wind_speed_10m, windDir: r.current.wind_direction_10m, weatherCode: r.current.weather_code, tempMin: r.daily.temperature_2m_min[0], tempMax: r.daily.temperature_2m_max[0], heatMin: r.daily.temperature_2m_min[0], heatMax: r.daily.apparent_temperature_max[0], uvMax: r.daily.uv_index_max[0], rainProb: r.daily.precipitation_probability_max[0], windMax: r.daily.wind_speed_10m_max[0]
+               temp: r.current.temperature_2m, feelsLike: r.current.apparent_temperature, humidity: r.current.relative_humidity_2m, windSpeed: r.current.wind_speed_10m, windDir: r.current.wind_direction_10m, weatherCode: r.current.weather_code, tempMin: r.daily.temperature_2m_min[0], tempMax: r.daily.temperature_2m_max[0], heatMin: r.daily.temperature_2m_min[0], heatMax: r.daily.apparent_temperature_max[0], 
+               uvMax: currentUv, // ใช้ UV ปัจจุบันแล้ว
+               rainProb: r.daily.precipitation_probability_max[0], windMax: r.daily.wind_speed_10m_max[0]
              };
            }
         });
@@ -1294,23 +1304,36 @@ export default function App() {
                 <span style={{ fontSize: '1.8rem' }}>📰</span> ข่าวสารและประกาศเตือนภัยล่าสุด
               </h3>
               
-              <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth < 768 ? '1fr' : '1fr 1fr', gap: '20px' }}>
-                <div style={{ padding: '20px', backgroundColor: darkMode ? 'rgba(127,29,29,0.3)' : 'rgba(254,242,242,0.8)', borderLeft: '6px solid #ef4444', borderRadius: '15px', border: `1px solid ${darkMode?'#7f1d1d':'#fecaca'}` }}>
-                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
-                     <h4 style={{ margin: 0, color: '#dc2626', fontSize: '1.2rem', fontWeight: 'bold' }}>พายุฤดูร้อนบริเวณประเทศไทยตอนบน</h4>
-                     <span style={{ background: '#ef4444', color: 'white', padding: '2px 8px', borderRadius: '10px', fontSize: '0.7rem', fontWeight: 'bold' }}>ด่วน</span>
-                   </div>
-                   <p style={{ margin: '0 0 15px 0', fontSize: '0.95rem', color: textColor, lineHeight: 1.6 }}>ประกาศฉบับล่าสุด: ภาคเหนือ อีสาน และกลางตอนบน เตรียมรับมือพายุฝนฟ้าคะนอง ลมกระโชกแรง และลูกเห็บตกบางแห่ง ควรเลี่ยงการอยู่ในที่โล่งแจ้ง หรือใต้ต้นไม้ใหญ่</p>
-                   <span style={{ fontSize: '0.8rem', color: textColor, opacity: 0.7 }}>อัปเดต: {getRelativeTime(3)} | แหล่งที่มา: กรมอุตุนิยมวิทยา</span>
-                </div>
-                <div style={{ padding: '20px', backgroundColor: darkMode ? 'rgba(120,53,15,0.3)' : 'rgba(255,251,235,0.8)', borderLeft: '6px solid #f59e0b', borderRadius: '15px', border: `1px solid ${darkMode?'#78350f':'#fde68a'}` }}>
-                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
-                     <h4 style={{ margin: 0, color: '#d97706', fontSize: '1.2rem', fontWeight: 'bold' }}>เฝ้าระวังฝุ่น PM2.5 สะสมตัว</h4>
-                     <span style={{ background: '#f59e0b', color: 'white', padding: '2px 8px', borderRadius: '10px', fontSize: '0.7rem', fontWeight: 'bold' }}>เฝ้าระวัง</span>
-                   </div>
-                   <p style={{ margin: '0 0 15px 0', fontSize: '0.95rem', color: textColor, lineHeight: 1.6 }}>เนื่องจากกระแสลมอ่อนและการระบายอากาศที่ไม่ดี ทำให้ฝุ่นควันสะสมตัวสูงขึ้นในพื้นที่ เชียงใหม่ เชียงราย และแม่ฮ่องสอน ประชาชนควรงดกิจกรรมกลางแจ้ง</p>
-                   <span style={{ fontSize: '0.8rem', color: textColor, opacity: 0.7 }}>อัปเดต: {getRelativeTime(1)} | แหล่งที่มา: กรมควบคุมมลพิษ</span>
-                </div>
+             <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth < 768 ? '1fr' : '1fr 1fr', gap: '20px' }}>
+                {(() => {
+                    let newsItems = [];
+                    if (nationwideSummary) {
+                        if (nationwideSummary.storm.length > 0 && nationwideSummary.storm[0].rain >= 40) {
+                            newsItems.push({ title: `พายุฝนบริเวณ จ.${nationwideSummary.storm[0].prov}`, tag: 'ด่วน', tagBg: '#ef4444', color: '#dc2626', border: darkMode?'#7f1d1d':'#fecaca', bg: darkMode ? 'rgba(127,29,29,0.3)' : 'rgba(254,242,242,0.8)', desc: `ตรวจพบกลุ่มฝนและลมแรงในพื้นที่ จ.${nationwideSummary.storm[0].prov} โอกาสฝนตก ${nationwideSummary.storm[0].rain}% โปรดระมัดระวังการเดินทาง` });
+                        }
+                        if (nationwideSummary.pm25.length > 0 && nationwideSummary.pm25[0].val >= 50) {
+                            newsItems.push({ title: `เฝ้าระวังฝุ่น PM2.5 จ.${nationwideSummary.pm25[0].prov}`, tag: 'เฝ้าระวัง', tagBg: '#f59e0b', color: '#d97706', border: darkMode?'#78350f':'#fde68a', bg: darkMode ? 'rgba(120,53,15,0.3)' : 'rgba(255,251,235,0.8)', desc: `ค่าฝุ่น PM2.5 พุ่งสูงถึง ${nationwideSummary.pm25[0].val} µg/m³ ประชาชนในพื้นที่ควรงดกิจกรรมกลางแจ้งและสวมหน้ากากอนามัย` });
+                        }
+                        if (newsItems.length < 2 && nationwideSummary.heat.length > 0 && nationwideSummary.heat[0].val >= 40) {
+                            newsItems.push({ title: `อากาศร้อนจัด จ.${nationwideSummary.heat[0].prov}`, tag: 'เตือนภัย', tagBg: '#ea580c', color: '#c2410c', border: darkMode?'#9a3412':'#ffedd5', bg: darkMode ? 'rgba(154,52,18,0.3)' : 'rgba(255,237,213,0.8)', desc: `ดัชนีความร้อนสูงทะลุ ${nationwideSummary.heat[0].val}°C ระวังอันตรายจากฮีทสโตรก ควรดื่มน้ำและอยู่ในที่ร่ม` });
+                        }
+                    }
+                    
+                    if (newsItems.length === 0) {
+                        newsItems.push({ title: `สภาพอากาศปกติ`, tag: 'ปลอดภัย', tagBg: '#10b981', color: '#059669', border: darkMode?'#064e3b':'#dcfce7', bg: darkMode ? 'rgba(22,163,74,0.1)' : 'rgba(220,252,231,0.8)', desc: `ขณะนี้ไม่มีการแจ้งเตือนสภาพอากาศรุนแรง สภาพอากาศโดยรวมทั่วประเทศอยู่ในเกณฑ์ปกติ สามารถเดินทางและทำกิจกรรมได้` });
+                    }
+
+                    return newsItems.slice(0, 2).map((item, idx) => (
+                        <div key={idx} style={{ padding: '20px', backgroundColor: item.bg, borderLeft: `6px solid ${item.tagBg}`, borderRadius: '15px', border: `1px solid ${item.border}` }}>
+                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                             <h4 style={{ margin: 0, color: item.color, fontSize: '1.2rem', fontWeight: 'bold' }}>{item.title}</h4>
+                             <span style={{ background: item.tagBg, color: 'white', padding: '2px 8px', borderRadius: '10px', fontSize: '0.7rem', fontWeight: 'bold' }}>{item.tag}</span>
+                           </div>
+                           <p style={{ margin: '0 0 15px 0', fontSize: '0.95rem', color: textColor, lineHeight: 1.6 }}>{item.desc}</p>
+                           <span style={{ fontSize: '0.8rem', color: textColor, opacity: 0.7 }}>อัปเดต: ล่าสุด | แหล่งที่มา: AI ประมวลผลสถานีตรวจวัด</span>
+                        </div>
+                    ));
+                })()}
               </div>
             </div>
 
