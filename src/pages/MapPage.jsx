@@ -1,7 +1,6 @@
 // src/pages/MapPage.jsx
 import React, { useContext, useState, useEffect, useRef, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap, LayersControl, WMSTileLayer, useMapEvents } from 'react-leaflet';
-// 🌟 1. แก้ไขการ Import Leaflet: ไม่ใช้ L แล้ว แต่ดึงคำสั่งมาตรงๆ เลย
 import { divIcon, latLngBounds } from 'leaflet'; 
 import { BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 import { useNavigate } from 'react-router-dom'; 
@@ -111,12 +110,15 @@ const createCustomMarker = (viewMode, value, extraData, isFav, currentZoom) => {
   else if (viewMode === 'heat') { bg = getLocalHeatColor(value); textColor = (bg === '#eab308' || bg === '#22c55e') ? '#1e293b' : '#fff'; if(!isZoomedOut) displayValue = (value == null || isNaN(value)) ? '-' : Math.round(value); } 
   else if (viewMode === 'uv') { bg = getLocalUvColor(value); textColor = (bg === '#eab308' || bg === '#22c55e') ? '#1e293b' : '#fff'; if(!isZoomedOut) displayValue = (value == null || isNaN(value)) ? '-' : Math.round(value); } 
   else if (viewMode === 'rain') { bg = getLocalRainColor(value); textColor = (value <= 20) ? '#1e293b' : '#fff'; if(!isZoomedOut) displayValue = (value == null || isNaN(value)) ? '-' : `${Math.round(value)}%`; } 
-  else if (viewMode === 'wind') { bg = getLocalWindColor(value); textColor = (value <= 20) ? '#1e293b' : '#fff'; const dir = extraData?.windDir || 0; if(!isZoomedOut) displayValue = value == null ? '-' : `<div style="display:flex; flex-direction:column; align-items:center; line-height:1;"><span style="transform: rotate(${dir}deg); font-size: 14px; font-weight: bold;">↓</span><span style="font-size: 9px;">${Math.round(value)}</span></div>`; }
+  else if (viewMode === 'wind') { 
+    bg = getLocalWindColor(value); textColor = (value <= 20) ? '#1e293b' : '#fff'; 
+    const dir = extraData && extraData.windDir ? extraData.windDir : 0; 
+    if(!isZoomedOut) displayValue = value == null ? '-' : `<div style="display:flex; flex-direction:column; align-items:center; line-height:1;"><span style="transform: rotate(${dir}deg); font-size: 14px; font-weight: bold;">↓</span><span style="font-size: 9px;">${Math.round(value)}</span></div>`; 
+  }
   
   const boxShadow = isFav ? '0 0 0 3px rgba(245, 158, 11, 0.8), 0 4px 10px rgba(0,0,0,0.5)' : (isZoomedOut ? '0 1px 3px rgba(0,0,0,0.3)' : '0 2px 5px rgba(0,0,0,0.4)');
   const starHtml = isFav ? `<div style="position:absolute; top:${isZoomedOut?'-8px':'-6px'}; right:${isZoomedOut?'-8px':'-6px'}; font-size:${isZoomedOut?'12px':'14px'}; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5));">⭐</div>` : '';
 
-  // 🌟 2. เรียกใช้ divIcon โดยตรง ไม่ใช้ L.divIcon
   return divIcon({ 
     className: 'custom-div-icon', 
     html: `<div style="position:relative; background-color: ${bg}; width: ${size}px; height: ${size}px; border-radius: 50%; border: ${isZoomedOut?'1px':'2px'} solid white; box-shadow: ${boxShadow}; display: flex; justify-content: center; align-items: center; color: ${textColor}; font-weight: bold; font-size: ${fontSize}; transition: all 0.3s ease;">${displayValue}${starHtml}</div>`, 
@@ -126,19 +128,16 @@ const createCustomMarker = (viewMode, value, extraData, isFav, currentZoom) => {
 
 function FitBounds({ stations, activeStation, selectedProvince, selectedRegion, isPanelOpen }) { 
   const map = useMap(); 
-  const filterKey = `${selectedRegion || 'all'}-${selectedProvince || 'all'}-${stations?.length || 0}`;
+  const filterKey = `${selectedRegion || 'all'}-${selectedProvince || 'all'}-${stations ? stations.length : 0}`;
+  
   useEffect(() => { 
     if (activeStation) return; 
     
     const rightPadding = isPanelOpen && window.innerWidth >= 1024 ? 360 : 0; 
     
     if (!selectedProvince && !selectedRegion) { 
-      // 🌟 3. เรียกใช้ latLngBounds โดยตรง ไม่ใช้ L.latLngBounds
       const thaiBounds = latLngBounds([[5.6, 97.3], [20.4, 105.6]]);
-      map.fitBounds(thaiBounds, { 
-        paddingTopLeft: [20, 20], 
-        paddingBottomRight: [rightPadding + 20, 20] 
-      }); 
+      map.fitBounds(thaiBounds, { paddingTopLeft: [20, 20], paddingBottomRight: [rightPadding + 20, 20] }); 
     } else { 
       const validStations = stations.filter(s => s.lat && s.long && parseFloat(s.lat) !== 0); 
       if (validStations.length > 0) { 
@@ -153,7 +152,7 @@ function FitBounds({ stations, activeStation, selectedProvince, selectedRegion, 
 function FlyToActiveStation({ activeStation, isPanelOpen }) { 
   const map = useMap(); 
   useEffect(() => { 
-    if (activeStation && !isNaN(parseFloat(activeStation.lat))) {
+    if (activeStation && activeStation.lat && !isNaN(parseFloat(activeStation.lat))) {
       const lat = parseFloat(activeStation.lat);
       const lon = parseFloat(activeStation.long);
       const offsetLon = isPanelOpen && window.innerWidth >= 1024 ? 0.05 : 0;
@@ -170,11 +169,7 @@ function MapFix({ isPanelOpen }) {
 }
 
 function MapZoomListener({ onZoomChange }) {
-  useMapEvents({
-    zoomend: (e) => {
-      onZoomChange(e.target.getZoom());
-    },
-  });
+  useMapEvents({ zoomend: (e) => { onZoomChange(e.target.getZoom()); } });
   return null;
 }
 
@@ -232,21 +227,48 @@ export default function MapPage() {
     
     if (selectedRegion) result = result.filter(s => {
        const prov = extractProvince(s.areaTH);
-       return regionMapping[selectedRegion]?.includes(prov);
+       return regionMapping[selectedRegion] && regionMapping[selectedRegion].includes(prov);
     });
     if (selectedProvince) result = result.filter(s => extractProvince(s.areaTH) === selectedProvince);
     
+    // 🌟 ถอดสัญลักษณ์ Optional Chaining ออกจากการจัดเรียงข้อมูล
     result.sort((a, b) => {
       let vA, vB;
-      if (viewMode==='pm25' || viewMode==='hotspot') { vA = Number(a.AQILast?.PM25?.value); vB = Number(b.AQILast?.PM25?.value); }
-      else if (viewMode==='temp') { vA = stationTemps[a.stationID]?.temp; vB = stationTemps[b.stationID]?.temp; }
-      else if (viewMode==='heat') { vA = stationTemps[a.stationID]?.feelsLike; vB = stationTemps[b.stationID]?.feelsLike; }
-      else if (viewMode==='uv') { vA = stationTemps[a.stationID]?.uv ?? stationTemps[a.stationID]?.uvMax; vB = stationTemps[b.stationID]?.uv ?? stationTemps[b.stationID]?.uvMax; }
-      else if (viewMode==='rain') { vA = stationTemps[a.stationID]?.rainProb; vB = stationTemps[b.stationID]?.rainProb; }
-      else if (viewMode==='wind') { vA = stationTemps[a.stationID]?.windSpeed; vB = stationTemps[b.stationID]?.windSpeed; }
+      const pmA = (a.AQILast && a.AQILast.PM25) ? Number(a.AQILast.PM25.value) : NaN;
+      const pmB = (b.AQILast && b.AQILast.PM25) ? Number(b.AQILast.PM25.value) : NaN;
+      const tA = stationTemps[a.stationID];
+      const tB = stationTemps[b.stationID];
+
+      if (viewMode==='pm25' || viewMode==='hotspot') { 
+        vA = pmA; 
+        vB = pmB; 
+      }
+      else if (viewMode==='temp') { 
+        vA = tA ? tA.temp : null; 
+        vB = tB ? tB.temp : null; 
+      }
+      else if (viewMode==='heat') { 
+        vA = tA ? tA.feelsLike : null; 
+        vB = tB ? tB.feelsLike : null; 
+      }
+      else if (viewMode==='uv') { 
+        vA = tA ? (tA.uv != null ? tA.uv : tA.uvMax) : null; 
+        vB = tB ? (tB.uv != null ? tB.uv : tB.uvMax) : null; 
+      }
+      else if (viewMode==='rain') { 
+        vA = tA ? tA.rainProb : null; 
+        vB = tB ? tB.rainProb : null; 
+      }
+      else if (viewMode==='wind') { 
+        vA = tA ? tA.windSpeed : null; 
+        vB = tB ? tB.windSpeed : null; 
+      }
       
-      const validA = vA!=null && !isNaN(vA) && (viewMode==='rain'?true:vA!==0); const validB = vB!=null && !isNaN(vB) && (viewMode==='rain'?true:vB!==0);
-      if (!validA && validB) return 1; if (validA && !validB) return -1; if (!validA && !validB) return 0;
+      const validA = vA!=null && !isNaN(vA) && (viewMode==='rain'?true:vA!==0); 
+      const validB = vB!=null && !isNaN(vB) && (viewMode==='rain'?true:vB!==0);
+      if (!validA && validB) return 1; 
+      if (validA && !validB) return -1; 
+      if (!validA && !validB) return 0;
       return sortOrder === 'desc' ? vB - vA : vA - vB;
     });
     setFilteredStations(result);
@@ -256,7 +278,6 @@ export default function MapPage() {
     if (viewMode === 'pm25' || viewMode === 'hotspot') {
       return filteredStations;
     } else {
-      const provCount = {};
       const largeProvinces = ['เชียงใหม่', 'ตาก', 'ประจวบคีรีขันธ์', 'นครราชสีมา', 'สุราษฎร์ธานี', 'นครศรีธรรมราช', 'สงขลา', 'กาญจนบุรี', 'แม่ฮ่องสอน', 'เชียงราย', 'เพชรบูรณ์', 'ยะลา'];
       const importantDistricts = ['ปากช่อง', 'วังน้ำเขียว', 'พิมาย', 'ทองผาภูมิ', 'สังขละบุรี', 'บางสะพาน', 'หัวหิน', 'แม่สอด', 'อุ้มผาง', 'แม่สาย', 'เชียงของ', 'หาดใหญ่', 'สะเดา', 'เกาะสมุย', 'เกาะพะงัน', 'เคียนซา', 'แม่สะเรียง', 'ปาย', 'ฝาง', 'ฮอด', 'แม่แจ่ม', 'ทุ่งสง', 'สิชล', 'หล่มสัก', 'เขาค้อ', 'เบตง'];
       
@@ -274,7 +295,7 @@ export default function MapPage() {
         let addedCount = 0;
         const limit = largeProvinces.includes(p) ? 4 : 1; 
 
-        const mueangStation = stationsInProv.find(s => s.areaTH.includes('เมือง'));
+        const mueangStation = stationsInProv.find(s => s.areaTH && s.areaTH.includes('เมือง'));
         if (mueangStation) {
           selectedStations.push(mueangStation);
           addedCount++;
@@ -283,7 +304,7 @@ export default function MapPage() {
         if (limit > 1) {
           const importantStations = stationsInProv.filter(s => 
             !selectedStations.some(sel => sel.stationID === s.stationID) && 
-            importantDistricts.some(d => s.areaTH.includes(d))
+            s.areaTH && importantDistricts.some(d => s.areaTH.includes(d))
           );
           for (let i = 0; i < importantStations.length && addedCount < limit; i++) {
             selectedStations.push(importantStations[i]);
@@ -309,22 +330,29 @@ export default function MapPage() {
   useEffect(() => {
     if (activeStation) {
       setIsRightPanelOpen(true);
-      if (cardRefs.current[activeStation.stationID]) cardRefs.current[activeStation.stationID].scrollIntoView({ behavior: 'smooth', block: 'center' });
-      const marker = markerRefs.current[activeStation.stationID]; if (marker && !showRadar) marker.openPopup(); 
+      if (cardRefs.current[activeStation.stationID]) {
+        cardRefs.current[activeStation.stationID].scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      const marker = markerRefs.current[activeStation.stationID]; 
+      if (marker && !showRadar) marker.openPopup(); 
+      
       setActiveWeather(null); setActiveForecast(null); 
       
       const fetchCardDetails = async () => {
         try {
           const urlWeather = `https://api.open-meteo.com/v1/forecast?latitude=${activeStation.lat}&longitude=${activeStation.long}&daily=temperature_2m_max,temperature_2m_min,apparent_temperature_max,uv_index_max,precipitation_probability_max,wind_speed_10m_max&timezone=auto&forecast_days=7`;
-          const wData = await fetch(urlWeather).then(r=>r.json()); let tempF=[], heatF=[], uvF=[], rainF=[], windF=[];
+          const wData = await fetch(urlWeather).then(r=>r.json()); 
+          let tempF=[], heatF=[], uvF=[], rainF=[], windF=[];
+          
           if (wData.daily && wData.daily.time) {
             for (let i = 0; i < wData.daily.time.length; i++) {
-              const days = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.']; let tLabel = i===0?'วันนี้':i===1?'พรุ่งนี้':days[new Date(wData.daily.time[i]).getDay()];
+              const days = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.']; 
+              let tLabel = i===0?'วันนี้':i===1?'พรุ่งนี้':days[new Date(wData.daily.time[i]).getDay()];
               tempF.push({ time: tLabel, val: Math.round(wData.daily.temperature_2m_max[i]||0) });
               heatF.push({ time: tLabel, val: Math.round(wData.daily.apparent_temperature_max[i]||0) });
-              if(wData.daily.uv_index_max[i] != null) uvF.push({ time: tLabel, val: Math.round(wData.daily.uv_index_max[i]||0) });
-              rainF.push({ time: tLabel, val: Math.round(wData.daily.precipitation_probability_max[i]||0) });
-              windF.push({ time: tLabel, val: Math.round(wData.daily.wind_speed_10m_max[i]||0) });
+              if(wData.daily.uv_index_max && wData.daily.uv_index_max[i] != null) uvF.push({ time: tLabel, val: Math.round(wData.daily.uv_index_max[i]||0) });
+              if(wData.daily.precipitation_probability_max) rainF.push({ time: tLabel, val: Math.round(wData.daily.precipitation_probability_max[i]||0) });
+              if(wData.daily.wind_speed_10m_max) windF.push({ time: tLabel, val: Math.round(wData.daily.wind_speed_10m_max[i]||0) });
             }
           }
           setActiveWeather({ tempForecast:tempF, heatForecast:heatF, uvForecast:uvF, rainForecast:rainF, windForecast:windF });
@@ -332,11 +360,18 @@ export default function MapPage() {
           const urlAqi = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${activeStation.lat}&longitude=${activeStation.long}&hourly=pm2_5&timezone=auto&forecast_days=4`;
           const aData = await fetch(urlAqi).then(r=>r.json());
           if (aData && aData.hourly && aData.hourly.pm2_5) {
-            const now = new Date().getTime(); let sIdx = aData.hourly.time.findIndex(t => new Date(t).getTime()>=now); if (sIdx===-1) sIdx=0;
-            const currentReal = Number(activeStation.AQILast?.PM25?.value); let offset = (!isNaN(currentReal) && aData.hourly.pm2_5[sIdx] !== undefined) ? currentReal - aData.hourly.pm2_5[sIdx] : 0;
+            const now = new Date().getTime(); 
+            let sIdx = aData.hourly.time.findIndex(t => new Date(t).getTime()>=now); 
+            if (sIdx===-1) sIdx=0;
+            
+            const currentReal = Number(activeStation.AQILast && activeStation.AQILast.PM25 ? activeStation.AQILast.PM25.value : NaN); 
+            let offset = (!isNaN(currentReal) && aData.hourly.pm2_5[sIdx] !== undefined) ? currentReal - aData.hourly.pm2_5[sIdx] : 0;
             const pmF = [];
             for (let i = sIdx; i < aData.hourly.time.length && pmF.length < 24; i += 3) {
-              if(aData.hourly.pm2_5[i] != null){ let cVal = Math.max(0, (aData.hourly.pm2_5[i] || 0) + offset); pmF.push({ time: `${new Date(aData.hourly.time[i]).getHours().toString().padStart(2, '0')}`, val: Math.round(cVal) }); }
+              if(aData.hourly.pm2_5[i] != null){ 
+                let cVal = Math.max(0, (aData.hourly.pm2_5[i] || 0) + offset); 
+                pmF.push({ time: `${new Date(aData.hourly.time[i]).getHours().toString().padStart(2, '0')}`, val: Math.round(cVal) }); 
+              }
             }
             setActiveForecast(pmF);
           }
@@ -372,7 +407,7 @@ export default function MapPage() {
   const activeChart = chartConfigs[viewMode === 'hotspot' ? 'pm25' : viewMode] || chartConfigs['pm25']; 
 
   let radarLat = 13.75; let radarLon = isRightPanelOpen && window.innerWidth >= 1024 ? 101.5 : 100.5; let radarZoom = 6;
-  if (activeStation && !isNaN(parseFloat(activeStation.lat))) { 
+  if (activeStation && activeStation.lat && !isNaN(parseFloat(activeStation.lat))) { 
     radarLat = parseFloat(activeStation.lat); 
     radarLon = parseFloat(activeStation.long) + (isRightPanelOpen && window.innerWidth >= 1024 ? 0.05 : 0); 
     radarZoom = 10; 
@@ -386,7 +421,8 @@ export default function MapPage() {
     } 
   }
 
-  const favNames = favLocations?.map(f => f.name) || [];
+  // 🌟 แก้บั๊ก Optional Chaining จาก favLocations
+  const favNames = favLocations || [];
 
   if (loading) {
     return (
@@ -531,9 +567,19 @@ export default function MapPage() {
 
             {showMarkers && mapDisplayStations.map((station) => {
               const lat = parseFloat(station.lat); const lon = parseFloat(station.long); if (isNaN(lat) || isNaN(lon)) return null;
-              const pmVal = Number(station.AQILast?.PM25?.value); const tObj = stationTemps[station.stationID];
+              
+              // 🌟 ถอด Optional Chaining ออกจากตรงนี้ด้วย
+              const pmVal = Number(station.AQILast && station.AQILast.PM25 ? station.AQILast.PM25.value : NaN); 
+              const tObj = stationTemps[station.stationID];
               const isFav = favNames.includes(extractProvince(station.areaTH)); 
-              let mVal = viewMode==='pm25'||viewMode==='hotspot'?pmVal:viewMode==='temp'?tObj?.temp:viewMode==='heat'?tObj?.feelsLike:viewMode==='uv'?(tObj?.uv ?? tObj?.uvMax):viewMode==='rain'?tObj?.rainProb:tObj?.windSpeed;
+              
+              let mVal;
+              if (viewMode==='pm25'||viewMode==='hotspot') mVal = pmVal;
+              else if (viewMode==='temp') mVal = tObj ? tObj.temp : null;
+              else if (viewMode==='heat') mVal = tObj ? tObj.feelsLike : null;
+              else if (viewMode==='uv') mVal = tObj ? (tObj.uv != null ? tObj.uv : tObj.uvMax) : null;
+              else if (viewMode==='rain') mVal = tObj ? tObj.rainProb : null;
+              else if (viewMode==='wind') mVal = tObj ? tObj.windSpeed : null;
               
               return (
                 <Marker key={station.stationID} position={[lat, lon]} icon={createCustomMarker(viewMode, mVal, tObj, isFav, mapZoom)} ref={el => markerRefs.current[station.stationID]=el} eventHandlers={{ click: () => { setActiveStation(station); setIsRightPanelOpen(true); } }}>
@@ -588,7 +634,10 @@ export default function MapPage() {
 
           <div style={{ flex: 1, overflowY: 'auto', padding: '15px' }} className="hide-scrollbar">
             {filteredStations.map((station) => {
-              const pmVal = Number(station.AQILast?.PM25?.value); const tObj = stationTemps[station.stationID]; const isActive = activeStation?.stationID === station.stationID;
+              // 🌟 ถอด Optional Chaining ทิ้งให้หมดในลูปนี้
+              const pmVal = Number(station.AQILast && station.AQILast.PM25 ? station.AQILast.PM25.value : NaN); 
+              const tObj = stationTemps[station.stationID]; 
+              const isActive = activeStation && activeStation.stationID === station.stationID;
               const isFav = favNames.includes(extractProvince(station.areaTH));
 
               let warningNode = null;
@@ -596,12 +645,16 @@ export default function MapPage() {
                 if (pmVal > 250) warningNode = <span style={{ color: '#9f1239', fontSize: '0.75rem', fontWeight: 'bold', display: 'block', marginTop: '5px' }}>⚠️ อันตรายมาก (งดกิจกรรมกลางแจ้ง)</span>;
                 else if (pmVal > 150) warningNode = <span style={{ color: '#a855f7', fontSize: '0.75rem', fontWeight: 'bold', display: 'block', marginTop: '5px' }}>⚠️ อันตราย (ควรสวมหน้ากาก N95)</span>;
                 else if (pmVal > 55) warningNode = <span style={{ color: '#ef4444', fontSize: '0.75rem', fontWeight: 'bold', display: 'block', marginTop: '5px' }}>😷 เริ่มมีผลกระทบต่อสุขภาพ</span>;
-              } else if (viewMode === 'heat' && tObj?.feelsLike >= 41) {
+              } else if (viewMode === 'heat' && tObj && tObj.feelsLike >= 41) {
                 warningNode = <span style={{ color: '#ef4444', fontSize: '0.75rem', fontWeight: 'bold', display: 'block', marginTop: '5px' }}>⚠️ อันตราย (ระวังฮีทสโตรก)</span>;
               }
 
               if (viewMode === 'hotspot') {
-                const temp = tObj?.temp || 0; const rain = tObj?.rainProb || 0; const wind = tObj?.windSpeed || 0;
+                const temp = (tObj && tObj.temp) ? tObj.temp : 0; 
+                const rain = (tObj && tObj.rainProb) ? tObj.rainProb : 0; 
+                const wind = (tObj && tObj.windSpeed) ? tObj.windSpeed : 0;
+                const windDir = (tObj && tObj.windDir) ? tObj.windDir : 0;
+                
                 const riskScore = (temp >= 35 ? 1 : 0) + (rain <= 20 ? 1 : 0) + (wind >= 15 ? 1 : 0);
                 const riskText = riskScore >= 2 ? '🔥 เสี่ยงสูง (ร้อน/แห้ง/ลมแรง)' : riskScore === 1 ? '⚠️ เฝ้าระวัง' : '✅ ปกติ';
                 const riskColor = riskScore >= 2 ? '#ef4444' : riskScore === 1 ? '#f59e0b' : '#10b981';
@@ -626,7 +679,7 @@ export default function MapPage() {
                     </div>
                     <div style={{ marginTop: '10px', padding: '10px', background: darkMode?'rgba(0,0,0,0.3)':'rgba(0,0,0,0.03)', borderRadius: '8px', fontSize: '0.85rem', color: subTextColor }}>
                       🌡️ อุณหภูมิ: <strong style={{color: temp>=35?'#ef4444':textColor}}>{temp}°C</strong> | 💧 โอกาสฝน: <strong>{rain}%</strong><br/>
-                      🌬️ ลม: <strong>{wind} km/h</strong> ไปทาง <strong>{getWindDirectionText(tObj?.windDir)}</strong>
+                      🌬️ ลม: <strong>{wind} km/h</strong> ไปทาง <strong>{getWindDirectionText(windDir)}</strong>
                     </div>
                   </div>
                 );
@@ -638,25 +691,29 @@ export default function MapPage() {
                 boxText = (boxBg==='#eab308'||boxBg==='#22c55e') ? '#1e293b' : '#fff'; 
               }
               else if(viewMode==='temp'){ 
-                disp = tObj?.temp!=null?Math.round(tObj.temp):'-'; unit='°C'; 
-                const tColor = getLocalTempColor(tObj?.temp); boxBg = tColor.bg; boxText = tColor.text; 
+                disp = (tObj && tObj.temp != null) ? Math.round(tObj.temp) : '-'; unit='°C'; 
+                const tColor = getLocalTempColor(tObj ? tObj.temp : null); boxBg = tColor.bg; boxText = tColor.text; 
               }
               else if(viewMode==='heat'){ 
-                disp = tObj?.feelsLike!=null?Math.round(tObj.feelsLike):'-'; unit='°C'; boxBg=getLocalHeatColor(tObj?.feelsLike); 
+                disp = (tObj && tObj.feelsLike != null) ? Math.round(tObj.feelsLike) : '-'; unit='°C'; 
+                boxBg = getLocalHeatColor(tObj ? tObj.feelsLike : null); 
                 boxText = (boxBg==='#eab308'||boxBg==='#22c55e') ? '#1e293b' : '#fff'; 
               }
               else if(viewMode==='rain'){ 
-                disp = tObj?.rainProb!=null?Math.round(tObj.rainProb):'-'; unit='%'; boxBg=getLocalRainColor(tObj?.rainProb); 
-                boxText = tObj?.rainProb <= 20 ? '#1e293b' : '#fff'; 
+                disp = (tObj && tObj.rainProb != null) ? Math.round(tObj.rainProb) : '-'; unit='%'; 
+                boxBg = getLocalRainColor(tObj ? tObj.rainProb : null); 
+                boxText = (tObj && tObj.rainProb <= 20) ? '#1e293b' : '#fff'; 
               }
               else if(viewMode==='uv'){ 
-                let uvValToDisplay = tObj?.uv ?? tObj?.uvMax;
-                disp = uvValToDisplay!=null?Math.round(uvValToDisplay):'-'; unit='Idx'; boxBg=getLocalUvColor(uvValToDisplay); 
+                let uvValToDisplay = tObj ? (tObj.uv != null ? tObj.uv : tObj.uvMax) : null;
+                disp = uvValToDisplay != null ? Math.round(uvValToDisplay) : '-'; unit='Idx'; 
+                boxBg = getLocalUvColor(uvValToDisplay); 
                 boxText = (boxBg==='#eab308'||boxBg==='#22c55e') ? '#1e293b' : '#fff'; 
               }
               else if(viewMode==='wind'){ 
-                disp = tObj?.windSpeed!=null?Math.round(tObj.windSpeed):'-'; unit='km/h'; boxBg=getLocalWindColor(tObj?.windSpeed); 
-                boxText = tObj?.windSpeed <= 20 ? '#1e293b' : '#fff'; 
+                disp = (tObj && tObj.windSpeed != null) ? Math.round(tObj.windSpeed) : '-'; unit='km/h'; 
+                boxBg = getLocalWindColor(tObj ? tObj.windSpeed : null); 
+                boxText = (tObj && tObj.windSpeed <= 20) ? '#1e293b' : '#fff'; 
               }
 
               return (
