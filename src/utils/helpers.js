@@ -5,13 +5,12 @@
 // ==============================================================
 export const getPM25Color = (value) => {
   if (value == null || isNaN(value)) return '#cccccc';
-  // อิงตามเกณฑ์ US AQI หรือเกณฑ์ที่ใช้ใน Legend ของเรา
-  if (value > 250) return '#7e0023'; // Maroon (อันตรายมาก)
-  if (value > 150) return '#8f3f97'; // Purple (อันตราย)
-  if (value > 55) return '#ff0000';  // Red (มีผลกระทบ)
-  if (value > 35) return '#ff7e00';  // Orange (เริ่มมีผลกระทบ)
-  if (value > 15) return '#ffff00';  // Yellow (ปานกลาง)
-  return '#00e400';                  // Green (ดี)
+  if (value > 250) return '#7e0023'; 
+  if (value > 150) return '#8f3f97'; 
+  if (value > 55) return '#ff0000';  
+  if (value > 35) return '#ff7e00';  
+  if (value > 15) return '#ffff00';  
+  return '#00e400';                  
 };
 
 export const getPM25HealthAdvice = (val) => { const v=Number(val); return isNaN(v)||v===0?null:v<=25?{text:"อากาศดีเยี่ยม เหมาะกับการทำกิจกรรมกลางแจ้ง",icon:"🏃‍♂️"}:v<=37.5?{text:"ประชาชนทั่วไปทำกิจกรรมได้ปกติ",icon:"🚶‍♀️"}:v<=75?{text:"ลดระยะเวลาการทำกิจกรรมกลางแจ้ง (หน้ากาก N95)",icon:"😷"}:{text:"งดกิจกรรมกลางแจ้งเด็ดขาด",icon:"🚨"}; };
@@ -32,7 +31,6 @@ export const getWindColor = (val) => { return (isNaN(val)||val===null)?{bg:'#ccc
 
 export const getWeatherIcon = (c) => { if(c===undefined||c===null)return{icon:'❓',text:'ไม่ทราบ'}; if(c===0)return{icon:'☀️',text:'แจ่มใส'}; if(c===1)return{icon:'🌤️',text:'มีเมฆบางส่วน'}; if(c===2)return{icon:'⛅',text:'มีเมฆ'}; if(c===3)return{icon:'☁️',text:'มีเมฆมาก'}; if([45,48].includes(c))return{icon:'🌫️',text:'มีหมอก'}; if([51,53,55,56,57].includes(c))return{icon:'🌧️',text:'ฝนปรอย'}; if([61,63,65,66,67].includes(c))return{icon:'🌧️',text:'ฝนตก'}; if([71,73,75,77,85,86].includes(c))return{icon:'❄️',text:'หิมะ'}; if([80,81,82].includes(c))return{icon:'🌦️',text:'ฝนตกหย่อมๆ'}; if([95,96,99].includes(c))return{icon:'⛈️',text:'พายุฝน'}; return{icon:'🌤️',text:'ปกติ'}; };
 
-
 // ==============================================================
 // 2. ข้อมูลคงที่ (Constants) และฟังก์ชันจัดการพื้นที่
 // ==============================================================
@@ -42,19 +40,40 @@ export const thaiProvinces = Object.values(regionMapping).flat();
 
 export const getRegion = (province) => { for (const [region, provinces] of Object.entries(regionMapping)) { if (provinces.includes(province)) return region; } return "อื่นๆ"; };
 
-// src/utils/helpers.js
+export const extractProvince = (area) => { if(!area) return 'ไม่ระบุ'; if (area.includes('กรุงเทพ') || area.includes('กทม')) return 'กรุงเทพมหานคร'; for (let i = 0; i < thaiProvinces.length; i++) { if (area.includes(thaiProvinces[i])) return thaiProvinces[i]; } if (area.includes('เขต')) return 'กรุงเทพมหานคร'; let p = area.includes(',') ? area.split(',').pop() : area.trim().split(/\s+/).pop(); p = p.trim().replace(/^(จ\.|จังหวัด)/, '').trim(); if (p.includes('จ.')) p = p.split('จ.').pop().trim(); return p; };
 
-export const extractProvince = (areaTH) => {
-  if (!areaTH) return 'ไม่ทราบ';
-  // ใช้การ split ธรรมดา ปลอดภัยกับ Safari 100%
-  const parts = areaTH.split('จ.');
+// 🌟 ฟังก์ชันใหม่! สำหรับจัดรูปแบบชื่อให้ออกมาเป็น "จังหวัด... อำเภอ... ตำบล..." ไม่มีซ้ำซ้อน
+export const formatLocationName = (areaTH) => {
+  if (!areaTH) return 'ไม่ระบุพื้นที่';
+  
+  // 1. แยกด้วยลูกน้ำ
+  let parts = areaTH.split(',').map(p => p.trim());
+  
+  // 2. สลับตำแหน่งให้ จังหวัด ขึ้นก่อน (ปกติ Air4Thai จะให้ ตำบล, อำเภอ, จังหวัด)
   if (parts.length > 1) {
-    return parts[1].trim(); // เอาข้อความหลังคำว่า "จ."
+    parts.reverse();
   }
-  return areaTH.trim();
-};
+  
+  // 3. รวมเป็นข้อความเดียว
+  let result = parts.join(' ');
+  
+  // 4. แปลงคำย่อเป็นคำเต็ม 
+  result = result.replace(/จ\./g, 'จังหวัด');
+  result = result.replace(/อ\./g, 'อำเภอ');
+  result = result.replace(/ต\./g, 'ตำบล');
+  result = result.replace(/กรุงเทพฯ/g, 'กรุงเทพมหานคร');
+  
+  // 5. ลบคำซ้ำซ้อน (เพื่อแก้ปัญหา จ.จังหวัด หรือ จังหวัดจังหวัด)
+  result = result.replace(/จังหวัดจังหวัด/g, 'จังหวัด');
+  result = result.replace(/จังหวัด\s*จังหวัด/g, 'จังหวัด');
+  result = result.replace(/อำเภออำเภอ/g, 'อำเภอ');
+  result = result.replace(/ตำบลตำบล/g, 'ตำบล');
+  
+  // 6. เคลียร์ช่องว่างส่วนเกิน
+  result = result.replace(/\s+/g, ' ').trim();
 
-// ... (โค้ดอื่นๆ ใน helpers.js เก็บไว้เหมือนเดิมครับ) ...
+  return result;
+};
 
 export const legendData = {
   pm25: { title: 'ระดับ PM2.5', items: [{color:'#00b0f0',label:'0-15.0 (ดีมาก)'},{color:'#92d050',label:'15.1-25.0 (ดี)'},{color:'#ffff00',label:'25.1-37.5 (ปานกลาง)'},{color:'#ffc000',label:'37.6-75.0 (เริ่มมีผลกระทบ)'},{color:'#ff0000',label:'> 75.0 (มีผลกระทบ)'}] },
@@ -76,14 +95,13 @@ export const chartConfigs = {
   hotspot: { key: 'pm25', name: 'จุดความร้อน (Hot spot)', color: '#ef4444', domain: [0, 500] }
 };
 
-
 // ==============================================================
 // 3. ฟังก์ชันคำนวณระยะทางพิกัด (GPS)
 // ==============================================================
 export const deg2rad = (deg) => { return deg * (Math.PI/180); };
 
 export const getDistanceFromLatLonInKm = (lat1, lon1, lat2, lon2) => { 
-  var R = 6371; // รัศมีโลกเป็นหน่วยกิโลเมตร
+  var R = 6371; 
   var dLat = deg2rad(lat2-lat1); 
   var dLon = deg2rad(lon2-lon1); 
   var a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * Math.sin(dLon/2) * Math.sin(dLon/2); 
