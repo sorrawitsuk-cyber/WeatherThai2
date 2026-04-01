@@ -8,13 +8,12 @@ export default function Layout() {
   const location = useLocation();
 
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 768);
-  // 🌟 1. ใช้ State ตรวจจับความสูงจริงของหน้าจอมือถือ
   const [vh, setVh] = useState(typeof window !== 'undefined' ? window.innerHeight : 800);
 
   useEffect(() => {
     const handleResize = () => {
       setIsDesktop(window.innerWidth >= 768);
-      setVh(window.innerHeight); // อัปเดตความสูงตลอดเวลาเมื่อมีแถบ URL เด้งขึ้น/ลง
+      setVh(window.innerHeight);
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
@@ -32,7 +31,6 @@ export default function Layout() {
   const isMapPage = location.pathname === '/map';
 
   return (
-    // 🌟 2. นำค่า vh มาใส่เป็น Pixel แทน dvh เพื่อป้องกันจอขาว
     <div style={{ display: 'flex', height: `${vh}px`, width: '100vw', background: themeBg, color: textColor, overflow: 'hidden' }}>
       
       {/* 💻 SIDEBAR สำหรับ Desktop */}
@@ -123,6 +121,7 @@ const NavItem = ({ to, icon, label, darkMode }) => (
   </NavLink>
 );
 
+// 🌟 จุดที่แก้บั๊ก! ส่งค่า isActive ลงไปในรูปแบบ Function Component ให้ถูกต้อง
 const MobileNavItem = ({ to, icon, label }) => (
   <NavLink 
     to={to} 
@@ -132,7 +131,11 @@ const MobileNavItem = ({ to, icon, label }) => (
       transform: isActive ? 'translateY(-3px)' : 'none'
     })}
   >
-    <span style={{ fontSize: '1.6rem', marginBottom: '4px', filter: isActive ? 'drop-shadow(0 2px 4px rgba(14,165,233,0.3))' : 'grayscale(100%) opacity(60%)' }}>{icon}</span>
-    <span style={{ fontSize: '0.7rem', fontWeight: 'bold' }}>{label}</span>
+    {({ isActive }) => (
+      <>
+        <span style={{ fontSize: '1.6rem', marginBottom: '4px', filter: isActive ? 'drop-shadow(0 2px 4px rgba(14,165,233,0.3))' : 'grayscale(100%) opacity(60%)' }}>{icon}</span>
+        <span style={{ fontSize: '0.7rem', fontWeight: 'bold' }}>{label}</span>
+      </>
+    )}
   </NavLink>
 );
