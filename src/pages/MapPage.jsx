@@ -1,7 +1,8 @@
 // src/pages/MapPage.jsx
 import React, { useContext, useState, useEffect, useRef, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap, LayersControl, WMSTileLayer, useMapEvents } from 'react-leaflet';
-import L from 'leaflet';
+// 🌟 1. แก้ไขการ Import Leaflet: ไม่ใช้ L แล้ว แต่ดึงคำสั่งมาตรงๆ เลย
+import { divIcon, latLngBounds } from 'leaflet'; 
 import { BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 import { useNavigate } from 'react-router-dom'; 
 import { WeatherContext } from '../context/WeatherContext';
@@ -115,7 +116,8 @@ const createCustomMarker = (viewMode, value, extraData, isFav, currentZoom) => {
   const boxShadow = isFav ? '0 0 0 3px rgba(245, 158, 11, 0.8), 0 4px 10px rgba(0,0,0,0.5)' : (isZoomedOut ? '0 1px 3px rgba(0,0,0,0.3)' : '0 2px 5px rgba(0,0,0,0.4)');
   const starHtml = isFav ? `<div style="position:absolute; top:${isZoomedOut?'-8px':'-6px'}; right:${isZoomedOut?'-8px':'-6px'}; font-size:${isZoomedOut?'12px':'14px'}; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5));">⭐</div>` : '';
 
-  return L.divIcon({ 
+  // 🌟 2. เรียกใช้ divIcon โดยตรง ไม่ใช้ L.divIcon
+  return divIcon({ 
     className: 'custom-div-icon', 
     html: `<div style="position:relative; background-color: ${bg}; width: ${size}px; height: ${size}px; border-radius: 50%; border: ${isZoomedOut?'1px':'2px'} solid white; box-shadow: ${boxShadow}; display: flex; justify-content: center; align-items: center; color: ${textColor}; font-weight: bold; font-size: ${fontSize}; transition: all 0.3s ease;">${displayValue}${starHtml}</div>`, 
     iconSize: [size+4, size+4], iconAnchor: [size/2, size/2] 
@@ -131,7 +133,8 @@ function FitBounds({ stations, activeStation, selectedProvince, selectedRegion, 
     const rightPadding = isPanelOpen && window.innerWidth >= 1024 ? 360 : 0; 
     
     if (!selectedProvince && !selectedRegion) { 
-      const thaiBounds = L.latLngBounds([[5.6, 97.3], [20.4, 105.6]]);
+      // 🌟 3. เรียกใช้ latLngBounds โดยตรง ไม่ใช้ L.latLngBounds
+      const thaiBounds = latLngBounds([[5.6, 97.3], [20.4, 105.6]]);
       map.fitBounds(thaiBounds, { 
         paddingTopLeft: [20, 20], 
         paddingBottomRight: [rightPadding + 20, 20] 
@@ -139,7 +142,7 @@ function FitBounds({ stations, activeStation, selectedProvince, selectedRegion, 
     } else { 
       const validStations = stations.filter(s => s.lat && s.long && parseFloat(s.lat) !== 0); 
       if (validStations.length > 0) { 
-        const bounds = L.latLngBounds(validStations.map(s => [parseFloat(s.lat), parseFloat(s.long)])); 
+        const bounds = latLngBounds(validStations.map(s => [parseFloat(s.lat), parseFloat(s.long)])); 
         map.fitBounds(bounds, { paddingTopLeft: [40, 40], paddingBottomRight: [rightPadding + 40, 40], maxZoom: 11 }); 
       } 
     } 
@@ -415,7 +418,6 @@ export default function MapPage() {
       
       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 1 }}>
         
-        {/* 🌟 MASTER CONTAINER จัดการ UI ด้านบนทั้งหมด */}
         <div style={{ 
           position: 'absolute', 
           top: '15px', 
@@ -427,11 +429,10 @@ export default function MapPage() {
           justifyContent: 'space-between', 
           alignItems: 'flex-start',
           gap: '10px',
-          pointerEvents: 'none', // ปล่อยคลิกทะลุช่องว่าง
+          pointerEvents: 'none', 
           transition: 'right 0.3s ease'
         }}>
           
-          {/* กล่องซ้าย: ตัวกรอง */}
           {!showRadar && (
             <div style={{ display: 'flex', gap: '8px', background: cardBg, backdropFilter: 'blur(12px)', padding: '8px 12px', borderRadius: '15px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.1)', flexWrap: 'wrap', pointerEvents: 'auto' }}>
               <button 
@@ -454,7 +455,6 @@ export default function MapPage() {
             </div>
           )}
 
-          {/* กล่องขวา: ปุ่มโหมดแผนที่ */}
           <div className="hide-scrollbar" style={{ display: 'flex', gap: '6px', background: cardBg, backdropFilter: 'blur(12px)', padding: '6px 10px', borderRadius: '20px', alignItems: 'center', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.1)', overflowX: 'auto', maxWidth: '100%', pointerEvents: 'auto' }}>
             {!showRadar ? (
               <>
