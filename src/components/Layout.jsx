@@ -7,11 +7,15 @@ export default function Layout() {
   const { darkMode, setDarkMode } = useContext(WeatherContext);
   const location = useLocation();
 
-  // 🌟 1. ใช้ State เพื่อเช็คขนาดจอแบบ Real-time (ป้องกันบั๊กตอนหมุนจอมือถือ)
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 768);
-  
+  // 🌟 1. ใช้ State ตรวจจับความสูงจริงของหน้าจอมือถือ
+  const [vh, setVh] = useState(typeof window !== 'undefined' ? window.innerHeight : 800);
+
   useEffect(() => {
-    const handleResize = () => setIsDesktop(window.innerWidth >= 768);
+    const handleResize = () => {
+      setIsDesktop(window.innerWidth >= 768);
+      setVh(window.innerHeight); // อัปเดตความสูงตลอดเวลาเมื่อมีแถบ URL เด้งขึ้น/ลง
+    };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
@@ -28,8 +32,8 @@ export default function Layout() {
   const isMapPage = location.pathname === '/map';
 
   return (
-    // 🌟 2. ใช้ 100dvh แทน 100vh เพื่อป้องกันแถบ URL ของมือถือมาบังปุ่ม
-    <div style={{ display: 'flex', height: '100dvh', width: '100vw', background: themeBg, color: textColor, overflow: 'hidden' }}>
+    // 🌟 2. นำค่า vh มาใส่เป็น Pixel แทน dvh เพื่อป้องกันจอขาว
+    <div style={{ display: 'flex', height: `${vh}px`, width: '100vw', background: themeBg, color: textColor, overflow: 'hidden' }}>
       
       {/* 💻 SIDEBAR สำหรับ Desktop */}
       <aside 
@@ -91,7 +95,7 @@ export default function Layout() {
 
         {/* BOTTOM NAV สำหรับ Mobile */}
         {!isDesktop && (
-          <nav style={{ position: 'fixed', bottom: 0, left: 0, right: 0, height: '75px', display: 'flex', justifyContent: 'space-around', alignItems: 'center', borderTop: `1px solid ${borderColor}`, backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', zIndex: 50, paddingBottom: 'env(safe-area-inset-bottom)', background: darkMode ? 'rgba(15, 23, 42, 0.85)' : 'rgba(255, 255, 255, 0.85)' }}>
+          <nav style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '75px', display: 'flex', justifyContent: 'space-around', alignItems: 'center', borderTop: `1px solid ${borderColor}`, backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', zIndex: 50, paddingBottom: 'env(safe-area-inset-bottom)', background: darkMode ? 'rgba(15, 23, 42, 0.85)' : 'rgba(255, 255, 255, 0.85)' }}>
             <MobileNavItem to="/" icon="📊" label="ภาพรวม" />
             <MobileNavItem to="/map" icon="🗺️" label="แผนที่" />
             <MobileNavItem to="/forecast" icon="✨" label="AI & สถิติ" />
