@@ -42,7 +42,9 @@ export default function Dashboard() {
   const [gpsAttempted, setGpsAttempted] = useState(false);
   const [forecastData, setForecastData] = useState([]);
   
-  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 1024 : false);
+  // 🌟 สร้าง Breakpoint ให้ละเอียดขึ้น (Mobile / Tablet / Desktop)
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
+  const [isDesktop, setIsDesktop] = useState(typeof window !== 'undefined' ? window.innerWidth >= 1024 : true);
 
   useEffect(() => {
     if (window.innerWidth >= 1024 && !sessionStorage.getItem('hasRedirectedToMap')) {
@@ -52,7 +54,10 @@ export default function Dashboard() {
   }, [navigate]);
 
   useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 1024);
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+      setIsDesktop(window.innerWidth >= 1024);
+    };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
@@ -164,11 +169,11 @@ export default function Dashboard() {
   const pmColor = getPM25Color(pmVal);
 
   return (
-    // 🌟 เลื่อนลงลึกๆ เผื่อ Bottom Nav ไว้ที่ 100px (ป้องกันแถบล่างบังเนื้อหา)
-    <div style={{ background: dynamicBg, minHeight: '100%', width: '100%', padding: isMobile ? '12px' : '30px', paddingBottom: isMobile ? '100px' : '40px', display: 'flex', flexDirection: 'column', gap: isMobile ? '12px' : '20px', boxSizing: 'border-box', overflowY: 'auto', overflowX: 'hidden', fontFamily: 'Kanit, sans-serif' }} className="hide-scrollbar">
+    // 🌟 ควบคุมความกว้าง 100% ห้ามทะลุขอบเด็ดขาด
+    <div style={{ background: dynamicBg, minHeight: '100%', width: '100%', maxWidth: '100vw', padding: !isDesktop ? '15px' : '30px', paddingBottom: !isDesktop ? '100px' : '40px', display: 'flex', flexDirection: 'column', gap: !isDesktop ? '15px' : '20px', boxSizing: 'border-box', overflowY: 'auto', overflowX: 'hidden', fontFamily: 'Kanit, sans-serif' }} className="hide-scrollbar">
       
-      <div style={{ display: 'flex', justifyContent: isMobile ? 'flex-end' : 'space-between', alignItems: 'center' }}>
-        {!isMobile && (
+      <div style={{ display: 'flex', justifyContent: !isDesktop ? 'flex-end' : 'space-between', alignItems: 'center' }}>
+        {isDesktop && (
           <div>
             <h1 style={{ fontSize: '2rem', color: textColor, margin: 0, fontWeight: '800', filter: darkMode ? 'none' : 'drop-shadow(0 2px 4px rgba(0,0,0,0.05))' }}>{greeting}</h1>
             <p style={{ margin: '2px 0 0 0', color: subTextColor, fontSize: '0.95rem' }}>{todayStr}</p>
@@ -179,43 +184,46 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1.4fr 1fr', gap: '20px' }}>
+      {/* 🌟 ปรับ Grid: คอมพิวเตอร์ = 2 คอลัมน์ / มือถือ+แท็บเล็ต = 1 คอลัมน์ยาวลงมา */}
+      <div style={{ display: 'grid', gridTemplateColumns: isDesktop ? '1.4fr 1fr' : '1fr', gap: '20px', width: '100%' }}>
         
-        <div style={{ background: cardBg, backdropFilter: 'blur(20px)', borderRadius: isMobile ? '20px' : '24px', padding: isMobile ? '15px' : '30px', border: `1px solid ${borderColor}`, boxShadow: '0 10px 40px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
+        {/* 📍 ฝั่งซ้าย: HERO CARD */}
+        <div style={{ background: cardBg, backdropFilter: 'blur(20px)', borderRadius: '24px', padding: !isDesktop ? '20px' : '30px', border: `1px solid ${borderColor}`, boxShadow: '0 10px 40px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', width: '100%', boxSizing: 'border-box' }}>
           
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: innerCardBg, padding: '8px 10px 8px 15px', borderRadius: '50px', marginBottom: isMobile ? '15px' : '25px', border: `1px solid ${borderColor}` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: innerCardBg, padding: '8px 10px 8px 15px', borderRadius: '50px', marginBottom: !isDesktop ? '15px' : '25px', border: `1px solid ${borderColor}`, width: '100%', boxSizing: 'border-box' }}>
             <span style={{ fontSize: '1.1rem' }}>📍</span>
-            <select value={selectedStationId} onChange={handleStationChange} style={{ flex: 1, background: 'transparent', color: textColor, border: 'none', fontWeight: 'bold', fontSize: '0.95rem', outline: 'none', cursor: 'pointer', appearance: 'none', textOverflow: 'ellipsis' }}>
+            <select value={selectedStationId} onChange={handleStationChange} style={{ flex: 1, background: 'transparent', color: textColor, border: 'none', fontWeight: 'bold', fontSize: '0.95rem', outline: 'none', cursor: 'pointer', appearance: 'none', textOverflow: 'ellipsis', width: '100%' }}>
               {allLocations.map(loc => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
             </select>
           </div>
 
-          {/* 🌟 ปรับโครงสร้างใหม่หมด: 2 คอลัมน์ จัดกลางเป๊ะ (Mobile Redesign) */}
-          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr auto 1fr', gap: isMobile ? '12px' : '20px', width: '100%', padding: isMobile ? '0' : '10px 0', alignItems: 'center' }}>
+          {/* 🌟 2 ดัชนีหลัก: มือถือ = เรียงบนล่าง / แท็บเล็ต+คอม = เรียงซ้ายขวา */}
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '15px', width: '100%' }}>
             
-            {/* PM2.5 */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: isMobile ? innerCardBg : 'transparent', padding: isMobile ? '15px 5px' : '0', borderRadius: '16px', border: isMobile ? `1px solid ${borderColor}` : 'none', textAlign: 'center' }}>
-              <div style={{ fontSize: isMobile ? '3.5rem' : '6.5rem', filter: `drop-shadow(0 8px 15px ${health.color}40)`, lineHeight: 1 }}>{health.face}</div>
-              <span style={{ fontSize: '0.7rem', color: subTextColor, fontWeight: 'bold', marginTop: '8px', letterSpacing: '0.5px' }}>PM2.5 (µg/m³)</span>
-              <span style={{ fontSize: isMobile ? '2.5rem' : '4.5rem', fontWeight: '900', color: health.color, lineHeight: 1.1, filter: darkMode ? `drop-shadow(0 0 10px ${health.color}30)` : 'none' }}>{pmVal != null && !isNaN(pmVal) ? pmVal : '-'}</span>
-              <span style={{ background: health.bg, color: health.color, padding: '4px 10px', borderRadius: '20px', fontSize: '0.7rem', fontWeight: 'bold', marginTop: '6px' }}>{health.text}</span>
+            {/* การ์ด PM2.5 */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: innerCardBg, padding: '15px 20px', borderRadius: '20px', border: `1px solid ${borderColor}` }}>
+              <div style={{ fontSize: '4.5rem', filter: `drop-shadow(0 8px 15px ${health.color}40)`, lineHeight: 1 }}>{health.face}</div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                 <span style={{ fontSize: '0.75rem', color: subTextColor, fontWeight: 'bold', letterSpacing: '0.5px' }}>PM2.5 (µg/m³)</span>
+                 <span style={{ fontSize: '3.5rem', fontWeight: '900', color: health.color, lineHeight: 1.1, filter: darkMode ? `drop-shadow(0 0 10px ${health.color}30)` : 'none' }}>{pmVal != null && !isNaN(pmVal) ? pmVal : '-'}</span>
+                 <span style={{ background: health.bg, color: health.color, padding: '4px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 'bold', marginTop: '4px' }}>{health.text}</span>
+              </div>
             </div>
 
-            {/* เส้นแบ่งกลาง (แสดงเฉพาะคอม) */}
-            {!isMobile && <div style={{ width: '1px', height: '100px', background: borderColor }}></div>}
-
-            {/* ดัชนีความร้อน */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: isMobile ? innerCardBg : 'transparent', padding: isMobile ? '15px 5px' : '0', borderRadius: '16px', border: isMobile ? `1px solid ${borderColor}` : 'none', textAlign: 'center' }}>
-              <div style={{ fontSize: isMobile ? '3.5rem' : '6.5rem', filter: `drop-shadow(0 8px 15px ${heatStatus.color}40)`, lineHeight: 1 }}>{heatStatus.face}</div>
-              <span style={{ fontSize: '0.7rem', color: subTextColor, fontWeight: 'bold', marginTop: '8px', letterSpacing: '0.5px' }}>ดัชนีความร้อน (°C)</span>
-              <span style={{ fontSize: isMobile ? '2.5rem' : '4.5rem', fontWeight: '900', color: heatStatus.color, lineHeight: 1.1, filter: darkMode ? `drop-shadow(0 0 10px ${heatStatus.color}30)` : 'none' }}>{heatVal != null ? Math.round(heatVal) : '-'}</span>
-              <span style={{ background: heatStatus.bg, color: heatStatus.color, padding: '4px 10px', borderRadius: '20px', fontSize: '0.7rem', fontWeight: 'bold', marginTop: '6px' }}>{heatStatus.text}</span>
+            {/* การ์ดดัชนีความร้อน */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: innerCardBg, padding: '15px 20px', borderRadius: '20px', border: `1px solid ${borderColor}` }}>
+              <div style={{ fontSize: '4.5rem', filter: `drop-shadow(0 8px 15px ${heatStatus.color}40)`, lineHeight: 1 }}>{heatStatus.face}</div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                 <span style={{ fontSize: '0.75rem', color: subTextColor, fontWeight: 'bold', letterSpacing: '0.5px' }}>ดัชนีความร้อน (°C)</span>
+                 <span style={{ fontSize: '3.5rem', fontWeight: '900', color: heatStatus.color, lineHeight: 1.1, filter: darkMode ? `drop-shadow(0 0 10px ${heatStatus.color}30)` : 'none' }}>{heatVal != null ? Math.round(heatVal) : '-'}</span>
+                 <span style={{ background: heatStatus.bg, color: heatStatus.color, padding: '4px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 'bold', marginTop: '4px' }}>{heatStatus.text}</span>
+              </div>
             </div>
 
           </div>
 
           {/* แถบข้อมูลรองด้านล่าง */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginTop: isMobile ? '15px' : '30px', paddingTop: isMobile ? '15px' : '20px', borderTop: `1px dashed ${borderColor}` }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginTop: '20px', paddingTop: '15px', borderTop: `1px dashed ${borderColor}` }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
               <span style={{ fontSize: '1.2rem', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}>🌡️</span>
               <div><div style={{ fontSize: '0.65rem', color: subTextColor }}>อุณหภูมิ</div><div style={{ fontWeight: 'bold', color: textColor, fontSize: '0.85rem' }}>{tempVal ? Math.round(tempVal) : '-'}°C</div></div>
@@ -231,29 +239,32 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '12px' : '20px' }}>
+        {/* 📍 ฝั่งขวา: แผนที่ย่อ (เฉพาะคอม) + กราฟ 24 ชม. */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', boxSizing: 'border-box' }}>
           
-          {/* 🌟 บีบความสูงของแผนที่ลงบนมือถือ */}
-          <div style={{ background: cardBg, backdropFilter: 'blur(20px)', borderRadius: isMobile ? '20px' : '24px', padding: '15px', border: `1px solid ${borderColor}`, boxShadow: '0 10px 40px rgba(0,0,0,0.05)', flex: 1, minHeight: isMobile ? '150px' : '180px', display: 'flex', flexDirection: 'column' }}>
-            <h3 style={{ fontSize: '0.9rem', color: subTextColor, fontWeight: 'bold', margin: '0 0 10px 5px' }}>🗺️ ตำแหน่งจุดตรวจวัด</h3>
-            <div style={{ flex: 1, borderRadius: '15px', overflow: 'hidden', background: innerCardBg, position: 'relative' }}>
-              {activeStation && !isNaN(parseFloat(activeStation.lat)) ? (
-                <MapContainer center={[parseFloat(activeStation.lat), parseFloat(activeStation.long)]} zoom={10} style={{ height: '100%', width: '100%', zIndex: 1 }} zoomControl={false} dragging={!isMobile} scrollWheelZoom={false}>
-                  <TileLayer url={darkMode ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"} />
-                  <MiniMapUpdate lat={parseFloat(activeStation.lat)} lon={parseFloat(activeStation.long)} />
-                  <CircleMarker center={[parseFloat(activeStation.lat), parseFloat(activeStation.long)]} radius={25} pathOptions={{ color: pmColor, fillColor: pmColor, fillOpacity: 0.3, weight: 0 }} />
-                  <CircleMarker center={[parseFloat(activeStation.lat), parseFloat(activeStation.long)]} radius={6} pathOptions={{ color: '#fff', fillColor: pmColor, fillOpacity: 1, weight: 2 }} />
-                </MapContainer>
-              ) : (
-                <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: subTextColor }}>ไม่มีข้อมูลแผนที่</div>
-              )}
+          {/* 🌟 ซ่อนแผนที่ในมือถือ เพื่อประหยัดพื้นที่แนวตั้ง */}
+          {isDesktop && (
+            <div style={{ background: cardBg, backdropFilter: 'blur(20px)', borderRadius: '24px', padding: '15px', border: `1px solid ${borderColor}`, boxShadow: '0 10px 40px rgba(0,0,0,0.05)', flex: 1, minHeight: '180px', display: 'flex', flexDirection: 'column' }}>
+              <h3 style={{ fontSize: '0.9rem', color: subTextColor, fontWeight: 'bold', margin: '0 0 10px 5px' }}>🗺️ ตำแหน่งจุดตรวจวัด</h3>
+              <div style={{ flex: 1, borderRadius: '15px', overflow: 'hidden', background: innerCardBg, position: 'relative' }}>
+                {activeStation && !isNaN(parseFloat(activeStation.lat)) ? (
+                  <MapContainer center={[parseFloat(activeStation.lat), parseFloat(activeStation.long)]} zoom={10} style={{ height: '100%', width: '100%', zIndex: 1 }} zoomControl={false} dragging={true} scrollWheelZoom={false}>
+                    <TileLayer url={darkMode ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"} />
+                    <MiniMapUpdate lat={parseFloat(activeStation.lat)} lon={parseFloat(activeStation.long)} />
+                    <CircleMarker center={[parseFloat(activeStation.lat), parseFloat(activeStation.long)]} radius={25} pathOptions={{ color: pmColor, fillColor: pmColor, fillOpacity: 0.3, weight: 0 }} />
+                    <CircleMarker center={[parseFloat(activeStation.lat), parseFloat(activeStation.long)]} radius={6} pathOptions={{ color: '#fff', fillColor: pmColor, fillOpacity: 1, weight: 2 }} />
+                  </MapContainer>
+                ) : (
+                  <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: subTextColor }}>ไม่มีข้อมูลแผนที่</div>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* 🌟 บีบความสูงของกราฟลงบนมือถือ */}
-          <div style={{ background: cardBg, backdropFilter: 'blur(20px)', borderRadius: isMobile ? '20px' : '24px', padding: '15px', border: `1px solid ${borderColor}`, boxShadow: '0 10px 40px rgba(0,0,0,0.05)', height: isMobile ? '150px' : '220px', display: 'flex', flexDirection: 'column' }}>
+          {/* 🌟 กราฟแท่ง (แสดงทุกอุปกรณ์ แต่บีบความสูงลงในมือถือ) */}
+          <div style={{ background: cardBg, backdropFilter: 'blur(20px)', borderRadius: !isDesktop ? '20px' : '24px', padding: '15px', border: `1px solid ${borderColor}`, boxShadow: '0 10px 40px rgba(0,0,0,0.05)', height: isMobile ? '180px' : '220px', display: 'flex', flexDirection: 'column', width: '100%', boxSizing: 'border-box' }}>
             <h3 style={{ fontSize: '0.9rem', color: subTextColor, fontWeight: 'bold', margin: '0 0 10px 5px' }}>📊 แนวโน้มฝุ่น PM2.5 ล่วงหน้า</h3>
-            <div style={{ flex: 1 }}>
+            <div style={{ flex: 1, width: '100%' }}>
               {forecastData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={forecastData} margin={{ top: 5, right: 5, bottom: -5, left: -25 }}>
