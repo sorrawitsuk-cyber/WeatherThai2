@@ -116,12 +116,12 @@ const createCustomMarker = (viewMode, value, extraData, isFav, currentZoom) => {
     if(!isZoomedOut) displayValue = value == null ? '-' : `<div style="display:flex; flex-direction:column; align-items:center; line-height:1;"><span style="transform: rotate(${dir}deg); font-size: 14px; font-weight: bold;">↓</span><span style="font-size: 9px;">${Math.round(value)}</span></div>`; 
   }
   
-  const boxShadow = isFav ? '0 0 0 3px rgba(245, 158, 11, 0.8), 0 4px 10px rgba(0,0,0,0.5)' : (isZoomedOut ? '0 1px 3px rgba(0,0,0,0.3)' : '0 2px 5px rgba(0,0,0,0.4)');
-  const starHtml = isFav ? `<div style="position:absolute; top:${isZoomedOut?'-8px':'-6px'}; right:${isZoomedOut?'-8px':'-6px'}; font-size:${isZoomedOut?'12px':'14px'}; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5));">⭐</div>` : '';
+  // 🌟 ถอดสัญลักษณ์และกรอบสีส้มออก ให้เหลือแต่ Marker ธรรมดา
+  const boxShadow = isZoomedOut ? '0 1px 3px rgba(0,0,0,0.3)' : '0 2px 5px rgba(0,0,0,0.4)';
 
   return divIcon({ 
     className: 'custom-div-icon', 
-    html: `<div style="position:relative; background-color: ${bg}; width: ${size}px; height: ${size}px; border-radius: 50%; border: ${isZoomedOut?'1px':'2px'} solid white; box-shadow: ${boxShadow}; display: flex; justify-content: center; align-items: center; color: ${textColor}; font-weight: bold; font-size: ${fontSize}; transition: all 0.3s ease;">${displayValue}${starHtml}</div>`, 
+    html: `<div style="position:relative; background-color: ${bg}; width: ${size}px; height: ${size}px; border-radius: 50%; border: ${isZoomedOut?'1px':'2px'} solid white; box-shadow: ${boxShadow}; display: flex; justify-content: center; align-items: center; color: ${textColor}; font-weight: bold; font-size: ${fontSize}; transition: all 0.3s ease;">${displayValue}</div>`, 
     iconSize: [size+4, size+4], iconAnchor: [size/2, size/2] 
   });
 };
@@ -585,7 +585,7 @@ export default function MapPage() {
                 <Marker key={station.stationID} position={[lat, lon]} icon={createCustomMarker(viewMode, mVal, tObj, isFav, mapZoom)} ref={el => markerRefs.current[station.stationID]=el} eventHandlers={{ click: () => { setActiveStation(station); setIsRightPanelOpen(true); } }}>
                   <Popup minWidth={200}>
                     <div style={{ textAlign: 'center', fontFamily: 'Kanit' }}>
-                      <strong>{isFav ? '⭐ ' : ''}{station.nameTH}</strong><br/>
+                      <strong>{station.nameTH}</strong><br/>
                       <span style={{ fontSize: '1.2rem', color: getLocalPM25Color(pmVal)==='#eab308'?'#ca8a04':getLocalPM25Color(pmVal), fontWeight: 'bold' }}>PM2.5: {isNaN(pmVal)?'-':pmVal}</span>
                       {tObj && <div><br/>🌡️ {tObj.temp}°C | 💧 {tObj.humidity}%</div>}
                     </div>

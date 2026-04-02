@@ -24,9 +24,10 @@ export const WeatherProvider = ({ children }) => {
   const [favLocations, setFavLocations] = useState(() => {
     try {
       const saved = localStorage.getItem('weatherFavs');
-      return saved && saved !== 'undefined' ? JSON.parse(saved) : ['กรุงเทพมหานคร'];
+      // 🌟 เปลี่ยนจาก ['กรุงเทพมหานคร'] เป็น [] เพื่อให้เริ่มต้นแบบว่างเปล่า
+      return saved && saved !== 'undefined' ? JSON.parse(saved) : [];
     } catch (error) {
-      return ['กรุงเทพมหานคร'];
+      return [];
     }
   });
 
@@ -73,7 +74,6 @@ export const WeatherProvider = ({ children }) => {
       const parsedData = JSON.parse(firebaseRes.fields.jsonData.stringValue); const stData = parsedData.stations || [];
       
       if (stData.length > 0) {
-        // 🌟 ไฮไลท์การแก้บั๊ก! ดักข้อมูลแหว่งตั้งแต่ต้นทาง เติมโครงสร้างเปล่าๆ ให้สถานีที่ไม่มี AQILast
         const validStations = stData
           .filter(s => !isNaN(parseFloat(s.lat)) && !isNaN(parseFloat(s.long)) && parseFloat(s.lat) !== 0)
           .map(s => {
@@ -87,7 +87,6 @@ export const WeatherProvider = ({ children }) => {
         setStations(validStations);
         setProvinces([...new Set(validStations.map(s => extractProvince(s.areaTH)))].sort((a, b) => a.localeCompare(b, 'th')));
         
-        // ดึงเวลาอัปเดตจากสถานีแรกที่มีข้อมูล
         const firstValid = validStations.find(s => s.AQILast && s.AQILast.date);
         if (firstValid) {
           setLastUpdateText(`${firstValid.AQILast.date} เวลา ${firstValid.AQILast.time} น.`);
@@ -111,7 +110,6 @@ export const WeatherProvider = ({ children }) => {
       const prov = extractProvince(s.areaTH);
       if (!provData[prov]) provData[prov] = { pm25: [], rain: [], wind: [], heat: [] };
       
-      // ปลอดภัยแล้ว ไม่จอขาวแน่นอน
       const pm = Number(s.AQILast.PM25.value); 
       if (!isNaN(pm)) provData[prov].pm25.push(pm);
       

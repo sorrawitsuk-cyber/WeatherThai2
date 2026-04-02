@@ -9,9 +9,9 @@ export default function Dashboard() {
   
   const [selectedStationId, setSelectedStationId] = useState('');
   const [activeStation, setActiveStation] = useState(null);
-  const [locating, setLocating] = useState(false);
   const [greeting, setGreeting] = useState('สวัสดี');
   const [timeOfDay, setTimeOfDay] = useState('morning'); 
+  const [gpsAttempted, setGpsAttempted] = useState(false);
   
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
 
@@ -32,12 +32,32 @@ export default function Dashboard() {
     }
   }, []);
 
+  // 🌟 ระบบหาพิกัดอัตโนมัติเมื่อเข้าแอปครั้งแรก
   useEffect(() => {
-    if (stations && stations.length > 0 && !selectedStationId) {
-      const bkk = stations.find(s => s.areaTH && s.areaTH.includes('กรุงเทพ'));
-      setSelectedStationId(bkk ? bkk.stationID : stations[0].stationID);
+    if (stations && stations.length > 0 && !gpsAttempted) {
+      setGpsAttempted(true); // ป้องกันการวนลูป
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            let nearest = null; let minD = Infinity;
+            stations.forEach(s => { 
+              const d = getDistanceFromLatLonInKm(pos.coords.latitude, pos.coords.longitude, parseFloat(s.lat), parseFloat(s.long)); 
+              if (d < minD) { minD = d; nearest = s; } 
+            });
+            if (nearest) setSelectedStationId(nearest.stationID);
+          }, 
+          () => {
+            // ถ้าไม่เปิด GPS ให้ตั้งค่าเริ่มต้นเป็นกรุงเทพฯ หรือสถานีแรก
+            const bkk = stations.find(s => s.areaTH && s.areaTH.includes('กรุงเทพ'));
+            setSelectedStationId(bkk ? bkk.stationID : stations[0].stationID);
+          }
+        );
+      } else {
+        const bkk = stations.find(s => s.areaTH && s.areaTH.includes('กรุงเทพ'));
+        setSelectedStationId(bkk ? bkk.stationID : stations[0].stationID);
+      }
     }
-  }, [stations, selectedStationId]);
+  }, [stations, gpsAttempted]);
 
   useEffect(() => {
     if (stations && selectedStationId) {
@@ -45,23 +65,6 @@ export default function Dashboard() {
       if (target) setActiveStation(target);
     }
   }, [selectedStationId, stations]);
-
-  const handleLocateMe = () => {
-    if (!navigator.geolocation) return alert('อุปกรณ์ไม่รองรับ GPS');
-    setLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        let nearest = null; let minD = Infinity;
-        (stations || []).forEach(s => { 
-          const d = getDistanceFromLatLonInKm(pos.coords.latitude, pos.coords.longitude, parseFloat(s.lat), parseFloat(s.long)); 
-          if (d < minD) { minD = d; nearest = s; } 
-        });
-        if (nearest) setSelectedStationId(nearest.stationID);
-        setLocating(false);
-      }, 
-      () => { alert('ไม่สามารถระบุพิกัดได้'); setLocating(false); }
-    );
-  };
 
   const todayStr = new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' });
   
@@ -83,7 +86,8 @@ export default function Dashboard() {
   const borderColor = darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'; 
   const backdropBlur = 'blur(20px)';
 
-  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: bgGradient, color: textColor }}>กำลังโหลดข้อมูล... ⏳</div>;
+  // 🌟 จัดตัวอักษรให้อยู่ตรงกลางเป๊ะด้วย height: '100%'
+  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', background: bgGradient, color: textColor }}>กำลังโหลดข้อมูล... ⏳</div>;
 
   const pmVal = activeStation && activeStation.AQILast && activeStation.AQILast.PM25 ? Number(activeStation.AQILast.PM25.value) : null;
   const tObj = activeStation ? stationTemps[activeStation.stationID] : null;
@@ -108,7 +112,6 @@ export default function Dashboard() {
   return (
     <div style={{ background: bgGradient, minHeight: '100%', padding: isMobile ? '12px' : '20px', paddingBottom: isMobile ? '90px' : '40px', display: 'flex', flexDirection: 'column', gap: isMobile ? '10px' : '15px', boxSizing: 'border-box', overflowY: 'auto' }} className="hide-scrollbar">
       
-      {/* 🟢 HEADER - ลบข้อความสวัสดีออกในมือถือ และดันเวลาอัปเดตไปขวาสุด */}
       <div style={{ display: 'flex', justifyContent: isMobile ? 'flex-end' : 'space-between', alignItems: 'center' }}>
         {!isMobile && (
           <div>
@@ -121,11 +124,10 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* 🌟 MAIN WEATHER CARD */}
       <div style={{ background: dynamicCardBg, backdropFilter: backdropBlur, borderRadius: '20px', padding: isMobile ? '15px' : '25px', border: `1px solid ${borderColor}`, boxShadow: '0 8px 30px rgba(0,0,0,0.05)' }}>
         
-        {/* ตัวเลือกพื้นที่และปุ่ม GPS */}
-        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '10px', marginBottom: isMobile ? '15px' : '20px' }}>
+        {/* 🌟 ลบปุ่มพิกัดปัจจุบันออก ให้เหลือแต่ Dropdown */}
+        <div style={{ display: 'flex', marginBottom: isMobile ? '15px' : '20px' }}>
           <select 
             value={selectedStationId} 
             onChange={(e) => setSelectedStationId(e.target.value)} 
@@ -133,9 +135,6 @@ export default function Dashboard() {
           >
             {allLocations.map(loc => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
           </select>
-          <button onClick={handleLocateMe} style={{ background: '#0ea5e9', color: '#fff', border: 'none', padding: isMobile ? '10px' : '12px', borderRadius: '12px', fontWeight: 'bold', fontSize: '0.9rem', cursor: locating ? 'wait' : 'pointer' }}>
-            {locating ? '⏳...' : '📍 พิกัดปัจจุบัน'}
-          </button>
         </div>
 
         <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? '15px' : '20px' }}>
@@ -143,7 +142,6 @@ export default function Dashboard() {
             <h2 style={{ fontSize: isMobile ? '1.5rem' : '2.5rem', color: textColor, margin: 0, fontWeight: 'bold' }}>{displayMainTitle}</h2>
             <p style={{ margin: '2px 0 12px 0', color: subTextColor, fontSize: '0.8rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>📍 {activeStation ? formatLocationName(activeStation.areaTH) : ''}</p>
             
-            {/* 📊 MINI STATS GRID */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
               <div style={{ background: darkMode ? 'rgba(0,0,0,0.2)' : '#f8fafc', padding: '8px 5px', borderRadius: '12px', textAlign: 'center', border: `1px solid ${borderColor}` }}>
                 <div style={{ fontSize: '1.2rem', marginBottom: '2px' }}>💧</div>
@@ -163,7 +161,6 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* 🌡️ PM2.5 & TEMP BOX */}
           <div style={{ display: 'flex', gap: '10px', flex: isMobile ? 'none' : 1 }}>
             <div style={{ flex: 1, background: pmBg, color: pmTextColor, padding: '12px', borderRadius: '15px', textAlign: 'center', boxShadow: `0 4px 15px ${pmBg}40`, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
               <div style={{ fontSize: '0.7rem', fontWeight: 'bold', opacity: 0.9 }}>PM 2.5</div>
@@ -183,7 +180,6 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* ⭐ FAVORITES */}
       <div>
         <h3 style={{ fontSize: '0.95rem', color: textColor, fontWeight: 'bold', marginBottom: '8px' }}>⭐ พื้นที่โปรด</h3>
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(200px, 1fr))', gap: '8px' }}>
@@ -198,7 +194,7 @@ export default function Dashboard() {
               </div>
             );
           }) : (
-            <p style={{ fontSize: '0.8rem', color: subTextColor, textAlign: 'center' }}>ยังไม่มีพื้นที่โปรด</p>
+            <p style={{ fontSize: '0.8rem', color: subTextColor, textAlign: 'center' }}>ยังไม่มีพื้นที่โปรด กด ⭐ ที่หน้าแผนที่เพื่อเพิ่มข้อมูล</p>
           )}
         </div>
       </div>
