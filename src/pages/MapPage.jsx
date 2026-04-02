@@ -99,7 +99,7 @@ const regionMapping = {
   'ภาคใต้': ['ภูเก็ต', 'สุราษฎร์ธานี', 'สงขลา', 'นครศรีธรรมราช', 'ตรัง', 'พังงา', 'กระบี่', 'พัทลุง', 'ชุมพร', 'ระนอง', 'สตูล', 'ปัตตานี', 'ยะลา', 'นราธิวาส']
 };
 
-const createCustomMarker = (viewMode, value, extraData, isFav, currentZoom) => {
+const createCustomMarker = (viewMode, value, extraData, currentZoom) => {
   const isZoomedOut = currentZoom < 8; 
   const size = isZoomedOut ? 16 : 34; 
   let bg, textColor, displayValue = ''; 
@@ -116,7 +116,6 @@ const createCustomMarker = (viewMode, value, extraData, isFav, currentZoom) => {
     if(!isZoomedOut) displayValue = value == null ? '-' : `<div style="display:flex; flex-direction:column; align-items:center; line-height:1;"><span style="transform: rotate(${dir}deg); font-size: 14px; font-weight: bold;">↓</span><span style="font-size: 9px;">${Math.round(value)}</span></div>`; 
   }
   
-  // 🌟 ถอดสัญลักษณ์และกรอบสีส้มออก ให้เหลือแต่ Marker ธรรมดา
   const boxShadow = isZoomedOut ? '0 1px 3px rgba(0,0,0,0.3)' : '0 2px 5px rgba(0,0,0,0.4)';
 
   return divIcon({ 
@@ -132,7 +131,6 @@ function FitBounds({ stations, activeStation, selectedProvince, selectedRegion, 
   
   useEffect(() => { 
     if (activeStation) return; 
-    
     const rightPadding = isPanelOpen && window.innerWidth >= 1024 ? 360 : 0; 
     
     if (!selectedProvince && !selectedRegion) { 
@@ -198,6 +196,15 @@ export default function MapPage() {
   const [locating, setLocating] = useState(false);
   const [activeWeather, setActiveWeather] = useState(null); 
   const [activeForecast, setActiveForecast] = useState(null); 
+  
+  // 🌟 เพิ่ม State ตรวจจับมือถือ เพื่อปรับ Layout ให้เป๊ะ
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const cardRefs = useRef({});
   const markerRefs = useRef({});
@@ -231,7 +238,6 @@ export default function MapPage() {
     });
     if (selectedProvince) result = result.filter(s => extractProvince(s.areaTH) === selectedProvince);
     
-    // 🌟 ถอดสัญลักษณ์ Optional Chaining ออกจากการจัดเรียงข้อมูล
     result.sort((a, b) => {
       let vA, vB;
       const pmA = (a.AQILast && a.AQILast.PM25) ? Number(a.AQILast.PM25.value) : NaN;
@@ -239,30 +245,12 @@ export default function MapPage() {
       const tA = stationTemps[a.stationID];
       const tB = stationTemps[b.stationID];
 
-      if (viewMode==='pm25' || viewMode==='hotspot') { 
-        vA = pmA; 
-        vB = pmB; 
-      }
-      else if (viewMode==='temp') { 
-        vA = tA ? tA.temp : null; 
-        vB = tB ? tB.temp : null; 
-      }
-      else if (viewMode==='heat') { 
-        vA = tA ? tA.feelsLike : null; 
-        vB = tB ? tB.feelsLike : null; 
-      }
-      else if (viewMode==='uv') { 
-        vA = tA ? (tA.uv != null ? tA.uv : tA.uvMax) : null; 
-        vB = tB ? (tB.uv != null ? tB.uv : tB.uvMax) : null; 
-      }
-      else if (viewMode==='rain') { 
-        vA = tA ? tA.rainProb : null; 
-        vB = tB ? tB.rainProb : null; 
-      }
-      else if (viewMode==='wind') { 
-        vA = tA ? tA.windSpeed : null; 
-        vB = tB ? tB.windSpeed : null; 
-      }
+      if (viewMode==='pm25' || viewMode==='hotspot') { vA = pmA; vB = pmB; }
+      else if (viewMode==='temp') { vA = tA ? tA.temp : null; vB = tB ? tB.temp : null; }
+      else if (viewMode==='heat') { vA = tA ? tA.feelsLike : null; vB = tB ? tB.feelsLike : null; }
+      else if (viewMode==='uv') { vA = tA ? (tA.uv != null ? tA.uv : tA.uvMax) : null; vB = tB ? (tB.uv != null ? tB.uv : tB.uvMax) : null; }
+      else if (viewMode==='rain') { vA = tA ? tA.rainProb : null; vB = tB ? tB.rainProb : null; }
+      else if (viewMode==='wind') { vA = tA ? tA.windSpeed : null; vB = tB ? tB.windSpeed : null; }
       
       const validA = vA!=null && !isNaN(vA) && (viewMode==='rain'?true:vA!==0); 
       const validB = vB!=null && !isNaN(vB) && (viewMode==='rain'?true:vB!==0);
@@ -296,33 +284,19 @@ export default function MapPage() {
         const limit = largeProvinces.includes(p) ? 4 : 1; 
 
         const mueangStation = stationsInProv.find(s => s.areaTH && s.areaTH.includes('เมือง'));
-        if (mueangStation) {
-          selectedStations.push(mueangStation);
-          addedCount++;
-        }
+        if (mueangStation) { selectedStations.push(mueangStation); addedCount++; }
 
         if (limit > 1) {
-          const importantStations = stationsInProv.filter(s => 
-            !selectedStations.some(sel => sel.stationID === s.stationID) && 
-            s.areaTH && importantDistricts.some(d => s.areaTH.includes(d))
-          );
-          for (let i = 0; i < importantStations.length && addedCount < limit; i++) {
-            selectedStations.push(importantStations[i]);
-            addedCount++;
-          }
+          const importantStations = stationsInProv.filter(s => !selectedStations.some(sel => sel.stationID === s.stationID) && s.areaTH && importantDistricts.some(d => s.areaTH.includes(d)));
+          for (let i = 0; i < importantStations.length && addedCount < limit; i++) { selectedStations.push(importantStations[i]); addedCount++; }
         }
 
-        if (addedCount === 0 && stationsInProv.length > 0) {
-          selectedStations.push(stationsInProv[0]);
-        }
+        if (addedCount === 0 && stationsInProv.length > 0) { selectedStations.push(stationsInProv[0]); }
       });
 
       if (activeStation && filteredStations.some(s => s.stationID === activeStation.stationID)) {
-         if (!selectedStations.some(s => s.stationID === activeStation.stationID)) {
-             selectedStations.push(activeStation);
-         }
+         if (!selectedStations.some(s => s.stationID === activeStation.stationID)) { selectedStations.push(activeStation); }
       }
-
       return selectedStations;
     }
   }, [filteredStations, viewMode, activeStation]);
@@ -330,20 +304,15 @@ export default function MapPage() {
   useEffect(() => {
     if (activeStation) {
       setIsRightPanelOpen(true);
-      if (cardRefs.current[activeStation.stationID]) {
-        cardRefs.current[activeStation.stationID].scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
+      if (cardRefs.current[activeStation.stationID]) cardRefs.current[activeStation.stationID].scrollIntoView({ behavior: 'smooth', block: 'center' });
       const marker = markerRefs.current[activeStation.stationID]; 
       if (marker && !showRadar) marker.openPopup(); 
-      
       setActiveWeather(null); setActiveForecast(null); 
       
       const fetchCardDetails = async () => {
         try {
           const urlWeather = `https://api.open-meteo.com/v1/forecast?latitude=${activeStation.lat}&longitude=${activeStation.long}&daily=temperature_2m_max,temperature_2m_min,apparent_temperature_max,uv_index_max,precipitation_probability_max,wind_speed_10m_max&timezone=auto&forecast_days=7`;
-          const wData = await fetch(urlWeather).then(r=>r.json()); 
-          let tempF=[], heatF=[], uvF=[], rainF=[], windF=[];
-          
+          const wData = await fetch(urlWeather).then(r=>r.json()); let tempF=[], heatF=[], uvF=[], rainF=[], windF=[];
           if (wData.daily && wData.daily.time) {
             for (let i = 0; i < wData.daily.time.length; i++) {
               const days = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.']; 
@@ -360,10 +329,7 @@ export default function MapPage() {
           const urlAqi = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${activeStation.lat}&longitude=${activeStation.long}&hourly=pm2_5&timezone=auto&forecast_days=4`;
           const aData = await fetch(urlAqi).then(r=>r.json());
           if (aData && aData.hourly && aData.hourly.pm2_5) {
-            const now = new Date().getTime(); 
-            let sIdx = aData.hourly.time.findIndex(t => new Date(t).getTime()>=now); 
-            if (sIdx===-1) sIdx=0;
-            
+            const now = new Date().getTime(); let sIdx = aData.hourly.time.findIndex(t => new Date(t).getTime()>=now); if (sIdx===-1) sIdx=0;
             const currentReal = Number(activeStation.AQILast && activeStation.AQILast.PM25 ? activeStation.AQILast.PM25.value : NaN); 
             let offset = (!isNaN(currentReal) && aData.hourly.pm2_5[sIdx] !== undefined) ? currentReal - aData.hourly.pm2_5[sIdx] : 0;
             const pmF = [];
@@ -391,150 +357,88 @@ export default function MapPage() {
     }, () => { alert('ดึงพิกัดไม่ได้ กรุณาเปิด GPS'); setLocating(false); });
   };
 
-  const handleResetMap = () => {
-    setSelectedRegion('');
-    setSelectedProvince('');
-    setActiveStation(null);
-    setViewMode('pm25');
-    setShowRadar(false);
-    setIsRightPanelOpen(window.innerWidth >= 1024);
-  };
+  const handleResetMap = () => { setSelectedRegion(''); setSelectedProvince(''); setActiveStation(null); setViewMode('pm25'); setShowRadar(false); setIsRightPanelOpen(window.innerWidth >= 1024); };
 
-  const cardBg = darkMode ? 'rgba(30, 41, 59, 0.75)' : 'rgba(255, 255, 255, 0.85)';
+  const cardBg = darkMode ? 'rgba(30, 41, 59, 0.85)' : 'rgba(255, 255, 255, 0.9)';
   const textColor = darkMode ? '#f8fafc' : '#1e293b';
   const subTextColor = darkMode ? '#94a3b8' : '#475569';
-  const borderColor = darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.6)';
+  const borderColor = darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
   const activeChart = chartConfigs[viewMode === 'hotspot' ? 'pm25' : viewMode] || chartConfigs['pm25']; 
 
-  let radarLat = 13.75; let radarLon = isRightPanelOpen && window.innerWidth >= 1024 ? 101.5 : 100.5; let radarZoom = 6;
+  let radarLat = 13.75; let radarLon = isRightPanelOpen && !isMobile ? 101.5 : 100.5; let radarZoom = 6;
   if (activeStation && activeStation.lat && !isNaN(parseFloat(activeStation.lat))) { 
-    radarLat = parseFloat(activeStation.lat); 
-    radarLon = parseFloat(activeStation.long) + (isRightPanelOpen && window.innerWidth >= 1024 ? 0.05 : 0); 
-    radarZoom = 10; 
+    radarLat = parseFloat(activeStation.lat); radarLon = parseFloat(activeStation.long) + (isRightPanelOpen && !isMobile ? 0.05 : 0); radarZoom = 10; 
   } else if (selectedProvince) { 
     const provStations = (stations || []).filter(s => extractProvince(s.areaTH) === selectedProvince); 
     if (provStations.length > 0) { 
       radarLat = provStations.reduce((sum, s) => sum + parseFloat(s.lat), 0) / provStations.length; 
-      let baseLon = provStations.reduce((sum, s) => sum + parseFloat(s.long), 0) / provStations.length; 
-      radarLon = baseLon + (isRightPanelOpen && window.innerWidth >= 1024 ? 0.15 : 0); 
-      radarZoom = 8; 
+      let baseLon = provStations.reduce((sum, s) => sum + parseFloat(s.long), 0) / provStations.length; radarLon = baseLon + (isRightPanelOpen && !isMobile ? 0.15 : 0); radarZoom = 8; 
     } 
   }
 
-  // 🌟 แก้บั๊ก Optional Chaining จาก favLocations
-  const favNames = favLocations || [];
-
-  if (loading) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100%', width: '100%' }}>
-        <style>{`
-          @keyframes spinPro { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-          @keyframes pulsePro { 0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.7); } 70% { transform: scale(1); box-shadow: 0 0 0 25px rgba(14, 165, 233, 0); } 100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(14, 165, 233, 0); } }
-        `}</style>
-        
-        <div style={{ position: 'relative', width: '80px', height: '80px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-          <div style={{ position: 'absolute', width: '100%', height: '100%', border: '4px solid rgba(14, 165, 233, 0.2)', borderTopColor: '#0ea5e9', borderRadius: '50%', animation: 'spinPro 1s linear infinite' }}></div>
-          <div style={{ width: '45px', height: '45px', backgroundColor: '#0ea5e9', borderRadius: '50%', animation: 'pulsePro 2s infinite', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#fff', fontSize: '1.3rem', boxShadow: '0 4px 10px rgba(14,165,233,0.4)' }}>
-            🛰️
-          </div>
-        </div>
-        
-        <h3 style={{ marginTop: '30px', color: textColor, fontSize: '1.3rem', fontWeight: 'bold', letterSpacing: '0.5px' }}>
-          กำลังซิงค์ข้อมูลดาวเทียม
-        </h3>
-        <p style={{ marginTop: '8px', color: subTextColor, fontSize: '0.95rem' }}>
-          ดึงข้อมูลสภาพอากาศ 77 จังหวัดทั่วประเทศ...
-        </p>
-      </div>
-    );
-  }
+  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', width: '100%' }}>กำลังโหลดแผนที่...</div>;
 
   return (
     <div style={{ position: 'relative', height: '100%', width: '100%', overflow: 'hidden' }}>
       
-      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 1 }}>
+      {/* 🌟 ดันแผนที่ให้ลอยอยู่เหนือ Bottom Nav เพื่อไม่ให้ Legend หาย */}
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: isMobile ? '75px' : 0, zIndex: 1 }}>
         
-        <div style={{ 
-          position: 'absolute', 
-          top: '15px', 
-          left: window.innerWidth < 768 ? '15px' : '50px', 
-          right: isRightPanelOpen && window.innerWidth >= 1024 ? '395px' : '15px', 
-          zIndex: 500, 
-          display: 'flex', 
-          flexWrap: 'wrap', 
-          justifyContent: 'space-between', 
-          alignItems: 'flex-start',
-          gap: '10px',
-          pointerEvents: 'none', 
-          transition: 'right 0.3s ease'
+        {/* 🌟 ตัวกรองด้านบนจัดเรียงแบบบรรทัดเดียว ปัดซ้ายขวาได้ ไม่กินพื้นที่แผนที่ */}
+        <div className="hide-scrollbar" style={{ 
+          position: 'absolute', top: '10px', left: isMobile ? '10px' : '50px', 
+          right: isRightPanelOpen && !isMobile ? '395px' : '10px', zIndex: 500, 
+          display: 'flex', flexWrap: isMobile ? 'nowrap' : 'wrap', overflowX: isMobile ? 'auto' : 'visible',
+          alignItems: 'center', gap: '8px', pointerEvents: isMobile ? 'auto' : 'none', 
+          width: isMobile ? 'calc(100% - 20px)' : 'auto'
         }}>
           
           {!showRadar && (
-            <div style={{ display: 'flex', gap: '8px', background: cardBg, backdropFilter: 'blur(12px)', padding: '8px 12px', borderRadius: '15px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.1)', flexWrap: 'wrap', pointerEvents: 'auto' }}>
-              <button 
-                onClick={handleResetMap} 
-                style={{ padding: '6px 12px', borderRadius: '10px', background: '#0ea5e9', color: '#fff', border: 'none', outline: 'none', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 2px 8px rgba(14,165,233,0.3)' }} 
-              >
-                🔄 รีเซ็ต
-              </button>
-              
-              <div style={{ width: '1px', backgroundColor: borderColor, margin: '0 5px' }}></div> 
-
-              <select value={selectedRegion} onChange={e => { setSelectedRegion(e.target.value); setSelectedProvince(''); }} style={{ padding: '6px 12px', borderRadius: '10px', background: darkMode ? 'rgba(0,0,0,0.3)' : '#f8fafc', color: textColor, border: `1px solid ${borderColor}`, outline: 'none', fontWeight: 'bold', cursor: 'pointer' }}>
+            <div style={{ display: 'flex', gap: '6px', background: cardBg, backdropFilter: 'blur(12px)', padding: isMobile ? '4px' : '8px 12px', borderRadius: '12px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.1)', pointerEvents: 'auto', flexShrink: 0 }}>
+              <button onClick={handleResetMap} style={{ padding: isMobile ? '6px 10px' : '6px 12px', borderRadius: '8px', background: '#0ea5e9', color: '#fff', border: 'none', fontWeight: 'bold', cursor: 'pointer', fontSize: isMobile ? '0.8rem' : '1rem' }}>🔄 รีเซ็ต</button>
+              <div style={{ width: '1px', backgroundColor: borderColor, margin: '0 2px' }}></div> 
+              <select value={selectedRegion} onChange={e => { setSelectedRegion(e.target.value); setSelectedProvince(''); }} style={{ padding: isMobile ? '6px 10px' : '6px 12px', borderRadius: '8px', background: darkMode ? 'rgba(0,0,0,0.3)' : '#f8fafc', color: textColor, border: `1px solid ${borderColor}`, outline: 'none', fontWeight: 'bold', fontSize: isMobile ? '0.8rem' : '1rem' }}>
                 <option value="">🗺️ ทุกภูมิภาค</option>
                 {Object.keys(regionMapping).map(r => <option key={r} value={r}>{r}</option>)}
               </select>
-              <select value={selectedProvince} onChange={e => setSelectedProvince(e.target.value)} style={{ padding: '6px 12px', borderRadius: '10px', background: darkMode ? 'rgba(0,0,0,0.3)' : '#f8fafc', color: textColor, border: `1px solid ${borderColor}`, outline: 'none', fontWeight: 'bold', cursor: 'pointer' }}>
+              <select value={selectedProvince} onChange={e => setSelectedProvince(e.target.value)} style={{ padding: isMobile ? '6px 10px' : '6px 12px', borderRadius: '8px', background: darkMode ? 'rgba(0,0,0,0.3)' : '#f8fafc', color: textColor, border: `1px solid ${borderColor}`, outline: 'none', fontWeight: 'bold', fontSize: isMobile ? '0.8rem' : '1rem' }}>
                 <option value="">📍 ทุกจังหวัด</option>
                 {(selectedRegion ? regionMapping[selectedRegion] : allProvinces).map(p => <option key={p} value={p}>{p}</option>)}
               </select>
             </div>
           )}
 
-          <div className="hide-scrollbar" style={{ display: 'flex', gap: '6px', background: cardBg, backdropFilter: 'blur(12px)', padding: '6px 10px', borderRadius: '20px', alignItems: 'center', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.1)', overflowX: 'auto', maxWidth: '100%', pointerEvents: 'auto' }}>
+          <div style={{ display: 'flex', gap: '4px', background: cardBg, backdropFilter: 'blur(12px)', padding: isMobile ? '4px' : '6px 10px', borderRadius: '12px', alignItems: 'center', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.1)', pointerEvents: 'auto', flexShrink: 0 }}>
             {!showRadar ? (
               <>
-                <button onClick={() => setViewMode('pm25')} style={{ padding: '6px 12px', borderRadius: '15px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: viewMode === 'pm25' ? '#0ea5e9' : 'transparent', color: viewMode === 'pm25' ? '#fff' : textColor, whiteSpace: 'nowrap' }}>☁️ PM2.5</button>
-                <button onClick={() => setViewMode('temp')} style={{ padding: '6px 12px', borderRadius: '15px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: viewMode === 'temp' ? '#22c55e' : 'transparent', color: viewMode === 'temp' ? '#fff' : textColor, whiteSpace: 'nowrap' }}>🌡️ อุณหภูมิ</button>
-                <button onClick={() => setViewMode('heat')} style={{ padding: '6px 12px', borderRadius: '15px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: viewMode === 'heat' ? '#f97316' : 'transparent', color: viewMode === 'heat' ? '#fff' : textColor, whiteSpace: 'nowrap' }}>🥵 Heat</button>
-                <button onClick={() => setViewMode('uv')} style={{ padding: '6px 12px', borderRadius: '15px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: viewMode === 'uv' ? '#a855f7' : 'transparent', color: viewMode === 'uv' ? '#fff' : textColor, whiteSpace: 'nowrap' }}>☀️ UV</button>
-                
-                <div style={{ width: '2px', height: '20px', backgroundColor: borderColor, margin: '0 2px' }}></div>
-                <button onClick={() => setViewMode(viewMode === 'hotspot' ? 'pm25' : 'hotspot')} style={{ padding: '6px 12px', borderRadius: '15px', border: viewMode === 'hotspot' ? 'none' : `1px solid ${borderColor}`, fontWeight: 'bold', cursor: 'pointer', backgroundColor: viewMode === 'hotspot' ? '#ef4444' : 'transparent', color: viewMode === 'hotspot' ? '#fff' : textColor, whiteSpace: 'nowrap' }}>🔥 Hot spot</button>
-                
-                {viewMode === 'hotspot' && (
-                  <div style={{ display: 'flex', gap: '5px', alignItems: 'center', paddingLeft: '5px', borderLeft: `2px dashed ${borderColor}` }}>
-                    <button onClick={() => setShowFirmsLayer(!showFirmsLayer)} style={{ padding: '4px 10px', borderRadius: '12px', border: `1px solid ${borderColor}`, background: showFirmsLayer ? '#ef4444' : 'transparent', color: showFirmsLayer ? '#fff' : textColor, fontSize: '0.8rem', fontWeight: 'bold', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                      {showFirmsLayer ? '👁️ ปิดไฟป่า' : '🔥 เปิดไฟป่า'}
-                    </button>
-                    <button onClick={() => setShowMarkers(!showMarkers)} style={{ padding: '4px 10px', borderRadius: '12px', border: `1px solid ${borderColor}`, background: showMarkers ? '#0ea5e9' : 'transparent', color: showMarkers ? '#fff' : textColor, fontSize: '0.8rem', fontWeight: 'bold', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                      {showMarkers ? '👁️ ปิดสถานี' : '📍 เปิดสถานี'}
-                    </button>
-                  </div>
-                )}
+                <button onClick={() => setViewMode('pm25')} style={{ padding: isMobile ? '6px 10px' : '6px 12px', borderRadius: '8px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: viewMode === 'pm25' ? '#0ea5e9' : 'transparent', color: viewMode === 'pm25' ? '#fff' : textColor, fontSize: isMobile ? '0.8rem' : '1rem', whiteSpace: 'nowrap' }}>☁️ PM2.5</button>
+                <button onClick={() => setViewMode('temp')} style={{ padding: isMobile ? '6px 10px' : '6px 12px', borderRadius: '8px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: viewMode === 'temp' ? '#22c55e' : 'transparent', color: viewMode === 'temp' ? '#fff' : textColor, fontSize: isMobile ? '0.8rem' : '1rem', whiteSpace: 'nowrap' }}>🌡️ อุณหภูมิ</button>
+                <button onClick={() => setViewMode('heat')} style={{ padding: isMobile ? '6px 10px' : '6px 12px', borderRadius: '8px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: viewMode === 'heat' ? '#f97316' : 'transparent', color: viewMode === 'heat' ? '#fff' : textColor, fontSize: isMobile ? '0.8rem' : '1rem', whiteSpace: 'nowrap' }}>🥵 Heat</button>
+                <button onClick={() => setViewMode('uv')} style={{ padding: isMobile ? '6px 10px' : '6px 12px', borderRadius: '8px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: viewMode === 'uv' ? '#a855f7' : 'transparent', color: viewMode === 'uv' ? '#fff' : textColor, fontSize: isMobile ? '0.8rem' : '1rem', whiteSpace: 'nowrap' }}>☀️ UV</button>
+                <div style={{ width: '1px', height: '15px', backgroundColor: borderColor, margin: '0 2px' }}></div>
+                <button onClick={() => setViewMode(viewMode === 'hotspot' ? 'pm25' : 'hotspot')} style={{ padding: isMobile ? '6px 10px' : '6px 12px', borderRadius: '8px', border: viewMode === 'hotspot' ? 'none' : `1px solid ${borderColor}`, fontWeight: 'bold', cursor: 'pointer', backgroundColor: viewMode === 'hotspot' ? '#ef4444' : 'transparent', color: viewMode === 'hotspot' ? '#fff' : textColor, fontSize: isMobile ? '0.8rem' : '1rem', whiteSpace: 'nowrap' }}>🔥 Hot spot</button>
               </>
             ) : ( 
-              <div style={{ padding: '6px 12px', borderRadius: '15px', color: '#ef4444', fontWeight: 'bold', whiteSpace: 'nowrap' }}>🔴 โหมดเรดาร์พายุ</div> 
+              <div style={{ padding: isMobile ? '6px 10px' : '6px 12px', borderRadius: '8px', color: '#ef4444', fontWeight: 'bold', whiteSpace: 'nowrap', fontSize: isMobile ? '0.8rem' : '1rem' }}>🔴 โหมดเรดาร์พายุ</div> 
             )}
-            <div style={{ width: '2px', height: '20px', backgroundColor: borderColor, margin: '0 2px' }}></div>
-            <button onClick={() => setShowRadar(!showRadar)} style={{ padding: '6px 12px', borderRadius: '15px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: showRadar ? '#ef4444' : 'transparent', color: showRadar ? '#fff' : textColor, whiteSpace: 'nowrap' }}>
+            <div style={{ width: '1px', height: '15px', backgroundColor: borderColor, margin: '0 2px' }}></div>
+            <button onClick={() => setShowRadar(!showRadar)} style={{ padding: isMobile ? '6px 10px' : '6px 12px', borderRadius: '8px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: showRadar ? '#ef4444' : 'transparent', color: showRadar ? '#fff' : textColor, fontSize: isMobile ? '0.8rem' : '1rem', whiteSpace: 'nowrap' }}>
               {showRadar ? 'ปิดเรดาร์' : '📡 เรดาร์'}
             </button>
           </div>
-
         </div>
 
         {!showRadar && (
-          <button onClick={handleFindNearest} title="ตำแหน่งปัจจุบัน" style={{ position: 'absolute', bottom: '30px', right: isRightPanelOpen && window.innerWidth >= 1024 ? '395px' : '15px', transition: 'right 0.3s ease', zIndex: 500, width: '48px', height: '48px', borderRadius: '50%', backgroundColor: cardBg, backdropFilter: 'blur(10px)', color: locating ? subTextColor : '#0ea5e9', border: `2px solid ${borderColor}`, cursor: locating ? 'wait' : 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '1.2rem', boxShadow: '0 4px 10px rgba(0,0,0,0.2)' }}>
+          <button onClick={handleFindNearest} title="ตำแหน่งปัจจุบัน" style={{ position: 'absolute', bottom: '30px', right: isRightPanelOpen && !isMobile ? '395px' : '15px', transition: 'right 0.3s ease', zIndex: 500, width: '48px', height: '48px', borderRadius: '50%', backgroundColor: cardBg, backdropFilter: 'blur(10px)', color: locating ? subTextColor : '#0ea5e9', border: `2px solid ${borderColor}`, cursor: locating ? 'wait' : 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '1.2rem', boxShadow: '0 4px 10px rgba(0,0,0,0.2)' }}>
             {locating ? '⏳' : '📍'}
           </button>
         )}
 
         {!showRadar && legends[viewMode] && (
-          <div style={{ position: 'absolute', bottom: '20px', left: '20px', zIndex: 500, background: cardBg, backdropFilter: 'blur(12px)', padding: '10px 15px', borderRadius: '15px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.1)', minWidth: '200px' }}>
-            <div style={{ fontSize: '0.8rem', fontWeight: 'bold', color: textColor, marginBottom: '8px', textAlign: 'center' }}>{legends[viewMode].name}</div>
-            <div style={{ background: legends[viewMode].grad, height: '8px', borderRadius: '4px', width: '100%' }}></div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: subTextColor, marginTop: '5px', fontWeight: 'bold' }}>
+          <div style={{ position: 'absolute', bottom: '20px', left: '15px', zIndex: 500, background: cardBg, backdropFilter: 'blur(12px)', padding: '10px 15px', borderRadius: '15px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.1)', minWidth: '180px' }}>
+            <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: textColor, marginBottom: '6px', textAlign: 'center' }}>{legends[viewMode].name}</div>
+            <div style={{ background: legends[viewMode].grad, height: '6px', borderRadius: '3px', width: '100%' }}></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: subTextColor, marginTop: '4px', fontWeight: 'bold' }}>
               <span>{legends[viewMode].min}</span>
               <span>{legends[viewMode].max}</span>
             </div>
@@ -547,7 +451,8 @@ export default function MapPage() {
           </div>
         ) : (
           <MapContainer center={[13.75, 100.5]} zoom={6} style={{ height: '100%', width: '100%', zIndex: 1, backgroundColor: darkMode ? '#0f172a' : '#bae6fd' }} zoomControl={false}>
-            <LayersControl position="bottomleft">
+            {/* 🌟 ย้ายปุ่มสลับแผนที่ไปอยู่มุมขวาบน จะได้ไม่ทับ Legend ด้านล่าง */}
+            <LayersControl position="topright">
               <LayersControl.BaseLayer checked name="🗺️ แผนที่ปกติ">
                 <TileLayer url={darkMode ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"} />
               </LayersControl.BaseLayer>
@@ -568,10 +473,8 @@ export default function MapPage() {
             {showMarkers && mapDisplayStations.map((station) => {
               const lat = parseFloat(station.lat); const lon = parseFloat(station.long); if (isNaN(lat) || isNaN(lon)) return null;
               
-              // 🌟 ถอด Optional Chaining ออกจากตรงนี้ด้วย
               const pmVal = Number(station.AQILast && station.AQILast.PM25 ? station.AQILast.PM25.value : NaN); 
               const tObj = stationTemps[station.stationID];
-              const isFav = favNames.includes(extractProvince(station.areaTH)); 
               
               let mVal;
               if (viewMode==='pm25'||viewMode==='hotspot') mVal = pmVal;
@@ -582,7 +485,7 @@ export default function MapPage() {
               else if (viewMode==='wind') mVal = tObj ? tObj.windSpeed : null;
               
               return (
-                <Marker key={station.stationID} position={[lat, lon]} icon={createCustomMarker(viewMode, mVal, tObj, isFav, mapZoom)} ref={el => markerRefs.current[station.stationID]=el} eventHandlers={{ click: () => { setActiveStation(station); setIsRightPanelOpen(true); } }}>
+                <Marker key={station.stationID} position={[lat, lon]} icon={createCustomMarker(viewMode, mVal, tObj, mapZoom)} ref={el => markerRefs.current[station.stationID]=el} eventHandlers={{ click: () => { setActiveStation(station); setIsRightPanelOpen(true); } }}>
                   <Popup minWidth={200}>
                     <div style={{ textAlign: 'center', fontFamily: 'Kanit' }}>
                       <strong>{station.nameTH}</strong><br/>
@@ -597,12 +500,12 @@ export default function MapPage() {
         )}
       </div>
 
-      {/* 🌟 RIGHT SIDEBAR */}
+      {/* 🌟 RIGHT SIDEBAR (การ์ดรายละเอียด) */}
       {!showRadar && (
         <div style={{ 
-          position: 'absolute', top: '15px', bottom: window.innerWidth < 768 ? '0' : '15px', 
-          right: isRightPanelOpen ? (window.innerWidth < 768 ? '0' : '15px') : (window.innerWidth < 768 ? '-100%' : '-360px'), 
-          width: window.innerWidth < 768 ? '100%' : '360px', 
+          position: 'absolute', top: '15px', bottom: isMobile ? '85px' : '15px', 
+          right: isRightPanelOpen ? (isMobile ? '10px' : '15px') : (isMobile ? '-100%' : '-360px'), 
+          width: isMobile ? 'calc(100% - 20px)' : '360px', 
           transition: 'right 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
           backgroundColor: viewMode === 'hotspot' ? (darkMode ? 'rgba(15, 23, 42, 0.85)' : 'rgba(254, 242, 242, 0.85)') : cardBg, 
           backdropFilter: 'blur(20px)', border: `1px solid ${viewMode === 'hotspot' ? '#fca5a5' : borderColor}`, 
@@ -614,19 +517,19 @@ export default function MapPage() {
             position: 'absolute', top: '50%', left: '-30px', transform: 'translateY(-50%)', 
             width: '30px', height: '60px', backgroundColor: cardBg, backdropFilter: 'blur(10px)', 
             border: `1px solid ${borderColor}`, borderRight: 'none', borderRadius: '15px 0 0 15px', 
-            cursor: 'pointer', display: window.innerWidth < 768 ? 'none' : 'flex', alignItems: 'center', justifyContent: 'center', 
+            cursor: 'pointer', display: isMobile ? 'none' : 'flex', alignItems: 'center', justifyContent: 'center', 
             fontSize: '1.2rem', color: textColor, boxShadow: '-4px 0 10px rgba(0,0,0,0.05)' 
           }}>
             {isRightPanelOpen ? '▶' : '◀'}
           </button>
 
           <div style={{ padding: '15px', borderBottom: `1px solid ${borderColor}`, background: viewMode === 'hotspot' ? 'linear-gradient(to right, rgba(239,68,68,0.8), rgba(249,115,22,0.8))' : 'transparent', borderRadius: '20px 20px 0 0' }}>
-            {window.innerWidth < 768 && <button onClick={() => setIsRightPanelOpen(false)} style={{ width: '100%', padding: '10px', backgroundColor: 'rgba(255,255,255,0.3)', color: viewMode==='hotspot'?'#fff':textColor, border: 'none', borderRadius: '10px', fontWeight: 'bold', marginBottom: '15px' }}>▶ ปิดแถบด้านข้าง</button>}
+            {isMobile && <button onClick={() => setIsRightPanelOpen(false)} style={{ width: '100%', padding: '10px', backgroundColor: 'rgba(255,255,255,0.3)', color: viewMode==='hotspot'?'#fff':textColor, border: 'none', borderRadius: '10px', fontWeight: 'bold', marginBottom: '15px' }}>▶ ปิดหน้าต่าง</button>}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2 style={{ fontSize: '1rem', color: viewMode==='hotspot'?'#fff':textColor, margin: '0', fontWeight: 'bold' }}>
                 {viewMode === 'hotspot' ? '🔥 ศูนย์เฝ้าระวังไฟป่า' : activeChart.name} ({filteredStations.length})
               </h2>
-              <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} style={{ padding: '4px', borderRadius: '6px', backgroundColor: darkMode?'rgba(0,0,0,0.5)':'rgba(255,255,255,0.7)', color: viewMode==='hotspot'?'#fff':textColor, outline: 'none', border: 'none' }}>
+              <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} style={{ padding: '4px', borderRadius: '6px', backgroundColor: darkMode?'rgba(0,0,0,0.5)':'rgba(255,255,255,0.7)', color: viewMode==='hotspot'?'#fff':textColor, outline: 'none', border: 'none', fontSize: '0.8rem' }}>
                 <option value="desc">⬇️ มากไปน้อย</option><option value="asc">⬆️ น้อยไปมาก</option>
               </select>
             </div>
@@ -634,11 +537,9 @@ export default function MapPage() {
 
           <div style={{ flex: 1, overflowY: 'auto', padding: '15px' }} className="hide-scrollbar">
             {filteredStations.map((station) => {
-              // 🌟 ถอด Optional Chaining ทิ้งให้หมดในลูปนี้
               const pmVal = Number(station.AQILast && station.AQILast.PM25 ? station.AQILast.PM25.value : NaN); 
               const tObj = stationTemps[station.stationID]; 
               const isActive = activeStation && activeStation.stationID === station.stationID;
-              const isFav = favNames.includes(extractProvince(station.areaTH));
 
               let warningNode = null;
               if(viewMode === 'pm25') {
@@ -663,9 +564,9 @@ export default function MapPage() {
                   <div key={station.stationID} ref={el=>cardRefs.current[station.stationID]=el} onClick={()=>setActiveStation(station)} style={{ display:'flex', flexDirection:'column', background: isActive ? (darkMode?'rgba(127, 29, 29, 0.8)':'#fee2e2') : (darkMode?'rgba(0,0,0,0.4)':'rgba(255,255,255,0.7)'), borderLeft:`6px solid ${riskColor}`, borderRadius:'12px', padding:'15px', marginBottom:'15px', cursor:'pointer', boxShadow: isActive ? '0 4px 10px rgba(239,68,68,0.2)' : '0 2px 5px rgba(0,0,0,0.05)' }}>
                     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
                       <div style={{ flex:1 }}>
-                        <h4 style={{ margin:'0 0 5px 0', color: viewMode==='hotspot' && !darkMode ? '#7f1d1d' : textColor, fontSize:'1.05rem' }}>{isFav ? '⭐ ' : ''}{station.nameTH}</h4>
+                        <h4 style={{ margin:'0 0 5px 0', color: viewMode==='hotspot' && !darkMode ? '#7f1d1d' : textColor, fontSize:'1rem' }}>{station.nameTH}</h4>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '5px' }}>
-                          <p style={{ margin:0, color: riskColor, fontSize:'0.85rem', fontWeight:'bold' }}>{riskText}</p>
+                          <p style={{ margin:0, color: riskColor, fontSize:'0.8rem', fontWeight:'bold' }}>{riskText}</p>
                           {!isNaN(pmVal) && (
                             <span style={{ fontSize: '0.65rem', padding: '2px 6px', borderRadius: '6px', background: darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)', color: subTextColor, fontWeight: 'bold' }}>
                               US AQI: {calculateUSAQI(pmVal)}
@@ -677,7 +578,7 @@ export default function MapPage() {
                         <span style={{ fontSize:'1rem', fontWeight:'bold' }}>{isNaN(pmVal)?'-':pmVal}</span><br/><span style={{ fontSize:'0.6rem' }}>PM2.5</span>
                       </div>
                     </div>
-                    <div style={{ marginTop: '10px', padding: '10px', background: darkMode?'rgba(0,0,0,0.3)':'rgba(0,0,0,0.03)', borderRadius: '8px', fontSize: '0.85rem', color: subTextColor }}>
+                    <div style={{ marginTop: '10px', padding: '10px', background: darkMode?'rgba(0,0,0,0.3)':'rgba(0,0,0,0.03)', borderRadius: '8px', fontSize: '0.8rem', color: subTextColor }}>
                       🌡️ อุณหภูมิ: <strong style={{color: temp>=35?'#ef4444':textColor}}>{temp}°C</strong> | 💧 โอกาสฝน: <strong>{rain}%</strong><br/>
                       🌬️ ลม: <strong>{wind} km/h</strong> ไปทาง <strong>{getWindDirectionText(windDir)}</strong>
                     </div>
@@ -720,7 +621,7 @@ export default function MapPage() {
                 <div key={station.stationID} ref={el=>cardRefs.current[station.stationID]=el} onClick={()=>setActiveStation(station)} style={{ display:'flex', flexDirection:'column', background:isActive?(darkMode?'rgba(51, 65, 85, 0.8)':'rgba(241, 245, 249, 0.9)'):(darkMode?'rgba(0,0,0,0.3)':'rgba(255,255,255,0.7)'), borderLeft:`6px solid ${boxBg}`, borderRadius:'12px', padding:'15px', marginBottom:'15px', cursor:'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
                   <div style={{ display:'flex', justifyContent:'space-between' }}>
                     <div style={{ flex:1 }}>
-                      <h4 style={{ margin:'0 0 2px 0', color:textColor, fontSize:'1rem' }}>{isFav ? '⭐ ' : ''}{station.nameTH}</h4>
+                      <h4 style={{ margin:'0 0 2px 0', color:textColor, fontSize:'0.95rem' }}>{station.nameTH}</h4>
                       
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <p style={{ margin:0, color:'#3b82f6', fontSize:'0.8rem', fontWeight:'bold' }}>{extractProvince(station.areaTH)}</p>
@@ -733,8 +634,8 @@ export default function MapPage() {
 
                       {warningNode}
                     </div>
-                    <div style={{ backgroundColor:boxBg, color:boxText, width:'60px', height:'60px', borderRadius:'12px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}>
-                      <span style={{ fontSize:'1.3rem', fontWeight:'bold' }}>{disp}</span><span style={{ fontSize:'0.65rem' }}>{unit}</span>
+                    <div style={{ backgroundColor:boxBg, color:boxText, width:'55px', height:'55px', borderRadius:'12px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}>
+                      <span style={{ fontSize:'1.2rem', fontWeight:'bold' }}>{disp}</span><span style={{ fontSize:'0.6rem' }}>{unit}</span>
                     </div>
                   </div>
 
