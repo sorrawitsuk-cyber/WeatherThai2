@@ -8,8 +8,6 @@ export default function ForecastPage() {
   
   const [alertsLocationName, setAlertsLocationName] = useState('');
   const [activeStation, setActiveStation] = useState(null);
-  
-  // 🌟 เพิ่ม State สำหรับเก็บ "วันที่พยากรณ์" (0 = วันนี้, 1 = พรุ่งนี้, ...)
   const [selectedDateOffset, setSelectedDateOffset] = useState(0); 
 
   const [aiSummaryJson, setAiSummaryJson] = useState(null);
@@ -39,7 +37,6 @@ export default function ForecastPage() {
     }
   }, [alertsLocationName, stations]);
 
-  // 🌟 สร้าง Array วันที่ล่วงหน้า 7 วัน สำหรับ Dropdown
   const forecastDates = Array.from({ length: 7 }, (_, i) => {
     const d = new Date();
     d.setDate(d.getDate() + i);
@@ -52,22 +49,53 @@ export default function ForecastPage() {
     return `${d.toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short' })}`;
   };
 
-  // 🌟 อัปเดตข้อมูล AI ให้แสดงวันที่ด้วย
+  // 🌟 จำลองข้อมูล AI ให้เป็นแบบ Array อาร์เรย์ของการ์ดสวยๆ
   const handleGenerateAI = () => {
     setIsGenerating(true);
-    const dateLabel = formatDateLabel(forecastDates[selectedDateOffset], selectedDateOffset).split(' ')[0]; // ดึงคำว่า วันนี้/พรุ่งนี้/วัน...
+    const dateLabel = formatDateLabel(forecastDates[selectedDateOffset], selectedDateOffset).split(' ')[0]; 
 
     setTimeout(() => {
       setAiSummaryJson({
-        summary: `สภาพอากาศใน ${alertsLocationName} ประจำ${dateLabel}: ช่วงเช้า (06:00-10:00 น.) อากาศเย็นสบายและโปร่งใส ช่วงบ่าย (12:00-16:00 น.) ดัชนีความร้อนจะพุ่งสูง และอาจมีฝุ่นสะสมตัวเพิ่มขึ้น ช่วงค่ำ (ตั้งแต่ 18:00 น.) อากาศจะเริ่มเย็นลงและกลับมาโปร่งอีกครั้ง`,
-        hourly: `06:00-09:00: อากาศดีที่สุด เหมาะกับการทำกิจกรรมนอกบ้าน\n10:00-15:00: แดดแรงจัด อุณหภูมิพุ่งสูง ควรอยู่ในที่ร่ม\n16:00-19:00: ช่วงรถติด ฝุ่น PM2.5 อาจหนาแน่นขึ้นตามท้องถนน\n20:00 เป็นต้นไป: อากาศเริ่มเย็นลง เหมาะกับการพักผ่อน`,
-        health: `ช่วงเช้าตรู่เหมาะกับการออกกำลังกายกลางแจ้งที่สุด แต่ช่วงบ่าย (13:00-16:00 น.) เสี่ยงฮีทสโตรกสูงมาก ควรงดกิจกรรมกลางแจ้งและดื่มน้ำบ่อยๆ หากต้องออกนอกบ้านช่วงเย็นที่ฝุ่นเริ่มหนา ควรสวมหน้ากากอนามัยป้องกัน`,
-        recommendation: `ช่วงบ่ายควรเปิดแอร์หรือพัดลมและหลีกเลี่ยงการตากแดดโดยตรง หากใช้เครื่องฟอกอากาศ แนะนำให้เปิดโหมดสูงสุดในช่วงเวลา 16:00-19:00 น. ที่ฝุ่นภายนอกเริ่มพัดเข้ามา`,
-        pets: `พาเดินเล่นได้ช่วงเช้าตรู่ (ก่อน 08:00 น.) หรือช่วงค่ำ (หลัง 18:00 น.) เท่านั้น! เลี่ยงเด็ดขาดช่วง 10:00-16:00 น. เพราะพื้นถนนจะร้อนจัดจนลวกอุ้งเท้า ห้ามทิ้งสัตว์ไว้ในรถกลางแจ้งเด็ดขาด`,
-        travel: `ถ้าจัดทริปถ่ายรูปหรือเที่ยวสถานที่เปิด แนะนำช่วง 07:00-10:00 น. แสงจะสวยและไม่ร้อน ช่วงบ่ายแนะนำหลบเข้าคาเฟ่ ห้าง หรือพิพิธภัณฑ์แอร์เย็นๆ และออกมาเดินตลาดนัดกลางคืนได้สบายๆ ตั้งแต่ 17:30 น. เป็นต้นไป`,
-        agriculture: `รดน้ำต้นไม้ ฉีดพ่นปุ๋ยหรือยา ได้ผลดีที่สุดในช่วงเช้ามืด (05:00-08:00 น.) ตอนที่แดดยังไม่แรง เกษตรกรควรเลี่ยงการทำงานกลางแจ้งในช่วง 11:00-15:00 น. เพื่อป้องกันโรคลมแดด (ฮีทสโตรก)`,
-        construction: `ผู้รับเหมาควรจัดตารางงานเทปูน หรืองานที่ต้องตากแดดไว้ช่วงเช้า (07:00-11:00 น.) และให้คนงานพักเบรกยาวขึ้นในช่วงบ่าย หรือสลับไปทำงานในร่มที่อากาศถ่ายเทสะดวกแทน`,
-        commerce: `พ่อค้าแม่ค้าตลาดนัดช่วงเย็น (16:30 น. เป็นต้นไป) อากาศจะเริ่มเป็นใจ ลูกค้าจะออกมาเดินเยอะขึ้น สำหรับร้านค้าช่วงกลางวันแบบเปิดโล่ง ควรเตรียมร่มเงา พัดลม และระวังสินค้าที่อาจละลาย`
+        summary: [
+          { icon: '🌅', title: 'ช่วงเช้า (06:00 - 10:00 น.)', desc: `อากาศเย็นสบายและโปร่งใสสุดๆ เหมาะกับการเปิดหน้าต่างรับลม หรือออกกำลังกายเบาๆ ใน ${alertsLocationName} ครับ`, color: '#10b981' },
+          { icon: '☀️', title: 'ช่วงบ่าย (12:00 - 16:00 น.)', desc: 'แดดค่อนข้างแรงและดัชนีความร้อนพุ่งสูงปรี๊ด! แถมฝุ่นอาจจะเริ่มสะสมตัว แนะนำให้หลบแดดอยู่ในที่ร่มนะครับ', color: '#f97316' },
+          { icon: '🌙', title: 'ช่วงค่ำ (18:00 น. เป็นต้นไป)', desc: 'อากาศจะเริ่มเย็นลงและกลับมาโปร่งอีกครั้ง ออกมาเดินเล่นรับลม หรือหาของอร่อยๆ ทานมื้อค่ำได้สบายเลยครับ', color: '#6366f1' }
+        ],
+        hourly: [
+          { icon: '🏃‍♂️', title: '06:00 - 09:00 น.', desc: 'อากาศดีที่สุดในรอบวัน! ฝุ่นน้อย แดดอ่อนๆ เหมาะกับการทำกิจกรรมนอกบ้านทุกชนิดเลยครับ', color: '#0ea5e9' },
+          { icon: '🥵', title: '10:00 - 15:00 น.', desc: 'แดดแรงจัด อุณหภูมิพุ่งสูง ควรหลีกเลี่ยงการอยู่กลางแจ้งนานๆ ระวังผิวไหม้และฮีทสโตรกนะครับ', color: '#ef4444' },
+          { icon: '🚗', title: '16:00 - 19:00 น.', desc: 'ช่วงเวลารถติด ฝุ่น PM2.5 อาจจะหนาแน่นขึ้นตามแนวถนนหลัก ใครเดินทางช่วงนี้ใส่หน้ากากไว้หน่อยก็ดีครับ', color: '#f59e0b' },
+          { icon: '🛋️', title: '20:00 น. เป็นต้นไป', desc: 'อากาศเริ่มเย็นลงและลมสงบ เหมาะกับการพักผ่อนอยู่บ้านชิลๆ แล้วครับ', color: '#8b5cf6' }
+        ],
+        health: [
+          { icon: '🫁', title: 'ผู้ที่เป็นภูมิแพ้หรือหอบหืด', desc: 'ช่วงบ่ายถึงเย็นฝุ่นจะเริ่มก่อตัว แนะนำให้พกยาพ่นและสวมหน้ากากอนามัย (N95 ยิ่งดี) เมื่อต้องออกไปข้างนอกนะครับ', color: '#f43f5e' },
+          { icon: '💧', title: 'การป้องกันฮีทสโตรก', desc: 'วันนี้อากาศร้อนเอาเรื่อง! อย่าลืมจิบน้ำเปล่าบ่อยๆ ตลอดวัน และใส่เสื้อผ้าสีอ่อนที่ระบายอากาศได้ดีนะครับ', color: '#06b6d4' }
+        ],
+        recommendation: [
+          { icon: '🏠', title: 'การจัดการในบ้าน', desc: 'ช่วงบ่ายที่อากาศร้อนและฝุ่นเยอะ แนะนำให้ปิดหน้าต่างและเปิดเครื่องฟอกอากาศเพื่อให้อากาศในบ้านสะอาดที่สุดครับ', color: '#14b8a6' },
+          { icon: '😷', title: 'ไอเทมที่ต้องพกติดตัว', desc: 'ร่มกันแดด แว่นตากันแดด ขวดน้ำดื่ม และหน้ากากอนามัย คือ 4 ทหารเสือที่คุณขาดไม่ได้ในวันนี้!', color: '#eab308' }
+        ],
+        pets: [
+          { icon: '🐕', title: 'ช่วงเวลาเดินเล่นที่แนะนำ (เช้า/ค่ำ)', desc: 'พาน้องๆ ไปเดินดมกลิ่นได้สบายใจในช่วงเช้าตรู่ (ก่อน 08:00 น.) หรือช่วงค่ำ (หลัง 18:00 น.) อากาศกำลังดี ไม่ร้อนเท้าครับ', color: '#10b981' },
+          { icon: '🚫', title: 'ข้อห้ามเด็ดขาด! (10:00 - 16:00 น.)', desc: 'งดพาออกไปเดินเด็ดขาด! พื้นถนนร้อนมากอาจลวกอุ้งเท้าได้ และ **ห้ามทิ้งน้องไว้ในรถกลางแจ้ง** แม้จะแง้มหน้าต่างไว้ก็ตาม อันตรายถึงชีวิตเลยนะ!', color: '#ef4444' }
+        ],
+        travel: [
+          { icon: '📸', title: 'สายถ่ายรูป / เที่ยวธรรมชาติ', desc: 'จัดทริปหรือถ่ายรูปช่วง 07:00-10:00 น. แสงจะสวยละมุนและหน้าไม่มันเยิ้มครับ', color: '#ec4899' },
+          { icon: '☕', title: 'สายคาเฟ่ / เดินห้าง', desc: 'ช่วงบ่าย (12:00-16:00 น.) แนะนำหลบแดดเข้าคาเฟ่ชิคๆ ห้างสรรพสินค้า หรือพิพิธภัณฑ์แอร์เย็นๆ ดีที่สุดครับ', color: '#8b5cf6' },
+          { icon: '🌃', title: 'สายตลาดนัดกลางคืน', desc: 'ออกมาเดินตลาดนัดกลางคืนหรือชมวิวริมน้ำได้ชิลๆ ตั้งแต่ 17:30 น. เป็นต้นไป อากาศกำลังเป็นใจเลย', color: '#f59e0b' }
+        ],
+        agriculture: [
+          { icon: '💦', title: 'การรดน้ำและใส่ปุ๋ย', desc: 'ได้ผลดีและพืชดูดซึมได้ดีที่สุดในช่วงเช้ามืด (05:00-08:00 น.) ตอนที่แดดยังไม่แรง น้ำจะได้ไม่ระเหยเร็วเกินไปครับ', color: '#3b82f6' },
+          { icon: '👨‍🌾', title: 'ความปลอดภัยของเกษตรกร', desc: 'ควรเลี่ยงการทำงานกลางแปลงเกษตรในช่วง 11:00-15:00 น. เพื่อป้องกันโรคลมแดด (ฮีทสโตรก) ถ้าจำเป็นต้องทำ ควรหาหมวกปีกกว้างมาใส่นะครับ', color: '#ea580c' }
+        ],
+        construction: [
+          { icon: '🏗️', title: 'ช่วงเวลาลุยงานหนัก', desc: 'ผู้รับเหมาควรจัดตารางงานเทปูน ขึ้นโครงสร้าง หรืองานที่ต้องตากแดดจัดๆ ไว้ช่วงเช้า (07:00-11:00 น.) ครับ', color: '#f59e0b' },
+          { icon: '🥤', title: 'ช่วงเวลาพักและงานในร่ม', desc: 'ให้คนงานพักเบรกยาวขึ้นในช่วงบ่าย หรือสลับไปทำงานในร่มที่อากาศถ่ายเทสะดวกแทน เพื่อลดความตึงเครียดจากความร้อนครับ', color: '#6366f1' }
+        ],
+        commerce: [
+          { icon: '🧊', title: 'ร้านค้าช่วงกลางวัน', desc: 'สำหรับร้านค้าเปิดโล่ง แดดวันนี้ร้อนจัดมาก! ควรเตรียมร่มเงา พัดลมระบายอากาศ และระวังสินค้าที่อาจละลายหรือเสียรูปง่ายครับ', color: '#ef4444' },
+          { icon: '🛍️', title: 'ตลาดนัดช่วงเย็น', desc: 'พ่อค้าแม่ค้าเตรียมยิ้มรับทรัพย์! ช่วงเย็น (16:30 น. เป็นต้นไป) อากาศจะเริ่มเย็นลง ลูกค้าจะออกมาเดินช้อปปิ้งเยอะขึ้นแน่นอนครับ', color: '#10b981' }
+        ]
       });
       setIsGenerating(false);
     }, 1500);
@@ -120,7 +148,6 @@ export default function ForecastPage() {
 
       {/* 📍 ตัวเลือกสถานที่ & วันที่ (Grid แบ่งครึ่ง) */}
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '10px' }}>
-        
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: cardBg, padding: '10px 15px', borderRadius: '16px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.02)' }}>
           <span style={{ fontSize: '1.2rem' }}>📍</span>
           <select value={alertsLocationName} onChange={(e) => { setAlertsLocationName(e.target.value); setAiSummaryJson(null); setActiveAiTopic('summary'); }} style={{ flex: 1, background: 'transparent', color: textColor, border: 'none', fontWeight: 'bold', fontSize: '1rem', outline: 'none', cursor: 'pointer', appearance: 'none', textOverflow: 'ellipsis' }}>
@@ -138,7 +165,6 @@ export default function ForecastPage() {
           </select>
           <span style={{ color: subTextColor, fontSize: '0.8rem' }}>▼</span>
         </div>
-
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -166,42 +192,37 @@ export default function ForecastPage() {
                   <button 
                     key={topic.id}
                     onClick={() => setActiveAiTopic(topic.id)} 
-                    style={{ 
-                      padding: '8px 15px', 
-                      borderRadius: '12px', 
-                      border: isActive ? `2px solid ${topic.color}` : `1px solid ${borderColor}`, 
-                      fontWeight: 'bold', 
-                      fontSize: '0.85rem', 
-                      cursor: 'pointer', 
-                      whiteSpace: 'nowrap', 
-                      background: isActive ? `${topic.color}20` : innerCardBg, 
-                      color: isActive ? topic.color : subTextColor, 
-                      transition: 'all 0.2s',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '5px'
-                    }}>
+                    style={{ padding: '8px 15px', borderRadius: '12px', border: isActive ? `2px solid ${topic.color}` : `1px solid ${borderColor}`, fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', whiteSpace: 'nowrap', background: isActive ? `${topic.color}15` : innerCardBg, color: isActive ? topic.color : subTextColor, transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '5px' }}>
                     {topic.icon} {topic.label}
                   </button>
                 );
               })}
             </div>
 
-            {/* กล่องข้อความ AI */}
-            <div style={{ background: innerCardBg, padding: '20px', borderRadius: '16px', border: `1px solid ${borderColor}`, minHeight: '140px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+            {/* 🌟 กล่องข้อความ AI (แบบการ์ดสีสันสวยงาม) */}
+            <div style={{ background: innerCardBg, padding: isMobile ? '15px' : '20px', borderRadius: '16px', border: `1px solid ${borderColor}`, minHeight: '140px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
               {isGenerating ? (
                 <div style={{ textAlign: 'center', color: subTextColor }}>
-                  <div style={{ fontSize: '2rem', marginBottom: '10px', animation: 'spin 2s linear infinite' }}>⏳</div>
-                  <div style={{ fontWeight: 'bold' }}>AI กำลังประมวลผลข้อมูล...</div>
-                  <div style={{ fontSize: '0.8rem' }}>กรุณารอสักครู่ครับ</div>
+                  <div style={{ fontSize: '2.5rem', marginBottom: '10px', animation: 'spin 2s linear infinite' }}>⏳</div>
+                  <div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>AI กำลังประมวลผล...</div>
+                  <div style={{ fontSize: '0.85rem', marginTop: '5px' }}>กรุณารอสักครู่ครับ</div>
                 </div>
               ) : aiSummaryJson ? (
-                <div style={{ fontSize: '0.95rem', color: textColor, lineHeight: '1.7', whiteSpace: 'pre-line' }}>
-                  {aiSummaryJson[activeAiTopic]}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {/* วนลูปสร้างการ์ดย่อยตามข้อมูลที่ AI ตอบกลับมา */}
+                  {aiSummaryJson[activeAiTopic].map((item, idx) => (
+                    <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '15px', background: darkMode ? `${item.color}15` : `${item.color}10`, padding: '15px', borderRadius: '16px', border: `1px solid ${item.color}30` }}>
+                      <div style={{ fontSize: '2.2rem', lineHeight: 1 }}>{item.icon}</div>
+                      <div>
+                        <div style={{ fontWeight: 'bold', color: item.color, fontSize: '1rem', marginBottom: '4px' }}>{item.title}</div>
+                        <div style={{ color: textColor, fontSize: '0.9rem', lineHeight: '1.6' }}>{item.desc}</div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ) : (
-                <div style={{ textAlign: 'center', color: subTextColor, fontSize: '0.9rem' }}>
-                  เลือกสถานที่ วันที่ และกดปุ่ม <strong style={{color: '#3b82f6'}}>เริ่มวิเคราะห์</strong> ด้านบน 👆 <br/>เพื่อให้ AI ทำนายสภาพอากาศล่วงหน้าให้คุณครับ
+                <div style={{ textAlign: 'center', color: subTextColor, fontSize: '0.95rem' }}>
+                  เลือกสถานที่ วันที่ และกดปุ่ม <strong style={{color: '#3b82f6'}}>เริ่มวิเคราะห์</strong> ด้านบน 👆 <br/>เพื่อให้ AI ช่วยสรุปสภาพอากาศ และให้คำแนะนำแบบชิลๆ ครับ
                 </div>
               )}
             </div>
@@ -227,28 +248,6 @@ export default function ForecastPage() {
           <div style={{ background: cardBg, borderRadius: '16px', padding: '12px 5px', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center', border: `1px solid ${borderColor}`, boxShadow: '0 4px 10px rgba(0,0,0,0.02)' }}>
             <div style={{ fontSize: '0.65rem', fontWeight: 'bold', color: subTextColor }}>ความชื้น</div>
             <div style={{ fontSize: '1.4rem', fontWeight: '900', color: textColor, lineHeight: 1.2 }}>{humidityVal}%</div>
-          </div>
-        </div>
-
-        {/* 🌟 3. ข้อมูลสถิติเชิงลึก */}
-        <div style={{ background: cardBg, borderRadius: '24px', padding: '20px', border: `1px solid ${borderColor}`, boxShadow: '0 10px 40px rgba(0,0,0,0.02)' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
-             <div style={{ background: innerCardBg, padding: '12px', borderRadius: '12px', border: `1px solid ${borderColor}` }}>
-               <div style={{ fontSize: '0.75rem', color: subTextColor }}>มาตรฐาน PM2.5 (ไทย)</div>
-               <div style={{ fontSize: '1rem', fontWeight: 'bold', color: textColor }}>{pmVal || '-'} µg/m³</div>
-             </div>
-             <div style={{ background: innerCardBg, padding: '12px', borderRadius: '12px', border: `1px solid ${borderColor}` }}>
-               <div style={{ fontSize: '0.75rem', color: subTextColor }}>อุณหภูมิต่ำสุด-สูงสุด</div>
-               <div style={{ fontSize: '1rem', fontWeight: 'bold', color: textColor }}>{tObj && tObj.tempMin ? Math.round(tObj.tempMin) : '-'}° - {tObj && tObj.tempMax ? Math.round(tObj.tempMax) : '-'}°</div>
-             </div>
-             <div style={{ background: innerCardBg, padding: '12px', borderRadius: '12px', border: `1px solid ${borderColor}` }}>
-               <div style={{ fontSize: '0.75rem', color: subTextColor }}>โอกาสเกิดฝน</div>
-               <div style={{ fontSize: '1rem', fontWeight: 'bold', color: textColor }}>{tObj && tObj.rainProb != null ? Math.round(tObj.rainProb) : '-'}%</div>
-             </div>
-             <div style={{ background: innerCardBg, padding: '12px', borderRadius: '12px', border: `1px solid ${borderColor}` }}>
-               <div style={{ fontSize: '0.75rem', color: subTextColor }}>ความเร็วลมสูงสุด</div>
-               <div style={{ fontSize: '1rem', fontWeight: 'bold', color: textColor }}>{tObj && tObj.windMax != null ? Math.round(tObj.windMax) : '-'} km/h</div>
-             </div>
           </div>
         </div>
 
