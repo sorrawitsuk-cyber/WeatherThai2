@@ -50,10 +50,11 @@ export default function Layout() {
         </div>
 
         <nav style={{ flex: 1, padding: '24px 16px', display: 'flex', flexDirection: 'column', gap: '8px', overflowY: 'auto' }} className="hide-scrollbar">
-          <NavItem to="/" icon="📊" label="ภาพรวมประเทศ" darkMode={darkMode} />
-          <NavItem to="/map" icon="🗺️" label="แผนที่เชิงลึก" darkMode={darkMode} />
-          <NavItem to="/forecast" icon="✨" label="AI ผู้ช่วย & สถิติ" darkMode={darkMode} />
-          <NavItem to="/climate" icon="📰" label="ภัยพิบัติ & ข่าวสาร" darkMode={darkMode} />
+          {/* 🌟 อัปเดตชื่อเมนูและไอคอนใหม่สำหรับ Desktop */}
+          <NavItem to="/" icon="📊" label="ภาพรวม" darkMode={darkMode} />
+          <NavItem to="/map" icon="🗺️" label="แผนที่" darkMode={darkMode} />
+          <NavItem to="/forecast" icon="✨" label="AI ผู้ช่วย" darkMode={darkMode} />
+          <NavItem to="/climate" icon="🚨" label="เตือนภัย" darkMode={darkMode} />
         </nav>
 
         <div style={{ padding: '16px', borderTop: `1px solid ${borderColor}` }}>
@@ -94,10 +95,11 @@ export default function Layout() {
         {/* BOTTOM NAV สำหรับ Mobile */}
         {!isDesktop && (
           <nav style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '75px', display: 'flex', justifyContent: 'space-around', alignItems: 'center', borderTop: `1px solid ${borderColor}`, backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', zIndex: 50, paddingBottom: 'env(safe-area-inset-bottom)', background: darkMode ? 'rgba(15, 23, 42, 0.85)' : 'rgba(255, 255, 255, 0.85)' }}>
+            {/* 🌟 อัปเดตชื่อเมนูและไอคอนใหม่สำหรับ Mobile */}
             <MobileNavItem to="/" icon="📊" label="ภาพรวม" />
             <MobileNavItem to="/map" icon="🗺️" label="แผนที่" />
-            <MobileNavItem to="/forecast" icon="✨" label="AI & สถิติ" />
-            <MobileNavItem to="/climate" icon="📰" label="ภัยพิบัติ" />
+            <MobileNavItem to="/forecast" icon="✨" label="AI ผู้ช่วย" />
+            <MobileNavItem to="/climate" icon="🚨" label="เตือนภัย" />
           </nav>
         )}
       </main>
@@ -121,7 +123,6 @@ const NavItem = ({ to, icon, label, darkMode }) => (
   </NavLink>
 );
 
-// 🌟 จุดที่แก้บั๊ก! ส่งค่า isActive ลงไปในรูปแบบ Function Component ให้ถูกต้อง
 const MobileNavItem = ({ to, icon, label }) => (
   <NavLink 
     to={to} 
