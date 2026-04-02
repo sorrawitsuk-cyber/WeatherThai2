@@ -164,8 +164,7 @@ export default function Dashboard() {
   const pmColor = getPM25Color(pmVal);
 
   return (
-    // 🌟 เพิ่ม overflowX: 'hidden' เพื่อล็อกหน้าจอไม่ให้เลื่อนซ้าย-ขวาได้เด็ดขาด
-    <div style={{ background: dynamicBg, minHeight: '100%', width: '100%', padding: isMobile ? '15px' : '30px', paddingBottom: isMobile ? '90px' : '40px', display: 'flex', flexDirection: 'column', gap: isMobile ? '15px' : '20px', boxSizing: 'border-box', overflowY: 'auto', overflowX: 'hidden', fontFamily: 'Kanit, sans-serif' }} className="hide-scrollbar">
+    <div style={{ background: dynamicBg, minHeight: '100%', width: '100%', padding: isMobile ? '12px' : '30px', paddingBottom: isMobile ? '90px' : '40px', display: 'flex', flexDirection: 'column', gap: isMobile ? '12px' : '20px', boxSizing: 'border-box', overflowY: 'auto', overflowX: 'hidden', fontFamily: 'Kanit, sans-serif' }} className="hide-scrollbar">
       
       <div style={{ display: 'flex', justifyContent: isMobile ? 'flex-end' : 'space-between', alignItems: 'center' }}>
         {!isMobile && (
@@ -181,25 +180,26 @@ export default function Dashboard() {
 
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1.4fr 1fr', gap: '20px' }}>
         
-        <div style={{ background: cardBg, backdropFilter: 'blur(20px)', borderRadius: '24px', padding: isMobile ? '15px' : '30px', border: `1px solid ${borderColor}`, boxShadow: '0 10px 40px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
+        {/* 📍 ฝั่งซ้าย: DUAL HERO CARD */}
+        <div style={{ background: cardBg, backdropFilter: 'blur(20px)', borderRadius: isMobile ? '20px' : '24px', padding: isMobile ? '15px' : '30px', border: `1px solid ${borderColor}`, boxShadow: '0 10px 40px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
           
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: innerCardBg, padding: '8px 10px 8px 15px', borderRadius: '50px', marginBottom: isMobile ? '15px' : '25px', border: `1px solid ${borderColor}` }}>
-            <span style={{ fontSize: '1.2rem' }}>📍</span>
-            <select value={selectedStationId} onChange={handleStationChange} style={{ flex: 1, background: 'transparent', color: textColor, border: 'none', fontWeight: 'bold', fontSize: '0.95rem', outline: 'none', cursor: 'pointer', appearance: 'none', textOverflow: 'ellipsis' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: innerCardBg, padding: '8px 10px 8px 15px', borderRadius: '50px', marginBottom: isMobile ? '10px' : '25px', border: `1px solid ${borderColor}` }}>
+            <span style={{ fontSize: '1.1rem' }}>📍</span>
+            <select value={selectedStationId} onChange={handleStationChange} style={{ flex: 1, background: 'transparent', color: textColor, border: 'none', fontWeight: 'bold', fontSize: '0.9rem', outline: 'none', cursor: 'pointer', appearance: 'none', textOverflow: 'ellipsis' }}>
               {allLocations.map(loc => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
             </select>
           </div>
 
-          {/* 🌟 2 ดัชนีหลัก - จัดกลุ่มให้แนบชิดกันตรงกลาง */}
-          <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? '15px' : '20px', flex: 1, alignItems: 'stretch', justifyContent: 'space-around', padding: isMobile ? '0' : '10px 0' }}>
+          {/* 🌟 2 ดัชนีหลัก - ถอด flex: 1 ทิ้ง เพื่อไม่ให้มันยืดจนบวม */}
+          <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? '10px' : '20px', width: '100%', padding: isMobile ? '5px 0' : '10px 0' }}>
             
             {/* PM2.5 */}
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: isMobile ? '15px' : '20px', background: isMobile ? innerCardBg : 'transparent', padding: isMobile ? '15px' : '0', borderRadius: '20px', border: isMobile ? `1px solid ${borderColor}` : 'none' }}>
-              <div style={{ fontSize: isMobile ? '4.2rem' : '6.5rem', filter: `drop-shadow(0 10px 20px ${health.color}50)`, lineHeight: 1, transform: isMobile ? 'none' : 'scale(1.05)' }}>{health.face}</div>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-                 <span style={{ fontSize: '0.8rem', color: subTextColor, fontWeight: 'bold', letterSpacing: '0.5px' }}>PM2.5 (µg/m³)</span>
-                 <span style={{ fontSize: isMobile ? '2.8rem' : '4.5rem', fontWeight: '900', color: health.color, lineHeight: 1.1, filter: darkMode ? `drop-shadow(0 0 10px ${health.color}30)` : 'none' }}>{pmVal != null && !isNaN(pmVal) ? pmVal : '-'}</span>
-                 <span style={{ background: health.bg, color: health.color, padding: '4px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 'bold', marginTop: '5px', display: 'inline-block' }}>{health.text}</span>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: isMobile ? '15px' : '20px', background: isMobile ? innerCardBg : 'transparent', padding: isMobile ? '12px' : '0', borderRadius: '16px', border: isMobile ? `1px solid ${borderColor}` : 'none' }}>
+              <div style={{ fontSize: isMobile ? '3.8rem' : '6.5rem', filter: `drop-shadow(0 10px 15px ${health.color}40)`, lineHeight: 1 }}>{health.face}</div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', minWidth: isMobile ? '100px' : 'auto' }}>
+                 <span style={{ fontSize: '0.75rem', color: subTextColor, fontWeight: 'bold', letterSpacing: '0.5px' }}>PM2.5 (µg/m³)</span>
+                 <span style={{ fontSize: isMobile ? '2.5rem' : '4.5rem', fontWeight: '900', color: health.color, lineHeight: 1, filter: darkMode ? `drop-shadow(0 0 10px ${health.color}30)` : 'none' }}>{pmVal != null && !isNaN(pmVal) ? pmVal : '-'}</span>
+                 <span style={{ background: health.bg, color: health.color, padding: '2px 10px', borderRadius: '12px', fontSize: '0.7rem', fontWeight: 'bold', marginTop: '4px', display: 'inline-block' }}>{health.text}</span>
               </div>
             </div>
 
@@ -207,19 +207,19 @@ export default function Dashboard() {
             {!isMobile && <div style={{ width: '1px', height: '100px', background: borderColor }}></div>}
 
             {/* ดัชนีความร้อน */}
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: isMobile ? '15px' : '20px', background: isMobile ? innerCardBg : 'transparent', padding: isMobile ? '15px' : '0', borderRadius: '20px', border: isMobile ? `1px solid ${borderColor}` : 'none' }}>
-              <div style={{ fontSize: isMobile ? '4.2rem' : '6.5rem', filter: `drop-shadow(0 10px 20px ${heatStatus.color}50)`, lineHeight: 1, transform: isMobile ? 'none' : 'scale(1.05)' }}>{heatStatus.face}</div>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-                 <span style={{ fontSize: '0.8rem', color: subTextColor, fontWeight: 'bold', letterSpacing: '0.5px' }}>ดัชนีความร้อน (°C)</span>
-                 <span style={{ fontSize: isMobile ? '2.8rem' : '4.5rem', fontWeight: '900', color: heatStatus.color, lineHeight: 1.1, filter: darkMode ? `drop-shadow(0 0 10px ${heatStatus.color}30)` : 'none' }}>{heatVal != null ? Math.round(heatVal) : '-'}</span>
-                 <span style={{ background: heatStatus.bg, color: heatStatus.color, padding: '4px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 'bold', marginTop: '5px', display: 'inline-block' }}>{heatStatus.text}</span>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: isMobile ? '15px' : '20px', background: isMobile ? innerCardBg : 'transparent', padding: isMobile ? '12px' : '0', borderRadius: '16px', border: isMobile ? `1px solid ${borderColor}` : 'none' }}>
+              <div style={{ fontSize: isMobile ? '3.8rem' : '6.5rem', filter: `drop-shadow(0 10px 15px ${heatStatus.color}40)`, lineHeight: 1 }}>{heatStatus.face}</div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', minWidth: isMobile ? '100px' : 'auto' }}>
+                 <span style={{ fontSize: '0.75rem', color: subTextColor, fontWeight: 'bold', letterSpacing: '0.5px' }}>ดัชนีความร้อน (°C)</span>
+                 <span style={{ fontSize: isMobile ? '2.5rem' : '4.5rem', fontWeight: '900', color: heatStatus.color, lineHeight: 1, filter: darkMode ? `drop-shadow(0 0 10px ${heatStatus.color}30)` : 'none' }}>{heatVal != null ? Math.round(heatVal) : '-'}</span>
+                 <span style={{ background: heatStatus.bg, color: heatStatus.color, padding: '2px 10px', borderRadius: '12px', fontSize: '0.7rem', fontWeight: 'bold', marginTop: '4px', display: 'inline-block' }}>{heatStatus.text}</span>
               </div>
             </div>
 
           </div>
 
           {/* แถบข้อมูลรองด้านล่าง */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginTop: isMobile ? '15px' : '30px', paddingTop: isMobile ? '15px' : '20px', borderTop: `1px dashed ${borderColor}` }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginTop: isMobile ? '10px' : '30px', paddingTop: isMobile ? '10px' : '20px', borderTop: `1px dashed ${borderColor}` }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
               <span style={{ fontSize: '1.2rem', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}>🌡️</span>
               <div><div style={{ fontSize: '0.65rem', color: subTextColor }}>อุณหภูมิ</div><div style={{ fontWeight: 'bold', color: textColor, fontSize: '0.85rem' }}>{tempVal ? Math.round(tempVal) : '-'}°C</div></div>
@@ -237,7 +237,7 @@ export default function Dashboard() {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           
-          <div style={{ background: cardBg, backdropFilter: 'blur(20px)', borderRadius: '24px', padding: '15px', border: `1px solid ${borderColor}`, boxShadow: '0 10px 40px rgba(0,0,0,0.05)', flex: 1, minHeight: '180px', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ background: cardBg, backdropFilter: 'blur(20px)', borderRadius: isMobile ? '20px' : '24px', padding: '15px', border: `1px solid ${borderColor}`, boxShadow: '0 10px 40px rgba(0,0,0,0.05)', flex: 1, minHeight: '180px', display: 'flex', flexDirection: 'column' }}>
             <h3 style={{ fontSize: '0.9rem', color: subTextColor, fontWeight: 'bold', margin: '0 0 10px 5px' }}>🗺️ ตำแหน่งจุดตรวจวัด</h3>
             <div style={{ flex: 1, borderRadius: '15px', overflow: 'hidden', background: innerCardBg, position: 'relative' }}>
               {activeStation && !isNaN(parseFloat(activeStation.lat)) ? (
@@ -253,8 +253,8 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div style={{ background: cardBg, backdropFilter: 'blur(20px)', borderRadius: '24px', padding: '15px', border: `1px solid ${borderColor}`, boxShadow: '0 10px 40px rgba(0,0,0,0.05)', height: isMobile ? '180px' : '220px', display: 'flex', flexDirection: 'column' }}>
-            <h3 style={{ fontSize: '0.9rem', color: subTextColor, fontWeight: 'bold', margin: '0 0 15px 5px' }}>📊 แนวโน้มฝุ่น PM2.5 ล่วงหน้า</h3>
+          <div style={{ background: cardBg, backdropFilter: 'blur(20px)', borderRadius: isMobile ? '20px' : '24px', padding: '15px', border: `1px solid ${borderColor}`, boxShadow: '0 10px 40px rgba(0,0,0,0.05)', height: isMobile ? '160px' : '220px', display: 'flex', flexDirection: 'column' }}>
+            <h3 style={{ fontSize: '0.9rem', color: subTextColor, fontWeight: 'bold', margin: '0 0 10px 5px' }}>📊 แนวโน้มฝุ่น PM2.5 ล่วงหน้า</h3>
             <div style={{ flex: 1 }}>
               {forecastData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
