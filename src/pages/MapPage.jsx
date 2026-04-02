@@ -216,7 +216,7 @@ export default function MapPage() {
     rain: { name: 'โอกาสฝน (%)', grad: 'linear-gradient(to right, #f1f5f9, #bae6fd, #38bdf8, #0284c7, #1e3a8a)', min: '0', max: '100' },
     wind: { name: 'ความเร็วลม (km/h)', grad: 'linear-gradient(to right, #ccfbf1, #2dd4bf, #14b8a6, #0f766e)', min: '0', max: '40+' },
     uv: { name: 'UV Index', grad: 'linear-gradient(to right, #22c55e, #eab308, #f97316, #ef4444, #a855f7)', min: '0', max: '11+' },
-    hotspot: { name: 'ระดับความเสี่ยงไฟป่า', grad: 'linear-gradient(to right, #10b981, #f59e0b, #ef4444)', min: 'ปลอดภัย', max: 'เสี่ยงสูง' }
+    hotspot: { name: 'ความเสี่ยงไฟป่า', grad: 'linear-gradient(to right, #10b981, #f59e0b, #ef4444)', min: 'ปกติ', max: 'เสี่ยงสูง' }
   };
 
   useEffect(() => {
@@ -377,75 +377,75 @@ export default function MapPage() {
   return (
     <div style={{ position: 'relative', height: '100%', width: '100%', overflow: 'hidden' }}>
       
-      {/* 🌟 CSS ฝังตรงเพื่อซ่อน Scrollbar ของแถบเลื่อนบนมือถือให้เนียนตา */}
+      {/* 🌟 ปรับแต่ง UI อัตโนมัติ: ดันปุ่มสลับแผนที่ของ Leaflet ให้หลบลงมา ไม่ให้ชนเมนูด้านบน */}
       <style>{`
         .scroll-container::-webkit-scrollbar { display: none; }
         .scroll-container { -ms-overflow-style: none; scrollbar-width: none; }
+        /* ดันปุ่มเปลี่ยน Map Layer ให้ต่ำลงมา 65px เพื่อหลบแถบเมนู */
+        .leaflet-top.leaflet-right { top: 65px !important; right: 10px !important; }
+        .leaflet-control-layers { border-radius: 12px !important; box-shadow: 0 4px 10px rgba(0,0,0,0.1) !important; border: 1px solid rgba(255,255,255,0.2) !important; }
       `}</style>
 
       {/* พื้นที่แผนที่ */}
       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: isMobile ? '75px' : 0, zIndex: 1 }}>
         
-        {/* 🌟 ตัวกรองด้านบนจัดเรียงแบบ "บรรทัดเดียว ปัดซ้ายขวาได้" */}
+        {/* 🌟 1. แถบตัวกรองและปุ่มสลับโหมด (บรรทัดเดียว เลื่อนปัดซ้ายขวาได้) - แกะบล็อก pointerEvents แล้ว! */}
         <div className="scroll-container" style={{ 
           position: 'absolute', top: '10px', left: isMobile ? '10px' : '50px', 
-          right: isMobile ? '10px' : (isRightPanelOpen ? '395px' : '10px'), zIndex: 500, 
-          display: 'flex', flexWrap: isMobile ? 'nowrap' : 'wrap', overflowX: 'auto', WebkitOverflowScrolling: 'touch',
-          alignItems: 'center', gap: isMobile ? '6px' : '10px', pointerEvents: 'none', paddingBottom: '10px'
+          right: isMobile ? '10px' : (isRightPanelOpen ? '395px' : '10px'), zIndex: 1000, 
+          display: 'flex', flexWrap: 'nowrap', overflowX: 'auto', WebkitOverflowScrolling: 'touch',
+          alignItems: 'center', gap: '8px', paddingBottom: '10px',
+          pointerEvents: 'auto' // 🚨 สำคัญมาก! อนุญาตให้กดและปัดได้
         }}>
           
-          {/* กลุ่มที่ 1: ปุ่มรีเซ็ตและเลือกพื้นที่ */}
           {!showRadar && (
-            <div style={{ display: 'flex', gap: '4px', background: cardBg, backdropFilter: 'blur(10px)', padding: isMobile ? '4px' : '8px 12px', borderRadius: '10px', border: `1px solid ${borderColor}`, boxShadow: '0 2px 10px rgba(0,0,0,0.1)', pointerEvents: 'auto', flexShrink: 0 }}>
-              <button onClick={handleResetMap} style={{ padding: isMobile ? '4px 8px' : '6px 12px', borderRadius: '6px', background: '#0ea5e9', color: '#fff', border: 'none', fontWeight: 'bold', cursor: 'pointer', fontSize: isMobile ? '0.75rem' : '1rem' }}>
-                🔄 {isMobile ? '' : 'รีเซ็ต'}
-              </button>
+            <div style={{ display: 'flex', gap: '4px', background: cardBg, backdropFilter: 'blur(10px)', padding: '6px 10px', borderRadius: '12px', border: `1px solid ${borderColor}`, boxShadow: '0 2px 10px rgba(0,0,0,0.1)', flexShrink: 0 }}>
+              <button onClick={handleResetMap} style={{ padding: '6px 10px', borderRadius: '8px', background: '#0ea5e9', color: '#fff', border: 'none', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.85rem' }}>🔄 {isMobile ? '' : 'รีเซ็ต'}</button>
               <div style={{ width: '1px', backgroundColor: borderColor, margin: '0 2px' }}></div> 
-              <select value={selectedRegion} onChange={e => { setSelectedRegion(e.target.value); setSelectedProvince(''); }} style={{ padding: isMobile ? '4px 6px' : '6px 12px', borderRadius: '6px', background: darkMode ? 'rgba(0,0,0,0.3)' : '#f8fafc', color: textColor, border: `1px solid ${borderColor}`, outline: 'none', fontWeight: 'bold', fontSize: isMobile ? '0.75rem' : '1rem' }}>
+              <select value={selectedRegion} onChange={e => { setSelectedRegion(e.target.value); setSelectedProvince(''); }} style={{ padding: '6px 10px', borderRadius: '8px', background: darkMode ? 'rgba(0,0,0,0.3)' : '#f8fafc', color: textColor, border: `1px solid ${borderColor}`, outline: 'none', fontWeight: 'bold', fontSize: '0.85rem' }}>
                 <option value="">🗺️ ทุกภูมิภาค</option>
                 {Object.keys(regionMapping).map(r => <option key={r} value={r}>{r}</option>)}
               </select>
-              <select value={selectedProvince} onChange={e => setSelectedProvince(e.target.value)} style={{ padding: isMobile ? '4px 6px' : '6px 12px', borderRadius: '6px', background: darkMode ? 'rgba(0,0,0,0.3)' : '#f8fafc', color: textColor, border: `1px solid ${borderColor}`, outline: 'none', fontWeight: 'bold', fontSize: isMobile ? '0.75rem' : '1rem' }}>
+              <select value={selectedProvince} onChange={e => setSelectedProvince(e.target.value)} style={{ padding: '6px 10px', borderRadius: '8px', background: darkMode ? 'rgba(0,0,0,0.3)' : '#f8fafc', color: textColor, border: `1px solid ${borderColor}`, outline: 'none', fontWeight: 'bold', fontSize: '0.85rem' }}>
                 <option value="">📍 ทุกจังหวัด</option>
                 {(selectedRegion ? regionMapping[selectedRegion] : allProvinces).map(p => <option key={p} value={p}>{p}</option>)}
               </select>
             </div>
           )}
 
-          {/* กลุ่มที่ 2: โหมดแผนที่ */}
-          <div style={{ display: 'flex', gap: '4px', background: cardBg, backdropFilter: 'blur(10px)', padding: isMobile ? '4px' : '6px 10px', borderRadius: '10px', alignItems: 'center', border: `1px solid ${borderColor}`, boxShadow: '0 2px 10px rgba(0,0,0,0.1)', pointerEvents: 'auto', flexShrink: 0 }}>
+          <div style={{ display: 'flex', gap: '4px', background: cardBg, backdropFilter: 'blur(10px)', padding: '6px 10px', borderRadius: '12px', alignItems: 'center', border: `1px solid ${borderColor}`, boxShadow: '0 2px 10px rgba(0,0,0,0.1)', flexShrink: 0 }}>
             {!showRadar ? (
               <>
-                <button onClick={() => setViewMode('pm25')} style={{ padding: isMobile ? '4px 8px' : '6px 12px', borderRadius: '6px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: viewMode === 'pm25' ? '#0ea5e9' : 'transparent', color: viewMode === 'pm25' ? '#fff' : textColor, fontSize: isMobile ? '0.75rem' : '1rem', whiteSpace: 'nowrap' }}>☁️ PM2.5</button>
-                <button onClick={() => setViewMode('temp')} style={{ padding: isMobile ? '4px 8px' : '6px 12px', borderRadius: '6px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: viewMode === 'temp' ? '#22c55e' : 'transparent', color: viewMode === 'temp' ? '#fff' : textColor, fontSize: isMobile ? '0.75rem' : '1rem', whiteSpace: 'nowrap' }}>🌡️ อุณหภูมิ</button>
-                <button onClick={() => setViewMode('heat')} style={{ padding: isMobile ? '4px 8px' : '6px 12px', borderRadius: '6px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: viewMode === 'heat' ? '#f97316' : 'transparent', color: viewMode === 'heat' ? '#fff' : textColor, fontSize: isMobile ? '0.75rem' : '1rem', whiteSpace: 'nowrap' }}>🥵 Heat</button>
-                <button onClick={() => setViewMode('uv')} style={{ padding: isMobile ? '4px 8px' : '6px 12px', borderRadius: '6px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: viewMode === 'uv' ? '#a855f7' : 'transparent', color: viewMode === 'uv' ? '#fff' : textColor, fontSize: isMobile ? '0.75rem' : '1rem', whiteSpace: 'nowrap' }}>☀️ UV</button>
+                <button onClick={() => setViewMode('pm25')} style={{ padding: '6px 12px', borderRadius: '8px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: viewMode === 'pm25' ? '#0ea5e9' : 'transparent', color: viewMode === 'pm25' ? '#fff' : textColor, fontSize: '0.85rem', whiteSpace: 'nowrap' }}>☁️ PM2.5</button>
+                <button onClick={() => setViewMode('temp')} style={{ padding: '6px 12px', borderRadius: '8px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: viewMode === 'temp' ? '#22c55e' : 'transparent', color: viewMode === 'temp' ? '#fff' : textColor, fontSize: '0.85rem', whiteSpace: 'nowrap' }}>🌡️ อุณหภูมิ</button>
+                <button onClick={() => setViewMode('heat')} style={{ padding: '6px 12px', borderRadius: '8px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: viewMode === 'heat' ? '#f97316' : 'transparent', color: viewMode === 'heat' ? '#fff' : textColor, fontSize: '0.85rem', whiteSpace: 'nowrap' }}>🥵 Heat</button>
+                <button onClick={() => setViewMode('uv')} style={{ padding: '6px 12px', borderRadius: '8px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: viewMode === 'uv' ? '#a855f7' : 'transparent', color: viewMode === 'uv' ? '#fff' : textColor, fontSize: '0.85rem', whiteSpace: 'nowrap' }}>☀️ UV</button>
                 <div style={{ width: '1px', height: '15px', backgroundColor: borderColor, margin: '0 2px' }}></div>
-                <button onClick={() => setViewMode(viewMode === 'hotspot' ? 'pm25' : 'hotspot')} style={{ padding: isMobile ? '4px 8px' : '6px 12px', borderRadius: '6px', border: viewMode === 'hotspot' ? 'none' : `1px solid ${borderColor}`, fontWeight: 'bold', cursor: 'pointer', backgroundColor: viewMode === 'hotspot' ? '#ef4444' : 'transparent', color: viewMode === 'hotspot' ? '#fff' : textColor, fontSize: isMobile ? '0.75rem' : '1rem', whiteSpace: 'nowrap' }}>🔥 Hot spot</button>
+                <button onClick={() => setViewMode(viewMode === 'hotspot' ? 'pm25' : 'hotspot')} style={{ padding: '6px 12px', borderRadius: '8px', border: viewMode === 'hotspot' ? 'none' : `1px solid ${borderColor}`, fontWeight: 'bold', cursor: 'pointer', backgroundColor: viewMode === 'hotspot' ? '#ef4444' : 'transparent', color: viewMode === 'hotspot' ? '#fff' : textColor, fontSize: '0.85rem', whiteSpace: 'nowrap' }}>🔥 Hot spot</button>
               </>
             ) : ( 
-              <div style={{ padding: isMobile ? '4px 8px' : '6px 12px', borderRadius: '6px', color: '#ef4444', fontWeight: 'bold', whiteSpace: 'nowrap', fontSize: isMobile ? '0.75rem' : '1rem' }}>🔴 โหมดเรดาร์พายุ</div> 
+              <div style={{ padding: '6px 12px', borderRadius: '8px', color: '#ef4444', fontWeight: 'bold', whiteSpace: 'nowrap', fontSize: '0.85rem' }}>🔴 โหมดเรดาร์พายุ</div> 
             )}
             <div style={{ width: '1px', height: '15px', backgroundColor: borderColor, margin: '0 2px' }}></div>
-            <button onClick={() => setShowRadar(!showRadar)} style={{ padding: isMobile ? '4px 8px' : '6px 12px', borderRadius: '6px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: showRadar ? '#ef4444' : 'transparent', color: showRadar ? '#fff' : textColor, fontSize: isMobile ? '0.75rem' : '1rem', whiteSpace: 'nowrap' }}>
+            <button onClick={() => setShowRadar(!showRadar)} style={{ padding: '6px 12px', borderRadius: '8px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: showRadar ? '#ef4444' : 'transparent', color: showRadar ? '#fff' : textColor, fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
               {showRadar ? 'ปิดเรดาร์' : '📡 เรดาร์'}
             </button>
           </div>
         </div>
 
-        {/* 🌟 ปุ่มพิกัดปัจจุบัน (ดึงขึ้นมาอยู่เหนือ LayersControl) */}
+        {/* 🌟 2. ปุ่มค้นหาพิกัด GPS ปัจจุบัน (อยู่มุมขวาล่าง เลื่อนขึ้นมาหน่อยเพื่อไม่ให้ชนแถบเมนูแอป) */}
         {!showRadar && (
-          <button onClick={handleFindNearest} title="ตำแหน่งปัจจุบัน" style={{ position: 'absolute', bottom: isMobile ? '60px' : '30px', right: isMobile ? '10px' : (isRightPanelOpen ? '395px' : '15px'), transition: 'right 0.3s ease', zIndex: 500, width: isMobile ? '38px' : '48px', height: isMobile ? '38px' : '48px', borderRadius: '50%', backgroundColor: cardBg, backdropFilter: 'blur(10px)', color: locating ? subTextColor : '#0ea5e9', border: `2px solid ${borderColor}`, cursor: locating ? 'wait' : 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: isMobile ? '1rem' : '1.2rem', boxShadow: '0 4px 10px rgba(0,0,0,0.2)' }}>
+          <button onClick={handleFindNearest} title="ตำแหน่งปัจจุบัน" style={{ position: 'absolute', bottom: isMobile ? '95px' : '30px', right: isMobile ? '15px' : (isRightPanelOpen ? '395px' : '15px'), transition: 'right 0.3s ease', zIndex: 1000, width: '45px', height: '45px', borderRadius: '50%', backgroundColor: cardBg, backdropFilter: 'blur(10px)', color: locating ? subTextColor : '#0ea5e9', border: `2px solid ${borderColor}`, cursor: locating ? 'wait' : 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '1.2rem', boxShadow: '0 4px 10px rgba(0,0,0,0.2)' }}>
             {locating ? '⏳' : '📍'}
           </button>
         )}
 
-        {/* 🌟 ย่อขนาด Legend (มุมซ้ายล่าง) ให้กะทัดรัดขึ้น */}
+        {/* 🌟 3. กล่อง Legend (มุมซ้ายล่าง เล็กกะทัดรัด ไม่เกะกะ) */}
         {!showRadar && legends[viewMode] && (
-          <div style={{ position: 'absolute', bottom: isMobile ? '15px' : '20px', left: isMobile ? '10px' : '15px', zIndex: 500, background: cardBg, backdropFilter: 'blur(12px)', padding: isMobile ? '8px 10px' : '10px 15px', borderRadius: '12px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.1)', minWidth: isMobile ? '130px' : '180px' }}>
-            <div style={{ fontSize: isMobile ? '0.65rem' : '0.75rem', fontWeight: 'bold', color: textColor, marginBottom: '4px', textAlign: 'center' }}>{legends[viewMode].name}</div>
-            <div style={{ background: legends[viewMode].grad, height: isMobile ? '4px' : '6px', borderRadius: '3px', width: '100%' }}></div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: isMobile ? '0.6rem' : '0.65rem', color: subTextColor, marginTop: '4px', fontWeight: 'bold' }}>
+          <div style={{ position: 'absolute', bottom: isMobile ? '90px' : '20px', left: isMobile ? '10px' : '15px', zIndex: 1000, background: cardBg, backdropFilter: 'blur(12px)', padding: '8px 12px', borderRadius: '12px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.1)', minWidth: isMobile ? '140px' : '180px' }}>
+            <div style={{ fontSize: '0.7rem', fontWeight: 'bold', color: textColor, marginBottom: '4px', textAlign: 'center' }}>{legends[viewMode].name}</div>
+            <div style={{ background: legends[viewMode].grad, height: '5px', borderRadius: '3px', width: '100%' }}></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.6rem', color: subTextColor, marginTop: '4px', fontWeight: 'bold' }}>
               <span>{legends[viewMode].min}</span>
               <span>{legends[viewMode].max}</span>
             </div>
@@ -459,8 +459,8 @@ export default function MapPage() {
         ) : (
           <MapContainer center={[13.75, 100.5]} zoom={6} style={{ height: '100%', width: '100%', zIndex: 1, backgroundColor: darkMode ? '#0f172a' : '#bae6fd' }} zoomControl={false}>
             
-            {/* 🌟 ย้าย LayersControl ไปไว้มุมขวาล่าง จะได้ไม่บังตัวกรองข้างบน และโผล่พ้นเมนูล่างพอดี */}
-            <LayersControl position="bottomright">
+            {/* 🌟 4. ย้ายตัวสลับ Layer มาไว้มุมขวาบน (CSS จะช่วยดันให้มันหลบลงมาอยู่ใต้แถบเมนูพอดี) */}
+            <LayersControl position="topright">
               <LayersControl.BaseLayer checked name="🗺️ แผนที่ปกติ">
                 <TileLayer url={darkMode ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"} />
               </LayersControl.BaseLayer>
