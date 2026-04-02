@@ -177,7 +177,7 @@ function MapZoomListener({ onZoomChange }) {
 
 export default function MapPage() {
   const navigate = useNavigate(); 
-  const { stations, stationTemps, loading, darkMode, favLocations } = useContext(WeatherContext);
+  const { stations, stationTemps, loading, darkMode } = useContext(WeatherContext);
   
   const [viewMode, setViewMode] = useState('pm25');
   const [sortOrder, setSortOrder] = useState('desc');
@@ -197,7 +197,6 @@ export default function MapPage() {
   const [activeWeather, setActiveWeather] = useState(null); 
   const [activeForecast, setActiveForecast] = useState(null); 
   
-  // 🌟 เพิ่ม State ตรวจจับมือถือ เพื่อปรับ Layout ให้เป๊ะ
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
 
   useEffect(() => {
@@ -263,42 +262,39 @@ export default function MapPage() {
   }, [selectedRegion, selectedProvince, stations, viewMode, sortOrder, stationTemps]);
 
   const mapDisplayStations = useMemo(() => {
-    if (viewMode === 'pm25' || viewMode === 'hotspot') {
-      return filteredStations;
-    } else {
-      const largeProvinces = ['เชียงใหม่', 'ตาก', 'ประจวบคีรีขันธ์', 'นครราชสีมา', 'สุราษฎร์ธานี', 'นครศรีธรรมราช', 'สงขลา', 'กาญจนบุรี', 'แม่ฮ่องสอน', 'เชียงราย', 'เพชรบูรณ์', 'ยะลา'];
-      const importantDistricts = ['ปากช่อง', 'วังน้ำเขียว', 'พิมาย', 'ทองผาภูมิ', 'สังขละบุรี', 'บางสะพาน', 'หัวหิน', 'แม่สอด', 'อุ้มผาง', 'แม่สาย', 'เชียงของ', 'หาดใหญ่', 'สะเดา', 'เกาะสมุย', 'เกาะพะงัน', 'เคียนซา', 'แม่สะเรียง', 'ปาย', 'ฝาง', 'ฮอด', 'แม่แจ่ม', 'ทุ่งสง', 'สิชล', 'หล่มสัก', 'เขาค้อ', 'เบตง'];
-      
-      const selectedStations = [];
-      const provMap = {};
+    if (viewMode === 'pm25' || viewMode === 'hotspot') return filteredStations;
+    
+    const largeProvinces = ['เชียงใหม่', 'ตาก', 'ประจวบคีรีขันธ์', 'นครราชสีมา', 'สุราษฎร์ธานี', 'นครศรีธรรมราช', 'สงขลา', 'กาญจนบุรี', 'แม่ฮ่องสอน', 'เชียงราย', 'เพชรบูรณ์', 'ยะลา'];
+    const importantDistricts = ['ปากช่อง', 'วังน้ำเขียว', 'พิมาย', 'ทองผาภูมิ', 'สังขละบุรี', 'บางสะพาน', 'หัวหิน', 'แม่สอด', 'อุ้มผาง', 'แม่สาย', 'เชียงของ', 'หาดใหญ่', 'สะเดา', 'เกาะสมุย', 'เกาะพะงัน', 'เคียนซา', 'แม่สะเรียง', 'ปาย', 'ฝาง', 'ฮอด', 'แม่แจ่ม', 'ทุ่งสง', 'สิชล', 'หล่มสัก', 'เขาค้อ', 'เบตง'];
+    
+    const selectedStations = [];
+    const provMap = {};
 
-      filteredStations.forEach(s => {
-        const p = extractProvince(s.areaTH);
-        if (!provMap[p]) provMap[p] = [];
-        provMap[p].push(s);
-      });
+    filteredStations.forEach(s => {
+      const p = extractProvince(s.areaTH);
+      if (!provMap[p]) provMap[p] = [];
+      provMap[p].push(s);
+    });
 
-      Object.keys(provMap).forEach(p => {
-        const stationsInProv = provMap[p];
-        let addedCount = 0;
-        const limit = largeProvinces.includes(p) ? 4 : 1; 
+    Object.keys(provMap).forEach(p => {
+      const stationsInProv = provMap[p];
+      let addedCount = 0;
+      const limit = largeProvinces.includes(p) ? 4 : 1; 
 
-        const mueangStation = stationsInProv.find(s => s.areaTH && s.areaTH.includes('เมือง'));
-        if (mueangStation) { selectedStations.push(mueangStation); addedCount++; }
+      const mueangStation = stationsInProv.find(s => s.areaTH && s.areaTH.includes('เมือง'));
+      if (mueangStation) { selectedStations.push(mueangStation); addedCount++; }
 
-        if (limit > 1) {
-          const importantStations = stationsInProv.filter(s => !selectedStations.some(sel => sel.stationID === s.stationID) && s.areaTH && importantDistricts.some(d => s.areaTH.includes(d)));
-          for (let i = 0; i < importantStations.length && addedCount < limit; i++) { selectedStations.push(importantStations[i]); addedCount++; }
-        }
-
-        if (addedCount === 0 && stationsInProv.length > 0) { selectedStations.push(stationsInProv[0]); }
-      });
-
-      if (activeStation && filteredStations.some(s => s.stationID === activeStation.stationID)) {
-         if (!selectedStations.some(s => s.stationID === activeStation.stationID)) { selectedStations.push(activeStation); }
+      if (limit > 1) {
+        const importantStations = stationsInProv.filter(s => !selectedStations.some(sel => sel.stationID === s.stationID) && s.areaTH && importantDistricts.some(d => s.areaTH.includes(d)));
+        for (let i = 0; i < importantStations.length && addedCount < limit; i++) { selectedStations.push(importantStations[i]); addedCount++; }
       }
-      return selectedStations;
+      if (addedCount === 0 && stationsInProv.length > 0) { selectedStations.push(stationsInProv[0]); }
+    });
+
+    if (activeStation && filteredStations.some(s => s.stationID === activeStation.stationID)) {
+       if (!selectedStations.some(s => s.stationID === activeStation.stationID)) { selectedStations.push(activeStation); }
     }
+    return selectedStations;
   }, [filteredStations, viewMode, activeStation]);
 
   useEffect(() => {
@@ -381,64 +377,75 @@ export default function MapPage() {
   return (
     <div style={{ position: 'relative', height: '100%', width: '100%', overflow: 'hidden' }}>
       
-      {/* 🌟 ดันแผนที่ให้ลอยอยู่เหนือ Bottom Nav เพื่อไม่ให้ Legend หาย */}
+      {/* 🌟 CSS ฝังตรงเพื่อซ่อน Scrollbar ของแถบเลื่อนบนมือถือให้เนียนตา */}
+      <style>{`
+        .scroll-container::-webkit-scrollbar { display: none; }
+        .scroll-container { -ms-overflow-style: none; scrollbar-width: none; }
+      `}</style>
+
+      {/* พื้นที่แผนที่ */}
       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: isMobile ? '75px' : 0, zIndex: 1 }}>
         
-        {/* 🌟 ตัวกรองด้านบนจัดเรียงแบบบรรทัดเดียว ปัดซ้ายขวาได้ ไม่กินพื้นที่แผนที่ */}
-        <div className="hide-scrollbar" style={{ 
+        {/* 🌟 ตัวกรองด้านบนจัดเรียงแบบ "บรรทัดเดียว ปัดซ้ายขวาได้" */}
+        <div className="scroll-container" style={{ 
           position: 'absolute', top: '10px', left: isMobile ? '10px' : '50px', 
-          right: isRightPanelOpen && !isMobile ? '395px' : '10px', zIndex: 500, 
-          display: 'flex', flexWrap: isMobile ? 'nowrap' : 'wrap', overflowX: isMobile ? 'auto' : 'visible',
-          alignItems: 'center', gap: '8px', pointerEvents: isMobile ? 'auto' : 'none', 
-          width: isMobile ? 'calc(100% - 20px)' : 'auto'
+          right: isMobile ? '10px' : (isRightPanelOpen ? '395px' : '10px'), zIndex: 500, 
+          display: 'flex', flexWrap: isMobile ? 'nowrap' : 'wrap', overflowX: 'auto', WebkitOverflowScrolling: 'touch',
+          alignItems: 'center', gap: isMobile ? '6px' : '10px', pointerEvents: 'none', paddingBottom: '10px'
         }}>
           
+          {/* กลุ่มที่ 1: ปุ่มรีเซ็ตและเลือกพื้นที่ */}
           {!showRadar && (
-            <div style={{ display: 'flex', gap: '6px', background: cardBg, backdropFilter: 'blur(12px)', padding: isMobile ? '4px' : '8px 12px', borderRadius: '12px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.1)', pointerEvents: 'auto', flexShrink: 0 }}>
-              <button onClick={handleResetMap} style={{ padding: isMobile ? '6px 10px' : '6px 12px', borderRadius: '8px', background: '#0ea5e9', color: '#fff', border: 'none', fontWeight: 'bold', cursor: 'pointer', fontSize: isMobile ? '0.8rem' : '1rem' }}>🔄 รีเซ็ต</button>
+            <div style={{ display: 'flex', gap: '4px', background: cardBg, backdropFilter: 'blur(10px)', padding: isMobile ? '4px' : '8px 12px', borderRadius: '10px', border: `1px solid ${borderColor}`, boxShadow: '0 2px 10px rgba(0,0,0,0.1)', pointerEvents: 'auto', flexShrink: 0 }}>
+              <button onClick={handleResetMap} style={{ padding: isMobile ? '4px 8px' : '6px 12px', borderRadius: '6px', background: '#0ea5e9', color: '#fff', border: 'none', fontWeight: 'bold', cursor: 'pointer', fontSize: isMobile ? '0.75rem' : '1rem' }}>
+                🔄 {isMobile ? '' : 'รีเซ็ต'}
+              </button>
               <div style={{ width: '1px', backgroundColor: borderColor, margin: '0 2px' }}></div> 
-              <select value={selectedRegion} onChange={e => { setSelectedRegion(e.target.value); setSelectedProvince(''); }} style={{ padding: isMobile ? '6px 10px' : '6px 12px', borderRadius: '8px', background: darkMode ? 'rgba(0,0,0,0.3)' : '#f8fafc', color: textColor, border: `1px solid ${borderColor}`, outline: 'none', fontWeight: 'bold', fontSize: isMobile ? '0.8rem' : '1rem' }}>
+              <select value={selectedRegion} onChange={e => { setSelectedRegion(e.target.value); setSelectedProvince(''); }} style={{ padding: isMobile ? '4px 6px' : '6px 12px', borderRadius: '6px', background: darkMode ? 'rgba(0,0,0,0.3)' : '#f8fafc', color: textColor, border: `1px solid ${borderColor}`, outline: 'none', fontWeight: 'bold', fontSize: isMobile ? '0.75rem' : '1rem' }}>
                 <option value="">🗺️ ทุกภูมิภาค</option>
                 {Object.keys(regionMapping).map(r => <option key={r} value={r}>{r}</option>)}
               </select>
-              <select value={selectedProvince} onChange={e => setSelectedProvince(e.target.value)} style={{ padding: isMobile ? '6px 10px' : '6px 12px', borderRadius: '8px', background: darkMode ? 'rgba(0,0,0,0.3)' : '#f8fafc', color: textColor, border: `1px solid ${borderColor}`, outline: 'none', fontWeight: 'bold', fontSize: isMobile ? '0.8rem' : '1rem' }}>
+              <select value={selectedProvince} onChange={e => setSelectedProvince(e.target.value)} style={{ padding: isMobile ? '4px 6px' : '6px 12px', borderRadius: '6px', background: darkMode ? 'rgba(0,0,0,0.3)' : '#f8fafc', color: textColor, border: `1px solid ${borderColor}`, outline: 'none', fontWeight: 'bold', fontSize: isMobile ? '0.75rem' : '1rem' }}>
                 <option value="">📍 ทุกจังหวัด</option>
                 {(selectedRegion ? regionMapping[selectedRegion] : allProvinces).map(p => <option key={p} value={p}>{p}</option>)}
               </select>
             </div>
           )}
 
-          <div style={{ display: 'flex', gap: '4px', background: cardBg, backdropFilter: 'blur(12px)', padding: isMobile ? '4px' : '6px 10px', borderRadius: '12px', alignItems: 'center', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.1)', pointerEvents: 'auto', flexShrink: 0 }}>
+          {/* กลุ่มที่ 2: โหมดแผนที่ */}
+          <div style={{ display: 'flex', gap: '4px', background: cardBg, backdropFilter: 'blur(10px)', padding: isMobile ? '4px' : '6px 10px', borderRadius: '10px', alignItems: 'center', border: `1px solid ${borderColor}`, boxShadow: '0 2px 10px rgba(0,0,0,0.1)', pointerEvents: 'auto', flexShrink: 0 }}>
             {!showRadar ? (
               <>
-                <button onClick={() => setViewMode('pm25')} style={{ padding: isMobile ? '6px 10px' : '6px 12px', borderRadius: '8px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: viewMode === 'pm25' ? '#0ea5e9' : 'transparent', color: viewMode === 'pm25' ? '#fff' : textColor, fontSize: isMobile ? '0.8rem' : '1rem', whiteSpace: 'nowrap' }}>☁️ PM2.5</button>
-                <button onClick={() => setViewMode('temp')} style={{ padding: isMobile ? '6px 10px' : '6px 12px', borderRadius: '8px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: viewMode === 'temp' ? '#22c55e' : 'transparent', color: viewMode === 'temp' ? '#fff' : textColor, fontSize: isMobile ? '0.8rem' : '1rem', whiteSpace: 'nowrap' }}>🌡️ อุณหภูมิ</button>
-                <button onClick={() => setViewMode('heat')} style={{ padding: isMobile ? '6px 10px' : '6px 12px', borderRadius: '8px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: viewMode === 'heat' ? '#f97316' : 'transparent', color: viewMode === 'heat' ? '#fff' : textColor, fontSize: isMobile ? '0.8rem' : '1rem', whiteSpace: 'nowrap' }}>🥵 Heat</button>
-                <button onClick={() => setViewMode('uv')} style={{ padding: isMobile ? '6px 10px' : '6px 12px', borderRadius: '8px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: viewMode === 'uv' ? '#a855f7' : 'transparent', color: viewMode === 'uv' ? '#fff' : textColor, fontSize: isMobile ? '0.8rem' : '1rem', whiteSpace: 'nowrap' }}>☀️ UV</button>
+                <button onClick={() => setViewMode('pm25')} style={{ padding: isMobile ? '4px 8px' : '6px 12px', borderRadius: '6px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: viewMode === 'pm25' ? '#0ea5e9' : 'transparent', color: viewMode === 'pm25' ? '#fff' : textColor, fontSize: isMobile ? '0.75rem' : '1rem', whiteSpace: 'nowrap' }}>☁️ PM2.5</button>
+                <button onClick={() => setViewMode('temp')} style={{ padding: isMobile ? '4px 8px' : '6px 12px', borderRadius: '6px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: viewMode === 'temp' ? '#22c55e' : 'transparent', color: viewMode === 'temp' ? '#fff' : textColor, fontSize: isMobile ? '0.75rem' : '1rem', whiteSpace: 'nowrap' }}>🌡️ อุณหภูมิ</button>
+                <button onClick={() => setViewMode('heat')} style={{ padding: isMobile ? '4px 8px' : '6px 12px', borderRadius: '6px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: viewMode === 'heat' ? '#f97316' : 'transparent', color: viewMode === 'heat' ? '#fff' : textColor, fontSize: isMobile ? '0.75rem' : '1rem', whiteSpace: 'nowrap' }}>🥵 Heat</button>
+                <button onClick={() => setViewMode('uv')} style={{ padding: isMobile ? '4px 8px' : '6px 12px', borderRadius: '6px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: viewMode === 'uv' ? '#a855f7' : 'transparent', color: viewMode === 'uv' ? '#fff' : textColor, fontSize: isMobile ? '0.75rem' : '1rem', whiteSpace: 'nowrap' }}>☀️ UV</button>
                 <div style={{ width: '1px', height: '15px', backgroundColor: borderColor, margin: '0 2px' }}></div>
-                <button onClick={() => setViewMode(viewMode === 'hotspot' ? 'pm25' : 'hotspot')} style={{ padding: isMobile ? '6px 10px' : '6px 12px', borderRadius: '8px', border: viewMode === 'hotspot' ? 'none' : `1px solid ${borderColor}`, fontWeight: 'bold', cursor: 'pointer', backgroundColor: viewMode === 'hotspot' ? '#ef4444' : 'transparent', color: viewMode === 'hotspot' ? '#fff' : textColor, fontSize: isMobile ? '0.8rem' : '1rem', whiteSpace: 'nowrap' }}>🔥 Hot spot</button>
+                <button onClick={() => setViewMode(viewMode === 'hotspot' ? 'pm25' : 'hotspot')} style={{ padding: isMobile ? '4px 8px' : '6px 12px', borderRadius: '6px', border: viewMode === 'hotspot' ? 'none' : `1px solid ${borderColor}`, fontWeight: 'bold', cursor: 'pointer', backgroundColor: viewMode === 'hotspot' ? '#ef4444' : 'transparent', color: viewMode === 'hotspot' ? '#fff' : textColor, fontSize: isMobile ? '0.75rem' : '1rem', whiteSpace: 'nowrap' }}>🔥 Hot spot</button>
               </>
             ) : ( 
-              <div style={{ padding: isMobile ? '6px 10px' : '6px 12px', borderRadius: '8px', color: '#ef4444', fontWeight: 'bold', whiteSpace: 'nowrap', fontSize: isMobile ? '0.8rem' : '1rem' }}>🔴 โหมดเรดาร์พายุ</div> 
+              <div style={{ padding: isMobile ? '4px 8px' : '6px 12px', borderRadius: '6px', color: '#ef4444', fontWeight: 'bold', whiteSpace: 'nowrap', fontSize: isMobile ? '0.75rem' : '1rem' }}>🔴 โหมดเรดาร์พายุ</div> 
             )}
             <div style={{ width: '1px', height: '15px', backgroundColor: borderColor, margin: '0 2px' }}></div>
-            <button onClick={() => setShowRadar(!showRadar)} style={{ padding: isMobile ? '6px 10px' : '6px 12px', borderRadius: '8px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: showRadar ? '#ef4444' : 'transparent', color: showRadar ? '#fff' : textColor, fontSize: isMobile ? '0.8rem' : '1rem', whiteSpace: 'nowrap' }}>
+            <button onClick={() => setShowRadar(!showRadar)} style={{ padding: isMobile ? '4px 8px' : '6px 12px', borderRadius: '6px', border: 'none', fontWeight: 'bold', cursor: 'pointer', backgroundColor: showRadar ? '#ef4444' : 'transparent', color: showRadar ? '#fff' : textColor, fontSize: isMobile ? '0.75rem' : '1rem', whiteSpace: 'nowrap' }}>
               {showRadar ? 'ปิดเรดาร์' : '📡 เรดาร์'}
             </button>
           </div>
         </div>
 
+        {/* 🌟 ปุ่มพิกัดปัจจุบัน (ดึงขึ้นมาอยู่เหนือ LayersControl) */}
         {!showRadar && (
-          <button onClick={handleFindNearest} title="ตำแหน่งปัจจุบัน" style={{ position: 'absolute', bottom: '30px', right: isRightPanelOpen && !isMobile ? '395px' : '15px', transition: 'right 0.3s ease', zIndex: 500, width: '48px', height: '48px', borderRadius: '50%', backgroundColor: cardBg, backdropFilter: 'blur(10px)', color: locating ? subTextColor : '#0ea5e9', border: `2px solid ${borderColor}`, cursor: locating ? 'wait' : 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '1.2rem', boxShadow: '0 4px 10px rgba(0,0,0,0.2)' }}>
+          <button onClick={handleFindNearest} title="ตำแหน่งปัจจุบัน" style={{ position: 'absolute', bottom: isMobile ? '60px' : '30px', right: isMobile ? '10px' : (isRightPanelOpen ? '395px' : '15px'), transition: 'right 0.3s ease', zIndex: 500, width: isMobile ? '38px' : '48px', height: isMobile ? '38px' : '48px', borderRadius: '50%', backgroundColor: cardBg, backdropFilter: 'blur(10px)', color: locating ? subTextColor : '#0ea5e9', border: `2px solid ${borderColor}`, cursor: locating ? 'wait' : 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: isMobile ? '1rem' : '1.2rem', boxShadow: '0 4px 10px rgba(0,0,0,0.2)' }}>
             {locating ? '⏳' : '📍'}
           </button>
         )}
 
+        {/* 🌟 ย่อขนาด Legend (มุมซ้ายล่าง) ให้กะทัดรัดขึ้น */}
         {!showRadar && legends[viewMode] && (
-          <div style={{ position: 'absolute', bottom: '20px', left: '15px', zIndex: 500, background: cardBg, backdropFilter: 'blur(12px)', padding: '10px 15px', borderRadius: '15px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.1)', minWidth: '180px' }}>
-            <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: textColor, marginBottom: '6px', textAlign: 'center' }}>{legends[viewMode].name}</div>
-            <div style={{ background: legends[viewMode].grad, height: '6px', borderRadius: '3px', width: '100%' }}></div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: subTextColor, marginTop: '4px', fontWeight: 'bold' }}>
+          <div style={{ position: 'absolute', bottom: isMobile ? '15px' : '20px', left: isMobile ? '10px' : '15px', zIndex: 500, background: cardBg, backdropFilter: 'blur(12px)', padding: isMobile ? '8px 10px' : '10px 15px', borderRadius: '12px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.1)', minWidth: isMobile ? '130px' : '180px' }}>
+            <div style={{ fontSize: isMobile ? '0.65rem' : '0.75rem', fontWeight: 'bold', color: textColor, marginBottom: '4px', textAlign: 'center' }}>{legends[viewMode].name}</div>
+            <div style={{ background: legends[viewMode].grad, height: isMobile ? '4px' : '6px', borderRadius: '3px', width: '100%' }}></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: isMobile ? '0.6rem' : '0.65rem', color: subTextColor, marginTop: '4px', fontWeight: 'bold' }}>
               <span>{legends[viewMode].min}</span>
               <span>{legends[viewMode].max}</span>
             </div>
@@ -451,8 +458,9 @@ export default function MapPage() {
           </div>
         ) : (
           <MapContainer center={[13.75, 100.5]} zoom={6} style={{ height: '100%', width: '100%', zIndex: 1, backgroundColor: darkMode ? '#0f172a' : '#bae6fd' }} zoomControl={false}>
-            {/* 🌟 ย้ายปุ่มสลับแผนที่ไปอยู่มุมขวาบน จะได้ไม่ทับ Legend ด้านล่าง */}
-            <LayersControl position="topright">
+            
+            {/* 🌟 ย้าย LayersControl ไปไว้มุมขวาล่าง จะได้ไม่บังตัวกรองข้างบน และโผล่พ้นเมนูล่างพอดี */}
+            <LayersControl position="bottomright">
               <LayersControl.BaseLayer checked name="🗺️ แผนที่ปกติ">
                 <TileLayer url={darkMode ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"} />
               </LayersControl.BaseLayer>
@@ -472,7 +480,6 @@ export default function MapPage() {
 
             {showMarkers && mapDisplayStations.map((station) => {
               const lat = parseFloat(station.lat); const lon = parseFloat(station.long); if (isNaN(lat) || isNaN(lon)) return null;
-              
               const pmVal = Number(station.AQILast && station.AQILast.PM25 ? station.AQILast.PM25.value : NaN); 
               const tObj = stationTemps[station.stationID];
               
@@ -631,8 +638,6 @@ export default function MapPage() {
                           </span>
                         )}
                       </div>
-
-                      {warningNode}
                     </div>
                     <div style={{ backgroundColor:boxBg, color:boxText, width:'55px', height:'55px', borderRadius:'12px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}>
                       <span style={{ fontSize:'1.2rem', fontWeight:'bold' }}>{disp}</span><span style={{ fontSize:'0.6rem' }}>{unit}</span>
