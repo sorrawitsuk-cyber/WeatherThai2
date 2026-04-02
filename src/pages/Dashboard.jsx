@@ -4,7 +4,16 @@ import { MapContainer, TileLayer, CircleMarker, useMap } from 'react-leaflet';
 import { AreaChart, Area, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { useNavigate } from 'react-router-dom'; 
 import { WeatherContext } from '../context/WeatherContext';
-import { extractProvince, formatLocationName, getPM25Color, getDistanceFromLatLonInKm } from '../utils/helpers';
+import { extractProvince, getPM25Color, getDistanceFromLatLonInKm } from '../utils/helpers';
+
+// 🌟 ฟังก์ชันแยก "อำเภอ/เขต" จากชื่อสถานี
+const extractDistrict = (areaTH) => {
+  if (!areaTH) return 'ทั่วไป';
+  const match = areaTH.match(/(เขต|อ\.|อำเภอ)\s*([a-zA-Zก-ฮะ-์]+)/);
+  if (match) return match[2];
+  const parts = areaTH.split(' ');
+  return parts[0]; 
+};
 
 // 🌟 สถานะสุขภาพ 
 const getHealthStatus = (pm) => {
@@ -35,8 +44,6 @@ const getStatColor = (type, val) => {
   return '#94a3b8';
 };
 
-const formatAreaName = (areaTH) => areaTH ? areaTH.split(',')[0].trim() : '';
-
 const getWindArrow = (dir) => {
   if (dir == null || dir === '-') return null;
   let deg = 0;
@@ -56,36 +63,18 @@ const getWindArrow = (dir) => {
 const SVGFace = ({ level }) => {
   let eyes = <g><circle cx="35" cy="40" r="7" fill="#fff"/><circle cx="65" cy="40" r="7" fill="#fff"/></g>;
   let mouth = "M 35 65 Q 50 80 65 65"; 
-
-  if (level === 0) { 
-    eyes = <g><line x1="30" y1="40" x2="40" y2="40" stroke="#fff" strokeWidth="5" strokeLinecap="round"/><line x1="60" y1="40" x2="70" y2="40" stroke="#fff" strokeWidth="5" strokeLinecap="round"/></g>;
-    mouth = "M 35 65 L 65 65";
-  } else if (level === 1) { 
-    mouth = "M 30 60 Q 50 85 70 60";
-  } else if (level === 2) { 
-    mouth = "M 35 65 Q 50 75 65 65";
-  } else if (level === 3) { 
-    mouth = "M 35 65 L 65 65";
-  } else if (level === 4) { 
-    mouth = "M 35 70 Q 50 55 65 70";
-  } else if (level === 5) { 
-    eyes = <g><line x1="28" y1="33" x2="42" y2="47" stroke="#fff" strokeWidth="5" strokeLinecap="round"/><line x1="28" y1="47" x2="42" y2="33" stroke="#fff" strokeWidth="5" strokeLinecap="round"/><line x1="58" y1="33" x2="72" y2="47" stroke="#fff" strokeWidth="5" strokeLinecap="round"/><line x1="58" y1="47" x2="72" y2="33" stroke="#fff" strokeWidth="5" strokeLinecap="round"/></g>;
-    mouth = "M 35 75 Q 50 55 65 75";
-  }
-
-  return (
-    <svg viewBox="0 0 100 100" width="100%" height="100%">
-      {eyes}
-      <path d={mouth} fill="none" stroke="#fff" strokeWidth="7" strokeLinecap="round" />
-    </svg>
-  );
+  if (level === 0) { eyes = <g><line x1="30" y1="40" x2="40" y2="40" stroke="#fff" strokeWidth="5" strokeLinecap="round"/><line x1="60" y1="40" x2="70" y2="40" stroke="#fff" strokeWidth="5" strokeLinecap="round"/></g>; mouth = "M 35 65 L 65 65"; } 
+  else if (level === 1) { mouth = "M 30 60 Q 50 85 70 60"; } 
+  else if (level === 2) { mouth = "M 35 65 Q 50 75 65 65"; } 
+  else if (level === 3) { mouth = "M 35 65 L 65 65"; } 
+  else if (level === 4) { mouth = "M 35 70 Q 50 55 65 70"; } 
+  else if (level === 5) { eyes = <g><line x1="28" y1="33" x2="42" y2="47" stroke="#fff" strokeWidth="5" strokeLinecap="round"/><line x1="28" y1="47" x2="42" y2="33" stroke="#fff" strokeWidth="5" strokeLinecap="round"/><line x1="58" y1="33" x2="72" y2="47" stroke="#fff" strokeWidth="5" strokeLinecap="round"/><line x1="58" y1="47" x2="72" y2="33" stroke="#fff" strokeWidth="5" strokeLinecap="round"/></g>; mouth = "M 35 75 Q 50 55 65 75"; }
+  return <svg viewBox="0 0 100 100" width="100%" height="100%">{eyes}<path d={mouth} fill="none" stroke="#fff" strokeWidth="7" strokeLinecap="round" /></svg>;
 };
 
 function MiniMapUpdate({ lat, lon }) {
   const map = useMap();
-  useEffect(() => {
-    if (lat && lon && !isNaN(lat) && !isNaN(lon)) map.flyTo([lat, lon], 10);
-  }, [lat, lon, map]);
+  useEffect(() => { if (lat && lon && !isNaN(lat) && !isNaN(lon)) map.flyTo([lat, lon], 10); }, [lat, lon, map]);
   return null;
 }
 
@@ -94,7 +83,7 @@ export default function Dashboard() {
   const { stations, stationTemps, loading, darkMode, lastUpdateText } = useContext(WeatherContext);
   
   const [selectedProv, setSelectedProv] = useState('');
-  const [selectedStationId, setSelectedStationId] = useState(() => localStorage.getItem('lastStationId') || '');
+  const [selectedDistrict, setSelectedDistrict] = useState('');
   const [activeStation, setActiveStation] = useState(null);
   const [isLocating, setIsLocating] = useState(false); 
   
@@ -111,21 +100,11 @@ export default function Dashboard() {
 
   const safeStations = stations || [];
   const allProvinces = [...new Set(safeStations.map(s => extractProvince(s.areaTH)))].sort((a, b) => a.localeCompare(b, 'th'));
+  const availableDistricts = [...new Set(safeStations.filter(s => extractProvince(s.areaTH) === selectedProv).map(s => extractDistrict(s.areaTH)))].sort();
 
   useEffect(() => {
-    if (window.innerWidth >= 1024 && !sessionStorage.getItem('hasRedirectedToMap')) {
-      sessionStorage.setItem('hasRedirectedToMap', 'true');
-      navigate('/map', { replace: true });
-    }
-  }, [navigate]);
-
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth < 768);
-      setIsDesktop(window.innerWidth >= 1024);
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    const handleResize = () => { setIsMobile(window.innerWidth < 768); setIsDesktop(window.innerWidth >= 1024); };
+    window.addEventListener('resize', handleResize); return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   useEffect(() => {
@@ -135,34 +114,29 @@ export default function Dashboard() {
     else { setGreeting('สวัสดีตอนเย็น 🌙'); setTimeOfDay('evening'); }
   }, []);
 
-  // 🌟 เลือสถานีตั้งต้นให้ฉลาดขึ้น (หาอันที่มีข้อมูลก่อน)
+  // 🌟 Auto-select จังหวัดและอำเภอเมื่อโหลดแอป (แก้บั๊ก กทม.)
   useEffect(() => {
     if (safeStations.length > 0 && !selectedProv) {
-      const savedStId = localStorage.getItem('lastStationId');
-      if (savedStId) {
-        const st = safeStations.find(s => s.stationID === savedStId);
-        if (st) {
-          setSelectedProv(extractProvince(st.areaTH));
-          setSelectedStationId(savedStId);
-          return;
-        }
-      }
-      // ถ้าเลือก กทม ให้หาสถานีที่มีค่า PM2.5 จริงๆ ก่อน ถ้าไม่มีค่อยเอาอันแรก
       const bkkStations = safeStations.filter(s => extractProvince(s.areaTH) === 'กรุงเทพมหานคร');
-      const validBkk = bkkStations.find(s => s.AQILast?.PM25?.value) || bkkStations[0];
-      const initial = validBkk || safeStations[0];
+      // เลือกสถานีที่มีข้อมูล PM2.5 แน่ๆ ป้องกันหน้าจอว่าง
+      const validBkk = bkkStations.find(s => s.AQILast?.PM25?.value != null) || bkkStations[0] || safeStations[0];
       
-      setSelectedProv(extractProvince(initial.areaTH));
-      setSelectedStationId(initial.stationID);
+      const prov = extractProvince(validBkk.areaTH);
+      const dist = extractDistrict(validBkk.areaTH);
+      setSelectedProv(prov);
+      setSelectedDistrict(dist);
     }
   }, [safeStations, selectedProv]);
 
+  // 🌟 เมื่อเลือก อำเภอ ให้ไปดึงสถานีที่อยู่ในอำเภอนั้นมาแสดงเงียบๆ
   useEffect(() => {
-    if (safeStations.length > 0 && selectedStationId) {
-      const target = safeStations.find(s => s.stationID === selectedStationId);
-      if (target) setActiveStation(target);
+    if (safeStations.length > 0 && selectedProv && selectedDistrict) {
+      const distStations = safeStations.filter(s => extractProvince(s.areaTH) === selectedProv && extractDistrict(s.areaTH) === selectedDistrict);
+      // เลือกจุดที่มีข้อมูลสมบูรณ์ที่สุด
+      const bestStation = distStations.find(s => s.AQILast?.PM25?.value != null) || distStations[0];
+      if (bestStation) setActiveStation(bestStation);
     }
-  }, [selectedStationId, safeStations]);
+  }, [selectedProv, selectedDistrict, safeStations]);
 
   const handleGPS = () => {
     setIsLocating(true);
@@ -179,24 +153,16 @@ export default function Dashboard() {
           });
           if (nearest) { 
             setSelectedProv(extractProvince(nearest.areaTH));
-            setSelectedStationId(nearest.stationID); 
-            localStorage.setItem('lastStationId', nearest.stationID); 
+            setSelectedDistrict(extractDistrict(nearest.areaTH));
           }
           setIsLocating(false);
         }, 
-        () => { alert("⚠️ กรุณาอนุญาตการเข้าถึงพิกัด (Location) บนเบราว์เซอร์ของคุณ"); setIsLocating(false); },
+        () => { alert("⚠️ กรุณาอนุญาตการเข้าถึงพิกัด (Location)"); setIsLocating(false); },
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
     } else {
-      alert("❌ อุปกรณ์ของคุณไม่รองรับพิกัด GPS");
       setIsLocating(false);
     }
-  };
-
-  const handleStationChange = (e) => {
-    const newId = e.target.value;
-    setSelectedStationId(newId);
-    localStorage.setItem('lastStationId', newId);
   };
 
   useEffect(() => {
@@ -207,12 +173,7 @@ export default function Dashboard() {
         const d = new Date(); d.setDate(d.getDate() - (6 - i));
         const days = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'];
         const randomVal = baseValue + (Math.random() * (baseValue * 0.5) - (baseValue * 0.25));
-        return { 
-          day: i === 6 ? 'วันนี้' : days[d.getDay()], 
-          val: Math.max(0, Math.round(randomVal)), 
-          avg10Year: Math.max(0, Math.round(baseValue + (statFilter==='pm25'?2:0))),
-          dir: statFilter === 'wind' ? Math.floor(Math.random() * 360) : null
-        };
+        return { day: i === 6 ? 'วันนี้' : days[d.getDay()], val: Math.max(0, Math.round(randomVal)), avg10Year: Math.max(0, Math.round(baseValue + (statFilter==='pm25'?2:0))), dir: statFilter === 'wind' ? Math.floor(Math.random() * 360) : null };
       });
       setHistoricalData(historyMock);
 
@@ -220,12 +181,7 @@ export default function Dashboard() {
         const d = new Date(); d.setDate(d.getDate() + i + 1);
         const days = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'];
         const randomVal = baseValue + (Math.random() * (baseValue * 0.6) - (baseValue * 0.3)); 
-        return { 
-          day: i === 0 ? 'พรุ่งนี้' : days[d.getDay()], 
-          val: Math.max(0, Math.round(randomVal)), 
-          avg10Year: Math.max(0, Math.round(baseValue + (statFilter==='pm25'?2:0))),
-          dir: statFilter === 'wind' ? Math.floor(Math.random() * 360) : null
-        };
+        return { day: i === 0 ? 'พรุ่งนี้' : days[d.getDay()], val: Math.max(0, Math.round(randomVal)), avg10Year: Math.max(0, Math.round(baseValue + (statFilter==='pm25'?2:0))), dir: statFilter === 'wind' ? Math.floor(Math.random() * 360) : null };
       });
       setForecastGraphData(forecastMock);
 
@@ -246,24 +202,16 @@ export default function Dashboard() {
         });
         const avgPm = validPm > 0 ? Math.round(sumPm / validPm) : 0;
         const trendMock = Array.from({ length: 7 }, () => ({ val: Math.max(0, avgPm + (Math.random() * 20 - 10)) }));
-        return { 
-          prov, pm25: avgPm, 
-          temp: validTemp > 0 ? Math.round(sumTemp / validTemp) : 0, 
-          heat: validTemp > 0 ? Math.round(sumHeat / validTemp) : 0, 
-          rain: validTemp > 0 ? Math.round(sumRain / validTemp) : 0,
-          uv: validTemp > 0 ? Math.round(sumUv / validTemp) : 0,
-          wind: validTemp > 0 ? Math.round(sumWind / validTemp) : 0,
-          trend: trendMock
-        };
+        return { prov, pm25: avgPm, temp: validTemp > 0 ? Math.round(sumTemp / validTemp) : 0, heat: validTemp > 0 ? Math.round(sumHeat / validTemp) : 0, rain: validTemp > 0 ? Math.round(sumRain / validTemp) : 0, uv: validTemp > 0 ? Math.round(sumUv / validTemp) : 0, wind: validTemp > 0 ? Math.round(sumWind / validTemp) : 0, trend: trendMock };
       });
       setMasterTableData(tableArr.sort((a, b) => b.pm25 - a.pm25));
     }
-  }, [safeStations, stationTemps, statFilter, isDesktop]);
+  }, [safeStations, stationTemps, statFilter]);
 
   const todayStr = new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' });
   const themeBg = darkMode ? 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)' : (timeOfDay === 'morning' ? 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)' : (timeOfDay === 'afternoon' ? 'linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%)' : 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)')); 
   const cardBg = darkMode ? 'rgba(30, 41, 59, 0.85)' : 'rgba(255, 255, 255, 0.85)';
-  const innerCardBg = darkMode ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.7)';
+  const innerCardBg = darkMode ? 'rgba(0,0,0,0.2)' : 'rgba(241,245,249,0.7)';
   const textColor = darkMode ? '#f8fafc' : '#0f172a';
   const subTextColor = darkMode ? '#94a3b8' : '#64748b'; 
   const borderColor = darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)'; 
@@ -287,17 +235,8 @@ export default function Dashboard() {
   const pmColor = getStatColor('pm25', pmVal);
 
   const renderFaceBadge = (level, color) => (
-    <div style={{
-      display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-      width: isMobile ? '70px' : '90px', height: isMobile ? '70px' : '90px',
-      background: `radial-gradient(circle at 30% 30%, ${color} 0%, ${color}dd 100%)`, 
-      borderRadius: '50%',
-      boxShadow: `0 8px 20px ${color}60, inset 0 2px 5px rgba(255,255,255,0.4)`, 
-      border: `3px solid ${darkMode ? 'rgba(255,255,255,0.1)' : '#fff'}`
-    }}>
-      <div style={{ width: '65%', height: '65%', filter: 'drop-shadow(0 4px 4px rgba(0,0,0,0.2))' }}>
-        <SVGFace level={level} />
-      </div>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, width: isMobile ? '70px' : '90px', height: isMobile ? '70px' : '90px', background: `radial-gradient(circle at 30% 30%, ${color} 0%, ${color}dd 100%)`, borderRadius: '50%', boxShadow: `0 8px 20px ${color}60, inset 0 2px 5px rgba(255,255,255,0.4)`, border: `3px solid ${darkMode ? 'rgba(255,255,255,0.1)' : '#fff'}` }}>
+      <div style={{ width: '65%', height: '65%', filter: 'drop-shadow(0 4px 4px rgba(0,0,0,0.2))' }}><SVGFace level={level} /></div>
     </div>
   );
 
@@ -314,59 +253,45 @@ export default function Dashboard() {
           </div>
         </div>
       );
-    }
-    return null;
+    } return null;
   };
 
   return (
     <div style={{ height: '100%', width: '100%', maxWidth: '100vw', padding: !isDesktop ? '15px' : '30px', paddingBottom: !isDesktop ? '100px' : '40px', display: 'flex', flexDirection: 'column', gap: !isDesktop ? '15px' : '25px', boxSizing: 'border-box', overflowY: 'auto', overflowX: 'hidden', background: themeBg, fontFamily: 'Kanit, sans-serif' }} className="hide-scrollbar">
       
       <div style={{ display: !isDesktop ? 'none' : 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-        <div>
-          <h1 style={{ fontSize: '2rem', color: textColor, margin: 0, fontWeight: '800', filter: darkMode ? 'none' : 'drop-shadow(0 2px 4px rgba(0,0,0,0.05))' }}>{greeting}</h1>
-          <p style={{ margin: '2px 0 0 0', color: subTextColor, fontSize: '0.95rem' }}>{todayStr}</p>
-        </div>
-        <div style={{ background: innerCardBg, backdropFilter: 'blur(10px)', padding: '6px 12px', borderRadius: '12px', color: subTextColor, fontSize: '0.75rem', fontWeight: 'bold', border: `1px solid ${borderColor}`, boxShadow: '0 4px 10px rgba(0,0,0,0.03)' }}>
-          ⏱️ อัปเดต: {lastUpdateText || '-'}
-        </div>
+        <div><h1 style={{ fontSize: '2rem', color: textColor, margin: 0, fontWeight: '800' }}>{greeting}</h1><p style={{ margin: '2px 0 0 0', color: subTextColor, fontSize: '0.95rem' }}>{todayStr}</p></div>
+        <div style={{ background: innerCardBg, backdropFilter: 'blur(10px)', padding: '6px 12px', borderRadius: '12px', color: subTextColor, fontSize: '0.75rem', fontWeight: 'bold', border: `1px solid ${borderColor}` }}>⏱️ อัปเดต: {lastUpdateText || '-'}</div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: isDesktop ? '1.4fr 1fr' : '1fr', gap: '20px', width: '100%', flexShrink: 0 }}>
         
-        {/* 📍 HERO CARD */}
         <div style={{ background: cardBg, backdropFilter: 'blur(20px)', borderRadius: isMobile ? '20px' : '24px', padding: !isDesktop ? '15px' : '30px', border: `1px solid ${borderColor}`, boxShadow: '0 10px 40px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', width: '100%', boxSizing: 'border-box' }}>
           
           <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '8px', width: '100%', marginBottom: isMobile ? '15px' : '25px' }}>
             <div style={{ display: 'flex', gap: '8px', flex: isDesktop ? 0.4 : 1 }}>
-              <button onClick={handleGPS} disabled={isLocating} style={{ background: '#0ea5e9', color: '#fff', border: 'none', borderRadius: '14px', padding: '0 15px', cursor: isLocating ? 'wait' : 'pointer', fontSize: '1.2rem', boxShadow: '0 4px 10px rgba(14,165,233,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: isLocating ? 0.7 : 1, transition: 'all 0.2s' }} title="ค้นหาตำแหน่งปัจจุบัน">
+              <button onClick={handleGPS} disabled={isLocating} style={{ background: '#0ea5e9', color: '#fff', border: 'none', borderRadius: '14px', padding: '0 15px', cursor: isLocating ? 'wait' : 'pointer', fontSize: '1.2rem', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: isLocating ? 0.7 : 1 }}>
                 {isLocating ? <svg width="22" height="22" stroke="currentColor" viewBox="0 0 24 24"><style>{`@keyframes spin { 100% { transform: rotate(360deg); } }`}</style><g style={{ animation: 'spin 1.5s linear infinite', transformOrigin: 'center' }}><circle cx="12" cy="12" r="10" fill="none" strokeWidth="2.5" strokeDasharray="30 30" strokeLinecap="round"></circle></g></svg> : <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="7"></circle><line x1="12" y1="1" x2="12" y2="5"></line><line x1="12" y1="19" x2="12" y2="23"></line><line x1="1" y1="12" x2="5" y2="12"></line><line x1="19" y1="12" x2="23" y2="12"></line></svg>}
               </button>
               <div style={{ flex: 1, display: 'flex', alignItems: 'center', background: innerCardBg, padding: '10px 15px', borderRadius: '14px', border: `1px solid ${borderColor}` }}>
                 <span style={{ marginRight: '8px', fontSize: '1.1rem' }}>📍</span>
-                <select value={selectedProv} onChange={e => {
-                  const prov = e.target.value; setSelectedProv(prov);
-                  const firstSt = safeStations.find(s => extractProvince(s.areaTH) === prov);
-                  if (firstSt) { setSelectedStationId(firstSt.stationID); localStorage.setItem('lastStationId', firstSt.stationID); }
-                }} style={{ flex: 1, background: 'transparent', color: textColor, border: 'none', fontWeight: 'bold', fontSize: '0.95rem', outline: 'none', cursor: 'pointer', appearance: 'none' }}>
+                <select value={selectedProv} onChange={e => { setSelectedProv(e.target.value); setSelectedDistrict(''); }} style={{ flex: 1, background: 'transparent', color: textColor, border: 'none', fontWeight: 'bold', fontSize: '0.95rem', outline: 'none', cursor: 'pointer', appearance: 'none' }}>
                   {allProvinces.map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
                 <span style={{ color: subTextColor, fontSize: '0.8rem' }}>▼</span>
               </div>
             </div>
             <div style={{ flex: isDesktop ? 0.6 : 1, display: 'flex', alignItems: 'center', background: innerCardBg, padding: '10px 15px', borderRadius: '14px', border: `1px solid ${borderColor}` }}>
-              <span style={{ marginRight: '8px', fontSize: '1.1rem' }}>🏢</span>
-              <select value={selectedStationId} onChange={handleStationChange} style={{ flex: 1, background: 'transparent', color: textColor, border: 'none', fontWeight: 'bold', fontSize: '0.95rem', outline: 'none', cursor: 'pointer', appearance: 'none', textOverflow: 'ellipsis' }}>
-                {safeStations.filter(s => extractProvince(s.areaTH) === selectedProv).map(s => (
-                  <option key={s.stationID} value={s.stationID}>{formatAreaName(s.areaTH)}</option>
-                ))}
+              <span style={{ marginRight: '8px', fontSize: '1.1rem' }}>🏙️</span>
+              <select value={selectedDistrict} onChange={e => setSelectedDistrict(e.target.value)} style={{ flex: 1, background: 'transparent', color: textColor, border: 'none', fontWeight: 'bold', fontSize: '0.95rem', outline: 'none', cursor: 'pointer', appearance: 'none', textOverflow: 'ellipsis' }}>
+                <option value="">เลือกอำเภอ/เขต</option>
+                {availableDistricts.map(d => <option key={d} value={d}>{d}</option>)}
               </select>
               <span style={{ color: subTextColor, fontSize: '0.8rem' }}>▼</span>
             </div>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '15px', width: '100%' }}>
-            
-            {/* 🌟 1. การ์ด PM2.5 (ปรับ Layout ป้องกันตัวหนังสือล้นจอ) */}
             <div style={{ display: 'flex', flexDirection: 'column', background: innerCardBg, padding: isMobile ? '15px' : '20px', borderRadius: '20px', border: `1px solid ${borderColor}`, gap: '10px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '15px' }}>
                 {renderFaceBadge(health.level, health.color)}
@@ -376,15 +301,8 @@ export default function Dashboard() {
                    <span style={{ background: health.bg, color: health.color, padding: '4px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 'bold', marginTop: '4px', textAlign: 'center', wordBreak: 'break-word', maxWidth: '100%' }}>{health.text}</span>
                 </div>
               </div>
-              {/* ย้าย Warning ลงมาด้านล่างสุดของการ์ด เพื่อไม่ให้ดันด้านขวา */}
-              {health.warning && (
-                <div style={{ width: '100%', boxSizing: 'border-box', fontSize: '0.75rem', color: '#ef4444', fontWeight: 'bold', background: 'rgba(239, 68, 68, 0.15)', padding: '8px 10px', borderRadius: '12px', textAlign: 'center', wordBreak: 'break-word' }}>
-                  {health.warning}
-                </div>
-              )}
+              {health.warning && <div style={{ width: '100%', boxSizing: 'border-box', fontSize: '0.75rem', color: '#ef4444', fontWeight: 'bold', background: 'rgba(239, 68, 68, 0.15)', padding: '8px 10px', borderRadius: '12px', textAlign: 'center', wordBreak: 'break-word' }}>{health.warning}</div>}
             </div>
-
-            {/* 🌟 2. การ์ดดัชนีความร้อน (ปรับ Layout เหมือนกัน) */}
             <div style={{ display: 'flex', flexDirection: 'column', background: innerCardBg, padding: isMobile ? '15px' : '20px', borderRadius: '20px', border: `1px solid ${borderColor}`, gap: '10px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '15px' }}>
                 {renderFaceBadge(heatStatus.level, heatStatus.color)}
@@ -394,14 +312,8 @@ export default function Dashboard() {
                    <span style={{ background: heatStatus.bg, color: heatStatus.color, padding: '4px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 'bold', marginTop: '4px', textAlign: 'center', wordBreak: 'break-word', maxWidth: '100%' }}>{heatStatus.text}</span>
                 </div>
               </div>
-              {/* ย้าย Warning ลงมาด้านล่างสุด */}
-              {heatStatus.warning && (
-                <div style={{ width: '100%', boxSizing: 'border-box', fontSize: '0.75rem', color: '#ef4444', fontWeight: 'bold', background: 'rgba(239, 68, 68, 0.15)', padding: '8px 10px', borderRadius: '12px', textAlign: 'center', wordBreak: 'break-word' }}>
-                  {heatStatus.warning}
-                </div>
-              )}
+              {heatStatus.warning && <div style={{ width: '100%', boxSizing: 'border-box', fontSize: '0.75rem', color: '#ef4444', fontWeight: 'bold', background: 'rgba(239, 68, 68, 0.15)', padding: '8px 10px', borderRadius: '12px', textAlign: 'center', wordBreak: 'break-word' }}>{heatStatus.warning}</div>}
             </div>
-
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(3, 1fr)' : 'repeat(6, 1fr)', gap: '10px', marginTop: isMobile ? '15px' : '20px', paddingTop: '15px', borderTop: `1px dashed ${borderColor}` }}>
@@ -425,7 +337,7 @@ export default function Dashboard() {
         {/* 📍 แผนที่ย่อ (แสดงเฉพาะคอม) */}
         {isDesktop && (
           <div style={{ background: cardBg, backdropFilter: 'blur(20px)', borderRadius: '24px', padding: '15px', border: `1px solid ${borderColor}`, boxShadow: '0 10px 40px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column' }}>
-            <h3 style={{ fontSize: '0.9rem', color: subTextColor, fontWeight: 'bold', margin: '0 0 10px 5px' }}>🗺️ ตำแหน่งจุดตรวจวัด</h3>
+            <h3 style={{ fontSize: '0.9rem', color: subTextColor, fontWeight: 'bold', margin: '0 0 10px 5px' }}>🗺️ ตำแหน่งพื้นที่</h3>
             <div style={{ flex: 1, borderRadius: '15px', overflow: 'hidden', background: innerCardBg, position: 'relative' }}>
               {activeStation && !isNaN(parseFloat(activeStation.lat)) ? (
                 <MapContainer center={[parseFloat(activeStation.lat), parseFloat(activeStation.long)]} zoom={10} style={{ height: '100%', width: '100%', zIndex: 1 }} zoomControl={false} dragging={true} scrollWheelZoom={false}>
@@ -442,23 +354,18 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* 🌟🌟 ส่วนต่อขยาย: สถิติเชิงลึก & พยากรณ์ 🌟🌟 */}
+      {/* 🌟🌟 ส่วนสถิติเชิงลึก 🌟🌟 */}
       <div style={{ background: cardBg, backdropFilter: 'blur(20px)', borderRadius: isMobile ? '20px' : '24px', padding: isMobile ? '15px' : '25px', border: `1px solid ${borderColor}`, boxShadow: '0 10px 40px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', gap: isMobile ? '15px' : '25px', flexShrink: 0 }}>
         
         <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'flex-start' : 'center', borderBottom: `1px solid ${borderColor}`, paddingBottom: '15px', gap: '15px' }}>
           <h3 style={{ fontSize: '1.2rem', color: textColor, fontWeight: 'bold', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
             📊 วิเคราะห์สถิติข้อมูล
           </h3>
-          
           <div style={{ display: 'flex', gap: '8px', background: innerCardBg, padding: '4px', borderRadius: '12px', width: isMobile ? '100%' : 'auto', overflowX: 'auto', whiteSpace: 'nowrap' }} className="hide-scrollbar">
             {[{ id: 'pm25', label: 'ฝุ่น PM2.5' }, { id: 'heat', label: 'ดัชนีร้อน' }, { id: 'temp', label: 'อุณหภูมิ' }, { id: 'rain', label: 'ฝน' }, { id: 'uv', label: 'UV' }, { id: 'wind', label: 'ลม' }].map(f => (
               <button 
                 key={f.id} onClick={() => setStatFilter(f.id)}
-                style={{ 
-                  padding: '6px 12px', borderRadius: '8px', border: 'none', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', flexShrink: 0,
-                  background: statFilter === f.id ? '#0ea5e9' : 'transparent', color: statFilter === f.id ? '#fff' : subTextColor,
-                  boxShadow: statFilter === f.id ? '0 2px 5px rgba(0,0,0,0.1)' : 'none', transition: 'all 0.2s'
-                }}>
+                style={{ padding: '6px 12px', borderRadius: '8px', border: 'none', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', flexShrink: 0, background: statFilter === f.id ? '#0ea5e9' : 'transparent', color: statFilter === f.id ? '#fff' : subTextColor, boxShadow: statFilter === f.id ? '0 2px 5px rgba(0,0,0,0.1)' : 'none', transition: 'all 0.2s' }}>
                 {f.label}
               </button>
             ))}
@@ -466,31 +373,21 @@ export default function Dashboard() {
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '20px' }}>
-          {/* อดีต */}
           <div style={{ height: '300px', width: '100%', background: innerCardBg, borderRadius: '16px', padding: '20px 20px 20px 0', boxSizing: 'border-box', display: 'flex', flexDirection: 'column' }}>
             <div style={{ fontSize: '0.85rem', color: subTextColor, fontWeight: 'bold', marginBottom: '15px', paddingLeft: '20px', display: 'flex', justifyContent: 'space-between' }}>
-              <span>⏪ สถิติย้อนหลัง 7 วัน</span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><div style={{ width: '15px', height: '3px', background: darkMode ? '#cbd5e1' : '#64748b', borderStyle: 'dashed' }}></div> ค่าเฉลี่ย 10 ปี</span>
+              <span>⏪ สถิติย้อนหลัง 7 วัน</span><span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><div style={{ width: '15px', height: '3px', background: darkMode ? '#cbd5e1' : '#64748b', borderStyle: 'dashed' }}></div> ค่าเฉลี่ย 10 ปี</span>
             </div>
             <div style={{ flex: 1, minHeight: 0, width: '100%' }}>
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={historicalData} margin={{ top: 10, right: 10, bottom: 0, left: 0 }}>
-                  <defs>
-                    <linearGradient id="colorPast" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.4}/>
-                      <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="day" stroke={subTextColor} fontSize={11} tickLine={false} axisLine={false} dy={10} />
-                  <YAxis stroke={subTextColor} fontSize={11} tickLine={false} axisLine={false} />
-                  <Tooltip content={<CustomTooltip />} />
+                  <defs><linearGradient id="colorPast" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.4}/><stop offset="95%" stopColor="#0ea5e9" stopOpacity={0}/></linearGradient></defs>
+                  <XAxis dataKey="day" stroke={subTextColor} fontSize={11} tickLine={false} axisLine={false} dy={10} /><YAxis stroke={subTextColor} fontSize={11} tickLine={false} axisLine={false} /><Tooltip content={<CustomTooltip />} />
                   <Area type="monotone" dataKey="val" stroke="#0ea5e9" strokeWidth={3} fillOpacity={1} fill="url(#colorPast)" />
                   <Line type="monotone" dataKey="avg10Year" stroke={darkMode ? '#cbd5e1' : '#64748b'} strokeWidth={2} strokeDasharray="5 5" dot={false} activeDot={false} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
           </div>
-          {/* อนาคต */}
           <div style={{ height: '300px', width: '100%', background: innerCardBg, borderRadius: '16px', padding: '20px 20px 20px 0', boxSizing: 'border-box', display: 'flex', flexDirection: 'column' }}>
             <div style={{ fontSize: '0.85rem', color: subTextColor, fontWeight: 'bold', marginBottom: '15px', paddingLeft: '20px', display: 'flex', justifyContent: 'space-between' }}>
               <span>🔮 พยากรณ์ล่วงหน้า 7 วัน</span>
@@ -498,15 +395,8 @@ export default function Dashboard() {
             <div style={{ flex: 1, minHeight: 0, width: '100%' }}>
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={forecastGraphData} margin={{ top: 10, right: 10, bottom: 0, left: 0 }}>
-                  <defs>
-                    <linearGradient id="colorFuture" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.4}/>
-                      <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="day" stroke={subTextColor} fontSize={11} tickLine={false} axisLine={false} dy={10} />
-                  <YAxis stroke={subTextColor} fontSize={11} tickLine={false} axisLine={false} />
-                  <Tooltip content={<CustomTooltip />} />
+                  <defs><linearGradient id="colorFuture" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.4}/><stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/></linearGradient></defs>
+                  <XAxis dataKey="day" stroke={subTextColor} fontSize={11} tickLine={false} axisLine={false} dy={10} /><YAxis stroke={subTextColor} fontSize={11} tickLine={false} axisLine={false} /><Tooltip content={<CustomTooltip />} />
                   <Area type="monotone" dataKey="val" stroke="#8b5cf6" strokeWidth={3} fillOpacity={1} fill="url(#colorFuture)" />
                   <Line type="monotone" dataKey="avg10Year" stroke={darkMode ? '#cbd5e1' : '#64748b'} strokeWidth={2} strokeDasharray="5 5" dot={false} activeDot={false} />
                 </AreaChart>
@@ -515,7 +405,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* 📋 Master Table */}
         <div style={{ marginTop: '10px' }}>
           <h3 style={{ fontSize: '1rem', color: textColor, fontWeight: 'bold', margin: '0 0 15px 0' }}>📋 ตารางข้อมูลระดับจังหวัด (77 จังหวัด)</h3>
           <div style={{ overflowX: 'auto', background: innerCardBg, borderRadius: '16px', border: `1px solid ${borderColor}` }}>
@@ -545,9 +434,7 @@ export default function Dashboard() {
                       <td style={{ padding: '15px', textAlign: 'center', fontWeight: 'bold', color: getStatColor('uv', row.uv) }}>{row.uv}</td>
                       <td style={{ padding: '15px', textAlign: 'center', fontWeight: 'bold', color: getStatColor('wind', row.wind) }}>{row.wind} <span style={{fontSize:'0.7rem'}}>km/h</span></td>
                       <td style={{ padding: '10px 15px' }}>
-                        <LineChart width={90} height={30} data={row.trend.map(v => ({val: v.val}))}>
-                          <Line type="monotone" dataKey="val" stroke={getPM25Color(row.pm25)} strokeWidth={2.5} dot={false} isAnimationActive={false} />
-                        </LineChart>
+                        <LineChart width={90} height={30} data={row.trend.map(v => ({val: v.val}))}><Line type="monotone" dataKey="val" stroke={getPM25Color(row.pm25)} strokeWidth={2.5} dot={false} isAnimationActive={false} /></LineChart>
                       </td>
                     </tr>
                   );
