@@ -2,7 +2,7 @@
 import React, { useContext, useState, useEffect } from 'react';
 import { MapContainer, TileLayer, CircleMarker, useMap } from 'react-leaflet';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { useNavigate } from 'react-router-dom'; // 🌟 เพิ่ม useNavigate
+import { useNavigate } from 'react-router-dom'; 
 import { WeatherContext } from '../context/WeatherContext';
 import { extractProvince, formatLocationName, getPM25Color, getDistanceFromLatLonInKm } from '../utils/helpers';
 
@@ -32,7 +32,7 @@ function MiniMapUpdate({ lat, lon }) {
 }
 
 export default function Dashboard() {
-  const navigate = useNavigate(); // 🌟 สำหรับการเปลี่ยนหน้า
+  const navigate = useNavigate(); 
   const { stations, stationTemps, loading, darkMode, lastUpdateText } = useContext(WeatherContext);
   
   const [selectedStationId, setSelectedStationId] = useState(() => localStorage.getItem('lastStationId') || '');
@@ -44,7 +44,6 @@ export default function Dashboard() {
   
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 1024 : false);
 
-  // 🌟 ระบบตรวจสอบ: ถ้าเป็นคอมพิวเตอร์และเพิ่งเข้าแอปครั้งแรก ให้เด้งไปหน้าแผนที่เลย
   useEffect(() => {
     if (window.innerWidth >= 1024 && !sessionStorage.getItem('hasRedirectedToMap')) {
       sessionStorage.setItem('hasRedirectedToMap', 'true');
@@ -165,7 +164,8 @@ export default function Dashboard() {
   const pmColor = getPM25Color(pmVal);
 
   return (
-    <div style={{ background: dynamicBg, minHeight: '100%', padding: isMobile ? '15px' : '30px', paddingBottom: isMobile ? '90px' : '40px', display: 'flex', flexDirection: 'column', gap: isMobile ? '15px' : '20px', boxSizing: 'border-box', overflowY: 'auto', fontFamily: 'Kanit, sans-serif' }} className="hide-scrollbar">
+    // 🌟 เพิ่ม overflowX: 'hidden' เพื่อล็อกหน้าจอไม่ให้เลื่อนซ้าย-ขวาได้เด็ดขาด
+    <div style={{ background: dynamicBg, minHeight: '100%', width: '100%', padding: isMobile ? '15px' : '30px', paddingBottom: isMobile ? '90px' : '40px', display: 'flex', flexDirection: 'column', gap: isMobile ? '15px' : '20px', boxSizing: 'border-box', overflowY: 'auto', overflowX: 'hidden', fontFamily: 'Kanit, sans-serif' }} className="hide-scrollbar">
       
       <div style={{ display: 'flex', justifyContent: isMobile ? 'flex-end' : 'space-between', alignItems: 'center' }}>
         {!isMobile && (
@@ -190,16 +190,16 @@ export default function Dashboard() {
             </select>
           </div>
 
-          {/* 🌟 2 ดัชนีหลัก - ปรับ UI ให้กระชับบนมือถือ ซ้าย(หน้า) ขวา(เลข) */}
+          {/* 🌟 2 ดัชนีหลัก - จัดกลุ่มให้แนบชิดกันตรงกลาง */}
           <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? '15px' : '20px', flex: 1, alignItems: 'stretch', justifyContent: 'space-around', padding: isMobile ? '0' : '10px 0' }}>
             
             {/* PM2.5 */}
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: isMobile ? 'space-between' : 'center', gap: '15px', background: isMobile ? innerCardBg : 'transparent', padding: isMobile ? '15px 20px' : '0', borderRadius: '20px', border: isMobile ? `1px solid ${borderColor}` : 'none' }}>
-              <div style={{ fontSize: isMobile ? '4.5rem' : '6.5rem', filter: `drop-shadow(0 15px 25px ${health.color}50)`, lineHeight: 1, transform: isMobile ? 'none' : 'scale(1.05)' }}>{health.face}</div>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: isMobile ? 'flex-end' : 'flex-start' }}>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: isMobile ? '15px' : '20px', background: isMobile ? innerCardBg : 'transparent', padding: isMobile ? '15px' : '0', borderRadius: '20px', border: isMobile ? `1px solid ${borderColor}` : 'none' }}>
+              <div style={{ fontSize: isMobile ? '4.2rem' : '6.5rem', filter: `drop-shadow(0 10px 20px ${health.color}50)`, lineHeight: 1, transform: isMobile ? 'none' : 'scale(1.05)' }}>{health.face}</div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
                  <span style={{ fontSize: '0.8rem', color: subTextColor, fontWeight: 'bold', letterSpacing: '0.5px' }}>PM2.5 (µg/m³)</span>
-                 <span style={{ fontSize: isMobile ? '3rem' : '4.5rem', fontWeight: '900', color: health.color, lineHeight: 1.1, filter: darkMode ? `drop-shadow(0 0 10px ${health.color}30)` : 'none' }}>{pmVal != null && !isNaN(pmVal) ? pmVal : '-'}</span>
-                 <span style={{ background: health.bg, color: health.color, padding: '4px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 'bold', marginTop: '5px' }}>{health.text}</span>
+                 <span style={{ fontSize: isMobile ? '2.8rem' : '4.5rem', fontWeight: '900', color: health.color, lineHeight: 1.1, filter: darkMode ? `drop-shadow(0 0 10px ${health.color}30)` : 'none' }}>{pmVal != null && !isNaN(pmVal) ? pmVal : '-'}</span>
+                 <span style={{ background: health.bg, color: health.color, padding: '4px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 'bold', marginTop: '5px', display: 'inline-block' }}>{health.text}</span>
               </div>
             </div>
 
@@ -207,12 +207,12 @@ export default function Dashboard() {
             {!isMobile && <div style={{ width: '1px', height: '100px', background: borderColor }}></div>}
 
             {/* ดัชนีความร้อน */}
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: isMobile ? 'space-between' : 'center', gap: '15px', background: isMobile ? innerCardBg : 'transparent', padding: isMobile ? '15px 20px' : '0', borderRadius: '20px', border: isMobile ? `1px solid ${borderColor}` : 'none' }}>
-              <div style={{ fontSize: isMobile ? '4.5rem' : '6.5rem', filter: `drop-shadow(0 15px 25px ${heatStatus.color}50)`, lineHeight: 1, transform: isMobile ? 'none' : 'scale(1.05)' }}>{heatStatus.face}</div>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: isMobile ? 'flex-end' : 'flex-start' }}>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: isMobile ? '15px' : '20px', background: isMobile ? innerCardBg : 'transparent', padding: isMobile ? '15px' : '0', borderRadius: '20px', border: isMobile ? `1px solid ${borderColor}` : 'none' }}>
+              <div style={{ fontSize: isMobile ? '4.2rem' : '6.5rem', filter: `drop-shadow(0 10px 20px ${heatStatus.color}50)`, lineHeight: 1, transform: isMobile ? 'none' : 'scale(1.05)' }}>{heatStatus.face}</div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
                  <span style={{ fontSize: '0.8rem', color: subTextColor, fontWeight: 'bold', letterSpacing: '0.5px' }}>ดัชนีความร้อน (°C)</span>
-                 <span style={{ fontSize: isMobile ? '3rem' : '4.5rem', fontWeight: '900', color: heatStatus.color, lineHeight: 1.1, filter: darkMode ? `drop-shadow(0 0 10px ${heatStatus.color}30)` : 'none' }}>{heatVal != null ? Math.round(heatVal) : '-'}</span>
-                 <span style={{ background: heatStatus.bg, color: heatStatus.color, padding: '4px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 'bold', marginTop: '5px' }}>{heatStatus.text}</span>
+                 <span style={{ fontSize: isMobile ? '2.8rem' : '4.5rem', fontWeight: '900', color: heatStatus.color, lineHeight: 1.1, filter: darkMode ? `drop-shadow(0 0 10px ${heatStatus.color}30)` : 'none' }}>{heatVal != null ? Math.round(heatVal) : '-'}</span>
+                 <span style={{ background: heatStatus.bg, color: heatStatus.color, padding: '4px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 'bold', marginTop: '5px', display: 'inline-block' }}>{heatStatus.text}</span>
               </div>
             </div>
 
