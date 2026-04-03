@@ -1,11 +1,13 @@
 // src/pages/MapPage.jsx
 import React, { useContext, useState, useEffect } from 'react';
-import { MapContainer, TileLayer, CircleMarker, Marker, Tooltip, useMap } from 'react-leaflet';
+// 🌟 นำเข้า useMapEvents เพื่อใช้ตรวจจับการซูม
+import { MapContainer, TileLayer, Marker, Tooltip, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { WeatherContext } from '../context/WeatherContext';
 import { extractProvince, getPM25Color } from '../utils/helpers';
 import 'leaflet/dist/leaflet.css';
 
+// ฟังก์ชันจัดการสี
 const getHeatColor = (val) => {
   if (val == null) return '#94a3b8';
   if (val >= 41) return '#ef4444'; 
@@ -49,7 +51,7 @@ const getWindColor = (val) => {
 
 const formatAreaName = (areaTH) => areaTH ? areaTH.split(',')[0].trim() : '';
 
-// 🌟 สร้าง Custom Icon เป็นลูกศรหมุนตามทิศทางลมสำหรับแสดงบนแผนที่
+// สร้าง Custom Icon ลูกศรลม
 const createWindArrowIcon = (dir) => {
   let deg = 0;
   if (typeof dir === 'number') deg = dir;
@@ -65,6 +67,15 @@ const createWindArrowIcon = (dir) => {
   });
 };
 
+// 🌟 Component ใหม่: ตรวจจับระยะการซูมแผนที่
+function MapZoomListener({ setZoomLevel }) {
+  const map = useMapEvents({
+    zoomend: () => setZoomLevel(map.getZoom()),
+  });
+  useEffect(() => { setZoomLevel(map.getZoom()); }, [map, setZoomLevel]);
+  return null;
+}
+
 function MapUpdater({ lat, lon }) {
   const map = useMap();
   useEffect(() => { if (lat && lon && !isNaN(lat) && !isNaN(lon)) map.flyTo([lat, lon], 10, { animate: true }); }, [lat, lon, map]);
@@ -76,7 +87,8 @@ export default function MapPage() {
   
   const [activeMode, setActiveMode] = useState('pm25');
   const [selectedStation, setSelectedStation] = useState(null);
-  const [mapStyle, setMapStyle] = useState('standard'); // จัดการ Layer แผนที่ (สว่าง/มืด/ดาวเทียม)
+  const [mapStyle, setMapStyle] = useState('standard'); 
+  const [zoomLevel, setZoomLevel] = useState(6); // 🌟 State เก็บค่าความซูม
   
   const [isMobileCardOpen, setIsMobileCardOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
@@ -109,7 +121,6 @@ export default function MapPage() {
   const subTextColor = darkMode ? '#94a3b8' : '#64748b';
   const borderColor = darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
 
-  // TileLayer URLs
   const getTileUrl = () => {
     if (mapStyle === 'dark' || (mapStyle === 'standard' && darkMode)) return "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
     if (mapStyle === 'satellite') return "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
@@ -123,6 +134,9 @@ export default function MapPage() {
       <div style={{ flex: 1, position: 'relative', zIndex: 1 }}>
         <MapContainer center={[13.7563, 100.5018]} zoom={6} style={{ height: '100%', width: '100%' }} zoomControl={false}>
           <TileLayer url={getTileUrl()} />
+          {/* ตรวจจับการซูม */}
+          <MapZoomListener setZoomLevel={setZoomLevel} />
+          
           {selectedStation && !isNaN(parseFloat(selectedStation.lat)) && (
             <MapUpdater lat={parseFloat(selectedStation.lat)} lon={parseFloat(selectedStation.long)} />
           )}
@@ -144,21 +158,41 @@ export default function MapPage() {
             else if (activeMode === 'wind') { valToShow = tObj.windSpeed != null ? Math.round(tObj.windSpeed) : '-'; circleColor = getWindColor(tObj.windSpeed); windDir = tObj.windDir; }
 
             const isSelected = selectedStation?.stationID === st.stationID;
+            
+            // 🌟 ระบบซูมแล้วโชว์ตัวเลข (ถ้าซูมเกินระดับ 8 ให้โชว์เลข)
+            const showText = zoomLevel >= 8;
+            const size = showText ? 36 : (isSelected ? 24 : 14);
+            const fontSize = String(valToShow).length > 2 ? '11px' : '13px';
+            
+            // จัดสีตัวอักษรให้อ่านง่าย ถ้าพื้นหลังเป็นสีเหลือง/เขียวอ่อน ให้ใช้ตัวหนังสือสีดำ
+            const isLightBg = ['#ffff00', '#eab308', '#a7f3d0', '#22c55e', '#e0f2fe', '#fbcfe8'].includes(circleColor);
+            const numColor = isLightBg ? '#1e293b' : '#ffffff';
+
+            const htmlContent = showText
+              ? `<div style="background-color: ${circleColor}; color: ${numColor}; width: 100%; height: 100%; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: ${fontSize}; font-family: 'Kanit', sans-serif; border: 2px solid #fff; box-shadow: 0 0 15px ${circleColor}90, 0 4px 6px rgba(0,0,0,0.3); text-shadow: ${isLightBg ? 'none' : '0 1px 2px rgba(0,0,0,0.5)'};">${valToShow}</div>`
+              : `<div style="background-color: ${circleColor}; width: 100%; height: 100%; border-radius: 50%; border: ${isSelected ? '3px' : '2px'} solid #fff; box-shadow: 0 0 10px ${circleColor}90;"></div>`;
+
+            const dynamicIcon = L.divIcon({
+              html: htmlContent,
+              className: 'dynamic-marker-icon',
+              iconSize: [size, size],
+              iconAnchor: [size / 2, size / 2]
+            });
 
             return (
               <React.Fragment key={st.stationID}>
-                {/* 🌟 1. คืนชีพวงกลมสไตล์เดิม (วงกลมซ้อน 2 ชั้นให้ดูเบาสบาย ไม่แสบตา) */}
-                <CircleMarker center={[lat, lon]} radius={20} pathOptions={{ color: circleColor, fillColor: circleColor, fillOpacity: 0.25, weight: 0 }} eventHandlers={{ click: () => setSelectedStation(st) }} />
-                <CircleMarker center={[lat, lon]} radius={5} pathOptions={{ color: '#fff', fillColor: circleColor, fillOpacity: 1, weight: 2 }} eventHandlers={{ click: () => setSelectedStation(st) }}>
-                  <Tooltip direction="top" offset={[0, -10]} opacity={1} permanent={false}>
+                {/* ใช้ Marker ตัวเดียววาดไอคอนแบบ Dynamic (ใส่เลขได้) */}
+                <Marker position={[lat, lon]} icon={dynamicIcon} eventHandlers={{ click: () => setSelectedStation(st) }}>
+                  {/* Tooltip เล็กๆ ไว้โชว์ตอนเอาเมาส์ชี้ */}
+                  <Tooltip direction="top" offset={[0, -(size/2)]} opacity={1} permanent={false}>
                     <div style={{ textAlign: 'center', fontWeight: 'bold', fontFamily: 'Kanit' }}>
                       <div style={{ fontSize: '0.75rem', opacity: 0.8 }}>{extractProvince(st.areaTH)}</div>
                       <div style={{ fontSize: '1.1rem' }}>{valToShow} <span style={{fontSize: '0.7rem'}}>{modes.find(m => m.id === activeMode)?.unit}</span></div>
                     </div>
                   </Tooltip>
-                </CircleMarker>
+                </Marker>
 
-                {/* 🌟 2. วาดลูกศรทิศทางลมในโหมดลม */}
+                {/* ลูกศรลม */}
                 {activeMode === 'wind' && windDir && (
                    <Marker position={[lat, lon]} icon={createWindArrowIcon(windDir)} eventHandlers={{ click: () => setSelectedStation(st) }} />
                 )}
@@ -168,34 +202,42 @@ export default function MapPage() {
         </MapContainer>
       </div>
 
-      {/* 🎛️ แถบควบคุมโหมดด้านบน */}
+      {/* 🎛️ แถบควบคุมโหมดด้านบน (🌟 เอาแถบขาวออก เหลือแต่ปุ่มสวยๆ ลอยๆ) */}
       <div style={{ position: 'absolute', top: isMobile ? 15 : 20, left: isMobile ? 15 : 20, right: isMobile ? 15 : 20, zIndex: 1000, pointerEvents: 'none' }}>
-        <div style={{ background: cardBg, backdropFilter: 'blur(15px)', borderRadius: '20px', padding: '12px 15px', border: `1px solid ${borderColor}`, boxShadow: '0 8px 25px rgba(0,0,0,0.1)', pointerEvents: 'auto' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', padding: '0 5px' }}>
-            <span style={{ fontWeight: 'bold', color: textColor, fontSize: '0.9rem' }}>🗺️ ข้อมูลบนแผนที่</span>
-            {isMobile && <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#0ea5e9', fontSize: '0.75rem', fontWeight: 'bold', animation: 'pulse 2s infinite' }}><span style={{ fontSize: '1rem' }}>👈</span> เลื่อนดูโหมดอื่น <span style={{ fontSize: '1rem' }}>👉</span></div>}
-          </div>
-          <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '5px' }} className="hide-scrollbar">
-            {modes.map(mode => (
-              <button key={mode.id} onClick={() => setActiveMode(mode.id)} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '14px', border: 'none', flexShrink: 0, background: activeMode === mode.id ? mode.color : innerCardBg, color: activeMode === mode.id ? '#fff' : subTextColor, fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', transition: 'all 0.2s', boxShadow: activeMode === mode.id ? `0 4px 10px ${mode.color}40` : 'none' }}>
-                <span style={{ fontSize: '1.1rem' }}>{mode.icon}</span> {mode.label}
+        <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '10px', pointerEvents: 'auto', WebkitOverflowScrolling: 'touch' }} className="hide-scrollbar">
+          {modes.map(mode => {
+            const isActive = activeMode === mode.id;
+            return (
+              <button 
+                key={mode.id} onClick={() => setActiveMode(mode.id)}
+                style={{ 
+                  display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 18px', borderRadius: '50px', border: 'none', flexShrink: 0,
+                  background: isActive ? mode.color : (darkMode ? 'rgba(15,23,42,0.85)' : 'rgba(255,255,255,0.9)'), 
+                  color: isActive ? '#fff' : textColor,
+                  fontWeight: 'bold', fontSize: '0.9rem', cursor: 'pointer', transition: 'all 0.2s',
+                  backdropFilter: 'blur(10px)',
+                  boxShadow: isActive ? `0 6px 15px ${mode.color}50` : '0 4px 10px rgba(0,0,0,0.1)',
+                  transform: isActive ? 'translateY(-2px)' : 'none'
+                }}>
+                <span style={{ fontSize: '1.2rem' }}>{mode.icon}</span>
+                {mode.label}
               </button>
-            ))}
-          </div>
+            );
+          })}
         </div>
       </div>
 
-      {/* 🌟 3. กู้คืนปุ่มเปลี่ยนโหมดแผนที่ (Basemap Toggle) */}
-      <div style={{ position: 'absolute', top: isMobile ? 110 : 120, right: isMobile ? 15 : 20, zIndex: 1000, display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        <button onClick={() => setMapStyle('standard')} style={{ background: cardBg, color: textColor, border: `1px solid ${borderColor}`, padding: '8px', borderRadius: '10px', cursor: 'pointer', boxShadow: '0 4px 10px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.75rem', fontWeight: 'bold' }}>🗺️ ปกติ</button>
-        <button onClick={() => setMapStyle('dark')} style={{ background: cardBg, color: textColor, border: `1px solid ${borderColor}`, padding: '8px', borderRadius: '10px', cursor: 'pointer', boxShadow: '0 4px 10px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.75rem', fontWeight: 'bold' }}>🌙 มืด</button>
-        <button onClick={() => setMapStyle('satellite')} style={{ background: cardBg, color: textColor, border: `1px solid ${borderColor}`, padding: '8px', borderRadius: '10px', cursor: 'pointer', boxShadow: '0 4px 10px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.75rem', fontWeight: 'bold' }}>🛰️ ดาวเทียม</button>
+      {/* 🌟 ปุ่มเปลี่ยนโหมดแผนที่ (Basemap Toggle) */}
+      <div style={{ position: 'absolute', top: isMobile ? 80 : 20, right: isMobile ? 15 : 20, zIndex: 1000, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <button onClick={() => setMapStyle('standard')} style={{ background: cardBg, color: textColor, border: `1px solid ${borderColor}`, padding: '8px 12px', borderRadius: '12px', cursor: 'pointer', boxShadow: '0 4px 15px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.8rem', fontWeight: 'bold' }}>🗺️ ปกติ</button>
+        <button onClick={() => setMapStyle('dark')} style={{ background: cardBg, color: textColor, border: `1px solid ${borderColor}`, padding: '8px 12px', borderRadius: '12px', cursor: 'pointer', boxShadow: '0 4px 15px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.8rem', fontWeight: 'bold' }}>🌙 มืด</button>
+        <button onClick={() => setMapStyle('satellite')} style={{ background: cardBg, color: textColor, border: `1px solid ${borderColor}`, padding: '8px 12px', borderRadius: '12px', cursor: 'pointer', boxShadow: '0 4px 15px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.8rem', fontWeight: 'bold' }}>🛰️ ดาวเทียม</button>
       </div>
 
-      {/* 🌟 4. กู้คืนกล่อง Legend (คำอธิบายสีแผนที่) */}
-      <div style={{ position: 'absolute', bottom: isMobile ? (isMobileCardOpen ? '420px' : '100px') : '30px', left: isMobile ? '15px' : '30px', zIndex: 1000, background: cardBg, padding: '10px 15px', borderRadius: '14px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.1)', transition: 'bottom 0.3s' }}>
-        <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: textColor, marginBottom: '5px' }}>คำอธิบายสี ({modes.find(m => m.id === activeMode)?.label})</div>
-        <div style={{ display: 'flex', gap: '4px', height: '10px', width: '150px', borderRadius: '5px', overflow: 'hidden' }}>
+      {/* 🌟 กล่อง Legend (คำอธิบายสีแผนที่) */}
+      <div style={{ position: 'absolute', bottom: isMobile ? (isMobileCardOpen ? '420px' : '100px') : '30px', left: isMobile ? '15px' : '30px', zIndex: 1000, background: cardBg, padding: '12px 20px', borderRadius: '16px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 20px rgba(0,0,0,0.15)', transition: 'bottom 0.3s' }}>
+        <div style={{ fontSize: '0.8rem', fontWeight: 'bold', color: textColor, marginBottom: '8px' }}>คำอธิบายสี ({modes.find(m => m.id === activeMode)?.label})</div>
+        <div style={{ display: 'flex', gap: '2px', height: '12px', width: '160px', borderRadius: '6px', overflow: 'hidden' }}>
           {activeMode === 'pm25' && <><div style={{flex:1, background:'#00e400'}}></div><div style={{flex:1, background:'#ffff00'}}></div><div style={{flex:1, background:'#ff7e00'}}></div><div style={{flex:1, background:'#ff0000'}}></div></>}
           {activeMode === 'heat' && <><div style={{flex:1, background:'#22c55e'}}></div><div style={{flex:1, background:'#eab308'}}></div><div style={{flex:1, background:'#f97316'}}></div><div style={{flex:1, background:'#ef4444'}}></div></>}
           {activeMode === 'temp' && <><div style={{flex:1, background:'#3b82f6'}}></div><div style={{flex:1, background:'#22c55e'}}></div><div style={{flex:1, background:'#f97316'}}></div><div style={{flex:1, background:'#ef4444'}}></div></>}
@@ -203,7 +245,7 @@ export default function MapPage() {
           {activeMode === 'humidity' && <><div style={{flex:1, background:'#a7f3d0'}}></div><div style={{flex:1, background:'#34d399'}}></div><div style={{flex:1, background:'#059669'}}></div><div style={{flex:1, background:'#064e3b'}}></div></>}
           {activeMode === 'wind' && <><div style={{flex:1, background:'#fbcfe8'}}></div><div style={{flex:1, background:'#f472b6'}}></div><div style={{flex:1, background:'#db2777'}}></div><div style={{flex:1, background:'#831843'}}></div></>}
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: subTextColor, marginTop: '2px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: subTextColor, marginTop: '4px', fontWeight: 'bold' }}>
           <span>น้อย</span><span>มาก</span>
         </div>
       </div>
@@ -217,9 +259,15 @@ export default function MapPage() {
         </div>
       )}
 
-      {/* 🌟 5. กู้คืนการ์ดด้านข้าง (ในคอม) และด้านล่าง (ในมือถือ) */}
+      {/* 📋 การ์ดแสดงข้อมูลสถานีที่เลือก */}
       {selectedStation && (
-        <div style={{ position: 'absolute', zIndex: 1000, transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', ...(isMobile ? { bottom: isMobileCardOpen ? '0' : '-100%', left: 0, right: 0, borderTopLeftRadius: '24px', borderTopRightRadius: '24px', paddingBottom: '90px' } : { top: '20px', right: '20px', width: '340px', borderRadius: '24px', maxHeight: 'calc(100vh - 40px)', overflowY: 'auto' }), background: cardBg, backdropFilter: 'blur(20px)', border: `1px solid ${borderColor}`, padding: '20px', boxShadow: '0 -10px 40px rgba(0,0,0,0.15)', fontFamily: 'Kanit, sans-serif' }} className="hide-scrollbar">
+        <div style={{ 
+          position: 'absolute', zIndex: 1000, transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          ...(isMobile 
+            ? { bottom: isMobileCardOpen ? '0' : '-100%', left: 0, right: 0, borderTopLeftRadius: '24px', borderTopRightRadius: '24px', paddingBottom: '90px' } 
+            : { top: '20px', right: '100px', width: '340px', borderRadius: '24px', maxHeight: 'calc(100vh - 40px)', overflowY: 'auto' }), // ปรับ right ให้ไม่บังปุ่ม mapStyle
+          background: cardBg, backdropFilter: 'blur(20px)', border: `1px solid ${borderColor}`, padding: '20px', boxShadow: '0 -10px 40px rgba(0,0,0,0.15)', fontFamily: 'Kanit, sans-serif'
+        }} className="hide-scrollbar">
           
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px' }}>
             <div>
