@@ -1,162 +1,123 @@
-// src/pages/AIAssistantPage.jsx
+// src/pages/ForecastPage.jsx
 import React, { useContext, useState, useEffect } from 'react';
 import { WeatherContext } from '../context/WeatherContext';
-import { extractProvince } from '../utils/helpers';
+import { extractProvince, getPM25Color } from '../utils/helpers';
 
-// 🌟 ฐานข้อมูลความรู้ AI (ภูมิภาค, เกษตร, ท่องเที่ยว)
-const getProvinceKnowledge = (prov) => {
-  const north = ['เชียงใหม่', 'เชียงราย', 'แม่ฮ่องสอน', 'น่าน', 'พะเยา', 'แพร่', 'ลำปาง', 'ลำพูน', 'ตาก'];
-  const south = ['ภูเก็ต', 'กระบี่', 'พังงา', 'สุราษฎร์ธานี', 'สงขลา', 'นครศรีธรรมราช', 'ตรัง', 'สตูล', 'ชุมพร'];
-  const northeast = ['ขอนแก่น', 'นครราชสีมา', 'อุดรธานี', 'อุบลราชธานี', 'บุรีรัมย์', 'สุรินทร์', 'หนองคาย', 'เลย'];
-  const east = ['ชลบุรี', 'ระยอง', 'จันทบุรี', 'ตราด', 'ฉะเชิงเทรา'];
-  
-  if (north.includes(prov)) return { region: 'เหนือ', crops: 'กาแฟ, สตรอว์เบอร์รี, ชา, ลำไย, พืชเมืองหนาว', animals: 'หมูดำ, ไก่พื้นเมือง', tour: 'ขึ้นดอยชมหมอก, ไหว้พระทำบุญ, คาเฟ่ชิคๆ, แคมป์ปิ้งป่า' };
-  if (south.includes(prov)) return { region: 'ใต้', crops: 'ยางพารา, ปาล์มน้ำมัน, ทุเรียน, ผลไม้', animals: 'สัตว์ทะเล, ประมงชายฝั่ง', tour: 'ดำน้ำดูปะการัง, เที่ยวเกาะ, กินอาหารซีฟู้ดสดๆ' };
-  if (northeast.includes(prov)) return { region: 'อีสาน', crops: 'ข้าวหอมมะลิ, มันสำปะหลัง, อ้อย, ยางพารา', animals: 'โคเนื้อ, กระบือ, ไก่ชน', tour: 'ชมอุทยานประวัติศาสตร์, เที่ยวภู, ตามรอยพญานาค' };
-  if (east.includes(prov)) return { region: 'ตะวันออก', crops: 'ทุเรียน, มังคุด, เงาะ, ยางพารา', animals: 'ประมงพื้นบ้าน, เลี้ยงกุ้ง', tour: 'ทัวร์กินผลไม้, เที่ยวทะเลใกล้กรุง, ดำน้ำตื้น' };
-  if (prov === 'กรุงเทพมหานคร') return { region: 'กลาง', crops: 'ผักสวนครัวชานเมือง, ผักไฮโดรโปนิกส์', animals: 'ปลาสวยงาม, สัตว์เลี้ยง', tour: 'เดินห้างตากแอร์, ไหว้พระวัดดัง, คาเฟ่ฮอปปิ้ง, นั่งเรือด่วน' };
-  
-  // Default (ภาคกลาง/ตะวันตก)
-  return { region: 'กลาง/ทั่วไป', crops: 'ข้าว, อ้อย, ข้าวโพด, ผักสวนครัว, มะม่วง', animals: 'สุกร, ไก่ไข่, โคนม', tour: 'ไหว้พระเก้าวัด, ตลาดน้ำ, คาเฟ่ริมทุ่งนา, ท่องเที่ยวเชิงเกษตร' };
-};
-
-export default function AIAssistantPage() {
+export default function ForecastPage() {
   const { stations, stationTemps, loading, darkMode, lastUpdateText } = useContext(WeatherContext);
   
-  const [selectedProv, setSelectedProv] = useState('');
-  const [activeTopic, setActiveTopic] = useState('summary');
-  const [isThinking, setIsThinking] = useState(false);
-  const [aiResponse, setAiResponse] = useState(null);
+  const [alertsLocationName, setAlertsLocationName] = useState('');
+  const [activeStation, setActiveStation] = useState(null);
+  const [selectedDateOffset, setSelectedDateOffset] = useState(0); 
 
-  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
+  // 🌟 กำหนดหัวข้อเริ่มต้นเป็น "summary"
+  const [activeAiTopic, setActiveAiTopic] = useState('summary');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [aiSummaryJson, setAiSummaryJson] = useState(null);
 
-  const safeStations = stations || [];
-  const provinces = [...new Set(safeStations.map(s => extractProvince(s.areaTH)))].sort((a, b) => a.localeCompare(b, 'th'));
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 1024 : false);
 
   useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    const handleResize = () => setIsMobile(window.innerWidth < 1024);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  const provinces = [...new Set((stations || []).map(s => extractProvince(s.areaTH)))].sort((a, b) => a.localeCompare(b, 'th'));
+
   useEffect(() => {
-    if (provinces.length > 0 && !selectedProv) {
-      setSelectedProv(provinces.includes('กรุงเทพมหานคร') ? 'กรุงเทพมหานคร' : provinces[0]);
+    if (provinces.length > 0 && !alertsLocationName) {
+      setAlertsLocationName(provinces.includes('กรุงเทพมหานคร') ? 'กรุงเทพมหานคร' : provinces[0]);
     }
-  }, [provinces, selectedProv]);
+  }, [provinces, alertsLocationName]);
 
-  // 🌟 ฟังก์ชันแกนสมอง AI (สร้างคำตอบแบบไดนามิก)
-  const generateResponse = (topic, prov) => {
-    const targetStation = safeStations.find(s => extractProvince(s.areaTH) === prov) || safeStations[0];
-    if (!targetStation) return;
-
-    const tObj = stationTemps[targetStation.stationID] || {};
-    const pmVal = targetStation.AQILast?.PM25?.value ? Number(targetStation.AQILast.PM25.value) : 0;
-    const tempVal = tObj.temp != null ? Math.round(tObj.temp) : 30;
-    const heatVal = tObj.feelsLike != null ? Math.round(tObj.feelsLike) : tempVal + 2;
-    const rainProb = tObj.rainProb != null ? Math.round(tObj.rainProb) : 0;
-    const humidity = tObj.humidity != null ? tObj.humidity : 60;
-    const wind = tObj.windSpeed != null ? Math.round(tObj.windSpeed) : 5;
-
-    const know = getProvinceKnowledge(prov);
-    const isHot = heatVal >= 38;
-    const isRaining = rainProb >= 60;
-    const isDusty = pmVal >= 37.5;
-    
-    let content = [];
-
-    switch(topic) {
-      case 'summary':
-        content = [
-          { title: `🌤️ สรุปภาพรวม ${prov} วันนี้`, text: `อุณหภูมิจริงอยู่ที่ ${tempVal}°C แต่จะรู้สึกร้อนเหมือน ${heatVal}°C (Heat Index) ความชื้นสัมพัทธ์ ${humidity}% และลมพัดด้วยความเร็ว ${wind} km/h` },
-          { title: '😷 สถานการณ์ฝุ่น PM2.5', text: isDusty ? `ฝุ่นค่อนข้างสูงที่ ${pmVal} µg/m³ ใครภูมิแพ้กำเริบง่ายควรใส่หน้ากากอนามัยครับ` : `ฝุ่นอยู่ในเกณฑ์ดีเยี่ยม (${pmVal} µg/m³) สููดอากาศได้เต็มปอดเลย!` },
-          { title: '☔ โอกาสฝนตก', text: isRaining ? `มีโอกาสเจอฝนสูงถึง ${rainProb}% พกร่มก่อนออกจากบ้านด้วยนะครับ` : `โอกาสฝนตกแค่ ${rainProb}% ท้องฟ้าโปร่งสบาย ซักผ้าตากแดดได้เต็มที่ครับ` }
-        ];
-        break;
-
-      case 'pm25':
-        content = [
-          { title: '🔍 เจาะลึกฝุ่น PM2.5', text: `ขณะนี้ค่าฝุ่นในพื้นที่ ${prov} วัดได้ ${pmVal} µg/m³` },
-          { title: '🩺 คำแนะนำด้านสุขภาพ', text: isDusty ? 'จัดว่าเริ่มมีผลกระทบต่อสุขภาพ แนะนำให้งดการวิ่งจ๊อกกิ้ง หรือเตะบอลกลางแจ้งไปก่อน เปลี่ยนไปออกกำลังกายในยิมที่มีเครื่องฟอกอากาศจะดีกว่าครับ' : 'คุณภาพอากาศดีมาก เหมาะกับการพาลูกหลานออกไปทำกิจกรรมกลางแจ้ง หรือไปสวนสาธารณะครับ' },
-          { title: '💡 AI ทริคเพิ่มเติม', text: wind < 10 && isDusty ? `ลมค่อนข้างนิ่ง (${wind} km/h) ทำให้ฝุ่นไม่ค่อยระบาย แนะนำให้ปิดหน้าต่างห้องและเปิดเครื่องฟอกอากาศนะครับ` : 'ลมพัดดีช่วยระบายอากาศได้ระดับนึงครับ' }
-        ];
-        break;
-
-      case 'rain':
-        content = [
-          { title: '⛈️ โอกาสเกิดฝนฟ้าคะนอง', text: `โอกาสฝนตกวันนี้อยู่ที่ ${rainProb}% พร้อมความชื้นในอากาศ ${humidity}%` },
-          { title: '👕 แผนการซักผ้าและเดินทาง', text: isRaining ? 'ถ้าจะซักผ้า แนะนำให้อบแห้งหรือตากในร่มครับ ส่วนการเดินทาง ให้เผื่อเวลาไว้เลย รถน่าจะติดแน่นอน' : 'แดดดี ฝนน้อย ตากผ้าแห้งสนิทแน่นอน ล้างรถวันนี้ก็รอดตายครับ!' },
-          { title: '🚗 สภาพถนน', text: isRaining ? 'ระวังถนนลื่น และหลีกเลี่ยงเส้นทางที่มีน้ำท่วมขังบ่อยในตัวเมืองด้วยนะครับ' : 'ถนนแห้ง ขับขี่ปลอดภัยครับ แต่อย่าประมาทล่ะ' }
-        ];
-        break;
-
-      case 'agri':
-        content = [
-          { title: `🌾 วิเคราะห์การเกษตร (${prov})`, text: `สำหรับพี่น้องเกษตรกรภาค${know.region} ที่ปลูก ${know.crops} และเลี้ยง ${know.animals}` },
-          { title: '💧 แผนการรดน้ำ-ให้ปุ๋ย', text: isRaining ? `ความชื้นสูง ${humidity}% และฝน ${rainProb}% งดให้น้ำและงดฉีดพ่นปุ๋ย/ยาทางใบชั่วคราว เพราะฝนจะชะล้างหายหมดครับ ระวังโรคเชื้อราในพืชด้วย` : `ดินน่าจะเริ่มแห้ง แนะนำให้รดน้ำช่วงเช้าตรู่หรือเย็นแดดร่ม เพื่อประหยัดน้ำและพืชดูดซึมได้ดีที่สุดครับ` },
-          { title: '🐄 การดูแลสัตว์เลี้ยง', text: isHot ? `ระวังความเครียดจากความร้อน (Heat Stress) ในสัตว์เลี้ยง เพราะ Heat Index ปาไป ${heatVal}°C ควรเปิดพัดลม พ่นละอองน้ำ และเปลี่ยนน้ำดื่มให้สัตว์บ่อยๆ ครับ` : 'สภาพอากาศปกติ สัตว์เลี้ยงกินอาหารได้ตามปกติครับ' }
-        ];
-        break;
-
-      case 'tour_family':
-        content = [
-          { title: `🚗 แผนพาน้องเที่ยว ${prov}`, text: `แพลนเที่ยวชิลๆ สไตล์ครอบครัว กับบรรยากาศ ${know.tour}` },
-          { title: '📍 กิจกรรมแนะนำวันนี้', text: (isRaining || isHot || isDusty) ? `วันนี้อากาศไม่ค่อยเป็นใจ (ฝุ่น ${pmVal}, ร้อน ${heatVal}°C, ฝน ${rainProb}%) แนะนำให้เที่ยวในร่ม (Indoor) พาเด็กๆ ไปพิพิธภัณฑ์, อควาเรียม หรือเดินห้างชิลๆ ดีกว่าครับ` : `อากาศเป็นใจมาก! พาเด็กๆ ไปปิกนิกที่สวนสาธารณะ หรือลุยที่เที่ยวกลางแจ้งได้เต็มที่เลยครับ` },
-          { title: '🎒 เตรียมของลงกระเป๋า', text: isHot ? 'ครีมกันแดด แว่นตา หมวก และกระติกน้ำเย็นๆ ขาดไม่ได้เลยครับ' : (isRaining ? 'เสื้อกันฝน ร่ม และรองเท้าแตะลุยน้ำต้องพร้อมครับ' : 'หน้ากากกันฝุ่น และทิชชู่เปียกพกติดตัวไว้เลยครับ') }
-        ];
-        break;
-
-      case 'tour_adv':
-        content = [
-          { title: `⛺ ลุยเดี่ยว/สายลุย (${prov})`, text: `เตรียมตัวให้พร้อมสำหรับทริปสายลุย ภาค${know.region} เสน่ห์อยู่ที่ ${know.tour}` },
-          { title: '⚠️ เช็คสภาพอากาศหน้างาน', text: isRaining ? `เตือนเลยครับ! ฝน ${rainProb}% การเดินป่า ดำน้ำ หรือลุยน้ำตกวันนี้ เสี่ยงอันตรายจากน้ำหลากและทางลื่น แนะนำให้เลื่อนทริปโลดโผนออกไปก่อน` : `อากาศผ่านฉลุย! ลม ${wind} km/h กำลังดี ลุยกิจกรรม Outdoor กางเต็นท์ เดินป่า หรือปีนเขาได้สบายครับ` },
-          { title: '💡 AI เตือนภัย', text: isHot ? `อากาศร้อนตับแลบ ${heatVal}°C ระวังฮีทสโตรกระหว่างทำกิจกรรม จิบน้ำทุกๆ 15 นาทีนะครับ` : 'ลุยได้เต็มที่ ถ่ายรูปสวยแน่นอน!' }
-        ];
-        break;
-
-      case 'work':
-        content = [
-          { title: '🏗️ แนะนำสายลุยไซต์งานก่อสร้าง', text: `สถานการณ์หน้าไซต์งานที่ ${prov} อุณหภูมิ ${tempVal}°C ความชื้น ${humidity}%` },
-          { title: '🧱 งานปูน / โครงสร้าง', text: isRaining ? `พักงานเทปูน 100% ครับ ฝนโอกาสตก ${rainProb}% ถ้าเทไปหน้าปูนเสียแน่นอน สลับไปทำงานในร่ม หรือมัดเหล็กแทนดีกว่า` : (isHot ? `แดดจัดมาก ปูนจะเซ็ตตัวไวเกินไปและอาจแตกร้าว ควรบ่มปูนให้ชุ่มชื้นตลอดเวลานะครับ` : 'เทปูน ก่ออิฐ ฉาบปูน ได้ตามแผนครับ') },
-          { title: '👷 ความปลอดภัยคนงาน (Safety)', text: isHot ? `Heat Index สูงถึง ${heatVal}°C เสี่ยงฮีทสโตรก! โฟร์แมนควรจัดหาน้ำเย็น เครื่องดื่มเกลือแร่ และให้คนงานสลับพักในที่ร่มทุกๆ 1-2 ชั่วโมงครับ` : (isDusty ? 'ฝุ่นสูง แจกหน้ากาก N95 ให้คนงานด้วยนะครับ เพื่อป้องกันโรคทางเดินหายใจ' : 'อากาศปกติ ลุยงานได้เต็มประสิทธิภาพครับ') }
-        ];
-        break;
-
-      case 'business':
-        content = [
-          { title: '🛒 แนะนำแม่ค้า/พ่อค้า', text: `วิเคราะห์ทำเลทองและการค้าขายใน ${prov} ตาม Nowcast!` },
-          { title: '🛍️ สินค้าขายดีวันนี้', text: isHot ? `ร้อนปรอทแตกแบบนี้ (ฟีล ${heatVal}°C) ดันสินค้าพวก ชานมเย็น, น้ำแข็งไส, แอร์เคลื่อนที่, ครีมกันแดด ขึ้นหน้าร้านเลยครับ ขายดีชัวร์!` : (isRaining ? `ฝนมาแน่ ${rainProb}% ลูกค้าไม่ออกบ้าน จัดโปรเดลิเวอรี่ลดค่าส่งด่วนๆ หรือขายร่ม เสื้อกันฝน หน้าร้านเลยครับ` : `อากาศเย็นสบายคนเดินตลาดนัดเยอะ จัดเต็มสต๊อกของกิน ของปิ้งย่าง ได้เลยครับ`) },
-          { title: '💡 กลยุทธ์เรียกลูกค้า', text: (isRaining || isHot) ? 'ลูกค้าหนีร้อน/หนีฝนเข้าห้าง หรือสั่งออนไลน์เยอะขึ้น เน้นทำการตลาดผ่าน Social Media ยิงแอดวันนี้คุ้มครับ' : 'จัดโปรโมชั่นหน้าร้าน แจกชิม หรือทำกิจกรรมเรียกลูกค้าเดินผ่านไปมาได้เลยครับ' }
-        ];
-        break;
-
-      default:
-        content = [{ title: 'กำลังเรียนรู้', text: 'ข้อมูลส่วนนี้ AI กำลังฝึกฝนเพิ่มเติมครับ...' }];
+  useEffect(() => {
+    if (stations && alertsLocationName) {
+      const target = stations.find(s => extractProvince(s.areaTH) === alertsLocationName);
+      if (target) setActiveStation(target);
     }
+  }, [alertsLocationName, stations]);
 
-    setAiResponse({ prov, pmVal, tempVal, heatVal, rainProb, humidity, content });
+  const forecastDates = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(); d.setDate(d.getDate() + i); return d;
+  });
+
+  const formatDateLabel = (d, index) => {
+    if (index === 0) return `วันนี้ (${d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })})`;
+    if (index === 1) return `พรุ่งนี้ (${d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })})`;
+    return `${d.toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short' })}`;
   };
 
-  const handleTopicChange = (topic) => {
-    setActiveTopic(topic);
-    setIsThinking(true);
-    // หน่วงเวลาจำลอง AI ประมวลผล
+  // 🌟 ฟังก์ชันสร้างเนื้อหา AI อัจฉริยะ (ภาษาเป็นกันเองสุดๆ)
+  const generateAIContent = () => {
+    const dateLabel = formatDateLabel(forecastDates[selectedDateOffset], selectedDateOffset).split(' ')[0];
+    const prov = alertsLocationName;
+    
+    // ดึงค่าปัจจุบันมาใช้ในบทสนทนา (จำลอง)
+    const pmVal = activeStation?.AQILast?.PM25?.value ? Number(activeStation.AQILast.PM25.value) : 25;
+    const tObj = activeStation ? stationTemps[activeStation.stationID] : {};
+    const rainProb = tObj?.rainProb || 0;
+    const temp = tObj?.temp ? Math.round(tObj.temp) : 33;
+
+    return {
+      summary: [
+        { icon: '🌅', title: `เช้านี้ที่ ${prov} (${dateLabel})`, desc: `ตื่นมาสูดอากาศได้ชิลๆ ลมเย็นเบาๆ อุณหภูมิประมาณ ${temp-3}°C รีบออกไปทำธุระตอนเช้าดีที่สุดครับ!`, color: '#10b981' },
+        { icon: '☀️', title: 'เที่ยงถึงบ่าย', desc: `แดดเปรี้ยงมากแม่! อุณหภูมิพุ่งปรี๊ดแตะ ${temp}°C ร้อนจนเหงื่อตก แนะนำให้หลบอยู่ในห้องแอร์ฉ่ำๆ ดีกว่านะ`, color: '#f97316' },
+        { icon: '🌙', title: 'ตกเย็นค่ำๆ', desc: `ลมเริ่มสงบ อากาศเย็นลงนิดหน่อย ออกมาหาของอร่อยกินที่ตลาดนัดกลางคืนได้สบายใจเลยครับ`, color: '#6366f1' }
+      ],
+      dust: [
+        { icon: '😷', title: `สถานการณ์ฝุ่น PM2.5`, desc: pmVal > 37 ? `ตอนนี้ฝุ่นอยู่ที่ ${pmVal} ถือว่าเริ่มเยอะแล้วนะ ใครจมูกไวหรือเป็นภูมิแพ้ เตรียมพ่นยาและใส่ N95 ด่วนๆ!` : `ฝุ่นอยู่ที่ ${pmVal} อากาศค่อนข้างเคลียร์เลย ถอดหน้ากากสูดอากาศได้เต็มปอดครับ!`, color: pmVal > 37 ? '#f43f5e' : '#22c55e' },
+        { icon: '🏠', title: 'คำแนะนำการอยู่บ้าน', desc: pmVal > 37 ? 'ปิดหน้าต่างแน่นๆ แล้วเปิดเครื่องฟอกอากาศด่วนๆ เลยครับ ปล่อยให้เครื่องกรองทำงานไปยาวๆ' : 'เปิดหน้าต่างระบายอากาศให้ลมโกรกได้เลยครับ บ้านจะได้ไม่อับชื้น', color: '#0ea5e9' }
+      ],
+      rain: [
+        { icon: rainProb > 40 ? '☔' : '🌤️', title: 'สรุปฝนตกมั้ย?', desc: rainProb > 40 ? `โอกาสฝนตกตั้ง ${rainProb}% แหนะ! พกร่มติดกระเป๋าไว้เถอะ เชื่อผม ไม่เปียกแน่นอน` : `โอกาสฝนตกแค่ ${rainProb}% เอง วันนี้ฟ้าโปร่งแดดแรง ซักผ้าตากทิ้งไว้ได้สบายใจ หายห่วง!`, color: rainProb > 40 ? '#3b82f6' : '#eab308' },
+        { icon: '🚗', title: 'การเดินทาง', desc: rainProb > 40 ? 'ถ้าฝนตกรถติดแน่นอน เผื่อเวลาเดินทางไว้สัก 30 นาทีด้วยนะครับ' : 'ขับรถเปิดประทุนหรือขี่มอเตอร์ไซค์รับลมชิลๆ ได้เลย ถนนแห้งชัวร์', color: '#8b5cf6' }
+      ],
+      recommendation: [
+        { icon: '💧', title: 'ทริคเอาตัวรอดวันนี้', desc: `อากาศร้อนแตะ ${temp}°C แบบนี้ พกขวดน้ำจิบเรื่อยๆ ระวังเพลียแดด (ฮีทสโตรก) นะครับ`, color: '#06b6d4' },
+        { icon: '🕶️', title: 'ไอเทมของมันต้องมี', desc: 'ครีมกันแดด SPF50+ แว่นตาดำ และทิชชู่เปียกซับเหงื่อ คือ 3 สิ่งที่ขาดไม่ได้!', color: '#eab308' }
+      ],
+      pets: [
+        { icon: '🐶', title: 'เวลาพาน้องหมาเที่ยว', desc: 'พาไปเดินดมกลิ่นช่วงเช้าตรู่ก่อน 8 โมง หรือหลัง 6 โมงเย็นไปเลยครับ พื้นถนนจะได้ไม่ลวกอุ้งเท้าน้อยๆ', color: '#10b981' },
+        { icon: '🚫', title: 'คำเตือนถึงนุด!', desc: 'ช่วงบ่ายห้ามพาน้องออกไปเดินตากแดดเด็ดขาด! และ **ห้ามทิ้งน้องไว้ในรถที่ดับเครื่อง** แม้จะแง้มกระจกไว้ก็ตามนะ!', color: '#ef4444' }
+      ],
+      travel: [
+        { icon: '📸', title: 'สายคาเฟ่ทำคอนเทนต์', desc: 'แสงเช้า 7-10 โมงคือที่สุด! หน้าเนียนกริบกริบ พอตกบ่ายปุ๊บ มุดเข้าห้างหรือคาเฟ่แอร์เย็นๆ เถอะ เชื่อสิ', color: '#ec4899' },
+        { icon: '⛺', title: 'สายตั้งแคมป์ / ธรรมชาติ', desc: `กลางคืนลมเย็นโอเคเลย แต่อย่าลืมพกพัดลมพกพาไปเปิดตอนบ่ายด้วย ร้อนเอาเรื่องอยู่ครับ`, color: '#14b8a6' }
+      ],
+      agriculture: [
+        { icon: '💦', title: 'รดน้ำต้นไม้', desc: `วันนี้โอกาสฝน ${rainProb}% ถ้าน้อยกว่า 30% ก็รดน้ำตอนเช้ามืด (ตี 5 - 8 โมง) ได้เลยครับ น้ำจะได้ไม่ระเหยทิ้งเปล่าๆ`, color: '#3b82f6' },
+        { icon: '👨‍🌾', title: 'เตือนภัยชาวสวน', desc: 'พักเบรกช่วง 11:00 - 15:00 น. ก่อนนะ ลุยงานตากแดดเปรี้ยงๆ ระวังจะเป็นลมแดดเอาได้ครับ', color: '#ea580c' }
+      ],
+      construction: [
+        { icon: '🏗️', title: 'ลุยไซต์งาน', desc: 'งานเทปูน เทพื้น รีบทำจัดเต็มช่วงเช้าเลยครับ แดดยังไม่ดุมาก', color: '#f59e0b' },
+        { icon: '🥤', title: 'พักเบรกลูกน้อง', desc: 'ช่วงบ่ายที่แดดจัดๆ ให้ลูกน้องสลับไปทำงานในร่ม หรือแจกน้ำหวาน/น้ำแข็งไสคลายร้อนกันหน่อยครับ', color: '#6366f1' }
+      ],
+      commerce: [
+        { icon: '🛍️', title: 'ตลาดนัดช่วงเย็น', desc: 'เตรียมรับทรัพย์! อากาศตอนเย็นเป็นใจ ลูกค้าเดินช้อปเพลินแน่นอน จัดร้านรอได้เลย', color: '#10b981' },
+        { icon: '🧊', title: 'ร้านเปิดโล่งกลางวัน', desc: 'ร้อนทะลุปรอท! พ่อค้าแม่ค้าต้องกางร่มเงาให้ลูกค้าเยอะๆ และระวังของสด/ขนมละลายด้วยนะครับ', color: '#ef4444' }
+      ]
+    };
+  };
+
+  // 🌟 ฟังก์ชันจัดการเวลากดปุ่มแล้วให้วิเคราะห์ทันที
+  const handleTopicClick = (topicId) => {
+    setActiveAiTopic(topicId);
+    setIsGenerating(true);
+    // ทำท่า AI กำลังคิด 0.8 วินาที
     setTimeout(() => {
-      generateResponse(topic, selectedProv);
-      setIsThinking(false);
+      setAiSummaryJson(generateAIContent());
+      setIsGenerating(false);
     }, 800);
   };
 
+  // สร้างข้อมูล AI ครั้งแรกที่เข้ามาหน้านี้ (ดึงค่าเริ่มต้นเป็น summary)
   useEffect(() => {
-    if (selectedProv) {
-      setIsThinking(true);
-      setTimeout(() => {
-        generateResponse(activeTopic, selectedProv);
-        setIsThinking(false);
-      }, 800);
+    if (activeStation && !aiSummaryJson) {
+      setAiSummaryJson(generateAIContent());
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedProv]);
+  }, [activeStation]);
 
   const bgGradient = darkMode ? '#0f172a' : '#f8fafc'; 
   const cardBg = darkMode ? 'rgba(30, 41, 59, 0.95)' : '#ffffff';
@@ -165,112 +126,160 @@ export default function AIAssistantPage() {
   const subTextColor = darkMode ? '#94a3b8' : '#64748b'; 
   const borderColor = darkMode ? 'rgba(255, 255, 255, 0.1)' : '#e2e8f0'; 
 
-  const topics = [
-    { id: 'summary', icon: '☁️', label: 'สรุปให้ฟังหน่อย' },
-    { id: 'pm25', icon: '😷', label: 'ฝุ่นเป็นไงบ้าง' },
-    { id: 'rain', icon: '☔', label: 'ฝนตกป่าว' },
-    { id: 'tour_family', icon: '👨‍👩‍👧', label: 'พาน้องเที่ยว' },
-    { id: 'tour_adv', icon: '🏕️', label: 'สายเที่ยว' },
-    { id: 'agri', icon: '🌾', label: 'ทำสวน/เกษตร' },
-    { id: 'work', icon: '🏗️', label: 'ลุยไซต์งาน' },
-    { id: 'business', icon: '🛒', label: 'ค้าขาย' },
+  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', background: bgGradient, color: textColor, fontWeight: 'bold' }}>กำลังโหลดข้อมูล... ⏳</div>;
+
+  const pmVal = activeStation?.AQILast?.PM25?.value ? Number(activeStation.AQILast.PM25.value) : null;
+  const tObj = activeStation ? stationTemps[activeStation.stationID] : null;
+  const tempVal = tObj?.temp;
+  const heatVal = tObj?.feelsLike;
+  const humidityVal = tObj?.humidity != null ? tObj.humidity : '-';
+  const pmBg = getPM25Color(pmVal);
+  const pmTextColor = (pmBg === '#ffff00' || pmBg === '#00e400') ? '#222' : '#fff';
+
+  // 🌟 ปรับรายชื่อเมนูให้เป็นกันเอง
+  const aiTopics = [
+    { id: 'summary', icon: '🌤️', label: 'สรุปให้ฟังหน่อย', color: '#8b5cf6' },
+    { id: 'dust', icon: '😷', label: 'ฝุ่นเป็นไงบ้าง', color: '#ef4444' },
+    { id: 'rain', icon: '☔', label: 'ฝนตกป่าว', color: '#3b82f6' },
+    { id: 'recommendation', icon: '💡', label: 'ทริคแนะนำ', color: '#10b981' },
+    { id: 'pets', icon: '🐶', label: 'พาน้องเที่ยว', color: '#f43f5e' },
+    { id: 'travel', icon: '⛺', label: 'สายเที่ยว', color: '#14b8a6' },
+    { id: 'agriculture', icon: '🌾', label: 'ทำสวน/เกษตร', color: '#84cc16' },
+    { id: 'construction', icon: '🏗️', label: 'ลุยไซต์งาน', color: '#f59e0b' },
+    { id: 'commerce', icon: '🛒', label: 'ค้าขาย', color: '#6366f1' },
   ];
 
-  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', background: bgGradient, color: textColor, fontWeight: 'bold' }}>กำลังโหลดระบบ AI... ⏳</div>;
-
   return (
-    <div style={{ height: '100%', width: '100%', padding: isMobile ? '12px' : '30px', paddingBottom: isMobile ? '100px' : '40px', display: 'flex', flexDirection: 'column', gap: '20px', boxSizing: 'border-box', overflowY: 'auto', background: bgGradient, fontFamily: 'Kanit, sans-serif' }} className="hide-scrollbar">
+    // 🌟 แก้ปัญหา Scroll ไม่ลง! โดยเพิ่ม overflowY: 'auto' และ flex: 1 ให้ครอบคลุมการเลื่อน
+    <div style={{ height: '100%', width: '100%', padding: isMobile ? '12px' : '30px', paddingBottom: isMobile ? '100px' : '40px', display: 'flex', flexDirection: 'column', gap: isMobile ? '12px' : '20px', boxSizing: 'border-box', overflowY: 'auto', overflowX: 'hidden', background: bgGradient, fontFamily: 'Kanit, sans-serif' }} className="hide-scrollbar">
       
-      <style dangerouslySetInlineStyle={{__html: `.hide-scrollbar::-webkit-scrollbar { display: none; } .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }`}} />
-
+      {/* 🟢 HEADER */}
       {!isMobile && (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
           <div>
             <h1 style={{ fontSize: '2rem', color: textColor, margin: 0, fontWeight: '800' }}>✨ AI ผู้ช่วยอัจฉริยะ</h1>
-            <p style={{ margin: '4px 0 0 0', color: subTextColor, fontSize: '0.9rem' }}>วิเคราะห์สภาพอากาศเชิงลึก ตามบริบทของแต่ละจังหวัด</p>
+            <p style={{ margin: '2px 0 0 0', color: subTextColor, fontSize: '0.95rem' }}>วิเคราะห์สภาพอากาศแบบชิลๆ</p>
           </div>
-          <div style={{ background: innerCardBg, padding: '6px 12px', borderRadius: '12px', color: subTextColor, fontSize: '0.75rem', fontWeight: 'bold', border: `1px solid ${borderColor}` }}>⏱️ ข้อมูลล่าสุด: {lastUpdateText || '-'}</div>
+          <div style={{ background: innerCardBg, padding: '6px 12px', borderRadius: '12px', color: subTextColor, fontSize: '0.75rem', fontWeight: 'bold', border: `1px solid ${borderColor}` }}>
+            ⏱️ ข้อมูลล่าสุด: {lastUpdateText || '-'}
+          </div>
         </div>
       )}
 
-      {/* 🎛️ ตัวกรองพิกัด */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '15px', background: cardBg, padding: '12px 20px', borderRadius: '16px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.03)', flexShrink: 0 }}>
-        <span style={{ fontSize: '1.2rem' }}>📍 กรุณาเลือกพื้นที่:</span>
-        <select value={selectedProv} onChange={(e) => setSelectedProv(e.target.value)} style={{ flex: 1, background: innerCardBg, color: '#0ea5e9', border: 'none', fontWeight: '900', fontSize: '1.1rem', padding: '10px 15px', borderRadius: '12px', outline: 'none', cursor: 'pointer' }}>
-          {provinces.map(p => <option key={p} value={p}>{p}</option>)}
-        </select>
+      {/* 📍 ตัวเลือกสถานที่ & วันที่ (🌟 ยุบรวมเหลือบรรทัดเดียวเล็กๆ) */}
+      <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '5px', background: cardBg, padding: '8px 12px', borderRadius: '14px', border: `1px solid ${borderColor}`, boxShadow: '0 2px 10px rgba(0,0,0,0.02)' }}>
+          <span style={{ fontSize: '1rem' }}>📍</span>
+          <select value={alertsLocationName} onChange={(e) => { setAlertsLocationName(e.target.value); handleTopicClick(activeAiTopic); }} style={{ flex: 1, background: 'transparent', color: textColor, border: 'none', fontWeight: 'bold', fontSize: '0.9rem', outline: 'none', cursor: 'pointer', appearance: 'none', textOverflow: 'ellipsis' }}>
+            {provinces.map(p => <option key={p} value={p}>{p}</option>)}
+          </select>
+          <span style={{ color: subTextColor, fontSize: '0.7rem' }}>▼</span>
+        </div>
+
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '5px', background: cardBg, padding: '8px 12px', borderRadius: '14px', border: `1px solid ${borderColor}`, boxShadow: '0 2px 10px rgba(0,0,0,0.02)' }}>
+          <span style={{ fontSize: '1rem' }}>📅</span>
+          <select value={selectedDateOffset} onChange={(e) => { setSelectedDateOffset(Number(e.target.value)); handleTopicClick(activeAiTopic); }} style={{ flex: 1, background: 'transparent', color: textColor, border: 'none', fontWeight: 'bold', fontSize: '0.9rem', outline: 'none', cursor: 'pointer', appearance: 'none', textOverflow: 'ellipsis' }}>
+            {forecastDates.map((d, i) => (
+              <option key={i} value={i}>{formatDateLabel(d, i)}</option>
+            ))}
+          </select>
+          <span style={{ color: subTextColor, fontSize: '0.7rem' }}>▼</span>
+        </div>
       </div>
 
-      {/* 🤖 กล่องสนทนา AI */}
-      <div style={{ background: cardBg, borderRadius: '24px', padding: isMobile ? '15px' : '25px', border: `1px solid ${borderColor}`, boxShadow: '0 10px 30px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', gap: '20px', flex: 1, minHeight: 0 }}>
-        
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span style={{ fontSize: '1.5rem' }}>🤖</span>
-          <h3 style={{ margin: 0, color: textColor, fontSize: '1.1rem' }}>อยากให้ AI ช่วยเรื่องอะไร?</h3>
-        </div>
-
-        {/* 🌟 ปุ่มเลือกหมวดหมู่แบบเลื่อนได้ */}
-        <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '10px' }} className="hide-scrollbar">
-          {topics.map(t => (
-            <button 
-              key={t.id} onClick={() => handleTopicChange(t.id)}
-              style={{ background: activeTopic === t.id ? '#6366f1' : innerCardBg, color: activeTopic === t.id ? '#fff' : subTextColor, border: `1px solid ${activeTopic === t.id ? '#6366f1' : borderColor}`, padding: '10px 18px', borderRadius: '50px', fontSize: '0.9rem', fontWeight: 'bold', cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.2s', boxShadow: activeTopic === t.id ? '0 4px 15px rgba(99,102,241,0.3)' : 'none', flexShrink: 0 }}>
-              <span style={{ marginRight: '6px' }}>{t.icon}</span> {t.label}
-            </button>
-          ))}
-        </div>
-
-        {/* 📝 พื้นที่แสดงคำตอบ AI */}
-        <div style={{ flex: 1, overflowY: 'auto', background: innerCardBg, borderRadius: '20px', padding: isMobile ? '15px' : '25px', border: `1px solid ${borderColor}`, position: 'relative' }} className="hide-scrollbar">
+      {/* 🌟 1. AI HERO SECTION */}
+      <div style={{ background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)', padding: '2px', borderRadius: '24px', boxShadow: '0 10px 30px rgba(139, 92, 246, 0.2)', flexShrink: 0 }}>
+        <div style={{ background: cardBg, borderRadius: '22px', padding: isMobile ? '15px' : '30px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
           
-          {isThinking ? (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: subTextColor, gap: '15px' }}>
-              <div className="typing-indicator" style={{ display: 'flex', gap: '5px' }}>
-                <span style={{ width: '10px', height: '10px', background: '#6366f1', borderRadius: '50%', animation: 'bounce 1.4s infinite ease-in-out both' }}></span>
-                <span style={{ width: '10px', height: '10px', background: '#6366f1', borderRadius: '50%', animation: 'bounce 1.4s infinite ease-in-out both', animationDelay: '0.2s' }}></span>
-                <span style={{ width: '10px', height: '10px', background: '#6366f1', borderRadius: '50%', animation: 'bounce 1.4s infinite ease-in-out both', animationDelay: '0.4s' }}></span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h2 style={{ fontSize: '1.1rem', color: textColor, margin: 0, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '1.4rem' }}>🤖</span> คุยกับ AI
+            </h2>
+            {isMobile && (
+              <span style={{ fontSize: '0.7rem', color: subTextColor, animation: 'pulse 2s infinite' }}>👈 เลื่อนดูโหมดอื่น 👉</span>
+            )}
+          </div>
+
+          {/* 🌟 ปุ่มหมวดหมู่ (กดแล้ววิเคราะห์เลย) */}
+          <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '8px', WebkitOverflowScrolling: 'touch' }} className="hide-scrollbar">
+            {aiTopics.map((topic) => {
+              const isActive = activeAiTopic === topic.id;
+              return (
+                <button 
+                  key={topic.id}
+                  onClick={() => handleTopicClick(topic.id)} 
+                  style={{ 
+                    padding: '8px 12px', 
+                    borderRadius: '12px', 
+                    border: isActive ? `2px solid ${topic.color}` : `1px solid ${borderColor}`, 
+                    fontWeight: 'bold', 
+                    fontSize: '0.85rem', 
+                    cursor: 'pointer', 
+                    whiteSpace: 'nowrap', 
+                    background: isActive ? `${topic.color}15` : innerCardBg, 
+                    color: isActive ? topic.color : subTextColor, 
+                    transition: 'all 0.2s',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px'
+                  }}>
+                  {topic.icon} {topic.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* กล่องข้อความ AI */}
+          <div style={{ background: innerCardBg, padding: isMobile ? '15px' : '20px', borderRadius: '16px', border: `1px solid ${borderColor}`, minHeight: '160px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+            {isGenerating ? (
+              <div style={{ textAlign: 'center', color: subTextColor }}>
+                <div style={{ fontSize: '2.5rem', marginBottom: '10px', animation: 'spin 2s linear infinite' }}>🤔</div>
+                <div style={{ fontWeight: 'bold', fontSize: '1.05rem', color: '#8b5cf6' }}>AI กำลังวิเคราะห์...</div>
+                <div style={{ fontSize: '0.8rem', marginTop: '5px' }}>รอแป๊บนึงนะ แป๊บเดียว!</div>
               </div>
-              <style dangerouslySetInlineStyle={{__html: `@keyframes bounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }`}} />
-              <p style={{ fontWeight: 'bold' }}>AI กำลังประมวลผลข้อมูลของ {selectedProv}...</p>
-            </div>
-          ) : (
-            aiResponse && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', animation: 'fadeIn 0.5s ease-out' }}>
-                <style dangerouslySetInlineStyle={{__html: `@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }`}} />
-                
-                {aiResponse.content.map((sec, idx) => (
-                  <div key={idx} style={{ background: cardBg, padding: '18px 20px', borderRadius: '16px', border: `1px solid ${borderColor}`, borderLeft: `4px solid #6366f1`, boxShadow: '0 4px 10px rgba(0,0,0,0.02)' }}>
-                    <h4 style={{ margin: '0 0 8px 0', color: textColor, fontSize: '1.05rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      {sec.title}
-                    </h4>
-                    <p style={{ margin: 0, color: subTextColor, fontSize: '0.95rem', lineHeight: 1.6 }}>
-                      {sec.text}
-                    </p>
+            ) : aiSummaryJson && aiSummaryJson[activeAiTopic] ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {aiSummaryJson[activeAiTopic].map((item, idx) => (
+                  <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', background: darkMode ? `${item.color}15` : `${item.color}10`, padding: '12px', borderRadius: '14px', border: `1px solid ${item.color}30` }}>
+                    <div style={{ fontSize: '1.8rem', lineHeight: 1 }}>{item.icon}</div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 'bold', color: item.color, fontSize: '0.95rem', marginBottom: '2px' }}>{item.title}</div>
+                      <div style={{ color: textColor, fontSize: '0.85rem', lineHeight: '1.6' }}>{item.desc}</div>
+                    </div>
                   </div>
                 ))}
-
               </div>
-            )
-          )}
-        </div>
+            ) : (
+              <div style={{ textAlign: 'center', color: subTextColor, fontSize: '0.9rem' }}>
+                กดเลือกหัวข้อด้านบน 👆 <br/>เดี๋ยว AI สรุปให้ฟังแบบเพื่อนคุยกัน!
+              </div>
+            )}
+          </div>
 
+        </div>
       </div>
 
-      {/* 📊 Nowcast อ้างอิงด้านล่างสุด */}
-      <div style={{ display: 'flex', alignItems: 'center', background: cardBg, padding: '15px 20px', borderRadius: '20px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.03)', gap: '15px', flexShrink: 0, overflowX: 'auto' }} className="hide-scrollbar">
-         <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: subTextColor, whiteSpace: 'nowrap' }}>อ้างอิง Nowcast:</span>
-         {[
-           { label: 'PM2.5', val: aiResponse?.pmVal || '-', unit: 'µg/m³', color: '#0ea5e9' },
-           { label: 'อุณหภูมิ', val: aiResponse?.tempVal || '-', unit: '°C', color: '#f97316' },
-           { label: 'Heat Index', val: aiResponse?.heatVal || '-', unit: '°C', color: '#ef4444' },
-           { label: 'โอกาสฝน', val: aiResponse?.rainProb || 0, unit: '%', color: '#3b82f6' },
-           { label: 'ความชื้น', val: aiResponse?.humidity || '-', unit: '%', color: '#10b981' }
-         ].map((stat, idx) => (
-           <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: innerCardBg, padding: '8px 15px', borderRadius: '12px', minWidth: '80px' }}>
-             <span style={{ fontSize: '0.7rem', color: subTextColor, fontWeight: 'bold' }}>{stat.label}</span>
-             <span style={{ fontSize: '1.1rem', color: stat.color, fontWeight: '900' }}>{stat.val} <span style={{ fontSize: '0.7rem', fontWeight: 'normal' }}>{stat.unit}</span></span>
-           </div>
-         ))}
+      {/* 🌟 2. MINI METRICS */}
+      <div style={{ flexShrink: 0 }}>
+        <h3 style={{ fontSize: '0.9rem', color: subTextColor, fontWeight: 'bold', margin: '0 0 8px 5px' }}>📍 สภาพอากาศ ณ ปัจจุบัน</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+          <div style={{ background: pmBg, borderRadius: '16px', padding: '10px 5px', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center', boxShadow: '0 4px 10px rgba(0,0,0,0.05)' }}>
+            <div style={{ fontSize: '0.65rem', fontWeight: 'bold', color: pmTextColor, opacity: 0.9 }}>PM2.5</div>
+            <div style={{ fontSize: '1.3rem', fontWeight: '900', color: pmTextColor, lineHeight: 1.2 }}>{pmVal != null && !isNaN(pmVal) ? pmVal : '-'}</div>
+          </div>
+          <div style={{ background: cardBg, borderRadius: '16px', padding: '10px 5px', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center', border: `1px solid ${borderColor}`, boxShadow: '0 4px 10px rgba(0,0,0,0.02)' }}>
+            <div style={{ fontSize: '0.65rem', fontWeight: 'bold', color: subTextColor }}>อุณหภูมิ</div>
+            <div style={{ fontSize: '1.3rem', fontWeight: '900', color: textColor, lineHeight: 1.2 }}>{tempVal ? Math.round(tempVal) : '-'}°</div>
+          </div>
+          <div style={{ background: cardBg, borderRadius: '16px', padding: '10px 5px', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center', border: `1px solid ${borderColor}`, boxShadow: '0 4px 10px rgba(0,0,0,0.02)' }}>
+            <div style={{ fontSize: '0.65rem', fontWeight: 'bold', color: subTextColor }}>ดัชนีร้อน</div>
+            <div style={{ fontSize: '1.3rem', fontWeight: '900', color: heatVal >= 41 ? '#ef4444' : textColor, lineHeight: 1.2 }}>{heatVal ? Math.round(heatVal) : '-'}°</div>
+          </div>
+          <div style={{ background: cardBg, borderRadius: '16px', padding: '10px 5px', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center', border: `1px solid ${borderColor}`, boxShadow: '0 4px 10px rgba(0,0,0,0.02)' }}>
+            <div style={{ fontSize: '0.65rem', fontWeight: 'bold', color: subTextColor }}>ความชื้น</div>
+            <div style={{ fontSize: '1.3rem', fontWeight: '900', color: textColor, lineHeight: 1.2 }}>{humidityVal}%</div>
+          </div>
+        </div>
       </div>
 
     </div>
