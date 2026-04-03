@@ -2,11 +2,13 @@
 import React, { useContext, useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Tooltip, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
+// 🌟 นำเข้า Recharts สำหรับทำกราฟพยากรณ์จิ๋วในแถบจัดอันดับ
+import { LineChart, Line, ResponsiveContainer } from 'recharts';
 import { WeatherContext } from '../context/WeatherContext';
 import { extractProvince, getPM25Color } from '../utils/helpers';
 import 'leaflet/dist/leaflet.css';
 
-// 🌟 ฟังก์ชันแยกอำเภอ/เขต
+// ฟังก์ชันแยกอำเภอ/เขต
 const extractDistrict = (areaTH) => {
   if (!areaTH) return 'ทั่วไป';
   const match = areaTH.match(/(เขต|อ\.|อำเภอ)\s*([a-zA-Zก-ฮะ-์]+)/);
@@ -14,7 +16,7 @@ const extractDistrict = (areaTH) => {
   return areaTH.split(' ')[0]; 
 };
 
-// 🌟 ฟังก์ชันตัดคำชื่อสถานที่
+// ฟังก์ชันตัดคำชื่อสถานที่ 
 const formatAreaName = (areaTH) => {
   return areaTH ? areaTH.split(',')[0].trim() : '';
 };
@@ -41,7 +43,17 @@ const getWindColor = (val) => {
   if (val >= 30) return '#831843'; if (val >= 15) return '#db2777'; if (val >= 5) return '#f472b6'; return '#fbcfe8'; 
 };
 
-// Mapping กลุ่มเขต กทม. 6 โซน เพื่อลดความหนาแน่นจุด
+const getColorByMode = (mode, val) => {
+  if (mode === 'pm25') return getPM25Color(val);
+  if (mode === 'heat') return getHeatColor(val);
+  if (mode === 'temp') return getTempColor(val);
+  if (mode === 'rain') return getRainColor(val);
+  if (mode === 'humidity') return getHumidityColor(val);
+  if (mode === 'wind') return getWindColor(val);
+  return '#94a3b8';
+};
+
+// Mapping กลุ่มเขต กทม. 6 โซน
 const bkkZoneMap = {
   'พญาไท': 1, 'ดินแดง': 1, 'ดุสิต': 1, 'ห้วยขวาง': 1, 'วังทองหลาง': 1, 'ราชเทวี': 1, 'พระนคร': 1, 'ป้อมปราบศัตรูพ่าย': 1, 'สัมพันธวงศ์': 1, 
   'ปทุมวัน': 2, 'บางรัก': 2, 'สาทร': 2, 'บางคอแหลม': 2, 'ยานนาวา': 2, 'คลองเตย': 2, 'วัฒนา': 2, 'พระโขนง': 2, 'บางนา': 2, 'สวนหลวง': 2, 
@@ -73,7 +85,11 @@ export default function MapPage() {
   
   const [selectedProv, setSelectedProv] = useState('');
   const [selectedDistrict, setSelectedDistrict] = useState('');
+  
   const [isMobileCardOpen, setIsMobileCardOpen] = useState(false);
+  // 🌟 State เปิด/ปิด แถบจัดอันดับด้านขวา (เริ่มแรกตั้งเป็นปิดไว้เพื่อไม่ให้เกะกะ)
+  const [isRankingOpen, setIsRankingOpen] = useState(false);
+  
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
 
   const safeStations = stations || [];
@@ -88,9 +104,8 @@ export default function MapPage() {
 
   useEffect(() => { if (selectedStation && isMobile) setIsMobileCardOpen(true); }, [selectedStation, isMobile]);
 
-  // ซูมไปยังจุดที่ดีที่สุดเมื่อโหลด หรือเมื่อเลือกจาก Dropdown
   useEffect(() => {
-    if (safeStations.length > 0 && !selectedStation) {
+    if (safeStations.length > 0 && !selectedProv && !selectedStation) {
       const bkkStations = safeStations.filter(s => extractProvince(s.areaTH) === 'กรุงเทพมหานคร');
       const validBkk = bkkStations.find(s => s.AQILast?.PM25?.value != null) || bkkStations[0] || safeStations[0];
       setSelectedProv(extractProvince(validBkk.areaTH));
@@ -98,7 +113,7 @@ export default function MapPage() {
       setSelectedStation(validBkk);
       if(isMobile) setIsMobileCardOpen(true);
     }
-  }, [safeStations, selectedStation, isMobile]);
+  }, [safeStations, selectedProv, selectedStation, isMobile]);
 
   useEffect(() => {
     if (safeStations.length > 0 && selectedProv) {
@@ -114,20 +129,19 @@ export default function MapPage() {
 
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', background: darkMode ? '#0f172a' : '#f0f9ff', color: darkMode ? '#fff' : '#000' }}>กำลังโหลดแผนที่... ⏳</div>;
 
-  // 🌟 เพิ่มโหมด เรดาร์ฝน และ จุดความร้อน เข้าไปในเมนู!
   const modes = [
     { id: 'pm25', label: 'ฝุ่น PM2.5', icon: '😷', color: '#0ea5e9', unit: 'µg/m³', type: 'leaflet' },
     { id: 'heat', label: 'Heat Index', icon: '🥵', color: '#f97316', unit: '°C', type: 'leaflet' },
     { id: 'temp', label: 'อุณหภูมิ', icon: '🌡️', color: '#eab308', unit: '°C', type: 'leaflet' },
-    { id: 'rain', label: 'โอกาสฝน', icon: '☔', color: '#3b82f6', unit: '%', type: 'leaflet' },
-    { id: 'humidity', label: 'ความชื้น', icon: '💧', color: '#10b981', unit: '%', type: 'leaflet' },
-    { id: 'wind', label: 'ความเร็วลม', icon: '🌬️', color: '#db2777', unit: 'km/h', type: 'leaflet' },
+    { id: 'rain', label: 'โอกาสฝน', icon: '☔', color: '#3b82f6', unit: '%' },
+    { id: 'humidity', label: 'ความชื้น', icon: '💧', color: '#10b981', unit: '%' },
+    { id: 'wind', label: 'ความเร็วลม', icon: '🌬️', color: '#db2777', unit: 'km/h' },
     { id: 'radar', label: 'เรดาร์ฝน', icon: '⛈️', color: '#8b5cf6', type: 'windy', layer: 'rain' },
     { id: 'fires', label: 'จุดความร้อน', icon: '🔥', color: '#ef4444', type: 'windy', layer: 'fires' }
   ];
 
   const currentModeObj = modes.find(m => m.id === activeMode) || modes[0];
-  const isLeaflet = currentModeObj.type === 'leaflet';
+  const isLeaflet = currentModeObj.type !== 'windy';
   const isWindy = currentModeObj.type === 'windy';
 
   const mapBg = darkMode ? '#0f172a' : '#f8fafc';
@@ -165,15 +179,57 @@ export default function MapPage() {
     });
   }
 
-  // พิกัดสำหรับแผนที่ Windy
   const windyLat = selectedStation && !isNaN(parseFloat(selectedStation.lat)) ? parseFloat(selectedStation.lat) : 13.7563;
   const windyLon = selectedStation && !isNaN(parseFloat(selectedStation.long)) ? parseFloat(selectedStation.long) : 100.5018;
   const windyZoom = selectedStation ? 9 : 6;
 
+  // 🌟 ฟังก์ชันคำนวณข้อมูลจัดอันดับ (Ranking Data)
+  const getRankingData = () => {
+    if (isWindy) return []; // โหมด Windy ไม่จัดอันดับ
+    const dataMap = new Map();
+
+    safeStations.forEach(st => {
+      const prov = extractProvince(st.areaTH);
+      const dist = extractDistrict(st.areaTH);
+      
+      // ถ้ายกตัวกรองจังหวัด ให้เอาเฉพาะอำเภอในจังหวัดนั้นมาเทียบกัน
+      if (selectedProv && prov !== selectedProv) return;
+      const key = selectedProv ? dist : prov;
+
+      const tObj = stationTemps[st.stationID] || {};
+      let val = null;
+      if (activeMode === 'pm25') val = st.AQILast?.PM25?.value ? Number(st.AQILast.PM25.value) : null;
+      else if (activeMode === 'heat') val = tObj.feelsLike;
+      else if (activeMode === 'temp') val = tObj.temp;
+      else if (activeMode === 'rain') val = tObj.rainProb;
+      else if (activeMode === 'humidity') val = tObj.humidity;
+      else if (activeMode === 'wind') val = tObj.windSpeed;
+
+      if (val != null && !isNaN(val)) {
+        if (!dataMap.has(key)) dataMap.set(key, { name: key, sum: 0, count: 0 });
+        const entry = dataMap.get(key);
+        entry.sum += val;
+        entry.count += 1;
+      }
+    });
+
+    const arr = Array.from(dataMap.values()).map(d => {
+      const avg = Math.round(d.sum / d.count);
+      // จำลองกราฟพยากรณ์จากค่าเฉลี่ย
+      const trend = Array.from({length: 7}, () => ({ val: Math.max(0, avg + (Math.random() * 15 - 7.5)) }));
+      return { name: d.name, value: avg, trend };
+    });
+
+    // เรียงจากมากไปน้อย
+    return arr.sort((a, b) => b.value - a.value);
+  };
+
+  const rankingData = getRankingData();
+
   return (
     <div style={{ position: 'relative', height: '100%', width: '100%', background: mapBg, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       
-      {/* 🗺️ แผนที่ Leaflet หลัก (ใช้ opacity ปิดบังเอา เพื่อป้องกัน Map Resize Bug) */}
+      {/* 🗺️ แผนที่ Leaflet หลัก */}
       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: isLeaflet ? 1 : -1, opacity: isLeaflet ? 1 : 0, pointerEvents: isLeaflet ? 'auto' : 'none' }}>
         <MapContainer center={[13.7563, 100.5018]} zoom={6} style={{ height: '100%', width: '100%' }} zoomControl={false}>
           <TileLayer url={getTileUrl()} />
@@ -246,7 +302,7 @@ export default function MapPage() {
         </MapContainer>
       </div>
 
-      {/* 🌟 แผนที่ Windy (แสดงผลเฉพาะเมื่อกดเลือก เรดาร์ฝน หรือ จุดความร้อน) */}
+      {/* 🌟 แผนที่ Windy (สำหรับเรดาร์ฝน/จุดความร้อน) */}
       {isWindy && (
         <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 2, background: mapBg }}>
           <iframe 
@@ -257,10 +313,9 @@ export default function MapPage() {
         </div>
       )}
 
-      {/* 🎛️ แผงควบคุมแถวเดียว: ตัวกรอง + โหมด (ลอยอยู่บนสุดเสมอ) */}
+      {/* 🎛️ แผงควบคุมแถวเดียว (ลอยบนสุดเสมอ) */}
       <div style={{ position: 'absolute', top: isMobile ? 15 : 20, left: isMobile ? 15 : 20, right: isMobile ? 15 : 20, zIndex: 1000, pointerEvents: 'none' }}>
         <div style={{ display: 'flex', gap: '15px', overflowX: 'auto', pointerEvents: 'auto', paddingBottom: '10px' }} className="hide-scrollbar">
-          
           <div style={{ display: 'flex', alignItems: 'center', background: cardBg, backdropFilter: 'blur(15px)', borderRadius: '50px', padding: '6px 8px', boxShadow: '0 4px 15px rgba(0,0,0,0.1)', border: `1px solid ${borderColor}`, flexShrink: 0 }}>
             <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: subTextColor, margin: '0 8px 0 8px' }}>📍 พิกัด:</span>
             <select value={selectedProv} onChange={e => { setSelectedProv(e.target.value); setSelectedDistrict(''); }} style={{ background: innerCardBg, color: textColor, border: 'none', fontWeight: 'bold', fontSize: '0.85rem', outline: 'none', cursor: 'pointer', padding: '6px 12px', borderRadius: '50px', marginRight: '5px' }}>
@@ -287,11 +342,71 @@ export default function MapPage() {
         </div>
       </div>
 
-      {/* 🌟 ปุ่มเปลี่ยนหน้าตาแผนที่ (ซ่อนเมื่อเปิด Windy) */}
-      <div style={{ position: 'absolute', bottom: isMobile ? '160px' : '150px', right: isMobile ? 15 : 20, zIndex: 1000, display: isLeaflet ? 'flex' : 'none', flexDirection: 'column', gap: '8px' }}>
-        <button onClick={() => setMapStyle('standard')} style={{ background: cardBg, color: textColor, border: `1px solid ${borderColor}`, padding: '8px', borderRadius: '12px', cursor: 'pointer', boxShadow: '0 4px 15px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '40px', height: '40px', fontSize: '1.2rem' }} title="แผนที่ปกติ">🗺️</button>
-        <button onClick={() => setMapStyle('dark')} style={{ background: cardBg, color: textColor, border: `1px solid ${borderColor}`, padding: '8px', borderRadius: '12px', cursor: 'pointer', boxShadow: '0 4px 15px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '40px', height: '40px', fontSize: '1.2rem' }} title="โหมดมืด">🌙</button>
-        <button onClick={() => setMapStyle('satellite')} style={{ background: cardBg, color: textColor, border: `1px solid ${borderColor}`, padding: '8px', borderRadius: '12px', cursor: 'pointer', boxShadow: '0 4px 15px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '40px', height: '40px', fontSize: '1.2rem' }} title="ดาวเทียม">🛰️</button>
+      {/* 🌟 ปุ่มควบคุมด้านขวา (จัดอันดับ & เปลี่ยนเลเยอร์) */}
+      <div style={{ position: 'absolute', top: isMobile ? 80 : 80, right: isMobile ? 15 : 20, zIndex: 1000, display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'flex-end' }}>
+        
+        {/* 🌟 ปุ่มเปิด/ปิด แถบจัดอันดับสถิติ */}
+        {isLeaflet && (
+          <button 
+            onClick={() => setIsRankingOpen(!isRankingOpen)} 
+            style={{ background: isRankingOpen ? '#0ea5e9' : cardBg, color: isRankingOpen ? '#fff' : textColor, border: `1px solid ${borderColor}`, padding: '10px 15px', borderRadius: '12px', cursor: 'pointer', boxShadow: '0 4px 15px rgba(0,0,0,0.15)', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem', fontWeight: 'bold', transition: 'all 0.3s' }}>
+            <span style={{ fontSize: '1.2rem' }}>📈</span> {isRankingOpen ? 'ปิดจัดอันดับ' : 'ดูจัดอันดับ'}
+          </button>
+        )}
+
+        {/* ปุ่มเปลี่ยนหน้าตาแผนที่ */}
+        <div style={{ display: isLeaflet ? 'flex' : 'none', flexDirection: 'column', gap: '8px' }}>
+          <button onClick={() => setMapStyle('standard')} style={{ background: cardBg, color: textColor, border: `1px solid ${borderColor}`, padding: '8px', borderRadius: '12px', cursor: 'pointer', boxShadow: '0 4px 15px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '45px', height: '45px', fontSize: '1.3rem' }} title="แผนที่ปกติ">🗺️</button>
+          <button onClick={() => setMapStyle('dark')} style={{ background: cardBg, color: textColor, border: `1px solid ${borderColor}`, padding: '8px', borderRadius: '12px', cursor: 'pointer', boxShadow: '0 4px 15px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '45px', height: '45px', fontSize: '1.3rem' }} title="โหมดมืด">🌙</button>
+          <button onClick={() => setMapStyle('satellite')} style={{ background: cardBg, color: textColor, border: `1px solid ${borderColor}`, padding: '8px', borderRadius: '12px', cursor: 'pointer', boxShadow: '0 4px 15px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '45px', height: '45px', fontSize: '1.3rem' }} title="ดาวเทียม">🛰️</button>
+        </div>
+      </div>
+
+      {/* 🌟🌟 แถบจัดอันดับสถิติ (Leaderboard Panel) 🌟🌟 */}
+      <div style={{ 
+        position: 'absolute', top: 0, bottom: 0, right: 0, width: isMobile ? '100%' : '380px', zIndex: 9998, 
+        background: cardBg, backdropFilter: 'blur(20px)', borderLeft: `1px solid ${borderColor}`, boxShadow: '-10px 0 40px rgba(0,0,0,0.2)',
+        transform: isRankingOpen ? 'translateX(0)' : 'translateX(105%)', transition: 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+        display: 'flex', flexDirection: 'column', paddingTop: isMobile ? '80px' : '100px', fontFamily: 'Kanit, sans-serif'
+      }}>
+        <div style={{ padding: '0 25px 15px 25px', borderBottom: `1px solid ${borderColor}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: '1.2rem', color: textColor, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              🏆 อันดับ{currentModeObj.label}
+            </h3>
+            <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: subTextColor }}>
+              {selectedProv ? `เรียงตามเขต/อำเภอ ใน${selectedProv}` : 'เรียงตามค่าเฉลี่ยจังหวัดทั่วประเทศ'}
+            </p>
+          </div>
+          {isMobile && <button onClick={() => setIsRankingOpen(false)} style={{ background: 'transparent', border: 'none', fontSize: '1.5rem', color: subTextColor }}>✖</button>}
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: '15px 20px' }} className="hide-scrollbar">
+          {rankingData.length > 0 ? rankingData.map((item, idx) => {
+            const itemColor = getColorByMode(activeMode, item.value);
+            return (
+              <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '12px', background: innerCardBg, padding: '12px 15px', borderRadius: '16px', marginBottom: '10px', border: `1px solid ${borderColor}` }}>
+                <div style={{ fontSize: '1.2rem', fontWeight: '900', color: subTextColor, width: '25px', textAlign: 'center' }}>{idx + 1}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: '0.95rem', fontWeight: 'bold', color: textColor, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.name}</div>
+                  <div style={{ fontSize: '1.4rem', fontWeight: '900', color: itemColor, lineHeight: 1, marginTop: '2px' }}>
+                    {item.value} <span style={{ fontSize: '0.7rem', color: subTextColor, fontWeight: 'normal' }}>{currentModeObj.unit}</span>
+                  </div>
+                </div>
+                {/* กราฟพยากรณ์จิ๋ว */}
+                <div style={{ width: '80px', height: '40px' }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={item.trend}>
+                      <Line type="monotone" dataKey="val" stroke={itemColor} strokeWidth={2.5} dot={false} isAnimationActive={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            );
+          }) : (
+            <div style={{ textAlign: 'center', color: subTextColor, marginTop: '50px' }}>ไม่มีข้อมูลสำหรับการจัดอันดับในพื้นที่นี้</div>
+          )}
+        </div>
       </div>
 
       {/* 🌟 Legend กล่องอธิบายสี (ซ่อนเมื่อเปิด Windy) */}
@@ -310,22 +425,22 @@ export default function MapPage() {
         </div>
       </div>
 
-      {/* 📱 ปุ่ม Toggle ในมือถือ (ซ่อนเมื่อเปิด Windy) */}
+      {/* 📱 ปุ่ม Toggle การ์ดรายละเอียด ในมือถือ */}
       {isMobile && selectedStation && isLeaflet && (
         <div style={{ position: 'absolute', bottom: isMobileCardOpen ? '320px' : '90px', left: '50%', transform: 'translateX(-50%)', zIndex: 1000, transition: 'bottom 0.3s' }}>
           <button onClick={() => setIsMobileCardOpen(!isMobileCardOpen)} style={{ background: '#0ea5e9', color: '#fff', border: 'none', borderRadius: '50px', padding: '10px 25px', fontWeight: 'bold', fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 10px 25px rgba(14,165,233,0.4)' }}>
-            {isMobileCardOpen ? <><span style={{ fontSize: '1.2rem' }}>⬇️</span> ซ่อนข้อมูล</> : <><span style={{ fontSize: '1.2rem' }}>📊</span> ดูรายละเอียดพื้นที่นี้</>}
+            {isMobileCardOpen ? <><span style={{ fontSize: '1.2rem' }}>⬇️</span> ซ่อนข้อมูล</> : <><span style={{ fontSize: '1.2rem' }}>📊</span> ดูข้อมูลจุดนี้</>}
           </button>
         </div>
       )}
 
-      {/* 🌟 การ์ดข้อมูล (ซ่อนเมื่อเปิด Windy) */}
+      {/* 🌟 การ์ดข้อมูลรายจุด (Detail Card) */}
       {selectedStation && isLeaflet && (
         <div style={{ 
           position: 'absolute', zIndex: 9999, transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
           ...(isMobile 
             ? { bottom: isMobileCardOpen ? '0' : '-100%', left: 0, right: 0, borderTopLeftRadius: '30px', borderTopRightRadius: '30px', paddingBottom: '90px', maxHeight: '60vh' } 
-            : { top: '80px', right: '20px', width: '340px', borderRadius: '24px', maxHeight: 'calc(100vh - 100px)' }), 
+            : { top: '20px', right: isRankingOpen ? '400px' : '20px', width: '340px', borderRadius: '24px', maxHeight: 'calc(100vh - 40px)' }), // 🌟 หลบหลีกแถบสถิติเวลาเปิดใช้งาน
           background: cardBg, backdropFilter: 'blur(20px)', border: `1px solid ${borderColor}`, padding: '25px 20px', boxShadow: '0 10px 40px rgba(0,0,0,0.2)', overflowY: 'auto'
         }} className="hide-scrollbar">
           
