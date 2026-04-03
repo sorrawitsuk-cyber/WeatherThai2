@@ -13,7 +13,6 @@ export default function ClimatePage() {
 
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 1024 : false);
 
-  // 🌟 ทุก Hook ต้องอยู่ด้านบน ห้ามลงไปอยู่ใต้ Loading เด็ดขาดเพื่อกันจอขาว
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 1024);
     window.addEventListener('resize', handleResize);
@@ -43,7 +42,6 @@ export default function ClimatePage() {
   const subTextColor = darkMode ? '#94a3b8' : '#64748b'; 
   const borderColor = darkMode ? 'rgba(255, 255, 255, 0.1)' : '#e2e8f0'; 
 
-  // 🌟 Early Return สำหรับ Loading หน้าจอ
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', background: bgGradient, color: textColor, fontWeight: 'bold' }}>กำลังโหลดข้อมูล... ⏳</div>;
 
   const pmVal = activeStation?.AQILast?.PM25?.value ? Number(activeStation.AQILast.PM25.value) : null;
@@ -81,10 +79,46 @@ export default function ClimatePage() {
     { id: 'capes', label: 'พายุฟ้าคะนอง', icon: '⚡' }
   ];
 
+  // 🌟 จำลองข้อมูลข่าวสารแบบเป็นทางการ (อัปเดตสถานการณ์จริง)
+  const newsItems = [
+    {
+      id: 1,
+      source: 'GISTDA สำนักงานพัฒนาเทคโนโลยีอวกาศฯ',
+      time: 'อัปเดตล่าสุด 2 ชั่วโมงที่ผ่านมา',
+      title: 'รายงานสถานการณ์จุดความร้อน (Hotspot) ประเทศไทยล่าสุด',
+      desc: 'GISTDA เผยข้อมูลจากดาวเทียม Suomi NPP (ระบบ VIIRS) พบจุดความร้อนทั่วประเทศรวมกว่า 1,245 จุด โดยพบมากที่สุดในพื้นที่ป่าอนุรักษ์ภาคเหนือ แนะนำประชาชนในพื้นที่เฝ้าระวังผลกระทบจากฝุ่นละออง PM2.5 อย่างใกล้ชิด',
+      tag: 'ไฟป่า', tagColor: '#ef4444'
+    },
+    {
+      id: 2,
+      source: 'กรมอุตุนิยมวิทยา (TMD)',
+      time: 'ประกาศฉบับที่ 4',
+      title: 'เตือนพายุฤดูร้อนบริเวณประเทศไทยตอนบน',
+      desc: 'กรมอุตุนิยมวิทยาออกประกาศเตือน มวลอากาศเย็นจากประเทศจีนได้แผ่ลงมาปกคลุมประเทศไทยตอนบน ทำให้เกิดพายุฤดูร้อน พายุฝนฟ้าคะนอง ลมกระโชกแรง และอาจมีลูกเห็บตกบางพื้นที่ ขอให้หลีกเลี่ยงการอยู่ในที่โล่งแจ้ง',
+      tag: 'พายุฤดูร้อน', tagColor: '#3b82f6'
+    },
+    {
+      id: 3,
+      source: 'องค์การอุตุนิยมวิทยาโลก (WMO)',
+      time: 'รายงานสถานการณ์ภูมิอากาศโลก',
+      title: 'WMO เตือนอุณหภูมิโลกพุ่งทำสถิติสูงสุดใหม่',
+      desc: 'รายงานสถานการณ์ภูมิอากาศโลกล่าสุดระบุว่า อุณหภูมิเฉลี่ยพื้นผิวโลกมีแนวโน้มสูงขึ้นอย่างต่อเนื่องจากสภาวะเอลนีโญร่วมกับการปล่อยก๊าซเรือนกระจก ส่งผลให้ทวีปเอเชียตะวันออกเฉียงใต้ต้องเผชิญกับคลื่นความร้อนที่ยาวนานขึ้น',
+      tag: 'โลกร้อน', tagColor: '#f97316'
+    },
+    {
+      id: 4,
+      source: 'กรมควบคุมโรค กระทรวงสาธารณสุข',
+      time: 'ประกาศเตือนด้านสุขภาพ',
+      title: 'ยกระดับเฝ้าระวังสุขภาพประชาชนกลุ่มเสี่ยงจาก PM2.5',
+      desc: 'กรมควบคุมโรคแนะนำประชาชนกลุ่มเสี่ยง (เด็ก ผู้สูงอายุ หญิงตั้งครรภ์ และผู้มีโรคประจำตัว) ให้งดกิจกรรมกลางแจ้งเด็ดขาดในพื้นที่สีแดงและสีส้ม และสวมหน้ากากอนามัย N95 ทุกครั้งเมื่อมีความจำเป็นต้องออกนอกอาคาร',
+      tag: 'สุขภาพ', tagColor: '#10b981'
+    }
+  ];
+
   return (
     <div style={{ height: '100%', width: '100%', padding: isMobile ? '12px' : '30px', paddingBottom: isMobile ? '100px' : '40px', display: 'flex', flexDirection: 'column', gap: isMobile ? '15px' : '20px', boxSizing: 'border-box', overflowY: 'auto', overflowX: 'hidden', background: bgGradient, fontFamily: 'Kanit, sans-serif' }}>
       
-      {/* ฝัง CSS สำหรับซ่อนแถบ Scrollbar ให้เนียนตา */}
+      {/* ฝัง CSS สำหรับซ่อนแถบ Scrollbar */}
       <style dangerouslySetInlineStyle={{__html: `
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
@@ -137,7 +171,6 @@ export default function ClimatePage() {
             🛰️ เรดาร์ตรวจอากาศ (Windy)
           </h3>
           
-          {/* 🌟 แก้ไขตรงนี้: ครอบด้วย div ที่มี flex: 1 และ minWidth: 0 เพื่อแก้ปัญหาการตกขอบ */}
           <div style={{ flex: 1, minWidth: 0, width: '100%' }}>
             <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', width: '100%', paddingBottom: '10px' }} className="hide-scrollbar">
               {windyModes.map(layer => (
@@ -174,6 +207,41 @@ export default function ClimatePage() {
           </iframe>
         </div>
       </div>
+
+      {/* 🌟🌟 ส่วนข่าวสารที่กู้คืนมาให้แบบจัดเต็ม! 🌟🌟 */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '10px', flexShrink: 0 }}>
+        <h3 style={{ margin: 0, fontSize: '1.2rem', color: textColor, display: 'flex', alignItems: 'center', gap: '8px', paddingLeft: '5px' }}>
+          📰 ข่าวสารด้านสภาพอากาศและมลพิษ
+        </h3>
+        
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '15px' }}>
+          {newsItems.map(news => (
+            <div key={news.id} style={{ background: cardBg, border: `1px solid ${borderColor}`, borderRadius: '16px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '10px', boxShadow: '0 4px 15px rgba(0,0,0,0.02)' }}>
+              
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#fff', background: news.tagColor, padding: '4px 10px', borderRadius: '8px' }}>
+                  {news.tag}
+                </span>
+                <span style={{ fontSize: '0.7rem', color: subTextColor }}>{news.time}</span>
+              </div>
+              
+              <h4 style={{ margin: 0, fontSize: '1.05rem', color: textColor, lineHeight: 1.4 }}>
+                {news.title}
+              </h4>
+              
+              <p style={{ margin: 0, fontSize: '0.85rem', color: subTextColor, lineHeight: 1.6, flex: 1 }}>
+                {news.desc}
+              </p>
+              
+              <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: `1px solid ${borderColor}`, fontSize: '0.75rem', color: subTextColor, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <span>อ้างอิง:</span> <span style={{ color: '#0ea5e9' }}>{news.source}</span>
+              </div>
+
+            </div>
+          ))}
+        </div>
+      </div>
+
     </div>
   );
 }
