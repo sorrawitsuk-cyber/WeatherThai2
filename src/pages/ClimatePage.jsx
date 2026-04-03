@@ -13,6 +13,7 @@ export default function ClimatePage() {
 
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 1024 : false);
 
+  // 🌟 ทุก Hook ต้องอยู่ด้านบน ห้ามลงไปอยู่ใต้ Loading เด็ดขาดเพื่อกันจอขาว
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 1024);
     window.addEventListener('resize', handleResize);
@@ -42,6 +43,7 @@ export default function ClimatePage() {
   const subTextColor = darkMode ? '#94a3b8' : '#64748b'; 
   const borderColor = darkMode ? 'rgba(255, 255, 255, 0.1)' : '#e2e8f0'; 
 
+  // 🌟 Early Return สำหรับ Loading หน้าจอ
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', background: bgGradient, color: textColor, fontWeight: 'bold' }}>กำลังโหลดข้อมูล... ⏳</div>;
 
   const pmVal = activeStation?.AQILast?.PM25?.value ? Number(activeStation.AQILast.PM25.value) : null;
@@ -64,7 +66,6 @@ export default function ClimatePage() {
   const lat = activeStation ? parseFloat(activeStation.lat) : 13.75;
   const lon = activeStation ? parseFloat(activeStation.long) : 100.50;
 
-  // 🌟 จัดเต็มเมนู Layer ของ Windy!
   const windyModes = [
     { id: 'rain', label: 'เรดาร์ฝน', icon: '⛈️' },
     { id: 'pm2p5', label: 'ฝุ่น PM2.5', icon: '😷' },
@@ -81,8 +82,14 @@ export default function ClimatePage() {
   ];
 
   return (
-    <div style={{ height: '100%', width: '100%', padding: isMobile ? '12px' : '30px', paddingBottom: isMobile ? '100px' : '40px', display: 'flex', flexDirection: 'column', gap: isMobile ? '15px' : '20px', boxSizing: 'border-box', overflowY: 'auto', overflowX: 'hidden', background: bgGradient, fontFamily: 'Kanit, sans-serif' }} className="hide-scrollbar">
+    <div style={{ height: '100%', width: '100%', padding: isMobile ? '12px' : '30px', paddingBottom: isMobile ? '100px' : '40px', display: 'flex', flexDirection: 'column', gap: isMobile ? '15px' : '20px', boxSizing: 'border-box', overflowY: 'auto', overflowX: 'hidden', background: bgGradient, fontFamily: 'Kanit, sans-serif' }}>
       
+      {/* ฝัง CSS สำหรับซ่อนแถบ Scrollbar ให้เนียนตา */}
+      <style dangerouslySetInlineStyle={{__html: `
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      `}} />
+
       {!isMobile && (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
           <div>
@@ -125,33 +132,35 @@ export default function ClimatePage() {
       </div>
 
       <div style={{ background: cardBg, padding: isMobile ? '15px' : '20px', borderRadius: '20px', border: `1px solid ${borderColor}`, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '15px' }}>
-        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'flex-start' : 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'flex-start' : 'center', gap: '15px' }}>
           <h3 style={{ margin: 0, fontSize: '1.05rem', color: textColor, display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
             🛰️ เรดาร์ตรวจอากาศ (Windy)
           </h3>
           
-          {/* แถบเมนูแบบ Scroll ได้ (จัดเต็มทุกเลเยอร์) */}
-          <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', width: '100%', paddingBottom: '8px' }} className="hide-scrollbar">
-            {windyModes.map(layer => (
-              <button 
-                key={layer.id} onClick={() => setWindyLayer(layer.id)}
-                style={{ 
-                  background: windyLayer === layer.id ? '#0ea5e9' : innerCardBg, 
-                  color: windyLayer === layer.id ? '#fff' : subTextColor, 
-                  border: `1px solid ${windyLayer === layer.id ? '#0ea5e9' : borderColor}`, 
-                  padding: '6px 14px', 
-                  borderRadius: '50px', 
-                  fontSize: '0.85rem', 
-                  fontWeight: 'bold', 
-                  cursor: 'pointer', 
-                  whiteSpace: 'nowrap', 
-                  transition: 'all 0.2s', 
-                  flexShrink: 0,
-                  boxShadow: windyLayer === layer.id ? '0 4px 10px rgba(14, 165, 233, 0.3)' : 'none'
-                }}>
-                <span style={{ fontSize: '1rem', marginRight: '4px' }}>{layer.icon}</span> {layer.label}
-              </button>
-            ))}
+          {/* 🌟 แก้ไขตรงนี้: ครอบด้วย div ที่มี flex: 1 และ minWidth: 0 เพื่อแก้ปัญหาการตกขอบ */}
+          <div style={{ flex: 1, minWidth: 0, width: '100%' }}>
+            <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', width: '100%', paddingBottom: '10px' }} className="hide-scrollbar">
+              {windyModes.map(layer => (
+                <button 
+                  key={layer.id} onClick={() => setWindyLayer(layer.id)}
+                  style={{ 
+                    background: windyLayer === layer.id ? '#0ea5e9' : innerCardBg, 
+                    color: windyLayer === layer.id ? '#fff' : subTextColor, 
+                    border: `1px solid ${windyLayer === layer.id ? '#0ea5e9' : borderColor}`, 
+                    padding: '8px 16px', 
+                    borderRadius: '50px', 
+                    fontSize: '0.85rem', 
+                    fontWeight: 'bold', 
+                    cursor: 'pointer', 
+                    whiteSpace: 'nowrap', 
+                    transition: 'all 0.2s', 
+                    flexShrink: 0,
+                    boxShadow: windyLayer === layer.id ? '0 4px 10px rgba(14, 165, 233, 0.3)' : 'none'
+                  }}>
+                  <span style={{ fontSize: '1rem', marginRight: '6px' }}>{layer.icon}</span> {layer.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
