@@ -6,7 +6,6 @@ import { useNavigate } from 'react-router-dom';
 import { WeatherContext } from '../context/WeatherContext';
 import { extractProvince, getPM25Color, getDistanceFromLatLonInKm } from '../utils/helpers';
 
-// 🌟 ฟังก์ชันแยก "อำเภอ/เขต" จากชื่อสถานี
 const extractDistrict = (areaTH) => {
   if (!areaTH) return 'ทั่วไป';
   const match = areaTH.match(/(เขต|อ\.|อำเภอ)\s*([a-zA-Zก-ฮะ-์]+)/);
@@ -15,7 +14,6 @@ const extractDistrict = (areaTH) => {
   return parts[0]; 
 };
 
-// 🌟 สถานะสุขภาพ 
 const getHealthStatus = (pm) => {
   if (pm == null || isNaN(pm)) return { level: 0, text: 'ไม่มีข้อมูล', color: '#94a3b8', bg: 'rgba(148, 163, 184, 0.15)', warning: '' };
   if (pm <= 15.0) return { level: 1, text: 'คุณภาพอากาศดีมาก', color: '#10b981', bg: 'rgba(16, 185, 129, 0.15)', warning: '' }; 
@@ -25,7 +23,6 @@ const getHealthStatus = (pm) => {
   return { level: 5, text: 'มีผลกระทบสุขภาพ', color: '#ef4444', bg: 'rgba(239, 68, 68, 0.15)', warning: '⚠️ อันตราย! งดกิจกรรมกลางแจ้ง' }; 
 };
 
-// 🌟 สถานะความร้อน
 const getHeatStatus = (val) => {
   if (val == null || isNaN(val)) return { level: 0, text: 'ไม่มีข้อมูล', color: '#94a3b8', bg: 'rgba(148, 163, 184, 0.15)', warning: '' };
   if (val >= 52) return { level: 5, text: 'อันตรายมาก (ฮีทสโตรก)', color: '#ef4444', bg: 'rgba(239, 68, 68, 0.15)', warning: '⚠️ อันตรายถึงชีวิต' };
@@ -60,16 +57,113 @@ const getWindArrow = (dir) => {
   );
 };
 
-const SVGFace = ({ level }) => {
-  let eyes = <g><circle cx="35" cy="40" r="7" fill="#fff"/><circle cx="65" cy="40" r="7" fill="#fff"/></g>;
-  let mouth = "M 35 65 Q 50 80 65 65"; 
-  if (level === 0) { eyes = <g><line x1="30" y1="40" x2="40" y2="40" stroke="#fff" strokeWidth="5" strokeLinecap="round"/><line x1="60" y1="40" x2="70" y2="40" stroke="#fff" strokeWidth="5" strokeLinecap="round"/></g>; mouth = "M 35 65 L 65 65"; } 
-  else if (level === 1) { mouth = "M 30 60 Q 50 85 70 60"; } 
-  else if (level === 2) { mouth = "M 35 65 Q 50 75 65 65"; } 
-  else if (level === 3) { mouth = "M 35 65 L 65 65"; } 
-  else if (level === 4) { mouth = "M 35 70 Q 50 55 65 70"; } 
-  else if (level === 5) { eyes = <g><line x1="28" y1="33" x2="42" y2="47" stroke="#fff" strokeWidth="5" strokeLinecap="round"/><line x1="28" y1="47" x2="42" y2="33" stroke="#fff" strokeWidth="5" strokeLinecap="round"/><line x1="58" y1="33" x2="72" y2="47" stroke="#fff" strokeWidth="5" strokeLinecap="round"/><line x1="58" y1="47" x2="72" y2="33" stroke="#fff" strokeWidth="5" strokeLinecap="round"/></g>; mouth = "M 35 75 Q 50 55 65 75"; }
-  return <svg viewBox="0 0 100 100" width="100%" height="100%">{eyes}<path d={mouth} fill="none" stroke="#fff" strokeWidth="7" strokeLinecap="round" /></svg>;
+// 🌟 ตัวการ์ตูนสุดคิวท์! (Chibi Mascot) เปลี่ยนหน้าตามอารมณ์
+const SVGCartoonPerson = ({ level }) => {
+  const skinColor = level === 0 ? "#cbd5e1" : "#ffe4c4"; // สีเทาถ้าไม่มีข้อมูล, สีผิวอมชมพูถ้ามีข้อมูล
+  const hairColor = level === 0 ? "#94a3b8" : "#472f1d"; // สีผม
+
+  return (
+    <svg viewBox="0 0 100 100" width="100%" height="100%">
+      {/* เงาด้านหลังตัวการ์ตูนนิดหน่อยให้มีมิติ */}
+      <circle cx="50" cy="55" r="35" fill="#000" opacity="0.1" />
+
+      {/* โครงหน้า */}
+      <circle cx="50" cy="52" r="35" fill={skinColor} />
+
+      {/* ทรงผม (มีจุกน่ารักๆ) */}
+      <path d="M 15 50 C 15 10, 85 10, 85 50 C 85 40, 65 30, 50 30 C 35 30, 15 40, 15 50 Z" fill={hairColor} />
+      <path d="M 50 30 Q 40 10 55 15" fill="none" stroke={hairColor} strokeWidth="4" strokeLinecap="round" />
+
+      {/* แก้มแดง (แสดงเฉพาะตอนอารมณ์ดี Level 1-2) */}
+      {level > 0 && level <= 2 && (
+        <g opacity="0.5">
+          <circle cx="28" cy="58" r="5" fill="#ff7675" />
+          <circle cx="72" cy="58" r="5" fill="#ff7675" />
+        </g>
+      )}
+
+      {/* 🌟 หน้าตาแต่ละ Level 🌟 */}
+      {level === 0 && (
+         <g stroke="#64748b" strokeWidth="4" strokeLinecap="round">
+           {/* หลับตา */}
+           <path d="M 28 48 Q 35 52 42 48" fill="none" />
+           <path d="M 58 48 Q 65 52 72 48" fill="none" />
+           <line x1="40" y1="65" x2="60" y2="65" />
+         </g>
+      )}
+
+      {level === 1 && (
+         <g stroke="#472f1d" strokeWidth="4" strokeLinecap="round">
+           {/* ตาหยี ยิ้มกว้าง */}
+           <path d="M 28 48 Q 35 42 42 48" fill="none" />
+           <path d="M 58 48 Q 65 42 72 48" fill="none" />
+           <path d="M 35 62 Q 50 80 65 62 Z" fill="#ff7675" strokeWidth="2" />
+         </g>
+      )}
+
+      {level === 2 && (
+         <g fill="#472f1d">
+           {/* ตาแป๋ว ยิ้มปกติ */}
+           <circle cx="35" cy="46" r="4" />
+           <circle cx="65" cy="46" r="4" />
+           <path d="M 40 64 Q 50 72 60 64" fill="none" stroke="#472f1d" strokeWidth="4" strokeLinecap="round" />
+         </g>
+      )}
+
+      {level === 3 && (
+         <g fill="#472f1d">
+           {/* ตาแป๋ว ปากตรง มีเหงื่อตก */}
+           <circle cx="35" cy="46" r="4" />
+           <circle cx="65" cy="46" r="4" />
+           <line x1="42" y1="66" x2="58" y2="66" stroke="#472f1d" strokeWidth="4" strokeLinecap="round" />
+           {/* หยดเหงื่อ */}
+           <path d="M 75 35 Q 80 45 75 50 Q 70 45 75 35 Z" fill="#74b9ff" />
+         </g>
+      )}
+
+      {level === 4 && (
+         <g>
+           {/* คิ้วตกกังวล */}
+           <path d="M 28 42 L 42 46" stroke="#472f1d" strokeWidth="3" strokeLinecap="round" />
+           <circle cx="35" cy="48" r="3.5" fill="#472f1d" />
+           <path d="M 72 42 L 58 46" stroke="#472f1d" strokeWidth="3" strokeLinecap="round" />
+           <circle cx="65" cy="48" r="3.5" fill="#472f1d" />
+           {/* หยดเหงื่อ */}
+           <path d="M 75 30 Q 80 40 75 45 Q 70 40 75 30 Z" fill="#74b9ff" />
+           
+           {/* 😷 หน้ากากอนามัยสีขาว */}
+           <line x1="15" y1="55" x2="30" y2="60" stroke="#fff" strokeWidth="3" />
+           <line x1="85" y1="55" x2="70" y2="60" stroke="#fff" strokeWidth="3" />
+           <rect x="25" y="55" width="50" height="26" rx="10" fill="#fff" />
+           <path d="M 35 65 L 65 65" stroke="#cbd5e1" strokeWidth="2" strokeLinecap="round" />
+           <path d="M 38 72 L 62 72" stroke="#cbd5e1" strokeWidth="2" strokeLinecap="round" />
+         </g>
+      )}
+
+      {level === 5 && (
+         <g>
+           {/* ตากากบาท (X_X) */}
+           <g stroke="#472f1d" strokeWidth="4" strokeLinecap="round">
+             <line x1="30" y1="43" x2="40" y2="53" />
+             <line x1="30" y1="53" x2="40" y2="43" />
+             <line x1="60" y1="43" x2="70" y2="53" />
+             <line x1="60" y1="53" x2="70" y2="43" />
+           </g>
+
+           {/* รอยวิงเวียน */}
+           <path d="M 75 25 C 85 20, 85 40, 75 35" fill="none" stroke="#636e72" strokeWidth="2" strokeLinecap="round" />
+           <path d="M 25 25 C 15 20, 15 40, 25 35" fill="none" stroke="#636e72" strokeWidth="2" strokeLinecap="round" />
+
+           {/* 😷 หน้ากากอนามัยสีขาว */}
+           <line x1="15" y1="55" x2="30" y2="60" stroke="#fff" strokeWidth="3" />
+           <line x1="85" y1="55" x2="70" y2="60" stroke="#fff" strokeWidth="3" />
+           <rect x="25" y="55" width="50" height="26" rx="10" fill="#fff" />
+           <path d="M 35 65 L 65 65" stroke="#cbd5e1" strokeWidth="2" strokeLinecap="round" />
+           <path d="M 38 72 L 62 72" stroke="#cbd5e1" strokeWidth="2" strokeLinecap="round" />
+         </g>
+      )}
+    </svg>
+  );
 };
 
 function MiniMapUpdate({ lat, lon }) {
@@ -114,11 +208,9 @@ export default function Dashboard() {
     else { setGreeting('สวัสดีตอนเย็น 🌙'); setTimeOfDay('evening'); }
   }, []);
 
-  // 🌟 Auto-select จังหวัดและอำเภอเมื่อโหลดแอป (แก้บั๊ก กทม.)
   useEffect(() => {
     if (safeStations.length > 0 && !selectedProv) {
       const bkkStations = safeStations.filter(s => extractProvince(s.areaTH) === 'กรุงเทพมหานคร');
-      // เลือกสถานีที่มีข้อมูล PM2.5 แน่ๆ ป้องกันหน้าจอว่าง
       const validBkk = bkkStations.find(s => s.AQILast?.PM25?.value != null) || bkkStations[0] || safeStations[0];
       
       const prov = extractProvince(validBkk.areaTH);
@@ -128,11 +220,9 @@ export default function Dashboard() {
     }
   }, [safeStations, selectedProv]);
 
-  // 🌟 เมื่อเลือก อำเภอ ให้ไปดึงสถานีที่อยู่ในอำเภอนั้นมาแสดงเงียบๆ
   useEffect(() => {
     if (safeStations.length > 0 && selectedProv && selectedDistrict) {
       const distStations = safeStations.filter(s => extractProvince(s.areaTH) === selectedProv && extractDistrict(s.areaTH) === selectedDistrict);
-      // เลือกจุดที่มีข้อมูลสมบูรณ์ที่สุด
       const bestStation = distStations.find(s => s.AQILast?.PM25?.value != null) || distStations[0];
       if (bestStation) setActiveStation(bestStation);
     }
@@ -163,6 +253,12 @@ export default function Dashboard() {
     } else {
       setIsLocating(false);
     }
+  };
+
+  const handleStationChange = (e) => {
+    const newId = e.target.value;
+    setSelectedStationId(newId);
+    localStorage.setItem('lastStationId', newId);
   };
 
   useEffect(() => {
@@ -234,9 +330,12 @@ export default function Dashboard() {
   const heatStatus = getHeatStatus(heatVal);
   const pmColor = getStatColor('pm25', pmVal);
 
+  // 🌟 นำตัวการ์ตูนมาใส่ใน Badge
   const renderFaceBadge = (level, color) => (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, width: isMobile ? '70px' : '90px', height: isMobile ? '70px' : '90px', background: `radial-gradient(circle at 30% 30%, ${color} 0%, ${color}dd 100%)`, borderRadius: '50%', boxShadow: `0 8px 20px ${color}60, inset 0 2px 5px rgba(255,255,255,0.4)`, border: `3px solid ${darkMode ? 'rgba(255,255,255,0.1)' : '#fff'}` }}>
-      <div style={{ width: '65%', height: '65%', filter: 'drop-shadow(0 4px 4px rgba(0,0,0,0.2))' }}><SVGFace level={level} /></div>
+      <div style={{ width: '85%', height: '85%', filter: 'drop-shadow(0 4px 4px rgba(0,0,0,0.2))' }}>
+        <SVGCartoonPerson level={level} />
+      </div>
     </div>
   );
 
