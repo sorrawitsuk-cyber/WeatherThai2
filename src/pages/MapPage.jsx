@@ -14,6 +14,11 @@ const extractDistrict = (areaTH) => {
   return areaTH.split(' ')[0]; 
 };
 
+// 🌟 ฟังก์ชันตัดคำชื่อสถานที่ (ตัวที่ทำให้จอขาว ผมเติมกลับมาให้แล้วครับ!)
+const formatAreaName = (areaTH) => {
+  return areaTH ? areaTH.split(',')[0].trim() : '';
+};
+
 // ฟังก์ชันสี
 const getHeatColor = (val) => {
   if (val == null) return '#94a3b8';
@@ -139,7 +144,7 @@ export default function MapPage() {
 
             const isSelected = selectedStation?.stationID === st.stationID;
             
-            // 🌟 ซูม >= 8 ให้โชว์ตัวเลข
+            // ซูม >= 8 ให้โชว์ตัวเลข
             const showText = zoomLevel >= 8;
             const size = showText ? 36 : (isSelected ? 24 : 14);
             const fontSize = String(valToShow).length > 2 ? '11px' : '13px';
@@ -148,7 +153,6 @@ export default function MapPage() {
 
             let htmlContent = '';
 
-            // 🌟 สร้างหมุดอัจฉริยะ 
             if (activeMode === 'wind' && windDir && windDir !== '-') {
               // คำนวณองศาลูกศร (+180 ชี้ทิศที่ลมพัดไป)
               let arrowDeg = typeof windDir === 'number' ? windDir + 180 : 0;
@@ -159,7 +163,6 @@ export default function MapPage() {
               const triSize = showText ? '8px' : '5px';
               const triTop = showText ? '-12px' : '-8px';
               
-              // สร้างลูกศรหางชี้ออก พร้อมตัวเลขหมุนกลับให้อ่านง่าย
               htmlContent = `
                 <div style="position: relative; width: 100%; height: 100%; transform: rotate(${arrowDeg}deg);">
                    <div style="position: absolute; top: ${triTop}; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: ${triSize} solid transparent; border-right: ${triSize} solid transparent; border-bottom: ${showText?'14px':'10px'} solid ${circleColor};"></div>
@@ -169,7 +172,6 @@ export default function MapPage() {
                 </div>
               `;
             } else {
-              // หมุดโหมดอื่นๆ ปกติ
               htmlContent = showText
                 ? `<div style="background-color: ${circleColor}; color: ${numColor}; width: 100%; height: 100%; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: ${fontSize}; font-family: 'Kanit', sans-serif; border: 2px solid #fff; box-shadow: 0 0 10px rgba(0,0,0,0.3);">${valToShow}</div>`
                 : `<div style="background-color: ${circleColor}; width: 100%; height: 100%; border-radius: 50%; border: ${isSelected?'3px':'2px'} solid #fff; box-shadow: 0 0 10px rgba(0,0,0,0.3);"></div>`;
@@ -232,7 +234,7 @@ export default function MapPage() {
         <button onClick={() => setMapStyle('satellite')} style={{ background: cardBg, color: textColor, border: `1px solid ${borderColor}`, padding: '8px 12px', borderRadius: '12px', cursor: 'pointer', boxShadow: '0 4px 15px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.8rem', fontWeight: 'bold' }}>🛰️ ดาวเทียม</button>
       </div>
 
-      {/* 🌟 Legend กล่องอธิบายสี (เพิ่มสี PM2.5 ให้ครบ 6 สี) */}
+      {/* 🌟 Legend กล่องอธิบายสี */}
       <div style={{ position: 'absolute', bottom: isMobile ? (isMobileCardOpen ? '380px' : '90px') : '30px', left: isMobile ? '15px' : '30px', zIndex: 1000, background: cardBg, padding: '12px 20px', borderRadius: '16px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 20px rgba(0,0,0,0.15)', transition: 'bottom 0.3s' }}>
         <div style={{ fontSize: '0.8rem', fontWeight: 'bold', color: textColor, marginBottom: '8px' }}>ระดับสี ({modes.find(m => m.id === activeMode)?.label})</div>
         <div style={{ display: 'flex', gap: '2px', height: '12px', width: '180px', borderRadius: '6px', overflow: 'hidden' }}>
