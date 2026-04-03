@@ -7,11 +7,11 @@ import { WeatherContext } from '../context/WeatherContext';
 import { extractProvince, getPM25Color } from '../utils/helpers';
 import 'leaflet/dist/leaflet.css';
 
-// 🌟 ดึง API Key จาก Vercel Environment Variables (ต้องขึ้นต้นด้วย VITE_)
+// 🌟 ดึง API Key จาก Vercel
 const NASA_API_KEY = import.meta.env.VITE_NASA_API_KEY || ''; 
 const THAILAND_BOUNDS = [13.5, 101.5];
 
-// ฟังก์ชันหาพิกัดระยะห่าง (ใช้หาว่าจุดไฟป่าอยู่ใกล้จังหวัดไหนสุด และใช้กับระบบ GPS)
+// ฟังก์ชันหาพิกัดระยะห่าง
 const getDistance = (lat1, lon1, lat2, lon2) => {
   const R = 6371; 
   const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -27,7 +27,7 @@ const extractDistrict = (areaTH) => {
   return areaTH.split(' ')[0]; 
 };
 
-// ฟังก์ชันปรับสีตัวหนังสือให้อ่านง่าย
+// ฟังก์ชันสี
 const getReadableTextColor = (color, darkMode) => {
   if (!darkMode) {
     if (color === '#ffff00' || color === '#eab308') return '#ca8a04';
@@ -40,7 +40,6 @@ const getReadableTextColor = (color, darkMode) => {
   return color === '#94a3b8' ? (darkMode ? '#f8fafc' : '#0f172a') : color;
 };
 
-// ฟังก์ชันสี
 const getHeatColor = (val) => {
   if (val == null) return '#94a3b8';
   if (val >= 41) return '#ef4444'; if (val >= 32) return '#f97316'; if (val >= 27) return '#eab308'; return '#22c55e'; 
@@ -62,7 +61,7 @@ const getWindColor = (val) => {
   if (val >= 30) return '#831843'; if (val >= 15) return '#db2777'; if (val >= 5) return '#f472b6'; return '#fbcfe8'; 
 };
 
-// Mapping กลุ่มเขต กทม. 6 โซน
+// ข้อมูล 6 โซน กทม.
 const bkkZoneMap = {
   'พญาไท': 1, 'ดินแดง': 1, 'ดุสิต': 1, 'ห้วยขวาง': 1, 'วังทองหลาง': 1, 'ราชเทวี': 1, 'พระนคร': 1, 'ป้อมปราบศัตรูพ่าย': 1, 'สัมพันธวงศ์': 1, 
   'ปทุมวัน': 2, 'บางรัก': 2, 'สาทร': 2, 'บางคอแหลม': 2, 'ยานนาวา': 2, 'คลองเตย': 2, 'วัฒนา': 2, 'พระโขนง': 2, 'บางนา': 2, 'สวนหลวง': 2, 
@@ -85,6 +84,7 @@ function MapUpdater({ lat, lon }) {
 }
 
 export default function MapPage() {
+  // 1. Context & State
   const { stations, stationTemps, loading, darkMode } = useContext(WeatherContext);
   const [activeMode, setActiveMode] = useState('pm25');
   const [mapStyle, setMapStyle] = useState('standard'); 
@@ -95,109 +95,12 @@ export default function MapPage() {
   const [selectedDistrict, setSelectedDistrict] = useState('');
   const [isRankingOpen, setIsRankingOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
-
-  // State สำหรับเก็บข้อมูลจุดความร้อนจริง
   const [realHotspots, setRealHotspots] = useState([]);
 
+  // 2. ข้อมูลตั้งต้น (ย้ายขึ้นมาก่อน return)
   const safeStations = stations || [];
   const allProvinces = useMemo(() => [...new Set(safeStations.map(s => extractProvince(s.areaTH)))].sort((a, b) => a.localeCompare(b, 'th')), [safeStations]);
-  const availableDistricts = [...new Set(safeStations.filter(s => extractProvince(s.areaTH) === selectedProv).map(s => extractDistrict(s.areaTH)))].sort();
-
-  useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 768);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  // 🌟 ฟังก์ชันดึงข้อมูลจุดความร้อนจาก NASA FIRMS (VIIRS 375m)
-  const fetchHotspotData = async () => {
-    try {
-      // ถ้ามี API Key ที่ฝากไว้ใน Vercel ให้ดึงของจริงมาใช้
-      if (NASA_API_KEY && NASA_API_KEY !== '') {
-        const response = await fetch(`https://firms.modaps.eosdis.nasa.gov/api/country/csv/${NASA_API_KEY}/VIIRS_SNPP_NRT/THA/1`);
-        if (response.ok) {
-          const text = await response.text();
-          const rows = text.split('\n').slice(1); 
-          const points = rows.map(row => {
-            const cols = row.split(',');
-            if (cols.length >= 2) {
-              const lat = parseFloat(cols[0]); const lon = parseFloat(cols[1]);
-              let nearestProv = 'ไม่ระบุ', nearestDist = 'ไม่ระบุ', minD = Infinity;
-              // จับคู่พิกัดไฟป่า กับ อำเภอ/จังหวัด ที่ใกล้ที่สุด
-              safeStations.forEach(st => {
-                const d = getDistance(lat, lon, parseFloat(st.lat), parseFloat(st.long));
-                if (d < minD) { minD = d; nearestProv = extractProvince(st.areaTH); nearestDist = extractDistrict(st.areaTH); }
-              });
-              return { lat, lon, province: nearestProv, district: nearestDist, confidence: cols[6] || 'N/A' };
-            }
-            return null;
-          }).filter(Boolean);
-          setRealHotspots(points);
-          return;
-        }
-      }
-      
-      // Fallback: ถ้าไม่มี API Key (หรือ Key พัง) ให้จำลองพิกัดอย่างมีหลักการ เพื่อไม่ให้แอปจอขาว
-      const mockPoints = [];
-      safeStations.forEach(st => {
-        const pm = Number(st.AQILast?.PM25?.value);
-        if (pm > 40) {
-          const count = Math.floor(pm / 20);
-          for(let i=0; i<count; i++) {
-            mockPoints.push({
-              lat: parseFloat(st.lat) + (Math.random() * 0.1 - 0.05),
-              lon: parseFloat(st.long) + (Math.random() * 0.1 - 0.05),
-              province: extractProvince(st.areaTH), district: extractDistrict(st.areaTH),
-              confidence: Math.floor(Math.random() * 50) + 50
-            });
-          }
-        }
-      });
-      setRealHotspots(mockPoints);
-
-    } catch (e) { 
-      console.error("Hotspot fetch error", e); 
-    }
-  };
-
-  useEffect(() => {
-    if (safeStations.length > 0 && realHotspots.length === 0) fetchHotspotData();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [safeStations]);
-
-  const handleResetView = () => {
-    setSelectedProv(''); setSelectedDistrict(''); setSelectedStation(null);
-    if (mapInstance) mapInstance.flyTo(THAILAND_BOUNDS, 6, { animate: true }); 
-  };
-
-  const handleLocateUser = () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const lat = pos.coords.latitude; const lon = pos.coords.longitude;
-          if (mapInstance) mapInstance.flyTo([lat, lon], 11, { animate: true });
-          
-          let nearest = null; let minD = Infinity;
-          safeStations.forEach(s => {
-            const stLat = parseFloat(s.lat); const stLon = parseFloat(s.long);
-            if(!isNaN(stLat) && !isNaN(stLon)){
-              const d = getDistance(lat, lon, stLat, stLon);
-              if (d < minD) { minD = d; nearest = s; }
-            }
-          });
-          if (nearest) {
-            setSelectedProv(extractProvince(nearest.areaTH));
-            setSelectedDistrict(extractDistrict(nearest.areaTH));
-            setSelectedStation(nearest); // สามารถตัดบรรทัดนี้ออกได้ถ้าไม่อยากให้มันเด้ง Popup ขึ้นมาเอง
-          }
-        },
-        () => alert("⚠️ ไม่สามารถเข้าถึงพิกัดได้ กรุณาเปิด GPS"),
-        { enableHighAccuracy: true, timeout: 10000 }
-      );
-    }
-  };
-
-  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', background: darkMode ? '#0f172a' : '#f0f9ff', color: darkMode ? '#fff' : '#000' }}>กำลังโหลดแผนที่... ⏳</div>;
+  const availableDistricts = useMemo(() => [...new Set(safeStations.filter(s => extractProvince(s.areaTH) === selectedProv).map(s => extractDistrict(s.areaTH)))].sort(), [safeStations, selectedProv]);
 
   const modes = [
     { id: 'pm25', label: 'ฝุ่น PM2.5', icon: '😷', color: '#0ea5e9', unit: 'µg/m³', type: 'leaflet' },
@@ -214,7 +117,63 @@ export default function MapPage() {
   const isLeaflet = currentModeObj.type === 'leaflet';
   const isWindy = currentModeObj.type === 'windy';
 
-  // คำนวณอันดับ (Ranking)
+  // 3. Effects (ทุก Hook ต้องอยู่ก่อน if loading return)
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    const fetchHotspotData = async () => {
+      try {
+        if (NASA_API_KEY && NASA_API_KEY !== '') {
+          const response = await fetch(`https://firms.modaps.eosdis.nasa.gov/api/country/csv/${NASA_API_KEY}/VIIRS_SNPP_NRT/THA/1`);
+          if (response.ok) {
+            const text = await response.text();
+            const rows = text.split('\n').slice(1); 
+            const points = rows.map(row => {
+              const cols = row.split(',');
+              if (cols.length >= 2) {
+                const lat = parseFloat(cols[0]); const lon = parseFloat(cols[1]);
+                let nearestProv = 'ไม่ระบุ', nearestDist = 'ไม่ระบุ', minD = Infinity;
+                safeStations.forEach(st => {
+                  const d = getDistance(lat, lon, parseFloat(st.lat), parseFloat(st.long));
+                  if (d < minD) { minD = d; nearestProv = extractProvince(st.areaTH); nearestDist = extractDistrict(st.areaTH); }
+                });
+                return { lat, lon, province: nearestProv, district: nearestDist, confidence: cols[6] || 'N/A' };
+              }
+              return null;
+            }).filter(Boolean);
+            setRealHotspots(points);
+            return;
+          }
+        }
+        
+        // Mock data
+        const mockPoints = [];
+        safeStations.forEach(st => {
+          const pm = Number(st.AQILast?.PM25?.value);
+          if (pm > 40) {
+            const count = Math.floor(pm / 20);
+            for(let i=0; i<count; i++) {
+              mockPoints.push({
+                lat: parseFloat(st.lat) + (Math.random() * 0.1 - 0.05),
+                lon: parseFloat(st.long) + (Math.random() * 0.1 - 0.05),
+                province: extractProvince(st.areaTH), district: extractDistrict(st.areaTH),
+                confidence: Math.floor(Math.random() * 50) + 50
+              });
+            }
+          }
+        });
+        setRealHotspots(mockPoints);
+      } catch (e) { console.error("Hotspot fetch error", e); }
+    };
+
+    if (safeStations.length > 0 && realHotspots.length === 0) fetchHotspotData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [safeStations]);
+
   const rankingData = useMemo(() => {
     if (isWindy) return [];
     const dataMap = new Map();
@@ -249,6 +208,40 @@ export default function MapPage() {
       }))
       .sort((a, b) => b.value - a.value);
   }, [activeMode, realHotspots, safeStations, stationTemps, selectedProv, isWindy]);
+
+  // 4. 🌟 ป้องกันจอขาว (Early Return ต้องอยู่ตรงนี้เท่านั้น ห้ามมี Hook อีก)
+  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', background: darkMode ? '#0f172a' : '#f0f9ff', color: darkMode ? '#fff' : '#000' }}>กำลังโหลดแผนที่... ⏳</div>;
+
+  const handleResetView = () => {
+    setSelectedProv(''); setSelectedDistrict(''); setSelectedStation(null);
+    if (mapInstance) mapInstance.flyTo(THAILAND_BOUNDS, 6, { animate: true }); 
+  };
+
+  const handleLocateUser = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const lat = pos.coords.latitude; const lon = pos.coords.longitude;
+          if (mapInstance) mapInstance.flyTo([lat, lon], 11, { animate: true });
+          
+          let nearest = null; let minD = Infinity;
+          safeStations.forEach(s => {
+            const stLat = parseFloat(s.lat); const stLon = parseFloat(s.long);
+            if(!isNaN(stLat) && !isNaN(stLon)){
+              const d = getDistance(lat, lon, stLat, stLon);
+              if (d < minD) { minD = d; nearest = s; }
+            }
+          });
+          if (nearest) {
+            setSelectedProv(extractProvince(nearest.areaTH));
+            setSelectedDistrict(extractDistrict(nearest.areaTH));
+          }
+        },
+        () => alert("⚠️ ไม่สามารถเข้าถึงพิกัดได้ กรุณาเปิด GPS"),
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    }
+  };
 
   const mapBg = darkMode ? '#0f172a' : '#f8fafc';
   const cardBg = darkMode ? 'rgba(30, 41, 59, 0.98)' : 'rgba(255, 255, 255, 0.98)';
@@ -292,7 +285,6 @@ export default function MapPage() {
   return (
     <div style={{ position: 'relative', height: '100%', width: '100%', background: mapBg, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       
-      {/* CSS Injection สำหรับปรับแต่ง Popup ให้ดูหรูหรา */}
       <style dangerouslySetInlineStyle={{__html: `
         .leaflet-popup-content-wrapper { background: ${cardBg} !important; border-radius: 20px !important; border: 1px solid ${borderColor} !important; box-shadow: 0 10px 30px rgba(0,0,0,0.15) !important; }
         .leaflet-popup-content { color: ${textColor} !important; width: 300px !important; margin: 0 !important; }
@@ -307,16 +299,12 @@ export default function MapPage() {
           <TileLayer url={getTileUrl()} />
           <MapZoomListener setZoomLevel={setZoomLevel} />
 
-          {selectedStation && !isNaN(parseFloat(selectedStation.lat)) && (
-            <MapUpdater lat={parseFloat(selectedStation.lat)} lon={parseFloat(selectedStation.long)} />
-          )}
-
-          {/* 🌟 แสดง WMS ข้อมูลจุดความร้อนจริงทับแผนที่ */}
+          {/* แสดง WMS ข้อมูลจุดความร้อนจริงทับแผนที่ */}
           {activeMode === 'fires' && (
             <WMSTileLayer url="https://fire.gistda.or.th/cgi-bin/mapserv?map=/v3/hotspot/hotspot_all.map" layers="hotspot_today" format="image/png" transparent={true} version="1.1.1" opacity={0.6} />
           )}
 
-          {/* 🌟 จุดความร้อน (วงกลมแดงๆ) สำหรับนับแยกรายจุด */}
+          {/* จุดความร้อน (วงกลมแดงๆ) สำหรับนับแยกรายจุด */}
           {activeMode === 'fires' && realHotspots.map((fire, i) => (
              <CircleMarker key={`fire-${i}`} center={[fire.lat, fire.lon]} radius={4} pathOptions={{ color: '#ef4444', fillColor: '#ef4444', fillOpacity: 0.8, weight: 0 }}>
                <Tooltip direction="top">🔥 ความน่าจะเป็น: {fire.confidence}%<br/><span style={{fontSize:'0.75rem'}}>{fire.district}, {fire.province}</span></Tooltip>
@@ -371,7 +359,7 @@ export default function MapPage() {
             const dynamicIcon = L.divIcon({ html: htmlContent, className: 'custom-div-icon', iconSize: iconSize, iconAnchor: [iconSize[0]/2, iconSize[1]/2] });
 
             return (
-              <Marker key={st.stationID} position={[lat, lon]} icon={dynamicIcon} eventHandlers={{ click: () => { setSelectedStation(st); if(mapInstance) mapInstance.flyTo([lat, lon], 11); } }}>
+              <Marker key={st.stationID} position={[lat, lon]} icon={dynamicIcon} eventHandlers={{ click: () => { setSelectedStation(st); if(mapInstance) mapInstance.flyTo([lat, lon], 12); } }}>
                 <Tooltip direction="top" offset={[0, -(iconSize[1]/2)]} opacity={1} permanent={false}>
                   <div style={{ textAlign: 'center', fontWeight: 'bold', fontFamily: 'Kanit' }}>
                     <div style={{ fontSize: '0.75rem', opacity: 0.8 }}>{extractDistrict(st.areaTH)}, {extractProvince(st.areaTH)}</div>
@@ -379,7 +367,6 @@ export default function MapPage() {
                   </div>
                 </Tooltip>
                 
-                {/* 🌟 Popup บนแผนที่ */}
                 <Popup closeButton={true}>
                   <div style={{ padding: '20px', fontFamily: 'Kanit, sans-serif' }}>
                     <div style={{ marginBottom: '15px' }}>
@@ -413,7 +400,7 @@ export default function MapPage() {
         </MapContainer>
       </div>
 
-      {/* 🌟 แผนที่ Windy (แสดงเมื่อคลิกเรดาร์ฝน) */}
+      {/* 🌟 แผนที่ Windy */}
       {isWindy && (
         <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 2, background: mapBg }}>
           <iframe width="100%" height="100%" src={`https://embed.windy.com/embed2.html?lat=${windyLat}&lon=${windyLon}&zoom=${windyZoom}&level=surface&overlay=${currentModeObj.layer}&product=ecmwf&menu=&message=true&marker=true&calendar=now&metricWind=km%2Fh&metricTemp=%C2%B0C&radarRange=-1`} frameBorder="0" title="Windy Map"></iframe>
@@ -424,7 +411,6 @@ export default function MapPage() {
       <div style={{ position: 'absolute', top: isMobile ? 15 : 20, left: isMobile ? 15 : 20, right: isMobile ? 15 : 20, zIndex: 1000, pointerEvents: 'none' }}>
         <div style={{ display: 'flex', gap: '15px', overflowX: 'auto', pointerEvents: 'auto', paddingBottom: '10px' }} className="hide-scrollbar">
           
-          {/* ตัวกรองพื้นที่ */}
           <div style={{ display: 'flex', alignItems: 'center', background: cardBg, backdropFilter: 'blur(15px)', borderRadius: '50px', padding: '6px 8px', boxShadow: '0 4px 15px rgba(0,0,0,0.1)', border: `1px solid ${borderColor}`, flexShrink: 0 }}>
             <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: subTextColor, margin: '0 8px 0 8px' }}>📍 พิกัด:</span>
             <select value={selectedProv} onChange={e => { setSelectedProv(e.target.value); setSelectedDistrict(''); }} style={{ background: innerCardBg, color: textColor, border: 'none', fontWeight: 'bold', fontSize: '0.85rem', outline: 'none', cursor: 'pointer', padding: '6px 12px', borderRadius: '50px', marginRight: '5px' }}>
@@ -435,7 +421,6 @@ export default function MapPage() {
             </select>
           </div>
 
-          {/* ปุ่มเปลี่ยนโหมด */}
           <div style={{ display: 'flex', alignItems: 'center', background: cardBg, backdropFilter: 'blur(15px)', borderRadius: '50px', padding: '6px 8px', boxShadow: '0 4px 15px rgba(0,0,0,0.1)', border: `1px solid ${borderColor}`, flexShrink: 0 }}>
             <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: subTextColor, margin: '0 8px 0 8px' }}>🎛️ เลเยอร์:</span>
             {modes.map(mode => (
