@@ -12,7 +12,6 @@ const extractDistrict = (areaTH) => {
 };
 
 export default function Dashboard() {
-  // สังเกตว่าเราใช้ loadingWeather แทน loading เดิม เพื่อให้แยกโหลดกัน
   const { stations, weatherData, fetchWeatherByCoords, loadingWeather, darkMode, lastUpdateText } = useContext(WeatherContext);
   
   const [selectedProv, setSelectedProv] = useState('');
@@ -37,7 +36,6 @@ export default function Dashboard() {
     } catch (e) { setLocationName('ตำแหน่งของคุณ'); }
   };
 
-  // 🚀 โหลดด่วนทันใจ ไม่รอ Air4Thai!
   useEffect(() => {
     if (!weatherData) {
       if (navigator.geolocation) {
@@ -49,14 +47,14 @@ export default function Dashboard() {
           () => {
             fetchWeatherByCoords(13.75, 100.5); setLocationName('กรุงเทพมหานคร');
           },
-          { enableHighAccuracy: false, timeout: 3000, maximumAge: 300000 } // ให้ GPS ดึงพิกัดคร่าวๆ จะได้ไว
+          { enableHighAccuracy: false, timeout: 3000, maximumAge: 300000 }
         );
       } else {
         fetchWeatherByCoords(13.75, 100.5); setLocationName('กรุงเทพมหานคร');
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // ลบสถานะที่ต้องรอออกไปเลย
+  }, []);
 
   const handleFilterChange = (prov, dist) => {
     setSelectedProv(prov); setSelectedDistrict(dist);
@@ -67,8 +65,16 @@ export default function Dashboard() {
     }
   };
 
-  // เช็กแค่ loadingWeather เท่านั้น
-  if (loadingWeather || !weatherData) return <div style={{display:'flex',justifyContent:'center',alignItems:'center',height:'100%',background: darkMode?'#020617':'#f1f5f9',color:darkMode?'#fff':'#000'}}>📍 กำลังโหลดข้อมูลสภาพอากาศแบบด่วนจี๋... ⏳</div>;
+  // 🌟 แก้บั๊กจอขาว: ประกาศตัวแปรสีให้ครบถ้วนตรงนี้!
+  const appBg = darkMode ? '#020617' : '#f8fafc'; 
+  const cardBg = darkMode ? '#0f172a' : '#ffffff';
+  const textColor = darkMode ? '#f8fafc' : '#0f172a'; 
+  const borderColor = darkMode ? '#1e293b' : '#e2e8f0';
+  const subTextColor = darkMode ? '#94a3b8' : '#64748b'; // <--- ตัวการที่ทำให้จอขาว คืนชีพแล้ว!
+
+  if (loadingWeather || !weatherData) {
+    return <div style={{display:'flex',justifyContent:'center',alignItems:'center',height:'100%',background: appBg, color: textColor}}>📍 กำลังโหลดข้อมูลสภาพอากาศแบบด่วนจี๋... ⏳</div>;
+  }
 
   const { current, hourly, daily, coords } = weatherData;
   const aqiBg = current.pm25 > 75 ? '#ef4444' : current.pm25 > 37.5 ? '#f97316' : current.pm25 > 25 ? '#eab308' : '#22c55e';
@@ -81,9 +87,6 @@ export default function Dashboard() {
   let bgGradient = darkMode ? 'linear-gradient(135deg, #1e3a8a, #0f172a)' : 'linear-gradient(135deg, #0ea5e9, #38bdf8)';
   if (isRaining) bgGradient = 'linear-gradient(135deg, #334155, #0f172a)'; else if (isHot) bgGradient = 'linear-gradient(135deg, #ea580c, #9a3412)';
 
-  const appBg = darkMode ? '#020617' : '#f8fafc'; const cardBg = darkMode ? '#0f172a' : '#ffffff';
-  const textColor = darkMode ? '#f8fafc' : '#0f172a'; const borderColor = darkMode ? '#1e293b' : '#e2e8f0';
-
   return (
     <div style={{ height: '100%', width: '100%', background: appBg, display: 'flex', justifyContent: 'center', overflowY: 'auto', fontFamily: 'Kanit, sans-serif' }} className="hide-scrollbar">
       <style dangerouslySetInlineStyle={{__html: `.hide-scrollbar::-webkit-scrollbar { display: none; } .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }`}} />
@@ -91,7 +94,6 @@ export default function Dashboard() {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px', background: cardBg, padding: '15px 20px', borderRadius: '16px', border: `1px solid ${borderColor}` }}>
           <span style={{ fontSize: '1.1rem', color: textColor, display: isMobile ? 'none' : 'block' }}>📍 ระบุพื้นที่:</span>
-          {/* ซ่อน Dropdown ถ้าข้อมูล Air4Thai ยังโหลดมาไม่ถึง จะได้ไม่พัง */}
           {stations.length > 0 ? (
             <>
               <select value={selectedProv} onChange={e => handleFilterChange(e.target.value, '')} style={{ flex: 1, background: darkMode?'#1e293b':'#f1f5f9', color: '#0ea5e9', border: 'none', fontWeight: 'bold', fontSize: '1rem', padding: '10px 15px', borderRadius: '12px', outline: 'none' }}>
@@ -102,7 +104,7 @@ export default function Dashboard() {
               </select>
             </>
           ) : (
-            <span style={{ color: subTextColor, fontSize: '0.9rem' }}>กำลังดึงรายชื่อพื้นที่ทั่วประเทศ...</span>
+            <span style={{ color: subTextColor, fontSize: '0.9rem' }}>กำลังดึงรายชื่อพื้นที่... (อาจจะล่าช้าหากเซิร์ฟเวอร์รัฐบาลขัดข้อง)</span>
           )}
         </div>
 
@@ -113,7 +115,7 @@ export default function Dashboard() {
                 <span style={{ fontSize: '1.6rem', fontWeight: '900', color: textColor }}>{locationName}</span>
                 <div style={{ fontSize: '0.8rem', color: '#0ea5e9', fontWeight: 'bold' }}>📡 GPS: {coords.lat.toFixed(4)}, {coords.lon.toFixed(4)}</div>
               </div>
-              {!isMobile && <div style={{ color: '#64748b', fontSize: '0.8rem' }}>อัปเดต: {lastUpdateText}</div>}
+              {!isMobile && <div style={{ color: subTextColor, fontSize: '0.8rem' }}>อัปเดต: {lastUpdateText}</div>}
             </div>
 
             <div style={{ background: bgGradient, borderRadius: '30px', padding: '30px 20px', color: '#fff', boxShadow: '0 20px 40px rgba(0,0,0,0.2)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -153,7 +155,7 @@ export default function Dashboard() {
                         <div style={{ fontSize: '1rem', fontWeight: 'bold', color: textColor }}>{idx === 0 ? 'วันนี้' : new Date(t).toLocaleDateString('th-TH', {weekday:'short'})}</div>
                         <div style={{ fontSize: '1.5rem', textAlign: 'center' }}>{daily.weathercode[idx] > 50 ? '🌧️' : '🌤️'}</div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                           <span style={{ fontSize: '1rem', color: '#64748b', fontWeight: 'bold', width: '30px', textAlign: 'right' }}>{Math.round(daily.temperature_2m_min[idx])}°</span>
+                           <span style={{ fontSize: '1rem', color: subTextColor, fontWeight: 'bold', width: '30px', textAlign: 'right' }}>{Math.round(daily.temperature_2m_min[idx])}°</span>
                            <div style={{ flex: 1, height: '6px', background: darkMode ? '#1e293b' : '#e2e8f0', borderRadius: '10px', overflow: 'hidden', position: 'relative' }}>
                               <div style={{ position: 'absolute', left: '20%', right: '20%', top: 0, bottom: 0, background: 'linear-gradient(to right, #3b82f6, #f97316)' }}></div>
                            </div>
