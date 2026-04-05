@@ -4,13 +4,16 @@ import { WeatherContext } from '../context/WeatherContext';
 import { AreaChart, Area, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis } from 'recharts';
 
 export default function Dashboard() {
-  const { stations, weatherData, fetchWeatherByCoords, loadingWeather, darkMode, lastUpdateText } = useContext(WeatherContext);
+  const { weatherData, fetchWeatherByCoords, loadingWeather, darkMode, lastUpdateText } = useContext(WeatherContext);
   
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
-  const [locationName, setLocationName] = useState('อยู่ระหว่างการประมวลผลพื้นที่...');
+  const [locationName, setLocationName] = useState('กำลังหาตำแหน่ง...');
   
+  // State สำหรับเก็บข้อมูล จังหวัด/อำเภอ
+  const [geoData, setGeoData] = useState([]);
   const [selectedProv, setSelectedProv] = useState('');
-  const [searchInput, setSearchInput] = useState('');
+  const [selectedDist, setSelectedDist] = useState('');
+  const [amphoesList, setAmphoesList] = useState([]);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 1024);
@@ -18,12 +21,21 @@ export default function Dashboard() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // 🌟 ดึงรายชื่อ 77 จังหวัด 928 อำเภอ มาใส่ Dropdown
+  useEffect(() => {
+    fetch('https://raw.githubusercontent.com/kongvut/thai-province-data/master/api_province_with_amphure_tambon.json')
+      .then(res => res.json())
+      .then(data => setGeoData(data))
+      .catch(e => console.error('โหลดรายชื่อจังหวัดไม่สำเร็จ:', e));
+  }, []);
+
+  // แปลงพิกัด GPS เป็นชื่อสถานที่
   const fetchLocationName = async (lat, lon) => {
     try {
       const res = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=th`);
       const data = await res.json();
-      setLocationName(data.locality || data.city || 'พิกัดภูมิศาสตร์ปัจจุบัน');
-    } catch (e) { setLocationName('พิกัดภูมิศาสตร์ปัจจุบัน'); }
+      setLocationName(data.locality || data.city || 'ตำแหน่งปัจจุบัน');
+    } catch (e) { setLocationName('ตำแหน่งปัจจุบัน'); }
   };
 
   useEffect(() => {
@@ -44,33 +56,28 @@ export default function Dashboard() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // เลือกระดับจังหวัด
+  // เมื่อเลือก Dropdown จังหวัด
   const handleProvChange = (e) => {
     const pName = e.target.value;
-    setSelectedProv(pName); setSearchInput('');
-    const target = stations.find(s => s.areaTH === pName);
-    if (target) {
-      fetchWeatherByCoords(target.lat, target.long);
+    setSelectedProv(pName); setSelectedDist('');
+    const pObj = geoData.find(p => p.name_th === pName);
+    if (pObj) {
+      setAmphoesList(pObj.amphure);
       setLocationName(pName);
-    }
+      // แอบดึงพิกัดจังหวัดนั้นมาโชว์
+      fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${pName}&count=1&language=th`)
+        .then(r => r.json()).then(d => { if(d.results) fetchWeatherByCoords(d.results[0].latitude, d.results[0].longitude); });
+    } else { setAmphoesList([]); }
   };
 
-  // 🌟 ระบบค้นหาเชิงลึกระดับอำเภอ/ตำบล ผ่าน Geocoding API
-  const handleSearch = async () => {
-    if(!searchInput) return;
-    setLocationName(`สืบค้นพิกัด: ${searchInput}...`);
-    try {
-      const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${searchInput}&count=1&language=th`);
-      const data = await res.json();
-      if(data.results && data.results.length > 0) {
-        fetchWeatherByCoords(data.results[0].latitude, data.results[0].longitude);
-        setLocationName(`${data.results[0].name} ${data.results[0].admin1 ? '('+data.results[0].admin1+')' : ''}`);
-        setSelectedProv('');
-      } else {
-        alert("ไม่พบข้อมูลพิกัดภูมิศาสตร์ที่ระบุ");
-        setLocationName('พิกัดภูมิศาสตร์ปัจจุบัน');
-      }
-    } catch(e) { console.error(e); }
+  // เมื่อเลือก Dropdown อำเภอ
+  const handleDistChange = (e) => {
+    const dName = e.target.value;
+    setSelectedDist(dName);
+    setLocationName(`อ.${dName}, ${selectedProv}`);
+    // แอบเอาชื่ออำเภอ+จังหวัด ไปหาพิกัด Lat/Lon
+    fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${dName} ${selectedProv}&count=1&language=th`)
+      .then(r => r.json()).then(d => { if(d.results) fetchWeatherByCoords(d.results[0].latitude, d.results[0].longitude); });
   };
 
   const appBg = darkMode ? '#020617' : '#f8fafc'; 
@@ -79,15 +86,16 @@ export default function Dashboard() {
   const borderColor = darkMode ? '#1e293b' : '#e2e8f0';
   const subTextColor = darkMode ? '#94a3b8' : '#64748b'; 
 
-  if (loadingWeather || !weatherData) return <div style={{display:'flex',justifyContent:'center',alignItems:'center',height:'100%',background:appBg,color:textColor}}>📍 กำลังซิงโครไนซ์ข้อมูลอุตุนิยมวิทยาแบบเรียลไทม์...</div>;
+  if (loadingWeather || !weatherData) return <div style={{display:'flex',justifyContent:'center',alignItems:'center',height:'100%',background:appBg,color:textColor, fontSize:'1.2rem', fontWeight:'bold'}}>📍 กำลังโหลดสภาพอากาศล่าสุด... ⏳</div>;
 
   const { current, hourly, daily, coords } = weatherData;
   const aqiBg = current.pm25 > 75 ? '#ef4444' : current.pm25 > 37.5 ? '#f97316' : current.pm25 > 25 ? '#eab308' : '#22c55e';
-  const aqiText = current.pm25 > 75 ? 'เริ่มมีผลกระทบ' : current.pm25 > 37.5 ? 'ปานกลาง' : 'คุณภาพอากาศดี';
+  const aqiText = current.pm25 > 75 ? 'เริ่มมีผลกระทบ' : current.pm25 > 37.5 ? 'ปานกลาง' : 'อากาศดี';
   
   const isRaining = current.rain > 0; const isHot = current.feelsLike >= 38;
   const weatherIcon = isRaining ? '🌧️' : (isHot ? '☀️' : '🌤️');
-  const weatherText = isRaining ? 'สภาวะฝนตกในพื้นที่' : (isHot ? 'สภาพอากาศร้อนจัด' : 'สภาวะอากาศปกติ (มีเมฆบางส่วน)');
+  const weatherText = isRaining ? 'มีฝนตกในพื้นที่' : (isHot ? 'แดดร้อนจัด' : 'อากาศดี มีเมฆบางส่วน');
+  
   let bgGradient = darkMode ? 'linear-gradient(135deg, #1e3a8a, #0f172a)' : 'linear-gradient(135deg, #0ea5e9, #38bdf8)';
   if (isRaining) bgGradient = 'linear-gradient(135deg, #334155, #0f172a)'; else if (isHot) bgGradient = 'linear-gradient(135deg, #ea580c, #9a3412)';
 
@@ -96,24 +104,23 @@ export default function Dashboard() {
       <style dangerouslySetInlineStyle={{__html: `.hide-scrollbar::-webkit-scrollbar { display: none; } .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }`}} />
       <div style={{ width: '100%', maxWidth: isMobile ? '600px' : '1200px', display: 'flex', flexDirection: 'column', gap: '20px', padding: isMobile ? '15px' : '30px', paddingBottom: '100px' }}>
 
-        {/* 🌟 แผงควบคุมพิกัด (ค้นหาได้ทั้งประเทศ) */}
+        {/* 🌟 Dropdown ค้นหาจังหวัด/อำเภอ */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '15px', background: cardBg, padding: '15px 20px', borderRadius: '16px', border: `1px solid ${borderColor}`, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: '1.1rem', color: textColor, display: isMobile ? 'none' : 'block' }}>📍 ระบุพื้นที่ภูมิศาสตร์:</span>
+          <span style={{ fontSize: '1.1rem', color: textColor, display: isMobile ? 'none' : 'block' }}>📍 ระบุพื้นที่:</span>
           
-          <select value={selectedProv} onChange={handleProvChange} style={{ flex: 1, minWidth: '150px', background: darkMode?'#1e293b':'#f1f5f9', color: '#0ea5e9', border: 'none', fontWeight: 'bold', fontSize: '1rem', padding: '10px 15px', borderRadius: '12px', outline: 'none' }}>
-            <option value="">-- เลือก 77 จังหวัด --</option>
-            {stations.map(p => <option key={p.stationID} value={p.areaTH}>{p.areaTH}</option>)}
-          </select>
+          {geoData.length > 0 ? (
+            <>
+              <select value={selectedProv} onChange={handleProvChange} style={{ flex: 1, minWidth: '150px', background: darkMode?'#1e293b':'#f1f5f9', color: '#0ea5e9', border: 'none', fontWeight: 'bold', fontSize: '1rem', padding: '10px 15px', borderRadius: '12px', outline: 'none', cursor: 'pointer' }}>
+                <option value="">-- เลือกจังหวัด --</option>
+                {geoData.map(p => <option key={p.id} value={p.name_th}>{p.name_th}</option>)}
+              </select>
 
-          <div style={{ display: 'flex', flex: 1.5, minWidth: '200px', background: darkMode?'#1e293b':'#f1f5f9', borderRadius: '12px', padding: '5px' }}>
-            <input 
-              type="text" value={searchInput} onChange={(e)=>setSearchInput(e.target.value)} 
-              placeholder="หรือพิมพ์ค้นหา อำเภอ/ตำบล..." 
-              style={{ flex: 1, background: 'transparent', border: 'none', color: textColor, padding: '5px 10px', outline: 'none', fontFamily: 'Kanit' }}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            />
-            <button onClick={handleSearch} style={{ background: '#0ea5e9', color: '#fff', border: 'none', borderRadius: '8px', padding: '5px 15px', cursor: 'pointer', fontWeight: 'bold', fontFamily: 'Kanit' }}>ค้นหา</button>
-          </div>
+              <select value={selectedDist} onChange={handleDistChange} disabled={!selectedProv} style={{ flex: 1, minWidth: '150px', background: darkMode?'#1e293b':'#f1f5f9', color: textColor, border: 'none', fontWeight: 'bold', fontSize: '1rem', padding: '10px 15px', borderRadius: '12px', outline: 'none', cursor: 'pointer', opacity: selectedProv ? 1 : 0.5 }}>
+                <option value="">-- เลือกอำเภอ --</option>
+                {amphoesList.map(a => <option key={a.id} value={a.name_th}>{a.name_th}</option>)}
+              </select>
+            </>
+          ) : <span style={{ color: subTextColor, fontSize: '0.9rem' }}>กำลังเตรียมรายชื่อ 928 อำเภอ...</span>}
         </div>
 
         <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '20px' }}>
@@ -121,34 +128,34 @@ export default function Dashboard() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <span style={{ fontSize: '1.6rem', fontWeight: '900', color: textColor }}>{locationName}</span>
-                <div style={{ fontSize: '0.8rem', color: '#0ea5e9', fontWeight: 'bold' }}>📡 ข้อมูลละติจูด/ลองจิจูด: {coords.lat.toFixed(4)}, {coords.lon.toFixed(4)}</div>
+                <div style={{ fontSize: '0.8rem', color: '#0ea5e9', fontWeight: 'bold' }}>📡 GPS: {coords.lat.toFixed(4)}, {coords.lon.toFixed(4)}</div>
               </div>
-              {!isMobile && <div style={{ color: subTextColor, fontSize: '0.8rem' }}>ซิงโครไนซ์ล่าสุด: {lastUpdateText}</div>}
+              {!isMobile && <div style={{ color: subTextColor, fontSize: '0.8rem' }}>อัปเดต: {lastUpdateText}</div>}
             </div>
 
             <div style={{ background: bgGradient, borderRadius: '30px', padding: '30px 20px', color: '#fff', boxShadow: '0 20px 40px rgba(0,0,0,0.2)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}><span style={{ fontSize: '5rem' }}>{weatherIcon}</span><span style={{ fontSize: '6rem', fontWeight: '900', lineHeight: 1 }}>{Math.round(current.temp)}°</span></div>
                <div style={{ fontSize: '1.4rem', fontWeight: 'bold', marginTop: '10px' }}>{weatherText}</div>
-               <div style={{ fontSize: '1rem', opacity: 0.9 }}>อุณหภูมิที่รู้สึกได้จริง (Apparent Temp) {Math.round(current.feelsLike)}°C</div>
-               <div style={{ marginTop: '20px', background: aqiBg, color: '#fff', padding: '8px 25px', borderRadius: '50px', fontWeight: '900' }}>😷 ค่าความหนาแน่น PM2.5: {current.pm25 || '-'} µg/m³ ({aqiText})</div>
+               <div style={{ fontSize: '1rem', opacity: 0.9 }}>รู้สึกเหมือน {Math.round(current.feelsLike)}°C</div>
+               <div style={{ marginTop: '20px', background: aqiBg, color: '#fff', padding: '8px 25px', borderRadius: '50px', fontWeight: '900', boxShadow: '0 4px 10px rgba(0,0,0,0.2)' }}>😷 ฝุ่น PM2.5: {current.pm25 || '-'} µg/m³ ({aqiText})</div>
 
                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', width: '100%', marginTop: '30px', background: 'rgba(0,0,0,0.2)', backdropFilter: 'blur(10px)', borderRadius: '20px', padding: '15px 10px' }}>
-                  <div style={{ textAlign: 'center' }}><div style={{fontSize:'1.2rem'}}>☔</div><div style={{fontSize:'0.7rem'}}>ปริมาณน้ำฝน</div><b>{current.rain} mm</b></div>
-                  <div style={{ textAlign: 'center' }}><div style={{fontSize:'1.2rem'}}>💧</div><div style={{fontSize:'0.7rem'}}>ความชื้นสัมพัทธ์</div><b>{current.humidity}%</b></div>
-                  <div style={{ textAlign: 'center' }}><div style={{fontSize:'1.2rem'}}>🌬️</div><div style={{fontSize:'0.7rem'}}>ความเร็วลม</div><b>{current.windSpeed} km/h</b></div>
-                  <div style={{ textAlign: 'center' }}><div style={{fontSize:'1.2rem'}}>☀️</div><div style={{fontSize:'0.7rem'}}>รังสีอัลตราไวโอเลต</div><b>{current.uv}</b></div>
+                  <div style={{ textAlign: 'center' }}><div style={{fontSize:'1.2rem'}}>☔</div><div style={{fontSize:'0.7rem'}}>ปริมาณฝน</div><b>{current.rain} mm</b></div>
+                  <div style={{ textAlign: 'center' }}><div style={{fontSize:'1.2rem'}}>💧</div><div style={{fontSize:'0.7rem'}}>ความชื้น</div><b>{current.humidity}%</b></div>
+                  <div style={{ textAlign: 'center' }}><div style={{fontSize:'1.2rem'}}>🌬️</div><div style={{fontSize:'0.7rem'}}>ลม</div><b>{current.windSpeed} km/h</b></div>
+                  <div style={{ textAlign: 'center' }}><div style={{fontSize:'1.2rem'}}>☀️</div><div style={{fontSize:'0.7rem'}}>UV Index</div><b>{current.uv}</b></div>
                </div>
             </div>
             
-            {/* กล่องวิเคราะห์ AI (ใช้ศัพท์วิชาการ) */}
+            {/* กล่องคำแนะนำ AI แบบเป็นกันเอง */}
             <div style={{ background: cardBg, padding: '20px', borderRadius: '25px', border: `1px solid ${borderColor}`, display: 'flex', alignItems: 'flex-start', gap: '15px' }}>
-              <span style={{ fontSize: '2rem' }}>🤖</span>
+              <span style={{ fontSize: '2.5rem' }}>💡</span>
               <div>
-                 <h4 style={{ margin: '0 0 5px 0', color: textColor, fontSize: '1rem' }}>การวิเคราะห์สภาวะอากาศโดย AI</h4>
-                 <p style={{ margin: 0, color: subTextColor, fontSize: '0.9rem', lineHeight: 1.5 }}>
-                   {isRaining ? "สภาวะปัจจุบันตรวจพบกลุ่มฝนตกในพื้นที่ ขอแนะนำให้ตรวจสอบทัศนวิสัยในการสัญจรและพกพาอุปกรณ์กันฝน" 
-                    : (isHot ? "ดัชนีความร้อน (Heat Index) อยู่ในเกณฑ์สูงเสี่ยงต่อสภาวะฮีทสโตรก ควรหลีกเลี่ยงการทำกิจกรรมกลางแจ้งเป็นเวลานาน" 
-                    : "สภาพอากาศโดยรวมอยู่ในเกณฑ์ปกติ เหมาะสมต่อการดำเนินกิจกรรมในพื้นที่โล่งแจ้ง")}
+                 <h4 style={{ margin: '0 0 5px 0', color: textColor, fontSize: '1.1rem' }}>คำแนะนำวันนี้</h4>
+                 <p style={{ margin: 0, color: subTextColor, fontSize: '0.95rem', lineHeight: 1.5 }}>
+                   {isRaining ? "วันนี้มีโอกาสฝนตกนะคะ ก่อนออกจากบ้านอย่าลืมพกร่มหรือเสื้อกันฝนติดกระเป๋าไว้ด้วย ขับขี่ระมัดระวังถนนลื่นค่ะ ☔" 
+                    : (isHot ? "อากาศข้างนอกร้อนจัดเลยค่ะ แนะนำให้ดื่มน้ำบ่อยๆ และพยายามอยู่ในที่ร่มเพื่อป้องกันโรคลมแดด (ฮีทสโตรก) นะคะ 🥤" 
+                    : "วันนี้อากาศค่อนข้างดีเลยค่ะ ท้องฟ้าโปร่ง เหมาะกับการซักผ้า หรือออกไปทำกิจกรรมนอกบ้านชิลๆ ค่ะ ✨")}
                  </p>
               </div>
             </div>
@@ -156,7 +163,7 @@ export default function Dashboard() {
 
           <div style={{ flex: 1.2, display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0 }}>
             <div style={{ background: cardBg, borderRadius: '25px', padding: '20px', border: `1px solid ${borderColor}` }}>
-               <h3 style={{ margin: '0 0 15px 0', fontSize: '1rem', color: textColor }}>⏱️ ข้อมูลสถิติอุณหภูมิล่วงหน้า (24 ชั่วโมง)</h3>
+               <h3 style={{ margin: '0 0 15px 0', fontSize: '1rem', color: textColor }}>⏱️ แนวโน้มอุณหภูมิวันนี้ (24 ชั่วโมง)</h3>
                <div style={{ height: '140px', width: '100%' }}>
                  <ResponsiveContainer width="100%" height="100%">
                    <AreaChart data={hourly.time.slice(0, 24).map((t, i) => ({ time: t.split('T')[1], temp: Math.round(hourly.temperature_2m[i]) }))}>
@@ -169,7 +176,7 @@ export default function Dashboard() {
             </div>
 
             <div style={{ background: cardBg, borderRadius: '25px', padding: '25px', border: `1px solid ${borderColor}`, flex: 1 }}>
-               <h3 style={{ margin: '0 0 20px 0', fontSize: '1rem', color: textColor }}>📅 โมเดลพยากรณ์อากาศล่วงหน้า (7 วัน)</h3>
+               <h3 style={{ margin: '0 0 20px 0', fontSize: '1rem', color: textColor }}>📅 พยากรณ์อากาศล่วงหน้า 7 วัน</h3>
                <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
                   {daily.time.map((t, idx) => (
                      <div key={idx} style={{ display: 'grid', gridTemplateColumns: '50px 50px 1fr', alignItems: 'center', paddingBottom: idx !== 6 ? '15px' : '0', borderBottom: idx !== 6 ? `1px solid ${borderColor}` : 'none' }}>
