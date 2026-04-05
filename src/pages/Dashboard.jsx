@@ -10,6 +10,7 @@ export default function Dashboard() {
   const [locationName, setLocationName] = useState('กำลังระบุตำแหน่ง...');
   
   const [geoData, setGeoData] = useState([]);
+  const [geoError, setGeoError] = useState(false);
   const [selectedProv, setSelectedProv] = useState('');
   const [selectedDist, setSelectedDist] = useState('');
 
@@ -19,41 +20,18 @@ export default function Dashboard() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // 🌟 1. ระบบโหลดอำเภอแบบ 4 ลิงก์สำรอง (ทะลุบล็อก & กันเน็ตค้าง)
+  // 🌟 1. ดึงฐานข้อมูลจากไฟล์ในเครื่อง (ไม่สนเน็ตบล็อก ไม่สนเว็บล่ม)
   useEffect(() => {
-    const loadAmphoes = async () => {
-      const urls = [
-        'https://raw.githubusercontent.com/kongvut/thai-province-data/master/api_province_with_amphure_tambon.json',
-        'https://cdn.jsdelivr.net/gh/kongvut/thai-province-data@master/api_province_with_amphure_tambon.json',
-        'https://raw.githack.com/kongvut/thai-province-data/master/api_province_with_amphure_tambon.json',
-        'https://api.allorigins.win/raw?url=https://raw.githubusercontent.com/kongvut/thai-province-data/master/api_province_with_amphure_tambon.json' // Proxy ทะลุบล็อก
-      ];
-
-      for (let url of urls) {
-        try {
-          // กำหนดเวลาให้รอแค่ 5 วินาทีต่อ 1 ลิงก์ ถ้าช้าให้เปลี่ยนลิงก์ทันที
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 5000);
-          
-          const res = await fetch(url, { signal: controller.signal });
-          clearTimeout(timeoutId);
-
-          if (res.ok) {
-            const data = await res.json();
-            if (Array.isArray(data) && data.length > 0) {
-              setGeoData(data);
-              return; // โหลดสำเร็จ หยุดลูปทันที
-            }
-          }
-        } catch (e) {
-          console.warn(`[ระบบสำรอง] ข้ามลิงก์ ${url} เนื่องจากเน็ตบล็อกหรือตอบสนองช้า`);
-        }
-      }
-      // ถ้าพังหมดทุกลิงก์ ให้ขึ้นสถานะ Error เพื่อปลดล็อกปุ่ม
-      setGeoData([{ id: 'ERROR', name_th: 'โหลดล้มเหลว' }]);
-    };
-    
-    loadAmphoes();
+    fetch('/thai_geo.json')
+      .then(res => {
+        if (!res.ok) throw new Error('ไม่พบไฟล์');
+        return res.json();
+      })
+      .then(data => setGeoData(data))
+      .catch(e => {
+        console.error('Error loading geo data:', e);
+        setGeoError(true);
+      });
   }, []);
 
   // 🌟 2. เรียงลำดับ 77 จังหวัด ก-ฮ
@@ -61,18 +39,20 @@ export default function Dashboard() {
     return [...stations].sort((a, b) => a.areaTH.localeCompare(b.areaTH, 'th'));
   }, [stations]);
 
-  // 🌟 3. เรียงลำดับอำเภอ ก-ฮ และป้องกันการค้าง
-  const isGeoError = geoData.length > 0 && geoData[0].id === 'ERROR';
-  const isLoadingGeo = geoData.length === 0;
-
+  // 🌟 3. อัปเกรดให้รองรับไฟล์เวอร์ชันใหม่ V2 (เปลี่ยน amphure เป็น district)
   const currentAmphoes = useMemo(() => {
-    if (isLoadingGeo || isGeoError || !selectedProv) return [];
+    if (!geoData || geoData.length === 0 || !selectedProv) return [];
+    
+    // หาจังหวัดที่ผู้ใช้เลือก
     const pObj = geoData.find(p => p.name_th === selectedProv || (p.name_th && p.name_th.includes(selectedProv)));
-    if (pObj && pObj.amphure) {
-      return [...pObj.amphure].sort((a, b) => a.name_th.localeCompare(b.name_th, 'th'));
+    
+    if (pObj) {
+      // รองรับทั้งไฟล์เวอร์ชันใหม่ (district) และเวอร์ชันเก่า (amphure)
+      const distArray = pObj.district || pObj.amphure || [];
+      return [...distArray].sort((a, b) => a.name_th.localeCompare(b.name_th, 'th'));
     }
     return [];
-  }, [geoData, selectedProv, isLoadingGeo, isGeoError]);
+  }, [geoData, selectedProv]);
 
   const fetchLocationName = async (lat, lon) => {
     try {
@@ -102,7 +82,8 @@ export default function Dashboard() {
 
   const handleProvChange = (e) => {
     const pName = e.target.value;
-    setSelectedProv(pName); setSelectedDist('');
+    setSelectedProv(pName); 
+    setSelectedDist('');
     
     const fallbackProv = stations.find(s => s.areaTH === pName);
     if (fallbackProv) { 
@@ -117,7 +98,10 @@ export default function Dashboard() {
     setLocationName(`อ.${dName}, ${selectedProv}`);
     
     fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${dName} ${selectedProv}&count=1&language=th`)
-      .then(r => r.json()).then(d => { if(d.results) fetchWeatherByCoords(d.results[0].latitude, d.results[0].longitude); });
+      .then(r => r.json())
+      .then(d => { 
+        if(d.results) fetchWeatherByCoords(d.results[0].latitude, d.results[0].longitude); 
+      });
   };
 
   const appBg = darkMode ? '#020617' : '#f8fafc'; 
@@ -126,11 +110,11 @@ export default function Dashboard() {
   const borderColor = darkMode ? '#1e293b' : '#e2e8f0';
   const subTextColor = darkMode ? '#94a3b8' : '#64748b'; 
 
-  if (loadingWeather || !weatherData) return <div style={{display:'flex',justifyContent:'center',alignItems:'center',height:'100%',background:appBg,color:textColor, fontWeight:'bold', fontSize:'1.2rem'}}>📍 กำลังโหลดสภาพอากาศล่าสุด... ⏳</div>;
+  if (loadingWeather || !weatherData) return <div style={{display:'flex',justifyContent:'center',alignItems:'center',height:'100%',background:appBg,color:textColor, fontWeight:'bold', fontSize:'1.2rem'}}>📍 โหลดข้อมูลแป๊บนึงนะคะ... ⏳</div>;
 
   const { current, hourly, daily, coords } = weatherData;
   const aqiBg = current.pm25 > 75 ? '#ef4444' : current.pm25 > 37.5 ? '#f97316' : current.pm25 > 25 ? '#eab308' : '#22c55e';
-  const aqiText = current.pm25 > 75 ? 'เริ่มมีผลกระทบ' : current.pm25 > 37.5 ? 'ปานกลาง' : 'อากาศดี';
+  const aqiText = current.pm25 > 75 ? 'เริ่มมีผลกระทบ' : current.pm25 > 37.5 ? 'ปานกลาง' : 'คุณภาพอากาศดี';
   
   const isRaining = current.rain > 0; const isHot = current.feelsLike >= 38;
   const weatherIcon = isRaining ? '🌧️' : (isHot ? '☀️' : '🌤️');
@@ -152,16 +136,15 @@ export default function Dashboard() {
             {sortedStations.map(p => <option key={p.stationID} value={p.areaTH}>{p.areaTH}</option>)}
           </select>
 
-          {/* 🌟 Dropdown อำเภอแบบฉลาด ไม่ค้างแน่นอน */}
           <select 
             value={selectedDist} 
             onChange={handleDistChange} 
-            disabled={!selectedProv || isLoadingGeo || isGeoError} 
-            style={{ flex: 1, minWidth: '150px', background: darkMode?'#1e293b':'#f1f5f9', color: textColor, border: 'none', fontWeight: 'bold', fontSize: '1rem', padding: '10px 15px', borderRadius: '12px', outline: 'none', cursor: 'pointer', opacity: (!selectedProv || isLoadingGeo || isGeoError) ? 0.5 : 1 }}
+            disabled={!selectedProv || geoData.length === 0 || geoError} 
+            style={{ flex: 1, minWidth: '150px', background: darkMode?'#1e293b':'#f1f5f9', color: textColor, border: 'none', fontWeight: 'bold', fontSize: '1rem', padding: '10px 15px', borderRadius: '12px', outline: 'none', cursor: 'pointer', opacity: (!selectedProv || geoData.length === 0) ? 0.5 : 1 }}
           >
             <option value="">
-              {isLoadingGeo ? 'กำลังโหลดข้อมูลอำเภอ...' : 
-               isGeoError ? '⚠️ ระบบเครือข่ายขัดข้อง' : 
+              {geoError ? '⚠️ โหลดฐานข้อมูลไม่สำเร็จ (เช็กไฟล์ใน public)' : 
+               geoData.length === 0 ? 'กำลังเตรียมข้อมูลอำเภอ...' : 
                '-- เลือกอำเภอ --'}
             </option>
             {currentAmphoes.map(a => <option key={a.id} value={a.name_th}>{a.name_th}</option>)}
