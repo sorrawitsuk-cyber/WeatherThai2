@@ -20,7 +20,7 @@ export default function Dashboard() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // 🌟 1. ดึงไฟล์ JSON แบบป้องกันโครงสร้างไฟล์ผิดเพี้ยน
+  // ดึงไฟล์ JSON 
   useEffect(() => {
     fetch('/thai_geo.json')
       .then(res => {
@@ -28,7 +28,6 @@ export default function Dashboard() {
         return res.json();
       })
       .then(data => {
-        // เผื่อไฟล์ JSON ถูกหุ้มด้วย Object เช่น { "data": [...] }
         const actualData = Array.isArray(data) ? data : (data.data || data.RECORDS || data.records || Object.values(data)[0] || []);
         setGeoData(actualData);
       })
@@ -42,11 +41,10 @@ export default function Dashboard() {
     return [...stations].sort((a, b) => a.areaTH.localeCompare(b.areaTH, 'th'));
   }, [stations]);
 
-  // 🌟 2. สแกนหาอำเภอแบบอัจฉริยะ (ไม่ว่าไฟล์จะใช้คำศัพท์อะไรก็หาเจอ!)
+  // สแกนหาอำเภอ
   const currentAmphoes = useMemo(() => {
     if (!geoData || geoData.length === 0 || !selectedProv) return [];
     
-    // ค้นหาจังหวัดแบบยืดหยุ่น (เผื่อ JSON มีคำว่า 'จังหวัด' นำหน้า)
     const cleanProv = selectedProv.replace('จังหวัด', '').trim();
     const pObj = geoData.find(p => {
       const pName = String(p.name_th || p.nameTh || p.name || p.province || p.province_name || '').replace('จังหวัด', '').trim();
@@ -54,10 +52,7 @@ export default function Dashboard() {
     });
 
     if (pObj) {
-      // สแกนหา Array ของอำเภอ ไม่ว่าจะตั้งชื่อคีย์ว่าอะไร
       const distArray = pObj.amphure || pObj.amphures || pObj.district || pObj.districts || pObj.amphoe || pObj.amphoes || pObj.amphur || [];
-      
-      // ดึงชื่ออำเภอออกมา และเรียง ก-ฮ
       return [...distArray].map(a => {
         const distName = String(a.name_th || a.nameTh || a.name || a.amphoe || a.district_name || a.amphur_name || '').trim();
         return { id: a.id || a.code || Math.random(), name: distName };
@@ -104,16 +99,42 @@ export default function Dashboard() {
     }
   };
 
-  const handleDistChange = (e) => {
+  // 🌟 อัปเกรดระบบค้นหาพิกัดอำเภอ (OpenStreetMap)
+  const handleDistChange = async (e) => {
     const dName = e.target.value;
     setSelectedDist(dName);
+
+    // ถ้าผู้ใช้กดกลับมาที่ "-- เลือกอำเภอ --" ให้กลับไปใช้พิกัดจังหวัด
+    if (!dName) {
+      const fallbackProv = stations.find(s => s.areaTH === selectedProv);
+      if (fallbackProv) { 
+        fetchWeatherByCoords(fallbackProv.lat, fallbackProv.long); 
+        setLocationName(selectedProv); 
+      }
+      return;
+    }
+
     setLocationName(`อ.${dName}, ${selectedProv}`);
     
-    fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${dName} ${selectedProv}&count=1&language=th`)
-      .then(r => r.json())
-      .then(d => { 
-        if(d.results) fetchWeatherByCoords(d.results[0].latitude, d.results[0].longitude); 
-      });
+    try {
+      // 1. ใช้ OpenStreetMap (แม่นยำระดับตำบล/อำเภอของไทย)
+      const query = `${dName} ${selectedProv} Thailand`;
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`);
+      const data = await res.json();
+
+      if (data && data.length > 0) {
+        fetchWeatherByCoords(parseFloat(data[0].lat), parseFloat(data[0].lon));
+      } else {
+        // 2. แผนสำรอง ถ้า OSM พลาด ให้กลับไปใช้ Open-Meteo
+        const res2 = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(dName)}&count=1`);
+        const data2 = await res2.json();
+        if (data2.results && data2.length > 0) {
+          fetchWeatherByCoords(data2.results[0].latitude, data2.results[0].longitude);
+        }
+      }
+    } catch (err) {
+      console.error("Geocoding failed", err);
+    }
   };
 
   const appBg = darkMode ? '#020617' : '#f8fafc'; 
@@ -148,7 +169,6 @@ export default function Dashboard() {
             {sortedStations.map(p => <option key={p.stationID} value={p.areaTH}>{p.areaTH}</option>)}
           </select>
 
-          {/* 🌟 Dropdown อำเภอแบบฉลาดสุดๆ จะมีข้อความบอกชัดเจนถ้าหาไม่เจอ */}
           <select 
             value={selectedDist} 
             onChange={handleDistChange} 
@@ -159,7 +179,7 @@ export default function Dashboard() {
               {geoError ? '⚠️ โหลดไฟล์ไม่สำเร็จ' : 
                geoData.length === 0 ? 'กำลังเตรียมข้อมูลอำเภอ...' : 
                (!selectedProv ? '-- เลือกอำเภอ --' :
-               (currentAmphoes.length === 0 ? '⚠️ ไม่พบข้อมูลอำเภอในไฟล์นี้' : '-- เลือกอำเภอ --'))}
+               (currentAmphoes.length === 0 ? '⚠️ ไม่พบข้อมูลอำเภอ' : '-- เลือกอำเภอ --'))}
             </option>
             {currentAmphoes.map(a => <option key={a.id} value={a.name}>{a.name}</option>)}
           </select>
