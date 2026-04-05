@@ -217,7 +217,6 @@ export default function Dashboard() {
       return new Date(dateStr).toLocaleTimeString('th-TH', {hour: '2-digit', minute:'2-digit'});
   };
 
-  // 🌟 Logic สรุปสภาพอากาศรายวัน (Daily Briefing)
   const maxTemp = Math.round(daily?.temperature_2m_max[0] || 0);
   const dailyRainProb = daily?.precipitation_probability_max[0] || 0;
   let briefingText = `วันนี้สภาพอากาศโดยรวม${weatherText.replace('อากาศดี ', '')} อุณหภูมิสูงสุดจะอยู่ที่ ${maxTemp}°C `;
@@ -226,7 +225,6 @@ export default function Dashboard() {
   else if (current?.pm25 > 37.5) briefingText += `ค่าฝุ่น PM2.5 ค่อนข้างสูง แนะนำให้สวมหน้ากากอนามัยเมื่อออกนอกอาคารครับ 😷`;
   else briefingText += `อากาศเป็นใจ เหมาะสำหรับการทำกิจกรรมนอกบ้านหรือซักผ้าครับ ✨`;
 
-  // 🌟 Logic ดัชนีการใช้ชีวิตและการเกษตร
   let exercise = { text: 'ดีเยี่ยม', color: '#22c55e', desc: 'อากาศดี ฝุ่นน้อย' };
   if (current?.pm25 > 50 || current?.feelsLike > 39 || current?.rainProb > 60) exercise = { text: 'งดกิจกรรม', color: '#ef4444', desc: 'สภาพอากาศไม่เหมาะสม' };
   else if (current?.pm25 > 25 || current?.feelsLike > 35) exercise = { text: 'พอใช้', color: '#f97316', desc: 'ควรลดเวลาอยู่กลางแจ้ง' };
@@ -246,16 +244,15 @@ export default function Dashboard() {
     <div style={{ height: '100%', width: '100%', background: appBg, display: 'flex', justifyContent: 'center', overflowY: 'auto', fontFamily: 'Kanit, sans-serif' }} className="hide-scrollbar">
       <style dangerouslySetInlineStyle={{__html: `.hide-scrollbar::-webkit-scrollbar { display: none; } .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; } .fade-in { animation: fadeIn 0.3s ease-in-out; } @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }`}} />
       
-      <div style={{ width: '100%', maxWidth: isMobile ? '600px' : '1200px', display: 'flex', flexDirection: 'column', gap: isMobile ? '12px' : '15px', padding: isMobile ? '12px' : '30px', paddingBottom: '160px' }}>
+      {/* 🌟 ดันขอบล่างให้กว้างขึ้น เพื่อป้องกันการโดนบดบังจากเมนูมือถือ */}
+      <div style={{ width: '100%', maxWidth: isMobile ? '600px' : '1200px', display: 'flex', flexDirection: 'column', gap: isMobile ? '12px' : '15px', padding: isMobile ? '15px' : '30px', paddingBottom: isMobile ? '200px' : '120px' }}>
 
-        {/* แบนเนอร์เตือนภัย */}
         {alertBanner && (
             <div style={{ background: alertBanner.color, color: '#fff', padding: '10px 15px', borderRadius: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '10px', boxShadow: '0 4px 15px rgba(0,0,0,0.2)', fontSize: '0.9rem' }}>
                 <span style={{ fontSize: '1.2rem' }}>{alertBanner.icon}</span> {alertBanner.text}
             </div>
         )}
 
-        {/* กล่องค้นหา (ซ่อน/แสดง) */}
         {showFilter && (
             <div className="fade-in" style={{ display: 'flex', alignItems: 'center', gap: '10px', background: cardBg, padding: '10px', borderRadius: '16px', border: `1px solid ${borderColor}`, flexWrap: 'wrap' }}>
               <select value={selectedProv} onChange={handleProvChange} style={{ flex: 1, minWidth: '130px', background: darkMode?'#1e293b':'#f1f5f9', color: '#0ea5e9', border: 'none', fontWeight: 'bold', fontSize: '0.95rem', padding: '10px', borderRadius: '12px', outline: 'none', cursor: 'pointer' }}>
@@ -271,10 +268,8 @@ export default function Dashboard() {
             </div>
         )}
 
-        {/* 🌟 Section 1: ข้อมูลหลักด้านบน (ซ้าย-ขวา) */}
         <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? '12px' : '20px' }}>
           
-          {/* คอลัมน์ซ้าย */}
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: isMobile ? '12px' : '20px', minWidth: 0 }}>
             
             <div style={{ background: bgGradient, borderRadius: isMobile ? '24px' : '30px', padding: isMobile ? '20px' : '30px 20px', color: '#fff', boxShadow: '0 20px 40px rgba(0,0,0,0.2)', display: 'flex', flexDirection: 'column', transition: 'background 0.5s ease', position: 'relative' }}>
@@ -320,10 +315,7 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* คอลัมน์ขวา */}
           <div style={{ flex: 1.2, display: 'flex', flexDirection: 'column', gap: isMobile ? '12px' : '20px', minWidth: 0 }}>
-            
-            {/* กราฟ 24 ชั่วโมง */}
             <div style={{ background: cardBg, borderRadius: isMobile ? '20px' : '25px', padding: isMobile ? '15px' : '20px', border: `1px solid ${borderColor}` }}>
                <h3 style={{ margin: '0 0 10px 0', fontSize: '0.95rem', color: textColor }}>⏱️ 24 ชั่วโมงข้างหน้า</h3>
                <div 
@@ -357,7 +349,6 @@ export default function Dashboard() {
                </div>
             </div>
 
-            {/* พยากรณ์ 7 วัน */}
             <div style={{ background: cardBg, borderRadius: isMobile ? '20px' : '25px', padding: isMobile ? '15px' : '25px', border: `1px solid ${borderColor}`, flex: 1 }}>
                <h3 style={{ margin: '0 0 15px 0', fontSize: '0.95rem', color: textColor }}>📅 พยากรณ์ 7 วัน</h3>
                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
@@ -392,10 +383,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* 🌟 Section 2: ส่วนเสริมด้านล่างสุด (Briefing, UV, Lifestyle, Radar) */}
-        
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '15px' }}>
-            {/* กล่องซ้าย: Daily Briefing (AI สรุปอากาศ) */}
             <div style={{ background: cardBg, padding: '20px', borderRadius: isMobile ? '20px' : '25px', border: `1px solid ${borderColor}`, display: 'flex', alignItems: 'flex-start', gap: '15px' }}>
                 <span style={{ fontSize: '2.5rem' }}>🤖</span>
                 <div>
@@ -404,7 +392,6 @@ export default function Dashboard() {
                 </div>
             </div>
 
-            {/* กล่องขวา: UV Gauge (เอา PM2.5 ออกตามคำขอ) */}
             <div style={{ background: cardBg, borderRadius: isMobile ? '20px' : '25px', padding: '20px', border: `1px solid ${borderColor}` }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: subTextColor, fontWeight: 'bold', fontSize: '0.9rem' }}>
                     <span style={{ fontSize: '1.2rem' }}>☀️</span> รังสีอัลตราไวโอเลต (UV)
@@ -420,7 +407,6 @@ export default function Dashboard() {
             </div>
         </div>
 
-        {/* 🌟 ดัชนีการใช้ชีวิตและการเกษตร (Lifestyle & Agriculture Index) */}
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: '10px' }}>
             <div style={{ background: cardBg, borderRadius: '20px', padding: '15px', border: `1px solid ${borderColor}`, display: 'flex', flexDirection: 'column' }}>
                 <div style={{ fontSize: '1.5rem', marginBottom: '5px' }}>🏃‍♂️</div>
@@ -448,7 +434,6 @@ export default function Dashboard() {
             </div>
         </div>
 
-        {/* 🌟 Mini Radar Map */}
         <div style={{ background: cardBg, borderRadius: isMobile ? '20px' : '25px', padding: isMobile ? '15px' : '20px', border: `1px solid ${borderColor}`, overflow: 'hidden' }}>
             <h3 style={{ margin: '0 0 15px 0', fontSize: '1rem', color: textColor, display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{ fontSize: '1.2rem' }}>⛈️</span> เรดาร์สภาพอากาศ (เรอัลไทม์)
@@ -462,11 +447,10 @@ export default function Dashboard() {
             </div>
         </div>
 
-        {/* 🌟 Footer */}
-        <div style={{ textAlign: 'center', marginTop: '10px', padding: '20px 0', borderTop: `1px solid ${borderColor}`, opacity: 0.7 }}>
+        {/* 🌟 Footer ที่คลีนขึ้น (ลบเวอร์ชัน 2.0 ออกแล้ว) */}
+        <div style={{ textAlign: 'center', marginTop: '20px', padding: '20px 0', borderTop: `1px solid ${borderColor}`, opacity: 0.7 }}>
            <div style={{ fontSize: '0.85rem', color: subTextColor, fontWeight: 'bold' }}>อุตุนิยมวิทยาโดย Open-Meteo API • พิกัดโดย OpenStreetMap</div>
            <div style={{ fontSize: '0.75rem', color: subTextColor, marginTop: '5px' }}>อัปเดตข้อมูลล่าสุด: {lastUpdateText}</div>
-           <div style={{ fontSize: '0.75rem', color: '#0ea5e9', marginTop: '8px', fontWeight: 'bold' }}>เวอร์ชัน 2.0 (Super Local Update)</div>
         </div>
 
       </div>
