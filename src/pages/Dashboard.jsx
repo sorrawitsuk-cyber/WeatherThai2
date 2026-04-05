@@ -1,5 +1,5 @@
 // src/pages/Dashboard.jsx
-import React, { useContext, useState, useEffect, useMemo } from 'react';
+import React, { useContext, useState, useEffect, useMemo, useRef } from 'react';
 import { WeatherContext } from '../context/WeatherContext';
 import { AreaChart, Area, ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, LabelList } from 'recharts';
 
@@ -14,8 +14,28 @@ export default function Dashboard() {
   const [selectedProv, setSelectedProv] = useState('');
   const [selectedDist, setSelectedDist] = useState('');
   
-  // ซ่อนตัวกรองเป็นค่าเริ่มต้น
   const [showFilter, setShowFilter] = useState(false);
+
+  // 🌟 State สำหรับระบบ "คลิกแล้วลาก (Drag to Scroll)" ในคอมพิวเตอร์
+  const scrollRef = useRef(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [startX, setStartX] = useState(0);
+  const [scrollLeft, setScrollLeft] = useState(0);
+
+  const handleMouseDown = (e) => {
+    setIsDragging(true);
+    setStartX(e.pageX - scrollRef.current.offsetLeft);
+    setScrollLeft(scrollRef.current.scrollLeft);
+  };
+  const handleMouseLeave = () => setIsDragging(false);
+  const handleMouseUp = () => setIsDragging(false);
+  const handleMouseMove = (e) => {
+    if (!isDragging) return;
+    e.preventDefault();
+    const x = e.pageX - scrollRef.current.offsetLeft;
+    const walk = (x - startX) * 2; // เลื่อนไวขึ้น 2 เท่า
+    scrollRef.current.scrollLeft = scrollLeft - walk;
+  };
 
   useEffect(() => {
     const handleResize = () => {
@@ -114,7 +134,7 @@ export default function Dashboard() {
     const prefix = (selectedProv === 'กรุงเทพมหานคร' || dName.startsWith('เขต') || dName.startsWith('อ.')) ? '' : 'อ.';
     setLocationName(`${prefix}${dName}, ${selectedProv}`);
     
-    if (isMobile) setShowFilter(false); // ซ่อนกล่องค้นหาเมื่อเลือกเสร็จบนมือถือ
+    if (isMobile) setShowFilter(false);
     
     try {
       const query = `${dName} ${selectedProv} Thailand`;
@@ -198,7 +218,6 @@ export default function Dashboard() {
   };
 
   return (
-    // 🌟 แก้ปัญหาปัดลงสุดไม่ได้ โดยเพิ่ม paddingBottom ให้เยอะขึ้นเผื่อ Bottom Navigation
     <div style={{ height: '100%', width: '100%', background: appBg, display: 'flex', justifyContent: 'center', overflowY: 'auto', fontFamily: 'Kanit, sans-serif' }} className="hide-scrollbar">
       <style dangerouslySetInlineStyle={{__html: `.hide-scrollbar::-webkit-scrollbar { display: none; } .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; } .fade-in { animation: fadeIn 0.3s ease-in-out; } @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }`}} />
       
@@ -210,7 +229,6 @@ export default function Dashboard() {
             </div>
         )}
 
-        {/* 🌟 กล่องค้นหาจะโชว์ก็ต่อเมื่อกดปุ่มค้นหา (ช่วยประหยัดพื้นที่) */}
         {showFilter && (
             <div className="fade-in" style={{ display: 'flex', alignItems: 'center', gap: '10px', background: cardBg, padding: '10px', borderRadius: '16px', border: `1px solid ${borderColor}`, flexWrap: 'wrap' }}>
               <select value={selectedProv} onChange={handleProvChange} style={{ flex: 1, minWidth: '130px', background: darkMode?'#1e293b':'#f1f5f9', color: '#0ea5e9', border: 'none', fontWeight: 'bold', fontSize: '0.95rem', padding: '10px', borderRadius: '12px', outline: 'none', cursor: 'pointer' }}>
@@ -230,22 +248,18 @@ export default function Dashboard() {
           
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: isMobile ? '12px' : '20px', minWidth: 0 }}>
             
-            {/* 🌟 รวบตึง: เอาชื่อสถานที่, อัปเดตล่าสุด, และปุ่มค้นหา เข้ามาไว้ในการ์ดอุณหภูมิเลย */}
             <div style={{ background: bgGradient, borderRadius: isMobile ? '24px' : '30px', padding: isMobile ? '20px' : '30px 20px', color: '#fff', boxShadow: '0 20px 40px rgba(0,0,0,0.2)', display: 'flex', flexDirection: 'column', transition: 'background 0.5s ease', position: 'relative' }}>
                
-               {/* ส่วนหัวของการ์ด */}
                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%', marginBottom: '15px' }}>
                   <div>
                     <h2 style={{ margin: 0, fontSize: isMobile ? '1.3rem' : '1.8rem', fontWeight: '900', lineHeight: 1.2 }}>{locationName}</h2>
                     <div style={{ fontSize: '0.75rem', opacity: 0.8, marginTop: '2px' }}>{coords?.lat?.toFixed(2)}, {coords?.lon?.toFixed(2)} • {lastUpdateText}</div>
                   </div>
-                  {/* ปุ่มแว่นขยาย ซ่อน/โชว์ ฟิลเตอร์ */}
                   <button onClick={() => setShowFilter(!showFilter)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '50%', width: '35px', height: '35px', display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: 'pointer', flexShrink: 0, backdropFilter: 'blur(5px)' }}>
                      <span style={{ fontSize: '1.2rem' }}>{showFilter ? '✖️' : '🔍'}</span>
                   </button>
                </div>
 
-               {/* ส่วนกลางการ์ด */}
                <div style={{ display: 'flex', alignItems: 'center', gap: '15px', alignSelf: 'center' }}>
                   <span style={{ fontSize: isMobile ? '4.5rem' : '5.5rem', lineHeight: 1 }}>{weatherIcon}</span>
                   <span style={{ fontSize: isMobile ? '5rem' : '6.5rem', fontWeight: '900', lineHeight: 1 }}>{Math.round(current?.temp || 0)}°</span>
@@ -255,7 +269,6 @@ export default function Dashboard() {
                <div style={{ marginTop: '15px', background: aqiBg, color: '#fff', padding: '6px 20px', borderRadius: '50px', fontWeight: '900', fontSize: '0.85rem', boxShadow: '0 4px 10px rgba(0,0,0,0.2)', alignSelf: 'center' }}>😷 PM2.5: {current?.pm25 || '-'} µg/m³ ({aqiText})</div>
             </div>
             
-            {/* 🌟 ย่อส่วน 4 กล่อง (Compact Grid) ให้กระชับขึ้น ไม่กินที่แนวตั้ง */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div style={{ background: cardBg, padding: '12px', borderRadius: '16px', border: `1px solid ${borderColor}` }}>
                     <div style={{ fontSize: '0.75rem', color: subTextColor, fontWeight: 'bold' }}>👁️ ทัศนวิสัย</div>
@@ -282,13 +295,36 @@ export default function Dashboard() {
           <div style={{ flex: 1.2, display: 'flex', flexDirection: 'column', gap: isMobile ? '12px' : '20px', minWidth: 0 }}>
             <div style={{ background: cardBg, borderRadius: isMobile ? '20px' : '25px', padding: isMobile ? '15px' : '20px', border: `1px solid ${borderColor}` }}>
                <h3 style={{ margin: '0 0 10px 0', fontSize: '0.95rem', color: textColor }}>⏱️ 24 ชั่วโมงข้างหน้า</h3>
-               <div style={{ overflowX: 'auto', overflowY: 'hidden', paddingBottom: '5px' }} className="hide-scrollbar">
+               
+               {/* 🌟 กล่องจำลองระบบเลื่อนซ้ายขวาด้วยเมาส์ (Drag to Scroll) */}
+               <div 
+                  ref={scrollRef}
+                  onMouseDown={handleMouseDown}
+                  onMouseLeave={handleMouseLeave}
+                  onMouseUp={handleMouseUp}
+                  onMouseMove={handleMouseMove}
+                  style={{ overflowX: 'auto', overflowY: 'hidden', paddingBottom: '5px', cursor: isDragging ? 'grabbing' : 'grab', userSelect: 'none' }} 
+                  className="hide-scrollbar"
+               >
                  <div style={{ width: '1400px', height: '200px' }}>
                    <ResponsiveContainer width="100%" height="100%">
                      <AreaChart data={chartData} margin={{ top: 20, right: 15, left: 15, bottom: 60 }}>
-                       <defs><linearGradient id="colorTemp" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#f97316" stopOpacity={0.8}/><stop offset="95%" stopColor="#f97316" stopOpacity={0}/></linearGradient></defs>
+                       <defs>
+                         {/* 🌟 อัปเกรด 1: ไล่สีพื้นหลัง (Gradient Fill) แดง -> ส้ม -> ฟ้า */}
+                         <linearGradient id="colorTemp" x1="0" y1="0" x2="0" y2="1">
+                           <stop offset="0%" stopColor="#ef4444" stopOpacity={0.8}/>  {/* แดงร้อน */}
+                           <stop offset="50%" stopColor="#f97316" stopOpacity={0.4}/> {/* ส้มอุ่น */}
+                           <stop offset="100%" stopColor="#3b82f6" stopOpacity={0.1}/> {/* ฟ้าเย็น */}
+                         </linearGradient>
+                         {/* 🌟 อัปเกรด 2: ไล่สีเส้นกราฟ (Gradient Stroke) */}
+                         <linearGradient id="lineTemp" x1="0" y1="0" x2="0" y2="1">
+                           <stop offset="0%" stopColor="#ef4444" stopOpacity={1}/>
+                           <stop offset="50%" stopColor="#f97316" stopOpacity={1}/>
+                           <stop offset="100%" stopColor="#3b82f6" stopOpacity={1}/>
+                         </linearGradient>
+                       </defs>
                        <XAxis dataKey="time" axisLine={false} tickLine={false} interval={0} tick={<CustomXAxisTick />} />
-                       <Area type="monotone" dataKey="temp" stroke="#f97316" strokeWidth={3} fillOpacity={1} fill="url(#colorTemp)">
+                       <Area type="monotone" dataKey="temp" stroke="url(#lineTemp)" strokeWidth={4} fillOpacity={1} fill="url(#colorTemp)">
                          <LabelList dataKey="temp" position="top" offset={10} style={{ fill: textColor, fontSize: '0.9rem', fontWeight: 'bold', fontFamily: 'Kanit' }} formatter={(val) => `${val}°`} />
                        </Area>
                      </AreaChart>
