@@ -452,9 +452,6 @@ export default function Dashboard() {
            <div style={{ fontSize: '0.75rem', color: subTextColor, marginTop: '5px' }}>อัปเดตข้อมูลล่าสุด: {lastUpdateText}</div>
         </div>
 
-        {/* 🌟 กล่องดันขอบล่าง (Spacer) กว้าง 150px เพื่อให้ชัวร์ว่าพ้นแถบเมนู */}
-        <div style={{ height: '150px', flexShrink: 0, width: '100%' }}></div>
-
       </div>
     </div>
   );
