@@ -169,7 +169,6 @@ export default function Dashboard() {
 
   const { current, hourly, daily, coords } = weatherData;
   
-  // 🌟 อัปเกรดเกณฑ์ฝุ่น 5 ระดับ ตามกรมควบคุมมลพิษ (อัปเดต 2566)
   const aqiBg = current?.pm25 > 75 ? '#ef4444' : current?.pm25 > 37.5 ? '#f97316' : current?.pm25 > 25 ? '#eab308' : current?.pm25 > 15 ? '#22c55e' : '#0ea5e9';
   const aqiText = current?.pm25 > 75 ? 'มีผลกระทบต่อสุขภาพ' : current?.pm25 > 37.5 ? 'เริ่มมีผลกระทบ' : current?.pm25 > 25 ? 'ปานกลาง' : current?.pm25 > 15 ? 'คุณภาพอากาศดี' : 'อากาศดีมาก';
   
@@ -206,7 +205,6 @@ export default function Dashboard() {
   const CustomXAxisTick = ({ x, y, payload }) => {
     const item = chartData[payload.index];
     if (!item) return null;
-    // 🌟 อัปเกรดเกณฑ์ฝุ่นในกราฟ
     const pmColor = item.pm25 > 75 ? '#ef4444' : item.pm25 > 37.5 ? '#f97316' : item.pm25 > 25 ? '#eab308' : item.pm25 > 15 ? '#22c55e' : '#0ea5e9';
     return (
       <g transform={`translate(${x},${y})`}>
@@ -234,7 +232,6 @@ export default function Dashboard() {
   else if (current?.pm25 > 37.5) briefingText += `ค่าฝุ่น PM2.5 ค่อนข้างสูง แนะนำให้สวมหน้ากากอนามัยเมื่อออกนอกอาคารครับ 😷`;
   else briefingText += `อากาศเป็นใจ เหมาะสำหรับการทำกิจกรรมนอกบ้านหรือซักผ้าครับ ✨`;
 
-  // 🌟 อัปเกรดเกณฑ์ดัชนีการใช้ชีวิต
   let exercise = { text: 'ดีเยี่ยม', color: '#0ea5e9', desc: 'อากาศดีมาก ฝุ่นน้อย' };
   if (current?.pm25 > 75 || current?.feelsLike > 39 || current?.rainProb > 60) exercise = { text: 'งดกิจกรรม', color: '#ef4444', desc: 'สภาพอากาศไม่เหมาะสม' };
   else if (current?.pm25 > 37.5 || current?.feelsLike > 35) exercise = { text: 'ลดเวลา', color: '#f97316', desc: 'มีผลกระทบต่อสุขภาพ' };
@@ -383,7 +380,6 @@ export default function Dashboard() {
                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{fontSize:'0.9rem'}}>🥵</span> {Math.round(daily?.apparent_temperature_max?.[idx] || 0)}°</div>
                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                               <span style={{fontSize:'0.9rem'}}>😷</span> 
-                              {/* 🌟 อัปเกรดเกณฑ์ฝุ่น 5 ระดับ ในพยากรณ์ล่วงหน้า */}
                               <span style={{ color: daily?.pm25_max?.[idx] > 75 ? '#ef4444' : daily?.pm25_max?.[idx] > 37.5 ? '#f97316' : daily?.pm25_max?.[idx] > 25 ? '#eab308' : daily?.pm25_max?.[idx] > 15 ? '#22c55e' : '#0ea5e9' }}>
                                 {daily?.pm25_max?.[idx] || 0} <span style={{fontSize:'0.6rem'}}>µg/m³</span>
                               </span>
@@ -397,28 +393,49 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '15px', flexShrink: 0 }}>
-            <div style={{ background: cardBg, padding: '20px', borderRadius: isMobile ? '20px' : '25px', border: `1px solid ${borderColor}`, display: 'flex', alignItems: 'flex-start', gap: '15px' }}>
-                <span style={{ fontSize: '2.5rem' }}>🤖</span>
-                <div>
-                    <h4 style={{ margin: '0 0 5px 0', color: textColor, fontSize: '1rem' }}>สรุปสภาพอากาศวันนี้</h4>
-                    <p style={{ margin: 0, color: subTextColor, fontSize: '0.9rem', lineHeight: 1.6 }}>{briefingText}</p>
-                </div>
+        {/* 🌟 1. กล่อง AI สรุปยาวเต็มตาด้านบน */}
+        <div style={{ background: cardBg, padding: '20px', borderRadius: isMobile ? '20px' : '25px', border: `1px solid ${borderColor}`, display: 'flex', alignItems: 'flex-start', gap: '15px', marginBottom: '15px', flexShrink: 0 }}>
+            <span style={{ fontSize: '2.5rem' }}>🤖</span>
+            <div>
+                <h4 style={{ margin: '0 0 5px 0', color: textColor, fontSize: '1rem' }}>สรุปสภาพอากาศวันนี้</h4>
+                <p style={{ margin: 0, color: subTextColor, fontSize: '0.9rem', lineHeight: 1.6 }}>{briefingText}</p>
             </div>
+        </div>
 
+        {/* 🌟 2. กล่อง Gauge แถบสี ซ้าย(UV) ขวา(PM2.5) */}
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '15px', flexShrink: 0, marginBottom: '15px' }}>
+            
+            {/* กล่อง UV */}
             <div style={{ background: cardBg, borderRadius: isMobile ? '20px' : '25px', padding: '20px', border: `1px solid ${borderColor}` }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: subTextColor, fontWeight: 'bold', fontSize: '0.9rem' }}>
                     <span style={{ fontSize: '1.2rem' }}>☀️</span> รังสีอัลตราไวโอเลต (UV)
                 </div>
                 <div style={{ fontSize: '2rem', fontWeight: '900', color: textColor, marginTop: '5px' }}>
                     {current?.uv || 0} <span style={{ fontSize: '1rem', color: subTextColor, fontWeight: 'normal' }}>
-                        {current?.uv > 8 ? 'สูงมาก' : current?.uv > 5 ? 'สูง' : 'ปานกลาง'}
+                        {current?.uv > 8 ? 'สูงมาก' : current?.uv > 5 ? 'สูง' : current?.uv > 2 ? 'ปานกลาง' : 'ต่ำ'}
                     </span>
                 </div>
                 <div style={{ width: '100%', height: '8px', background: 'linear-gradient(to right, #22c55e, #eab308, #ea580c, #ef4444, #a855f7)', borderRadius: '10px', marginTop: '15px', position: 'relative' }}>
                     <div style={{ position: 'absolute', top: '-4px', left: `${Math.min(((current?.uv || 0) / 11) * 100, 100)}%`, width: '16px', height: '16px', background: '#fff', border: '3px solid #0f172a', borderRadius: '50%', transform: 'translateX(-50%)', boxShadow: '0 2px 5px rgba(0,0,0,0.3)' }}></div>
                 </div>
             </div>
+
+            {/* 🌟 กล่อง PM2.5 แบบแถบสี 5 ระดับ (เกณฑ์ PCD 2023) */}
+            <div style={{ background: cardBg, borderRadius: isMobile ? '20px' : '25px', padding: '20px', border: `1px solid ${borderColor}` }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: subTextColor, fontWeight: 'bold', fontSize: '0.9rem' }}>
+                    <span style={{ fontSize: '1.2rem' }}>😷</span> คุณภาพอากาศ (PM2.5)
+                </div>
+                <div style={{ fontSize: '2rem', fontWeight: '900', color: textColor, marginTop: '5px' }}>
+                    {current?.pm25 || 0} <span style={{ fontSize: '1rem', color: subTextColor, fontWeight: 'normal' }}>
+                        {aqiText}
+                    </span>
+                </div>
+                <div style={{ width: '100%', height: '8px', background: 'linear-gradient(to right, #0ea5e9, #22c55e, #eab308, #f97316, #ef4444)', borderRadius: '10px', marginTop: '15px', position: 'relative' }}>
+                    {/* ให้แถบวิ่งจาก 0 ถึง 100 µg/m³ เป็น Max Visual */}
+                    <div style={{ position: 'absolute', top: '-4px', left: `${Math.min(((current?.pm25 || 0) / 100) * 100, 100)}%`, width: '16px', height: '16px', background: '#fff', border: '3px solid #0f172a', borderRadius: '50%', transform: 'translateX(-50%)', boxShadow: '0 2px 5px rgba(0,0,0,0.3)' }}></div>
+                </div>
+            </div>
+
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: '10px', flexShrink: 0 }}>
