@@ -1,4 +1,4 @@
-// src/pages/AlertsPage.jsx (หรือ Climate.jsx)
+// src/pages/AlertsPage.jsx (หรือ ClimatePage.jsx)
 import React, { useContext, useState, useEffect, useMemo } from 'react';
 import { WeatherContext } from '../context/WeatherContext';
 
@@ -8,10 +8,9 @@ export default function AlertsPage() {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
   const [radarLayer, setRadarLayer] = useState('rain');
   
-  const [timeMode, setTimeMode] = useState('current'); // 'current' | 'yesterday'
-  const [fireMode, setFireMode] = useState('actual'); // 'risk' | 'actual'
+  const [timeMode, setTimeMode] = useState('current'); 
+  const [fireMode, setFireMode] = useState('actual'); 
   
-  // 🌟 State สำหรับควบคุมการเปิด-ปิด (Accordion) รายภาค
   const [expandedRegion, setExpandedRegion] = useState(null);
 
   useEffect(() => {
@@ -23,11 +22,11 @@ export default function AlertsPage() {
   const { extremeAlerts, fireRisks, nationalSummary } = useMemo(() => {
     let alerts = [];
     let fires = [];
-    let maxTemp = { val: -99, prov: 'ไม่มีข้อมูล' };
-    let maxFeelsLike = { val: -99, prov: 'ไม่มีข้อมูล' };
-    let maxRain = { val: -1, prov: 'ไม่มีข้อมูล' };
-    let maxPm25 = { val: -1, prov: 'ไม่มีข้อมูล' };
-    let maxUv = { val: -1, prov: 'ไม่มีข้อมูล' };
+    let maxTemp = { val: -99, prov: '-' };
+    let maxFeelsLike = { val: -99, prov: '-' };
+    let maxRain = { val: -1, prov: '-' };
+    let maxPm25 = { val: -1, prov: '-' };
+    let maxUv = { val: -1, prov: '-' };
 
     if (stations && stations.length > 0 && stationTemps) {
         stations.forEach(st => {
@@ -66,7 +65,6 @@ export default function AlertsPage() {
     };
   }, [stations, stationTemps]);
 
-  // 🌟 Mock Data สำหรับจุดความร้อน GISTDA (เพิ่มข้อมูลรายจังหวัดย่อย)
   const mockGistdaHotspots = useMemo(() => [
     { region: 'ภาคเหนือ', count: 452, color: '#ef4444', trend: 'up', provinces: [{name: 'เชียงใหม่', count: 150}, {name: 'แม่ฮ่องสอน', count: 120}, {name: 'ตาก', count: 100}, {name: 'เชียงราย', count: 82}] },
     { region: 'ภาคตะวันตก', count: 142, color: '#f97316', trend: 'up', provinces: [{name: 'กาญจนบุรี', count: 80}, {name: 'ราชบุรี', count: 40}, {name: 'เพชรบุรี', count: 22}] },
@@ -76,8 +74,15 @@ export default function AlertsPage() {
     { region: 'ภาคใต้', count: 5, color: '#22c55e', trend: 'down', provinces: [{name: 'สุราษฎร์ธานี', count: 3}, {name: 'นครศรีธรรมราช', count: 2}] }
   ], []);
 
-  // 🌟 คำนวณยอดรวมทั้งประเทศ
   const totalHotspots = useMemo(() => mockGistdaHotspots.reduce((sum, item) => sum + item.count, 0), [mockGistdaHotspots]);
+
+  // 🌟 ข้อมูลจำลองสถิติเมื่อวาน (Yesterday's Records)
+  const yesterdayRecords = useMemo(() => [
+    { id: 'pm25', title: 'ฝุ่น PM2.5 สูงสุด', value: '124 µg/m³', loc: 'อ.เชียงดาว, จ.เชียงใหม่', color: '#ef4444', icon: '😷', bgLight: '#fef2f2', borderDark: '#7f1d1d' },
+    { id: 'heat', title: 'ดัชนีความร้อนสูงสุด', value: '42.1 °C', loc: 'อ.เมือง, จ.ตาก', color: '#ea580c', icon: '🔥', bgLight: '#fff7ed', borderDark: '#7c2d12' },
+    { id: 'rain', title: 'ปริมาณฝนสะสมสูงสุด', value: '45 มม.', loc: 'อ.เกาะสมุย, จ.สุราษฎร์ธานี', color: '#3b82f6', icon: '⛈️', bgLight: '#eff6ff', borderDark: '#1e3a8a' },
+    { id: 'uv', title: 'รังสี UV สูงสุด', value: '11 (อันตราย)', loc: 'เขตบางนา, กรุงเทพฯ', color: '#a855f7', icon: '☀️', bgLight: '#faf5ff', borderDark: '#4c1d95' }
+  ], []);
 
   const radarOptions = [
     { id: 'rain', icon: '⛈️', label: 'ฝน & พายุ', color: '#3b82f6' },
@@ -102,13 +107,13 @@ export default function AlertsPage() {
     </div>
   );
 
-  // 🌟 คำนวณ Format วันที่แบบใหม่
   const today = new Date();
   const yesterday = new Date(today);
   yesterday.setDate(yesterday.getDate() - 1);
   const fullDateOptions = { day: 'numeric', month: 'long', year: 'numeric' };
   const shortDateOptions = { day: 'numeric', month: 'short', year: 'numeric' };
-  const yesterdayShortStr = yesterday.toLocaleDateString('th-TH', shortDateOptions); // Ex: 5 เม.ย. 2569
+  const yesterdayShortStr = yesterday.toLocaleDateString('th-TH', shortDateOptions); 
+  const yesterdayFullStr = yesterday.toLocaleDateString('th-TH', fullDateOptions); 
 
   return (
     <div style={{ height: '100%', width: '100%', background: appBg, display: 'flex', justifyContent: 'center', overflowY: 'auto', fontFamily: 'Kanit, sans-serif' }} className="hide-scrollbar">
@@ -125,7 +130,6 @@ export default function AlertsPage() {
       
       <div style={{ width: '100%', maxWidth: '1200px', display: 'flex', flexDirection: 'column', gap: '20px', padding: isMobile ? '15px' : '30px', paddingBottom: '80px' }}>
 
-        {/* 🚨 Ticker ข่าวด่วน */}
         <div style={{ background: extremeAlerts.length > 0 ? '#ef4444' : '#22c55e', color: '#fff', padding: '12px 20px', borderRadius: '16px', display: 'flex', alignItems: 'center', gap: '15px', boxShadow: '0 10px 25px rgba(239, 68, 68, 0.2)' }}>
             <span style={{ fontWeight: '900', fontSize: '1rem', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '5px' }}>
                 <span style={{animation: 'pulse 1.5s infinite'}}>🚨</span> BREAKING:
@@ -142,17 +146,16 @@ export default function AlertsPage() {
 
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '2fr 1.2fr', gap: '20px' }}>
             
-            {/* 📰 ข่าวอุตุนิยมวิทยา */}
+            {/* 📰 ข่าวอุตุนิยมวิทยา (แบบการ์ดสถิติ) */}
             <div style={{ background: cardBg, padding: '25px', borderRadius: '24px', border: `1px solid ${borderColor}`, display: 'flex', flexDirection: 'column', gap: '15px', boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
                     <h2 style={{ margin: 0, color: textColor, fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <span style={{ fontSize: '1.5rem' }}>📰</span> ข่าวกรองสภาพอากาศ
                     </h2>
                     
-                    {/* 🌟 Toggle Button (เปลี่ยนเป็นวันที่ทางการ) */}
                     <div style={{ display: 'flex', background: darkMode ? '#1e293b' : '#f1f5f9', borderRadius: '50px', padding: '4px' }}>
                         <button onClick={() => setTimeMode('yesterday')} style={{ padding: '6px 16px', borderRadius: '50px', border: 'none', background: timeMode === 'yesterday' ? cardBg : 'transparent', color: timeMode === 'yesterday' ? textColor : subTextColor, fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', transition: 'all 0.2s', boxShadow: timeMode === 'yesterday' ? '0 2px 10px rgba(0,0,0,0.1)' : 'none' }}>
-                            {yesterdayShortStr} (เมื่อวานนี้)
+                            {yesterdayShortStr} (เมื่อวาน)
                         </button>
                         <button onClick={() => setTimeMode('current')} style={{ padding: '6px 16px', borderRadius: '50px', border: 'none', background: timeMode === 'current' ? '#0ea5e9' : 'transparent', color: timeMode === 'current' ? '#fff' : subTextColor, fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', transition: 'all 0.2s', boxShadow: timeMode === 'current' ? '0 2px 10px rgba(14,165,233,0.3)' : 'none' }}>
                             ปัจจุบัน (Nowcast)
@@ -162,19 +165,55 @@ export default function AlertsPage() {
                 
                 {timeMode === 'current' ? (
                     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                        <div style={{ background: darkMode ? 'rgba(59, 130, 246, 0.05)' : '#eff6ff', borderLeft: '4px solid #0ea5e9', padding: '15px', borderRadius: '12px', color: textColor, fontSize: '0.95rem', lineHeight: '1.7' }}>
-                            <div style={{ fontSize: '0.75rem', color: '#0ea5e9', fontWeight: 'bold', marginBottom: '5px' }}>อัปเดตล่าสุด: {lastUpdateText}</div>
-                            <b>สรุปสถานการณ์ระดับประเทศ ณ ขณะนี้:</b> พบจุดที่ดัชนีความร้อน (Heat Index) พุ่งสูงสุดที่ <b>จ.{nationalSummary.maxFeelsLike.prov} ({nationalSummary.maxFeelsLike.val}°C)</b> รังสี UV สูงสุดแตะระดับ {nationalSummary.maxUv.val} ที่ <b>จ.{nationalSummary.maxUv.prov}</b> 
-                            ในขณะที่ <b>จ.{nationalSummary.maxRain.prov}</b> มีความเสี่ยงฝนตกสูงสุด ({nationalSummary.maxRain.val}%) 
-                            สำหรับคุณภาพอากาศ <b>จ.{nationalSummary.maxPm25.prov}</b> วิกฤตหนักที่สุด พบค่าฝุ่นสะสมสูงถึง {nationalSummary.maxPm25.val} µg/m³
+                        <div style={{ fontSize: '0.85rem', color: '#0ea5e9', fontWeight: 'bold', marginBottom: '-5px' }}>อัปเดตล่าสุด: {lastUpdateText}</div>
+                        
+                        {/* 🌟 การ์ดสถิติปัจจุบัน (Nowcast Cards) */}
+                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '12px' }}>
+                            {/* การ์ดความร้อน */}
+                            <div style={{ background: darkMode ? '#1e293b' : '#fff7ed', border: `1px solid ${darkMode ? '#7c2d12' : '#fed7aa'}`, padding: '15px', borderRadius: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <div style={{ fontSize: '2rem', flexShrink: 0 }}>🔥</div>
+                                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                    <span style={{ fontSize: '0.8rem', color: subTextColor, fontWeight: 'bold' }}>ดัชนีความร้อนสูงสุด</span>
+                                    <span style={{ fontSize: '1.2rem', fontWeight: '900', color: '#ea580c' }}>{nationalSummary.maxFeelsLike.val}°C</span>
+                                    <span style={{ fontSize: '0.8rem', color: textColor }}>📍 จ.{nationalSummary.maxFeelsLike.prov}</span>
+                                </div>
+                            </div>
+                            {/* การ์ดฝุ่น */}
+                            <div style={{ background: darkMode ? '#1e293b' : '#fef2f2', border: `1px solid ${darkMode ? '#7f1d1d' : '#fecaca'}`, padding: '15px', borderRadius: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <div style={{ fontSize: '2rem', flexShrink: 0 }}>😷</div>
+                                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                    <span style={{ fontSize: '0.8rem', color: subTextColor, fontWeight: 'bold' }}>ฝุ่น PM2.5 แย่ที่สุด</span>
+                                    <span style={{ fontSize: '1.2rem', fontWeight: '900', color: '#ef4444' }}>{nationalSummary.maxPm25.val} µg/m³</span>
+                                    <span style={{ fontSize: '0.8rem', color: textColor }}>📍 จ.{nationalSummary.maxPm25.prov}</span>
+                                </div>
+                            </div>
+                            {/* การ์ดฝน */}
+                            <div style={{ background: darkMode ? '#1e293b' : '#eff6ff', border: `1px solid ${darkMode ? '#1e3a8a' : '#bfdbfe'}`, padding: '15px', borderRadius: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <div style={{ fontSize: '2rem', flexShrink: 0 }}>⛈️</div>
+                                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                    <span style={{ fontSize: '0.8rem', color: subTextColor, fontWeight: 'bold' }}>เสี่ยงพายุฝนฟ้าคะนอง</span>
+                                    <span style={{ fontSize: '1.2rem', fontWeight: '900', color: '#3b82f6' }}>{nationalSummary.maxRain.val}%</span>
+                                    <span style={{ fontSize: '0.8rem', color: textColor }}>📍 จ.{nationalSummary.maxRain.prov}</span>
+                                </div>
+                            </div>
+                            {/* การ์ด UV */}
+                            <div style={{ background: darkMode ? '#1e293b' : '#faf5ff', border: `1px solid ${darkMode ? '#4c1d95' : '#e9d5ff'}`, padding: '15px', borderRadius: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <div style={{ fontSize: '2rem', flexShrink: 0 }}>☀️</div>
+                                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                    <span style={{ fontSize: '0.8rem', color: subTextColor, fontWeight: 'bold' }}>รังสี UV แรงที่สุด</span>
+                                    <span style={{ fontSize: '1.2rem', fontWeight: '900', color: '#a855f7' }}>ระดับ {nationalSummary.maxUv.val}</span>
+                                    <span style={{ fontSize: '0.8rem', color: textColor }}>📍 จ.{nationalSummary.maxUv.prov}</span>
+                                </div>
+                            </div>
                         </div>
-                        <h3 style={{ margin: '0', fontSize: '0.95rem', color: subTextColor }}>พื้นที่ที่ต้องเฝ้าระวังด่วนพิเศษ:</h3>
+
+                        <h3 style={{ margin: '10px 0 0 0', fontSize: '0.95rem', color: subTextColor }}>พื้นที่ที่ต้องเฝ้าระวังด่วนพิเศษ:</h3>
                         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '10px' }}>
                             {extremeAlerts.slice(0, 4).map((alt, idx) => (
-                                <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '12px', background: darkMode ? '#1e293b' : '#f8fafc', padding: '12px', borderRadius: '12px', border: `1px solid ${borderColor}` }}>
+                                <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '12px', background: darkMode ? 'rgba(0,0,0,0.2)' : '#f8fafc', padding: '12px', borderRadius: '12px', border: `1px solid ${borderColor}` }}>
                                     <div style={{ width: '35px', height: '35px', borderRadius: '50%', background: `${alt.color}20`, color: alt.color, display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '1.1rem', flexShrink: 0 }}>{alt.icon}</div>
                                     <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                        <span style={{ fontSize: '0.8rem', color: subTextColor, fontWeight: 'bold' }}>{alt.prov}</span>
+                                        <span style={{ fontSize: '0.8rem', color: subTextColor, fontWeight: 'bold' }}>จ.{alt.prov}</span>
                                         <span style={{ fontSize: '0.85rem', color: textColor, fontWeight: 'bold' }}>{alt.msg}</span>
                                     </div>
                                 </div>
@@ -184,9 +223,24 @@ export default function AlertsPage() {
                     </div>
                 ) : (
                     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                        <div style={{ background: darkMode ? 'rgba(139, 92, 246, 0.05)' : '#f5f3ff', borderLeft: '4px solid #8b5cf6', padding: '15px', borderRadius: '12px', color: textColor, fontSize: '0.95rem', lineHeight: '1.7' }}>
-                            <div style={{ fontSize: '0.75rem', color: '#8b5cf6', fontWeight: 'bold', marginBottom: '5px' }}>ข้อมูลประจำวันที่: {yesterday.toLocaleDateString('th-TH', fullDateOptions)}</div>
-                            <b>รายงานทบทวน (Yesterday's Review):</b> เมื่อวานนี้ประเทศไทยมีสภาพอากาศแปรปรวน โดย <b>จ.ตาก</b> ทำสถิติอุณหภูมิสูงสุดที่ 40.2°C ในขณะที่ฝั่งภาคใต้ <b>จ.สุราษฎร์ธานี</b> มีปริมาณฝนสะสมสูงสุด 45 มม. และภาคเหนือ <b>จ.เชียงใหม่</b> พบค่าเฉลี่ยฝุ่น PM2.5 ตลอดวันพุ่งสูงถึง 120 µg/m³
+                        <div style={{ fontSize: '0.85rem', color: '#8b5cf6', fontWeight: 'bold', marginBottom: '-5px' }}>สถิติประเทศประจำวันที่: {yesterdayFullStr}</div>
+                        
+                        {/* 🌟 การ์ดสถิติเมื่อวาน (Yesterday's Cards) */}
+                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '12px' }}>
+                            {yesterdayRecords.map((rec, idx) => (
+                                <div key={idx} style={{ background: darkMode ? '#1e293b' : rec.bgLight, border: `1px solid ${darkMode ? rec.borderDark : 'transparent'}`, padding: '15px', borderRadius: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                    <div style={{ fontSize: '2rem', flexShrink: 0 }}>{rec.icon}</div>
+                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                        <span style={{ fontSize: '0.8rem', color: subTextColor, fontWeight: 'bold' }}>{rec.title}</span>
+                                        <span style={{ fontSize: '1.2rem', fontWeight: '900', color: rec.color }}>{rec.value}</span>
+                                        <span style={{ fontSize: '0.8rem', color: textColor }}>📍 {rec.loc}</span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        
+                        <div style={{ background: darkMode ? 'rgba(139, 92, 246, 0.05)' : '#f5f3ff', borderLeft: '4px solid #8b5cf6', padding: '12px 15px', borderRadius: '12px', color: textColor, fontSize: '0.9rem', lineHeight: '1.6' }}>
+                            <b>วิเคราะห์ย้อนหลัง:</b> สภาพอากาศเมื่อวานมีความแปรปรวนสูง หลายพื้นที่มีค่าดัชนีความร้อนและ PM2.5 แตะระดับอันตราย โปรดเปรียบเทียบสถิติเพื่อการวางแผนในวันนี้
                         </div>
                     </div>
                 )}
@@ -210,15 +264,13 @@ export default function AlertsPage() {
                 </div>
                 
                 {fireMode === 'actual' ? (
-                    <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
+                    <div className="fade-in hide-scrollbar" style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
                             <span style={{ fontSize: '0.75rem', color: subTextColor }}>*ดาวเทียม Suomi NPP ({yesterdayShortStr})</span>
-                            {/* 🌟 ยอดรวมทั้งประเทศ */}
                             <span style={{ fontSize: '0.85rem', color: '#ef4444', fontWeight: 'bold', background: 'rgba(239, 68, 68, 0.1)', padding: '2px 8px', borderRadius: '6px' }}>ยอดรวม {totalHotspots} จุด</span>
                         </div>
                         
-                        {/* 🌟 ระบบ Accordion (กดเพื่อกางรายจังหวัด) */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', overflowY: 'auto', maxHeight: '350px', paddingRight: '5px' }} className="hide-scrollbar">
+                        <div className="hide-scrollbar" style={{ display: 'flex', flexDirection: 'column', gap: '8px', overflowY: 'auto', maxHeight: '350px', paddingRight: '5px' }}>
                             {mockGistdaHotspots.map((hs, idx) => {
                                 const isExpanded = expandedRegion === hs.region;
                                 return (
@@ -232,7 +284,6 @@ export default function AlertsPage() {
                                             </div>
                                         </div>
                                         
-                                        {/* รายชื่อจังหวัดย่อย (แสดงเมื่อกางออก) */}
                                         {isExpanded && (
                                             <div style={{ padding: '0 12px 12px 12px', display: 'flex', flexDirection: 'column', gap: '8px', animation: 'fadeIn 0.2s ease-out' }}>
                                                 <div style={{ height: '1px', background: borderColor, marginBottom: '4px' }}></div>
@@ -277,7 +328,7 @@ export default function AlertsPage() {
                     <span style={{ fontSize: '1.5rem' }}>📡</span> แผงควบคุมเรดาร์ (Windy)
                 </h2>
 
-                <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '5px' }} className="hide-scrollbar">
+                <div className="hide-scrollbar" style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '5px' }}>
                     {radarOptions.map(opt => {
                         const isActive = radarLayer === opt.id;
                         return (
