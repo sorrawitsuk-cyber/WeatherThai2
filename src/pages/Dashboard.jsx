@@ -158,7 +158,21 @@ export default function Dashboard() {
   const borderColor = darkMode ? '#1e293b' : '#e2e8f0';
   const subTextColor = darkMode ? '#94a3b8' : '#64748b'; 
 
-  if (loadingWeather || !weatherData) return <div style={{display:'flex',justifyContent:'center',alignItems:'center',height:'100%',background:appBg,color:textColor, fontWeight:'bold', fontSize:'1.2rem'}}>📍 โหลดข้อมูลแป๊บนึงนะคะ... ⏳</div>;
+// 🌟 หน้า Loading แบบใหม่: ทางการและมีแอนิเมชัน
+  if (loadingWeather || !weatherData) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100%', background: appBg, color: textColor, fontFamily: 'Kanit, sans-serif' }}>
+        <style dangerouslySetInlineStyle={{__html: `@keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.7; transform: scale(0.95); } }`}} />
+        <div style={{ fontSize: '4rem', animation: 'pulse 1.5s infinite ease-in-out' }}>🌤️</div>
+        <div style={{ marginTop: '20px', fontSize: '1.2rem', fontWeight: 'bold', letterSpacing: '0.5px' }}>
+          กำลังประมวลผลข้อมูลสภาพอากาศ
+        </div>
+        <div style={{ fontSize: '0.9rem', color: subTextColor, marginTop: '8px' }}>
+          กรุณารอสักครู่...
+        </div>
+      </div>
+    );
+  }
 
   const { current, hourly, daily, coords } = weatherData;
   const aqiBg = current?.pm25 > 75 ? '#ef4444' : current?.pm25 > 37.5 ? '#f97316' : current?.pm25 > 25 ? '#eab308' : '#22c55e';
