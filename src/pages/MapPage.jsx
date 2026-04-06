@@ -59,8 +59,12 @@ export default function MapPage() {
     return '#94a3b8';
   };
 
+  // ... (โค้ดส่วนบนเหมือนเดิม) ...
+
+  // 🌟 4. ฟังก์ชันจับคู่ GeoJSON กับข้อมูลอุตุนิยมวิทยาของเรา
   const styleGeoJSON = (feature) => {
     const props = Object.values(feature.properties || {}).map(v => String(v).replace('จ.', '').replace('จังหวัด', '').trim());
+    
     const station = stations.find(s => {
         const cleanName = s.areaTH.replace('จังหวัด', '').trim();
         return props.includes(cleanName) || props.some(p => p.includes(cleanName) || cleanName.includes(p));
@@ -73,19 +77,24 @@ export default function MapPage() {
         fillColor: color,
         weight: 1.5,
         opacity: 1,
-        color: darkMode ? '#0f172a' : '#ffffff',
-        fillOpacity: 0.75
+        // 🌟 เปลี่ยนสีกรอบเป็นสีขาวตามรีเควส
+        color: '#ffffff', 
+        fillOpacity: 0.75 
     };
   };
 
+  // 🌟 5. สร้างไอคอนตัวเลขลอยๆ ตรงกลางจังหวัด
   const createLabelIcon = (val) => {
     return L.divIcon({
         className: 'custom-text-icon',
-        html: `<div style="color: white; font-weight: 900; font-size: ${isMobile ? '12px' : '14px'}; text-shadow: 0 0 5px rgba(0,0,0,0.9), 1px 1px 3px rgba(0,0,0,0.9); text-align: center;">${val}</div>`,
+        // 🌟 ปรับขนาดฟอนต์ให้เล็กลง และเปลี่ยนสีเป็นเทาดำ (#334155) พร้อมขอบขาวบางๆ ให้อ่านง่ายบนทุกสีพื้นหลัง
+        html: `<div style="color: #334155; font-weight: 900; font-size: ${isMobile ? '10px' : '12px'}; text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff; text-align: center;">${val}</div>`,
         iconSize: [40, 40],
-        iconAnchor: [20, 20]
+        iconAnchor: [20, 20] 
     });
   };
+
+  // ... (โค้ดส่วนล่างเหมือนเดิม) ...
 
   const appBg = darkMode ? '#020617' : '#f8fafc'; 
   const cardBg = darkMode ? '#0f172a' : '#ffffff';
