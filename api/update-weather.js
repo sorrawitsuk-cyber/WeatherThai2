@@ -11,7 +11,6 @@ const firebaseConfig = {
   measurementId: "G-1JF3FBYCTC"
 };
 
-// Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
@@ -27,37 +26,38 @@ const provinces77 = [
 
 export default async function handler(req, res) {
   try {
-    // 🌟 หั่นแค่ 3 ก้อน (ก้อนละ 26 จังหวัด) ประหยัดเวลา ไม่ต้องหยุดพัก
-    const chunkSize = 26; 
-    let allWData = [];
-    let allAData = [];
+    // 🌟 มัดรวม 77 จังหวัดเข้าด้วยกัน
+    const lats = provinces77.map(p => p.lat).join(',');
+    const lons = provinces77.map(p => p.lon).join(',');
 
-    for (let i = 0; i < provinces77.length; i += chunkSize) {
-      const chunk = provinces77.slice(i, i + chunkSize);
-      const lats = chunk.map(p => p.lat).join(',');
-      const lons = chunk.map(p => p.lon).join(',');
+    const wUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,wind_speed_10m&timezone=Asia%2FBangkok`;
+    const aUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lats}&longitude=${lons}&current=pm2_5&timezone=Asia%2FBangkok`;
 
-      const wUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,wind_speed_10m&timezone=Asia%2FBangkok`;
-      const aUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lats}&longitude=${lons}&current=pm2_5&timezone=Asia%2FBangkok`;
-
-      // ยิงตรงไปเลย ไม่ต้อง setTimeout หน่วงเวลาแล้ว
-      const wRes = await fetch(wUrl);
-      if (!wRes.ok) throw new Error(`Weather API Error: ${wRes.status}`);
-      const wJson = await wRes.json();
-      allWData.push(...(Array.isArray(wJson) ? wJson : [wJson]));
-
-      const aRes = await fetch(aUrl);
-      if (!aRes.ok) throw new Error(`AQI API Error: ${aRes.status}`);
-      const aJson = await aRes.json();
-      allAData.push(...(Array.isArray(aJson) ? aJson : [aJson]));
+    // 1. ดึงข้อมูลสภาพอากาศรวดเดียว 77 จุด
+    const wRes = await fetch(wUrl);
+    if (!wRes.ok) {
+        const errText = await wRes.text();
+        throw new Error(`Weather Error [${wRes.status}]: ${errText.substring(0, 50)}`);
     }
+    const wJson = await wRes.json();
+    const wDataArray = Array.isArray(wJson) ? wJson : [wJson];
 
+    // 2. ดึงข้อมูลฝุ่นรวดเดียว 77 จุด
+    const aRes = await fetch(aUrl);
+    if (!aRes.ok) {
+        const errText = await aRes.text();
+        throw new Error(`AQI Error [${aRes.status}]: ${errText.substring(0, 50)}`);
+    }
+    const aJson = await aRes.json();
+    const aDataArray = Array.isArray(aJson) ? aJson : [aJson];
+
+    // 3. นำข้อมูลมาประกอบร่าง
     const realStations = [];
     const temps = {};
 
     provinces77.forEach((p, idx) => {
-      const w = allWData[idx]?.current || {};
-      const a = allAData[idx]?.current || {};
+      const w = wDataArray[idx]?.current || {};
+      const a = aDataArray[idx]?.current || {};
       const sID = `PROV_${idx}`;
       
       realStations.push({ 
@@ -74,6 +74,7 @@ export default async function handler(req, res) {
       };
     });
 
+    // 4. บันทึกเข้า Firebase
     const updateTime = new Date().toISOString();
     await setDoc(doc(db, "weather_cache", "thailand77"), {
       stations: realStations,
@@ -81,9 +82,9 @@ export default async function handler(req, res) {
       lastUpdated: updateTime
     });
 
-    res.status(200).json({ success: true, message: "OK! Updated Fast.", lastUpdated: updateTime });
+    res.status(200).json({ success: true, message: "1-Shot Update Success! No more timeout.", lastUpdated: updateTime });
   } catch (error) {
-    console.error("Vercel Fast Fetch Error:", error);
-    res.status(500).json({ success: false, error: error.message || "Unknown Fetch Error" });
+    console.error("1-Shot Fetch Error:", error);
+    res.status(500).json({ success: false, error: error.message });
   }
 }
