@@ -1,7 +1,7 @@
 // src/context/WeatherContext.jsx
 import React, { createContext, useState, useEffect } from 'react';
 
-// พิกัด 77 จังหวัด
+// พิกัด 77 จังหวัดทั่วไทย
 const provinces77 = [
   { n: 'กรุงเทพมหานคร', lat: 13.75, lon: 100.51 }, { n: 'สมุทรปราการ', lat: 13.60, lon: 100.60 }, { n: 'นนทบุรี', lat: 13.86, lon: 100.52 }, { n: 'ปทุมธานี', lat: 14.02, lon: 100.53 }, { n: 'พระนครศรีอยุธยา', lat: 14.35, lon: 100.57 }, { n: 'อ่างทอง', lat: 14.59, lon: 100.45 }, { n: 'ลพบุรี', lat: 14.80, lon: 100.61 }, { n: 'สิงห์บุรี', lat: 14.89, lon: 100.40 }, { n: 'ชัยนาท', lat: 15.18, lon: 100.12 }, { n: 'สระบุรี', lat: 14.53, lon: 100.91 },
   { n: 'ชลบุรี', lat: 13.36, lon: 100.98 }, { n: 'ระยอง', lat: 12.68, lon: 101.27 }, { n: 'จันทบุรี', lat: 12.61, lon: 102.10 }, { n: 'ตราด', lat: 12.24, lon: 102.51 }, { n: 'ฉะเชิงเทรา', lat: 13.69, lon: 101.07 }, { n: 'ปราจีนบุรี', lat: 14.05, lon: 101.37 }, { n: 'นครนายก', lat: 14.20, lon: 101.21 }, { n: 'สระแก้ว', lat: 13.82, lon: 102.06 },
@@ -13,7 +13,11 @@ const provinces77 = [
 ];
 
 const initialStations = provinces77.map((p, idx) => ({
-  stationID: `PROV_${idx}`, areaTH: p.n, lat: p.lat, long: p.lon, AQILast: { PM25: { value: 0 } }
+  stationID: `PROV_${idx}`, 
+  areaTH: p.n, 
+  lat: p.lat, 
+  long: p.lon, 
+  AQILast: { PM25: { value: 0 } }
 }));
 
 export const WeatherContext = createContext();
@@ -26,9 +30,10 @@ export const WeatherProvider = ({ children }) => {
   const [darkMode, setDarkMode] = useState(true);
   const [lastUpdateText, setLastUpdateText] = useState("");
 
+  // ฟังก์ชันดึงข้อมูล 77 จังหวัด (ใช้เทคนิคแบ่งกลุ่ม + หน่วงเวลา เพื่อกันโดน API บล็อก)
   const fetchReal77Provinces = async () => {
     try {
-      const chunkSize = 15; // แบ่งกลุ่มดึงกัน API แบน
+      const chunkSize = 10; // ลดขนาดกลุ่มลงเพื่อความปลอดภัย
       let allWData = [];
       let allAData = [];
 
@@ -40,21 +45,23 @@ export const WeatherProvider = ({ children }) => {
         const wUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,wind_speed_10m&timezone=Asia%2FBangkok`;
         const aUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lats}&longitude=${lons}&current=pm2_5&timezone=Asia%2FBangkok`;
 
+        // ดึงข้อมูลอากาศ
         const wRes = await fetch(wUrl);
         if (wRes.ok) {
-            const wJson = await wRes.json();
-            allWData = [...allWData, ...(Array.isArray(wJson) ? wJson : [wJson])];
+          const wJson = await wRes.json();
+          allWData = [...allWData, ...(Array.isArray(wJson) ? wJson : [wJson])];
         }
 
-        await new Promise(resolve => setTimeout(resolve, 300)); // พักหายใจ
+        await new Promise(resolve => setTimeout(resolve, 800)); // พักหายใจ 0.8 วินาที
 
+        // ดึงข้อมูลฝุ่น
         const aRes = await fetch(aUrl);
         if (aRes.ok) {
-            const aJson = await aRes.json();
-            allAData = [...allAData, ...(Array.isArray(aJson) ? aJson : [aJson])];
+          const aJson = await aRes.json();
+          allAData = [...allAData, ...(Array.isArray(aJson) ? aJson : [aJson])];
         }
 
-        await new Promise(resolve => setTimeout(resolve, 500)); // พักก่อนขึ้นกลุ่มใหม่
+        await new Promise(resolve => setTimeout(resolve, 1000)); // พักก่อนขึ้นกลุ่มใหม่ 1 วินาที
       }
 
       const realStations = [];
@@ -66,16 +73,19 @@ export const WeatherProvider = ({ children }) => {
         const sID = `PROV_${idx}`;
         
         realStations.push({ 
-            stationID: sID, areaTH: p.n, lat: p.lat, long: p.lon, 
-            AQILast: { PM25: { value: Math.round(a.pm2_5 || 0) } } 
+          stationID: sID, 
+          areaTH: p.n, 
+          lat: p.lat, 
+          long: p.lon, 
+          AQILast: { PM25: { value: Math.round(a.pm2_5 || 0) } } 
         });
         
         temps[sID] = { 
-            temp: Math.round(w.temperature_2m || 0), 
-            feelsLike: Math.round(w.apparent_temperature || 0), 
-            humidity: Math.round(w.relative_humidity_2m || 0), 
-            rainProb: Math.round(w.precipitation || 0), 
-            windSpeed: Math.round(w.wind_speed_10m || 0) 
+          temp: Math.round(w.temperature_2m || 0), 
+          feelsLike: Math.round(w.apparent_temperature || 0), 
+          humidity: Math.round(w.relative_humidity_2m || 0), 
+          rainProb: Math.round(w.precipitation || 0), 
+          windSpeed: Math.round(w.wind_speed_10m || 0) 
         };
       });
 
@@ -83,14 +93,14 @@ export const WeatherProvider = ({ children }) => {
       setStationTemps(temps);
 
     } catch (error) { 
-      console.error("Critical Fetch Error:", error); 
+      console.error("Critical Fetch Error (77 Provinces):", error); 
     }
   };
 
+  // ฟังก์ชันดึงข้อมูลพยากรณ์ละเอียดสำหรับตำแหน่งที่เลือก
   const fetchWeatherByCoords = async (inputLat, inputLon) => {
     setLoadingWeather(true);
     try {
-      // กันแผนที่พัง (NaN) ให้โยนกลับมากรุงเทพฯ
       const lat = !isNaN(parseFloat(inputLat)) ? parseFloat(inputLat) : 13.7538;
       const lon = !isNaN(parseFloat(inputLon)) ? parseFloat(inputLon) : 100.5014;
 
@@ -101,7 +111,7 @@ export const WeatherProvider = ({ children }) => {
       if (!wRes.ok) throw new Error("Weather API Error");
       const wData = await wRes.json();
 
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await new Promise(resolve => setTimeout(resolve, 300)); // หน่วงเล็กน้อย
 
       const aRes = await fetch(aUrl);
       const aData = aRes.ok ? await aRes.json() : {};
@@ -142,33 +152,43 @@ export const WeatherProvider = ({ children }) => {
       const now = new Date();
       setLastUpdateText(`${now.toLocaleDateString('th-TH')} ${now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.`);
     } catch (error) { 
-        console.error("Open-Meteo Single Fetch Error:", error); 
-        setWeatherData(prev => prev || null);
+      console.error("Open-Meteo Single Fetch Error:", error); 
+      setWeatherData(prev => prev || null);
     } finally { 
-        setLoadingWeather(false); 
+      setLoadingWeather(false); 
     }
   };
 
   useEffect(() => { 
-      fetchReal77Provinces(); 
+    // 1. เริ่มดึงข้อมูล 77 จังหวัดเบื้องหลัง
+    fetchReal77Provinces(); 
 
-      if (navigator.geolocation) {
-          navigator.geolocation.getCurrentPosition(
-              (pos) => fetchWeatherByCoords(pos.coords.latitude, pos.coords.longitude), 
-              (err) => fetchWeatherByCoords(13.7538, 100.5014),
-              { timeout: 5000 }
-          );
-      } else {
-          fetchWeatherByCoords(13.7538, 100.5014);
-      }
-      
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // 2. ดึงพิกัดปัจจุบัน
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => fetchWeatherByCoords(pos.coords.latitude, pos.coords.longitude), 
+        (err) => fetchWeatherByCoords(13.7538, 100.5014), // ถ้า GPS ไม่ติด ใช้กทม.
+        { timeout: 5000 }
+      );
+    } else {
+      fetchWeatherByCoords(13.7538, 100.5014);
+    }
+    
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
-    <WeatherContext.Provider value={{ stations, stationTemps, weatherData, fetchWeatherByCoords, loadingWeather, darkMode, setDarkMode, lastUpdateText }}>
+    <WeatherContext.Provider value={{ 
+      stations, 
+      stationTemps, 
+      weatherData, 
+      fetchWeatherByCoords, 
+      loadingWeather, 
+      darkMode, 
+      setDarkMode, 
+      lastUpdateText 
+    }}>
       {children}
     </WeatherContext.Provider>
   );
-};  
-// Test Rollback Vercel
+};
