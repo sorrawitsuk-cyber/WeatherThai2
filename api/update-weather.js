@@ -1,11 +1,6 @@
-// Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
-import { getFirestore, doc, setDoc } from "firebase/firestore"; // 🌟 สังเกตว่าไฟล์นี้ใช้ setDoc เพราะทำหน้าที่เขียนข้อมูลลงฐาน
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
+import { getFirestore, doc, setDoc } from "firebase/firestore";
 
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: "AIzaSyDQVebX5jO-iE2RB8bBVQMkQ8ETd7oZfoc",
   authDomain: "thai-env-dashboard.firebaseapp.com",
@@ -18,8 +13,8 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app); 
-// พิกัด 77 จังหวัด
+const db = getFirestore(app);
+
 const provinces77 = [
   { n: 'กรุงเทพมหานคร', lat: 13.75, lon: 100.51 }, { n: 'สมุทรปราการ', lat: 13.60, lon: 100.60 }, { n: 'นนทบุรี', lat: 13.86, lon: 100.52 }, { n: 'ปทุมธานี', lat: 14.02, lon: 100.53 }, { n: 'พระนครศรีอยุธยา', lat: 14.35, lon: 100.57 }, { n: 'อ่างทอง', lat: 14.59, lon: 100.45 }, { n: 'ลพบุรี', lat: 14.80, lon: 100.61 }, { n: 'สิงห์บุรี', lat: 14.89, lon: 100.40 }, { n: 'ชัยนาท', lat: 15.18, lon: 100.12 }, { n: 'สระบุรี', lat: 14.53, lon: 100.91 },
   { n: 'ชลบุรี', lat: 13.36, lon: 100.98 }, { n: 'ระยอง', lat: 12.68, lon: 101.27 }, { n: 'จันทบุรี', lat: 12.61, lon: 102.10 }, { n: 'ตราด', lat: 12.24, lon: 102.51 }, { n: 'ฉะเชิงเทรา', lat: 13.69, lon: 101.07 }, { n: 'ปราจีนบุรี', lat: 14.05, lon: 101.37 }, { n: 'นครนายก', lat: 14.20, lon: 101.21 }, { n: 'สระแก้ว', lat: 13.82, lon: 102.06 },
@@ -32,11 +27,10 @@ const provinces77 = [
 
 export default async function handler(req, res) {
   try {
-    const chunkSize = 15;
+    const chunkSize = 20; // จัดกลุ่มใหญ่ขึ้นหน่อยเพื่อให้ทันเวลา 10 วินาทีของ Vercel
     let allWData = [];
     let allAData = [];
 
-    // ดึงข้อมูลจาก Open-Meteo แบบ Chunk (กันโดนแบน)
     for (let i = 0; i < provinces77.length; i += chunkSize) {
       const chunk = provinces77.slice(i, i + chunkSize);
       const lats = chunk.map(p => p.lat).join(',');
@@ -45,18 +39,24 @@ export default async function handler(req, res) {
       const wUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,wind_speed_10m&timezone=Asia%2FBangkok`;
       const aUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lats}&longitude=${lons}&current=pm2_5&timezone=Asia%2FBangkok`;
 
-      const [wRes, aRes] = await Promise.all([fetch(wUrl), fetch(aUrl)]);
+      // 🌟 ท่าไม้ตาย: ยิงทีละเส้น (ไม่ใช้ Promise.all) และดัก Error ถ้าเกิด fetch failed
+      const wRes = await fetch(wUrl);
+      if (!wRes.ok) throw new Error(`Weather Fetch Error: ${wRes.status}`);
       const wJson = await wRes.json();
-      const aJson = await aRes.json();
-
       allWData = [...allWData, ...(Array.isArray(wJson) ? wJson : [wJson])];
+
+      // พักนิดนึงให้ API หายใจ
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      const aRes = await fetch(aUrl);
+      if (!aRes.ok) throw new Error(`Air Quality Fetch Error: ${aRes.status}`);
+      const aJson = await aRes.json();
       allAData = [...allAData, ...(Array.isArray(aJson) ? aJson : [aJson])];
 
-      // พัก 500ms ป้องกัน API แบน
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // พักก่อนขึ้นกลุ่มถัดไป
+      await new Promise(resolve => setTimeout(resolve, 300));
     }
 
-    // จัดระเบียบข้อมูล
     const realStations = [];
     const temps = {};
 
@@ -79,7 +79,6 @@ export default async function handler(req, res) {
       };
     });
 
-    // 🌟 บันทึกข้อมูลลง Firebase
     const updateTime = new Date().toISOString();
     await setDoc(doc(db, "weather_cache", "thailand77"), {
       stations: realStations,
