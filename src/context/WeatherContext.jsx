@@ -1,7 +1,7 @@
 // src/context/WeatherContext.jsx
 import React, { createContext, useState, useEffect } from 'react';
 
-// พิกัด 77 จังหวัดทั่วไทย (ซ่อนไว้เพื่อความกระชับ ใช้ข้อมูลเดิมได้เลยครับ)
+// พิกัด 77 จังหวัดทั่วไทย
 const provinces77 = [
   { n: 'กรุงเทพมหานคร', lat: 13.75, lon: 100.51 }, { n: 'สมุทรปราการ', lat: 13.60, lon: 100.60 }, { n: 'นนทบุรี', lat: 13.86, lon: 100.52 }, { n: 'ปทุมธานี', lat: 14.02, lon: 100.53 }, { n: 'พระนครศรีอยุธยา', lat: 14.35, lon: 100.57 }, { n: 'อ่างทอง', lat: 14.59, lon: 100.45 }, { n: 'ลพบุรี', lat: 14.80, lon: 100.61 }, { n: 'สิงห์บุรี', lat: 14.89, lon: 100.40 }, { n: 'ชัยนาท', lat: 15.18, lon: 100.12 }, { n: 'สระบุรี', lat: 14.53, lon: 100.91 },
   { n: 'ชลบุรี', lat: 13.36, lon: 100.98 }, { n: 'ระยอง', lat: 12.68, lon: 101.27 }, { n: 'จันทบุรี', lat: 12.61, lon: 102.10 }, { n: 'ตราด', lat: 12.24, lon: 102.51 }, { n: 'ฉะเชิงเทรา', lat: 13.69, lon: 101.07 }, { n: 'ปราจีนบุรี', lat: 14.05, lon: 101.37 }, { n: 'นครนายก', lat: 14.20, lon: 101.21 }, { n: 'สระแก้ว', lat: 13.82, lon: 102.06 },
@@ -26,34 +26,76 @@ export const WeatherProvider = ({ children }) => {
   const [darkMode, setDarkMode] = useState(true);
   const [lastUpdateText, setLastUpdateText] = useState("");
 
+  // 🌟 ฟังก์ชันดึงข้อมูล 77 จังหวัดแบบแบ่งกลุ่ม (Chunking) ป้องกัน API แบนและ CORS
   const fetchReal77Provinces = async () => {
     try {
-      const lats = provinces77.map(p => p.lat).join(',');
-      const lons = provinces77.map(p => p.lon).join(',');
-      const wUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,wind_speed_10m&timezone=Asia%2FBangkok`;
-      const aUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lats}&longitude=${lons}&current=pm2_5&timezone=Asia%2FBangkok`;
-      const [wRes, aRes] = await Promise.all([fetch(wUrl), fetch(aUrl)]);
-      const wDataArray = await wRes.json();
-      const aDataArray = await aRes.json();
+      const chunkSize = 20; // แบ่งยิง API ทีละ 20 จังหวัด (ลดความยาว URL)
+      let allWData = [];
+      let allAData = [];
+
+      for (let i = 0; i < provinces77.length; i += chunkSize) {
+        const chunk = provinces77.slice(i, i + chunkSize);
+        const lats = chunk.map(p => p.lat).join(',');
+        const lons = chunk.map(p => p.lon).join(',');
+
+        const wUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,wind_speed_10m&timezone=Asia%2FBangkok`;
+        const aUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lats}&longitude=${lons}&current=pm2_5&timezone=Asia%2FBangkok`;
+
+        const [wRes, aRes] = await Promise.all([fetch(wUrl), fetch(aUrl)]);
+        
+        if (!wRes.ok || !aRes.ok) throw new Error('API Request Failed');
+
+        const wJson = await wRes.json();
+        const aJson = await aRes.json();
+
+        // Open-Meteo ส่งข้อมูลมาเป็น Array ถ้ามีหลายพิกัด หรือเป็น Object ถ้ามี 1 พิกัด (ดักจับให้เป็น Array เสมอ)
+        const wChunkArray = Array.isArray(wJson) ? wJson : [wJson];
+        const aChunkArray = Array.isArray(aJson) ? aJson : [aJson];
+
+        allWData = [...allWData, ...wChunkArray];
+        allAData = [...allAData, ...aChunkArray];
+
+        // ⏱️ หน่วงเวลา 250ms ก่อนยิงกลุ่มถัดไป เพื่อหลบการโดนแบน (429 Too Many Requests)
+        await new Promise(resolve => setTimeout(resolve, 250));
+      }
 
       const realStations = [];
       const temps = {};
 
       provinces77.forEach((p, idx) => {
-        const w = wDataArray[idx].current;
-        const a = aDataArray[idx].current;
+        const w = allWData[idx]?.current || {};
+        const a = allAData[idx]?.current || {};
         const sID = `PROV_${idx}`;
-        realStations.push({ stationID: sID, areaTH: p.n, lat: p.lat, long: p.lon, AQILast: { PM25: { value: a.pm2_5 || 0 } } });
-        temps[sID] = { temp: w.temperature_2m, feelsLike: w.apparent_temperature, humidity: w.relative_humidity_2m, rainProb: w.precipitation, windSpeed: w.wind_speed_10m };
+        
+        realStations.push({ 
+            stationID: sID, 
+            areaTH: p.n, 
+            lat: p.lat, 
+            long: p.lon, 
+            AQILast: { PM25: { value: a.pm2_5 || 0 } } 
+        });
+        
+        temps[sID] = { 
+            temp: w.temperature_2m || 0, 
+            feelsLike: w.apparent_temperature || 0, 
+            humidity: w.relative_humidity_2m || 0, 
+            rainProb: w.precipitation || 0, 
+            windSpeed: w.wind_speed_10m || 0 
+        };
       });
-      setStations(realStations); setStationTemps(temps);
-    } catch (error) { console.error("Batch Fetch Error:", error); }
+
+      setStations(realStations); 
+      setStationTemps(temps);
+
+    } catch (error) { 
+      console.error("Batch Fetch Error:", error); 
+    }
   };
 
   const fetchWeatherByCoords = async (lat, lon) => {
     setLoadingWeather(true);
     try {
-      // 🌟 เพิ่มคีย์เวิร์ดขอดาวเทียม: visibility, surface_pressure, dew_point_2m, sunrise, sunset
+      // 🌟 ดึงข้อมูลรายพื้นที่แบบครบถ้วน
       const wUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,wind_speed_10m,uv_index,visibility,surface_pressure,dew_point_2m&hourly=temperature_2m,precipitation_probability&daily=temperature_2m_max,temperature_2m_min,weathercode,apparent_temperature_max,precipitation_probability_max,sunrise,sunset&timezone=Asia%2FBangkok`;
       const aUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=pm2_5,us_aqi&hourly=pm2_5&timezone=Asia%2FBangkok`;
 
@@ -80,7 +122,6 @@ export const WeatherProvider = ({ children }) => {
           rainProb: wData.daily?.precipitation_probability_max?.[0] || 0, 
           pm25: aData.current?.pm2_5 || 0, 
           aqi: aData.current?.us_aqi || 0,
-          // ข้อมูลการบินและดาราศาสตร์
           visibility: wData.current?.visibility || 0,
           pressure: wData.current?.surface_pressure || 0,
           dewPoint: wData.current?.dew_point_2m || 0,
@@ -97,11 +138,16 @@ export const WeatherProvider = ({ children }) => {
 
       const now = new Date();
       setLastUpdateText(`${now.toLocaleDateString('th-TH')} ${now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.`);
-    } catch (error) { console.error("Open-Meteo Error:", error); } 
-    finally { setLoadingWeather(false); }
+    } catch (error) { 
+        console.error("Open-Meteo Error:", error); 
+    } finally { 
+        setLoadingWeather(false); 
+    }
   };
 
-  useEffect(() => { fetchReal77Provinces(); }, []);
+  useEffect(() => { 
+      fetchReal77Provinces(); 
+  }, []);
 
   return (
     <WeatherContext.Provider value={{ stations, stationTemps, weatherData, fetchWeatherByCoords, loadingWeather, darkMode, setDarkMode, lastUpdateText }}>
