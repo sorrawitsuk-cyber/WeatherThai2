@@ -26,18 +26,15 @@ export const WeatherProvider = ({ children }) => {
   const [darkMode, setDarkMode] = useState(true);
   const [lastUpdateText, setLastUpdateText] = useState("");
 
-  // 🔑 API KEY ของคุณ
   const API_KEY = "5bd54936b5d3411f853170051262103"; 
 
-  // 🛠️ เครื่องมือปรับลด % ฝนที่เวอร์เกินจริง (Smart Dampener)
   const adjustRainProb = (chance, precip_mm) => {
     if (!precip_mm || precip_mm === 0) return 0;
-    if (precip_mm < 0.2) return Math.min(chance, 20); // ละอองฝน
-    if (precip_mm < 1.0) return Math.min(chance, 40); // ฝนตกเบา
-    return chance; // ฝนตกหนัก
+    if (precip_mm < 0.2) return Math.min(chance, 20); 
+    if (precip_mm < 1.0) return Math.min(chance, 40); 
+    return chance; 
   };
 
-  // 🛠️ เครื่องมือคำนวณ AQI (US EPA) จากฝุ่น PM2.5
   const calculateAQI = (pm25) => {
     const pm = parseFloat(pm25) || 0;
     if (pm <= 12.0) return Math.round((50/12.0) * pm);
@@ -47,7 +44,16 @@ export const WeatherProvider = ({ children }) => {
     return Math.round(((300-201)/(250.4-150.5)) * (pm - 150.5) + 201);
   };
 
-  // ดึง 77 จังหวัด
+  // 🌟 ฟังก์ชันแปลงเวลาจาก 12 ชั่วโมง (06:15 AM) ให้กลายเป็นรูปแบบวันที่ (ISO) ที่ React ชอบ
+  const convertAstroTimeToDate = (dateStr, time12h) => {
+    if (!time12h || time12h === '') return '';
+    const [time, modifier] = time12h.split(' ');
+    let [hours, minutes] = time.split(':');
+    if (hours === '12') hours = '00';
+    if (modifier === 'PM') hours = (parseInt(hours, 10) + 12).toString();
+    return `${dateStr}T${hours.padStart(2, '0')}:${minutes}:00`;
+  };
+
   const fetchReal77Provinces = async () => {
     try {
       const chunkSize = 10;
@@ -82,12 +88,12 @@ export const WeatherProvider = ({ children }) => {
               windSpeed: Math.round(data.current?.wind_kph || 0) 
             };
           } catch (e) {
-             // ข้ามไป ไม่ให้แอปพัง
+             // ข้ามไป
           }
         });
 
         await Promise.allSettled(promises);
-        await new Promise(r => setTimeout(r, 600)); // พักเครื่องกันโดนบล็อก
+        await new Promise(r => setTimeout(r, 600)); 
       }
 
       setStations([...newStations]); 
@@ -95,7 +101,6 @@ export const WeatherProvider = ({ children }) => {
     } catch (error) { console.error("77 Provinces Fetch Error:", error); }
   };
 
-  // ดึงข้อมูลตำแหน่งปัจจุบัน
   const fetchWeatherByCoords = async (inputLat, inputLon) => {
     setLoadingWeather(true);
     try {
@@ -110,17 +115,15 @@ export const WeatherProvider = ({ children }) => {
 
       const pm25Current = data.current?.air_quality?.pm2_5 || 0;
       
-      // จัดข้อมูลรายชั่วโมง (Hourly)
       const hTime = [], hTemp = [], hPm25 = [];
       data.forecast?.forecastday?.forEach(day => {
         day.hour?.forEach(h => {
           hTime.push(h.time);
           hTemp.push(h.temp_c);
-          hPm25.push(pm25Current); // ใช้ค่าฝุ่นปัจจุบันใส่ให้ครบทุกชั่วโมง
+          hPm25.push(pm25Current); 
         });
       });
 
-      // จัดข้อมูลรายวัน (Daily)
       const dTime = [], dMax = [], dMin = [], dCode = [], dPm25 = [], dRainProb = [];
       data.forecast?.forecastday?.forEach(day => {
         dTime.push(day.date);
@@ -130,6 +133,11 @@ export const WeatherProvider = ({ children }) => {
         dPm25.push(pm25Current);
         dRainProb.push(adjustRainProb(day.day.daily_chance_of_rain, day.day.totalprecip_mm));
       });
+
+      // ดึงวันที่ของวันนี้มาเพื่อประกอบร่างกับเวลาพระอาทิตย์ขึ้น/ตก
+      const todayDateStr = data.forecast?.forecastday[0]?.date || '';
+      const rawSunrise = data.forecast?.forecastday[0]?.astro?.sunrise || '';
+      const rawSunset = data.forecast?.forecastday[0]?.astro?.sunset || '';
 
       setWeatherData({
         current: {
@@ -142,8 +150,14 @@ export const WeatherProvider = ({ children }) => {
           rain: Math.round(data.current?.precip_mm || 0), 
           uv: Math.round(data.current?.uv || 0),
           rainProb: adjustRainProb(data.forecast?.forecastday[0]?.day?.daily_chance_of_rain || 0, data.current?.precip_mm || 0),
-          sunrise: data.forecast?.forecastday[0]?.astro?.sunrise || '', 
-          sunset: data.forecast?.forecastday[0]?.astro?.sunset || ''
+          
+          // 🌟 แมปตัวแปรใหม่ที่แอปตามหา (ทัศนวิสัย & ความกดอากาศ)
+          visibility: Math.round(data.current?.vis_km || 0),
+          pressure: Math.round(data.current?.pressure_mb || 0),
+          
+          // 🌟 ส่งค่าเวลาที่แปลงเป็น Date เรียบร้อยแล้ว (แก้ Invalid Date)
+          sunrise: convertAstroTimeToDate(todayDateStr, rawSunrise), 
+          sunset: convertAstroTimeToDate(todayDateStr, rawSunset)
         },
         hourly: { time: hTime, temperature_2m: hTemp, pm25: hPm25 }, 
         daily: { 
@@ -173,7 +187,6 @@ export const WeatherProvider = ({ children }) => {
       fetchWeatherByCoords(13.7538, 100.5014);
     }
 
-    // แอบโหลด 77 จังหวัด
     setTimeout(() => fetchReal77Provinces(), 2000);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
