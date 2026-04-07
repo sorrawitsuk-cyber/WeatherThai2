@@ -22,7 +22,6 @@ export default function AIPage() {
     };
     window.addEventListener('resize', handleResize);
 
-    // ดึงพิกัดเฉพาะเมื่อยังไม่มีข้อมูลเพื่อประหยัด API (กัน 429)
     if (!weatherData && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition((pos) => {
         fetchWeatherByCoords(pos.coords.latitude, pos.coords.longitude);
@@ -35,7 +34,7 @@ export default function AIPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // --- 3. AI Logic Engine (แก้บั๊กจอขาว + เพิ่มลูกเล่นคำพูด) ---
+  // --- 3. AI Logic Engine ---
   const aiReport = useMemo(() => {
     if (!weatherData || !weatherData.daily || !weatherData.daily.time) return null;
 
@@ -50,7 +49,6 @@ export default function AIPage() {
     if (currentPm25 > 50) score -= 4;
     if (score < 1) score = 1;
 
-    // ระบบประโยค Dynamic อิงตามค่าจริง
     const getMoodText = () => {
       if (currentPm25 > 50) return `วันนี้ฝุ่นเยอะระดับอันตราย (${currentPm25} µg/m³) ใส่แมสก์ด่วนๆ เลยนะคะ AI เป็นห่วง 😷`;
       if (rain > 60) return `ฟ้าหลังฝนอาจจะสวย แต่ตอนฝนตกแรง ${rain}% แบบนี้ พกเสื้อกันฝนไว้ดีกว่าค่ะ ☔`;
@@ -95,52 +93,55 @@ export default function AIPage() {
   const subTextColor = darkMode ? '#94a3b8' : '#64748b'; 
   const activeColor = tabConfigs.find(t => t.id === activeTab)?.color || '#8b5cf6';
 
-  if (loadingWeather) return <div style={{ height: '100dvh', background: appBg, display: 'flex', justifyContent: 'center', alignItems: 'center', color: textColor, fontFamily: 'Kanit' }}>🤖 AI กำลังวิเคราะห์ข้อมูล...</div>;
+  if (loadingWeather) return <div style={{ height: '100%', background: appBg, display: 'flex', justifyContent: 'center', alignItems: 'center', color: textColor, fontFamily: 'Kanit' }}>🤖 AI กำลังวิเคราะห์ข้อมูล...</div>;
   
-  if (!weatherData) return <div style={{ height: '100dvh', background: appBg, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: subTextColor, fontFamily: 'Kanit', padding: '20px', textAlign: 'center' }}>
+  if (!weatherData) return <div style={{ height: '100%', background: appBg, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: subTextColor, fontFamily: 'Kanit', padding: '20px', textAlign: 'center' }}>
     <div style={{fontSize: '3rem'}}>⚠️</div>
     <p>ไม่สามารถโหลดข้อมูลได้ชั่วคราว (API Limit)</p>
     <button onClick={() => window.location.reload()} style={{marginTop: '15px', padding: '10px 20px', borderRadius: '12px', background: '#0ea5e9', color: '#fff', border: 'none'}}>ลองใหม่อีกครั้ง</button>
   </div>;
 
   return (
-    /* 🌟 Container หลัก: แก้ไขให้ Scroll ได้อิสระบนมือถือ */
+    /* 🌟 1. แก้ไข Container หลักให้ล็อค 100% แล้ว Scroll ภายในตัวมันเอง */
     <div style={{ 
+      position: 'relative',
+      height: '100%', 
       width: '100%', 
-      minHeight: '100dvh', 
       background: appBg, 
-      display: 'block', // เปลี่ยนจาก flex เป็น block เพื่อให้เลื่อนง่ายขึ้น
       overflowY: 'auto', 
       WebkitOverflowScrolling: 'touch', 
-      fontFamily: 'Kanit, sans-serif' 
-    }}>
+      fontFamily: 'Kanit, sans-serif',
+      boxSizing: 'border-box' // 🌟 ป้องกันการหลุดกรอบ
+    }} className="hide-scrollbar">
+      
       <div style={{ 
         width: '100%', 
         maxWidth: '1100px', 
-        margin: '0 auto', // จัดกึ่งกลางหน้าจอคอม
+        margin: '0 auto', 
         display: 'flex', 
         flexDirection: 'column', 
         gap: '20px', 
         padding: isMobile ? '15px' : '30px', 
-        paddingBottom: '140px' // เผื่อที่ให้เมนูบาร์ด้านล่าง
+        paddingBottom: '150px', // เผื่อที่ให้เมนูด้านล่างเยอะขึ้น
+        boxSizing: 'border-box' // 🌟 ป้องกันการทะลุขอบ
       }}>
 
         {/* 1. FILTER SECTION */}
-        <div style={{ background: cardBg, borderRadius: '24px', padding: '18px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
+        <div style={{ width: '100%', background: cardBg, borderRadius: '24px', padding: '18px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.03)', boxSizing: 'border-box' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <h3 style={{ margin: 0, fontSize: '0.95rem', color: textColor }}>📍 วิเคราะห์พื้นที่: <span style={{color: '#0ea5e9'}}>{locationName}</span></h3>
                 {isMobile && <button onClick={() => setShowFilters(!showFilters)} style={{ background: 'rgba(14,165,233,0.1)', color: '#0ea5e9', border: 'none', padding: '6px 15px', borderRadius: '50px', fontWeight: 'bold', fontSize: '0.75rem' }}>{showFilters ? '▲ ปิด' : '▼ ตั้งค่า'}</button>}
             </div>
             {showFilters && (
-                <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px' }}>
+                <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px', width: '100%', boxSizing: 'border-box' }}>
                     <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr auto', gap: '10px' }}>
-                        <select value={selectedProv} onChange={(e) => { setSelectedProv(e.target.value); setLocationName(e.target.value); }} style={{ padding: '12px', borderRadius: '12px', background: darkMode ? '#1e293b' : '#f1f5f9', color: textColor, border: 'none' }}>
+                        <select value={selectedProv} onChange={(e) => { setSelectedProv(e.target.value); setLocationName(e.target.value); }} style={{ width: '100%', padding: '12px', borderRadius: '12px', background: darkMode ? '#1e293b' : '#f1f5f9', color: textColor, border: 'none', boxSizing: 'border-box' }}>
                             <option value="">เลือกจังหวัด</option>
                             {stations.map(s => <option key={s.stationID} value={s.areaTH}>{s.areaTH}</option>)}
                         </select>
-                        <button onClick={() => window.location.reload()} style={{ background: '#0ea5e9', color: '#fff', border: 'none', padding: '10px', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer' }}>อัปเดต GPS</button>
+                        <button onClick={() => window.location.reload()} style={{ width: '100%', background: '#0ea5e9', color: '#fff', border: 'none', padding: '12px', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer', boxSizing: 'border-box' }}>อัปเดต GPS</button>
                     </div>
-                    <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '10px' }} className="hide-scrollbar">
+                    <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '10px', width: '100%', boxSizing: 'border-box' }} className="hide-scrollbar">
                         {[0,1,2,3,4,5,6].map(idx => (
                             <button key={idx} onClick={() => setTargetDateIdx(idx)} style={{ flexShrink: 0, minWidth: '70px', padding: '10px', borderRadius: '12px', border: `1px solid ${targetDateIdx === idx ? activeColor : borderColor}`, background: targetDateIdx === idx ? activeColor : 'transparent', color: targetDateIdx === idx ? '#fff' : textColor, fontWeight: 'bold', fontSize: '0.8rem' }}>
                                 {idx === 0 ? 'วันนี้' : idx === 1 ? 'พรุ่งนี้' : `+${idx} วัน`}
@@ -152,7 +153,7 @@ export default function AIPage() {
         </div>
 
         {/* 2. MAIN LAYOUT (Tabs + Content) */}
-        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '20px', alignItems: 'flex-start' }}>
+        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '20px', alignItems: 'flex-start', width: '100%', boxSizing: 'border-box' }}>
             
             {/* TABS (โหมดต่างๆ) */}
             <div style={{ 
@@ -161,7 +162,9 @@ export default function AIPage() {
                 gap: '10px', 
                 width: isMobile ? '100%' : '240px',
                 overflowX: isMobile ? 'auto' : 'visible',
-                order: isMobile ? 1 : 2
+                order: isMobile ? 1 : 2,
+                boxSizing: 'border-box',
+                paddingBottom: isMobile ? '5px' : '0' // กัน Scrollbar บังปุ่ม
             }} className="hide-scrollbar">
                 {tabConfigs.map(tab => {
                     const isActive = activeTab === tab.id;
@@ -170,7 +173,7 @@ export default function AIPage() {
                             flexShrink: 0, display: 'flex', alignItems: 'center', gap: '12px', padding: '15px', borderRadius: '16px', border: 'none',
                             background: isActive ? (darkMode ? `${tab.color}30` : `${tab.color}15`) : (darkMode ? '#1e293b' : '#f8fafc'),
                             color: isActive ? (darkMode ? '#fff' : tab.color) : subTextColor,
-                            fontWeight: 'bold', cursor: 'pointer', textAlign: 'left', width: isMobile ? 'auto' : '100%', transition: 'all 0.2s'
+                            fontWeight: 'bold', cursor: 'pointer', textAlign: 'left', width: isMobile ? 'auto' : '100%', transition: 'all 0.2s', boxSizing: 'border-box'
                         }}>
                             <span style={{ fontSize: '1.4rem' }}>{tab.icon}</span>
                             <span>{tab.label}</span>
@@ -180,35 +183,38 @@ export default function AIPage() {
             </div>
 
             {/* AI REPORT BOX */}
-            <div className="fade-in" key={activeTab} style={{ flex: 1, background: cardBg, borderRadius: '24px', padding: isMobile ? '20px' : '30px', border: `1px solid ${borderColor}`, boxShadow: '0 10px 30px rgba(0,0,0,0.05)', order: isMobile ? 2 : 1, width: '100%' }}>
+            <div className="fade-in" key={activeTab} style={{ flex: 1, width: '100%', background: cardBg, borderRadius: '24px', padding: isMobile ? '20px' : '30px', border: `1px solid ${borderColor}`, boxShadow: '0 10px 30px rgba(0,0,0,0.05)', order: isMobile ? 2 : 1, boxSizing: 'border-box', overflow: 'hidden' }}>
                 {aiReport && (
                     <>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
-                            <h2 style={{ margin: 0, fontSize: '1.3rem', color: textColor }}>{tabConfigs.find(t=>t.id===activeTab)?.icon} AI วางแผนให้คุณ</h2>
-                            <div style={{ background: darkMode ? '#1e293b' : '#f8fafc', padding: '10px 15px', borderRadius: '15px', border: `1px solid ${borderColor}`, textAlign: 'center' }}>
-                                <div style={{ fontSize: '0.7rem', color: subTextColor, fontWeight: 'bold' }}>AI Score</div>
-                                <div style={{ fontSize: '1.2rem', fontWeight: '900', color: activeColor }}>{aiReport.score}/10</div>
+                            <h2 style={{ margin: 0, fontSize: '1.3rem', color: textColor, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <span>{tabConfigs.find(t=>t.id===activeTab)?.icon}</span>
+                                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>AI วางแผนให้คุณ</span>
+                            </h2>
+                            <div style={{ background: darkMode ? '#1e293b' : '#f8fafc', padding: '8px 12px', borderRadius: '15px', border: `1px solid ${borderColor}`, textAlign: 'center', flexShrink: 0 }}>
+                                <div style={{ fontSize: '0.65rem', color: subTextColor, fontWeight: 'bold' }}>AI Score</div>
+                                <div style={{ fontSize: '1.1rem', fontWeight: '900', color: activeColor }}>{aiReport.score}/10</div>
                             </div>
                         </div>
 
-                        <div style={{ padding: '18px', background: `${activeColor}10`, borderRadius: '20px', borderLeft: `5px solid ${activeColor}`, marginBottom: '30px' }}>
-                            <p style={{ margin: 0, fontSize: '1.05rem', color: textColor, lineHeight: 1.6 }}>{aiReport.text}</p>
+                        <div style={{ padding: '18px', background: `${activeColor}10`, borderRadius: '20px', borderLeft: `5px solid ${activeColor}`, marginBottom: '30px', boxSizing: 'border-box' }}>
+                            <p style={{ margin: 0, fontSize: '1.05rem', color: textColor, lineHeight: 1.6, wordBreak: 'break-word' }}>{aiReport.text}</p>
                         </div>
 
-                        <h4 style={{ margin: '0 0 20px 0', color: textColor, display: 'flex', alignItems: 'center', gap: '10px' }}>🕒 ตารางกิจกรรมที่ AI แนะนำ:</h4>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                        <h4 style={{ margin: '0 0 20px 0', color: textColor, fontSize: '1rem' }}>🕒 กิจกรรมแนะนำประจำวัน:</h4>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', width: '100%', boxSizing: 'border-box' }}>
                             {aiReport.timeline.map((item, i) => (
-                                <div key={i} style={{ display: 'flex', gap: '15px', position: 'relative' }}>
-                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                <div key={i} style={{ display: 'flex', gap: '15px', position: 'relative', width: '100%', boxSizing: 'border-box' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
                                         <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: activeColor, zIndex: 1 }}></div>
                                         {i < 2 && <div style={{ width: '2px', flex: 1, background: borderColor }}></div>}
                                     </div>
-                                    <div style={{ flex: 1, background: darkMode ? 'rgba(255,255,255,0.03)' : '#f8fafc', padding: '18px', borderRadius: '18px', border: `1px solid ${borderColor}` }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                                            <span style={{ fontWeight: 'bold', color: activeColor, fontSize: '1rem' }}>{item.icon} {item.label}</span>
+                                    <div style={{ flex: 1, background: darkMode ? 'rgba(255,255,255,0.03)' : '#f8fafc', padding: '18px', borderRadius: '18px', border: `1px solid ${borderColor}`, boxSizing: 'border-box', overflow: 'hidden' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '5px' }}>
+                                            <span style={{ fontWeight: 'bold', color: activeColor, fontSize: '0.95rem' }}>{item.icon} {item.label}</span>
                                             <span style={{ fontSize: '0.75rem', color: subTextColor }}>{item.time}</span>
                                         </div>
-                                        <div style={{ fontSize: '0.95rem', color: textColor, lineHeight: 1.5 }}>{item.text}</div>
+                                        <div style={{ fontSize: '0.9rem', color: textColor, lineHeight: 1.5, wordBreak: 'break-word' }}>{item.text}</div>
                                     </div>
                                 </div>
                             ))}
