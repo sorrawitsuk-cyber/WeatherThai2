@@ -1,11 +1,17 @@
-// src/components/Layout.jsx
 import React, { useContext, useState, useEffect } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { WeatherContext } from '../context/WeatherContext';
 
 export default function Layout() {
-  // 🌟 ดึง lastUpdateText มาใช้ใน Header
-  const { darkMode, setDarkMode, lastUpdateText } = useContext(WeatherContext);
+  // 🌟 ดึงข้อมูลและฟังก์ชันทั้งหมดมาใช้จาก WeatherContext รวมไว้ตรงนี้ที่เดียว
+  const { 
+    darkMode, 
+    setDarkMode, 
+    lastUpdateText, 
+    syncDataToFirebase, 
+    lastUpdated 
+  } = useContext(WeatherContext);
+
   const location = useLocation();
 
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 768);
@@ -57,7 +63,9 @@ export default function Layout() {
           <NavItem to="/climate" icon="🚨" label="เตือนภัย" darkMode={darkMode} />
         </nav>
 
-        <div style={{ padding: '16px', borderTop: `1px solid ${borderColor}` }}>
+        {/* 🌟 ส่วนปุ่มด้านล่าง Sidebar */}
+        <div style={{ padding: '16px', borderTop: `1px solid ${borderColor}`, display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          
           <button 
             onClick={() => setDarkMode(!darkMode)} 
             style={{ 
@@ -69,6 +77,21 @@ export default function Layout() {
           >
             {darkMode ? '☀️ สลับโหมดสว่าง' : '🌙 สลับโหมดมืด'}
           </button>
+
+          {/* 🚨 ปุ่ม Admin สำหรับกด Sync ข้อมูลเข้า Firebase */}
+          <button 
+            onClick={syncDataToFirebase}
+            style={{ 
+              width: '100%', padding: '10px 0', borderRadius: '12px', cursor: 'pointer', 
+              fontSize: '0.85rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+              backgroundColor: '#f59e0b', color: '#fff', border: 'none',
+              boxShadow: '0 4px 10px rgba(245, 158, 11, 0.2)'
+            }}
+            title="กดเพื่อดึงข้อมูล Open-Meteo ล่าสุดเข้าสู่ฐานข้อมูล"
+          >
+            <span>🔄 Sync ข้อมูลใหม่</span>
+          </button>
+
         </div>
       </aside>
 
@@ -82,13 +105,22 @@ export default function Layout() {
               <span style={{ fontSize: '1.8rem', filter: 'drop-shadow(0 2px 2px rgba(0,0,0,0.2))' }}>{darkMode ? '🌙' : '🌤️'}</span>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 <h1 style={{ fontWeight: 'bold', fontSize: '1.2rem', margin: 0, lineHeight: 1.2 }}>Thai Weather</h1>
-                {/* 🌟 ย้ายเวลาอัปเดตมาไว้ตรงนี้ เล็กๆ กะทัดรัด */}
-                <span style={{ fontSize: '0.7rem', opacity: 0.9, fontWeight: 'normal' }}>อัปเดต: {lastUpdateText || '-'}</span>
+                {/* 🌟 ย้ายเวลาอัปเดตมาไว้ตรงนี้ */}
+                <span style={{ fontSize: '0.7rem', opacity: 0.9, fontWeight: 'normal' }}>
+                  อัปเดต: {lastUpdated ? new Date(lastUpdated).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '-'}
+                </span>
               </div>
             </div>
-            <button onClick={() => setDarkMode(!darkMode)} style={{ fontSize: '1.4rem', background: 'transparent', border: 'none', cursor: 'pointer', filter: 'drop-shadow(0 2px 2px rgba(0,0,0,0.2))' }}>
-              {darkMode ? '☀️' : '🌙'}
-            </button>
+            
+            <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+              {/* ปุ่ม Sync สำหรับ Mobile ซ่อนไว้เล็กๆ */}
+              <button onClick={syncDataToFirebase} style={{ fontSize: '1.2rem', background: 'transparent', border: 'none', cursor: 'pointer', filter: 'drop-shadow(0 2px 2px rgba(0,0,0,0.2))' }}>
+                🔄
+              </button>
+              <button onClick={() => setDarkMode(!darkMode)} style={{ fontSize: '1.4rem', background: 'transparent', border: 'none', cursor: 'pointer', filter: 'drop-shadow(0 2px 2px rgba(0,0,0,0.2))' }}>
+                {darkMode ? '☀️' : '🌙'}
+              </button>
+            </div>
           </header>
         )}
 
