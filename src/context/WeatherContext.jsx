@@ -26,10 +26,10 @@ export const WeatherProvider = ({ children }) => {
   const [darkMode, setDarkMode] = useState(true);
   const [lastUpdateText, setLastUpdateText] = useState("");
 
-  // 🌟 ฟังก์ชันดึงข้อมูล 77 จังหวัดแบบแบ่งกลุ่ม (Chunking) ป้องกัน API แบนและ CORS
+  // 🌟 ท่าไม้ตาย: ยิงคิวเรียงตัว (Sequential) + หั่นกลุ่มเล็ก 10 จังหวัด
   const fetchReal77Provinces = async () => {
     try {
-      const chunkSize = 20; // แบ่งยิง API ทีละ 20 จังหวัด (ลดความยาว URL)
+      const chunkSize = 10; // หั่นให้เล็กลงอีก
       let allWData = [];
       let allAData = [];
 
@@ -41,22 +41,25 @@ export const WeatherProvider = ({ children }) => {
         const wUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,wind_speed_10m&timezone=Asia%2FBangkok`;
         const aUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lats}&longitude=${lons}&current=pm2_5&timezone=Asia%2FBangkok`;
 
-        const [wRes, aRes] = await Promise.all([fetch(wUrl), fetch(aUrl)]);
-        
-        if (!wRes.ok || !aRes.ok) throw new Error('API Request Failed');
+        // 1. ขอดึงสภาพอากาศก่อน
+        const wRes = await fetch(wUrl);
+        if (wRes.ok) {
+            const wJson = await wRes.json();
+            allWData = [...allWData, ...(Array.isArray(wJson) ? wJson : [wJson])];
+        }
 
-        const wJson = await wRes.json();
-        const aJson = await aRes.json();
+        // 2. พักหายใจ 300ms 
+        await new Promise(resolve => setTimeout(resolve, 300));
 
-        // Open-Meteo ส่งข้อมูลมาเป็น Array ถ้ามีหลายพิกัด หรือเป็น Object ถ้ามี 1 พิกัด (ดักจับให้เป็น Array เสมอ)
-        const wChunkArray = Array.isArray(wJson) ? wJson : [wJson];
-        const aChunkArray = Array.isArray(aJson) ? aJson : [aJson];
+        // 3. ขอดึงฝุ่นตามมา
+        const aRes = await fetch(aUrl);
+        if (aRes.ok) {
+            const aJson = await aRes.json();
+            allAData = [...allAData, ...(Array.isArray(aJson) ? aJson : [aJson])];
+        }
 
-        allWData = [...allWData, ...wChunkArray];
-        allAData = [...allAData, ...aChunkArray];
-
-        // ⏱️ หน่วงเวลา 250ms ก่อนยิงกลุ่มถัดไป เพื่อหลบการโดนแบน (429 Too Many Requests)
-        await new Promise(resolve => setTimeout(resolve, 250));
+        // 4. พัก 500ms ก่อนเริ่มกลุ่ม 10 จังหวัดถัดไป
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
 
       const realStations = [];
@@ -68,19 +71,16 @@ export const WeatherProvider = ({ children }) => {
         const sID = `PROV_${idx}`;
         
         realStations.push({ 
-            stationID: sID, 
-            areaTH: p.n, 
-            lat: p.lat, 
-            long: p.lon, 
-            AQILast: { PM25: { value: a.pm2_5 || 0 } } 
+            stationID: sID, areaTH: p.n, lat: p.lat, long: p.lon, 
+            AQILast: { PM25: { value: Math.round(a.pm2_5 || 0) } } 
         });
         
         temps[sID] = { 
-            temp: w.temperature_2m || 0, 
-            feelsLike: w.apparent_temperature || 0, 
-            humidity: w.relative_humidity_2m || 0, 
-            rainProb: w.precipitation || 0, 
-            windSpeed: w.wind_speed_10m || 0 
+            temp: Math.round(w.temperature_2m || 0), 
+            feelsLike: Math.round(w.apparent_temperature || 0), 
+            humidity: Math.round(w.relative_humidity_2m || 0), 
+            rainProb: Math.round(w.precipitation || 0), 
+            windSpeed: Math.round(w.wind_speed_10m || 0) 
         };
       });
 
@@ -88,43 +88,47 @@ export const WeatherProvider = ({ children }) => {
       setStationTemps(temps);
 
     } catch (error) { 
-      console.error("Batch Fetch Error:", error); 
+      console.error("Critical Fetch Error:", error); 
     }
   };
 
   const fetchWeatherByCoords = async (lat, lon) => {
     setLoadingWeather(true);
     try {
-      // 🌟 ดึงข้อมูลรายพื้นที่แบบครบถ้วน
       const wUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,wind_speed_10m,uv_index,visibility,surface_pressure,dew_point_2m&hourly=temperature_2m,precipitation_probability&daily=temperature_2m_max,temperature_2m_min,weathercode,apparent_temperature_max,precipitation_probability_max,sunrise,sunset&timezone=Asia%2FBangkok`;
       const aUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=pm2_5,us_aqi&hourly=pm2_5&timezone=Asia%2FBangkok`;
 
-      const [wRes, aRes] = await Promise.all([fetch(wUrl), fetch(aUrl)]);
-      const wData = await wRes.json();
-      const aData = await aRes.json();
+      // ยิงเส้นเดี่ยว แยกคิวเช่นกัน ป้องกัน API ช็อต
+      const wRes = await fetch(wUrl);
+      const wData = wRes.ok ? await wRes.json() : {};
+
+      await new Promise(resolve => setTimeout(resolve, 200));
+
+      const aRes = await fetch(aUrl);
+      const aData = aRes.ok ? await aRes.json() : {};
 
       const dailyPm25 = [];
       if (aData.hourly && aData.hourly.pm2_5) {
         for (let i = 0; i < 7; i++) {
           const dayData = aData.hourly.pm2_5.slice(i * 24, (i + 1) * 24).filter(v => v !== null);
-          dailyPm25.push(dayData.length > 0 ? Math.round(Math.max(...dayData)) : Math.round(aData.current.pm2_5 || 0));
+          dailyPm25.push(dayData.length > 0 ? Math.round(Math.max(...dayData)) : Math.round(aData.current?.pm2_5 || 0));
         }
       }
 
       setWeatherData({
         current: {
-          temp: wData.current?.temperature_2m || 0, 
-          feelsLike: wData.current?.apparent_temperature || 0,
-          humidity: wData.current?.relative_humidity_2m || 0, 
-          windSpeed: wData.current?.wind_speed_10m || 0,
-          rain: wData.current?.precipitation || 0, 
-          uv: wData.current?.uv_index || 0,
-          rainProb: wData.daily?.precipitation_probability_max?.[0] || 0, 
-          pm25: aData.current?.pm2_5 || 0, 
-          aqi: aData.current?.us_aqi || 0,
-          visibility: wData.current?.visibility || 0,
-          pressure: wData.current?.surface_pressure || 0,
-          dewPoint: wData.current?.dew_point_2m || 0,
+          temp: Math.round(wData.current?.temperature_2m || 0), 
+          feelsLike: Math.round(wData.current?.apparent_temperature || 0),
+          humidity: Math.round(wData.current?.relative_humidity_2m || 0), 
+          windSpeed: Math.round(wData.current?.wind_speed_10m || 0),
+          rain: Math.round(wData.current?.precipitation || 0), 
+          uv: Math.round(wData.current?.uv_index || 0),
+          rainProb: Math.round(wData.daily?.precipitation_probability_max?.[0] || 0), 
+          pm25: Math.round(aData.current?.pm2_5 || 0), 
+          aqi: Math.round(aData.current?.us_aqi || 0),
+          visibility: Math.round(wData.current?.visibility || 0),
+          pressure: Math.round(wData.current?.surface_pressure || 0),
+          dewPoint: Math.round(wData.current?.dew_point_2m || 0),
           sunrise: wData.daily?.sunrise?.[0] || '',
           sunset: wData.daily?.sunset?.[0] || ''
         },
@@ -139,7 +143,9 @@ export const WeatherProvider = ({ children }) => {
       const now = new Date();
       setLastUpdateText(`${now.toLocaleDateString('th-TH')} ${now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.`);
     } catch (error) { 
-        console.error("Open-Meteo Error:", error); 
+        console.error("Open-Meteo Single Fetch Error:", error); 
+        // 🌟 กันเหนียว: ถ้าพังไปเลยจริงๆ ต้องปิด Loading ไม่งั้นจอดำ
+        setWeatherData({}); 
     } finally { 
         setLoadingWeather(false); 
     }
