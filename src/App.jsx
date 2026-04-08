@@ -1,41 +1,31 @@
-// src/App.jsx
 import React from 'react';
 import { Routes, Route } from 'react-router-dom';
-import { WeatherProvider } from './context/WeatherContext';
-
-// นำเข้า Layout และ Pages
 import Layout from './components/Layout';
+
+// นำเข้าไฟล์หน้าต่างๆ (เช็คชื่อไฟล์ให้ตรงกับในโฟลเดอร์ pages ของคุณนะครับ)
 import Dashboard from './pages/Dashboard';
 import MapPage from './pages/MapPage';
 import ForecastPage from './pages/ForecastPage';
-import ClimatePage from './pages/ClimatePage';
+import ClimatePage from './pages/ClimatePage'; // <- ไฟล์นี้คือหน้าเตือนภัยที่เราทำไว้
 
-// นำเข้า CSS เดิมของคุณ (มีพวกคลาสซ่อน Scrollbar, Animation ต่างๆ)
-import './App.css';
-import 'leaflet/dist/leaflet.css';
-
-export default function App() {
+function App() {
   return (
-    // ครอบแอปด้วย WeatherProvider เพื่อให้ทุกหน้าใช้ State (สถานี, อุณหภูมิ, Theme) ร่วมกันได้
-    <WeatherProvider>
-      <Routes>
-        {/* ครอบทุกหน้าด้วย Layout (จะมี Sidebar/Bottom Nav อัตโนมัติ) */}
-        <Route path="/" element={<Layout />}>
-          
-          {/* หน้าแรก (Overview) */}
-          <Route index element={<Dashboard />} />
-          
-          {/* หน้าแผนที่เชิงลึก */}
-          <Route path="map" element={<MapPage />} />
-          
-          {/* หน้า AI พยากรณ์และสถิติ */}
-          <Route path="forecast" element={<ForecastPage />} />
-          
-          {/* หน้าข่าวสารและ ENSO */}
-          <Route path="climate" element={<ClimatePage />} />
-          
-        </Route>
-      </Routes>
-    </WeatherProvider>
+    <Routes>
+      <Route path="/" element={<Layout />}>
+        {/* หน้าหลัก ภาพรวม */}
+        <Route index element={<Dashboard />} />
+        
+        {/* หน้าแผนที่ */}
+        <Route path="map" element={<MapPage />} />
+        
+        {/* หน้า AI ผู้ช่วย */}
+        <Route path="forecast" element={<ForecastPage />} />
+        
+        {/* 🚨 หน้าเตือนภัย (คือเส้นทางที่มันหาไม่เจอ) */}
+        <Route path="alerts" element={<ClimatePage />} />
+      </Route>
+    </Routes>
   );
 }
+
+export default App;
