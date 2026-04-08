@@ -66,8 +66,8 @@ export const WeatherProvider = ({ children }) => {
         const lats = chunk.map(p => p.lat).join(',');
         const lons = chunk.map(p => p.lon).join(',');
 
-        const wUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,wind_speed_10m&daily=precipitation_probability_max&timezone=Asia%2FBangkok`;
-        const aUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lons}&current=pm2_5&timezone=Asia%2FBangkok`;
+        const wUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,wind_speed_10m,wind_direction_10m&daily=precipitation_probability_max&timezone=Asia%2FBangkok`;
+        const aUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lats}&longitude=${lons}&current=pm2_5&timezone=Asia%2FBangkok`;
 
         console.log(`📡 กำลังดึง Chunk ที่ ${i/chunkSize + 1}...`);
         const [wRes, aRes] = await Promise.all([fetch(wUrl), fetch(aUrl)]);
@@ -108,7 +108,8 @@ export const WeatherProvider = ({ children }) => {
           feelsLike: Math.round(w.current?.apparent_temperature || 0),
           humidity: Math.round(w.current?.relative_humidity_2m || 0),
           rainProb: Math.round(w.daily?.precipitation_probability_max?.[0] || 0),
-          windSpeed: Math.round(w.current?.wind_speed_10m || 0)
+          windSpeed: Math.round(w.current?.wind_speed_10m || 0),
+          windDir: Math.round(w.current?.wind_direction_10m || 0) // ✅ เพิ่มบรรทัดนี้
         };
       });
 

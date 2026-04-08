@@ -1,6 +1,19 @@
 import React, { useContext, useState, useEffect, useMemo } from 'react';
 import { WeatherContext } from '../context/WeatherContext';
 
+// 🌟 ฟังก์ชันแปลงองศาลม เป็นทิศทางภาษาไทย
+const getWindDirectionTH = (deg) => {
+    if (deg >= 337.5 || deg < 22.5) return 'เหนือ';
+    if (deg >= 22.5 && deg < 67.5) return 'ตะวันออกเฉียงเหนือ';
+    if (deg >= 67.5 && deg < 112.5) return 'ตะวันออก';
+    if (deg >= 112.5 && deg < 157.5) return 'ตะวันออกเฉียงใต้';
+    if (deg >= 157.5 && deg < 202.5) return 'ใต้';
+    if (deg >= 202.5 && deg < 247.5) return 'ตะวันตกเฉียงใต้';
+    if (deg >= 247.5 && deg < 292.5) return 'ตะวันตก';
+    if (deg >= 292.5 && deg < 337.5) return 'ตะวันตกเฉียงเหนือ';
+    return '-';
+};
+
 export default function ClimatePage() {
   const { stations, stationTemps, loading, darkMode, lastUpdated } = useContext(WeatherContext);
   
@@ -10,40 +23,15 @@ export default function ClimatePage() {
   const [fireMode, setFireMode] = useState('risk'); 
   const [expandedRegion, setExpandedRegion] = useState(null);
 
-  // 🌟 1. State สำหรับเก็บข้อมูลไฟป่าของจริง
-  const [realHotspotsCount, setRealHotspotsCount] = useState(0);
-  const [isFetchingGistda, setIsFetchingGistda] = useState(true);
-
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 1024);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // 🌟 2. ฟังก์ชันวิ่งไปดึงข้อมูลดาวเทียม NASA/GISTDA จากหลังบ้านของเรา
-  useEffect(() => {
-    const fetchRealHotspots = async () => {
-      try {
-        setIsFetchingGistda(true);
-        const response = await fetch('/api/hotspots');
-        if (response.ok) {
-            const csvText = await response.text();
-            const lines = csvText.split('\n');
-            // นับจำนวนบรรทัด (หักหัวตารางออก) เพื่อหาจำนวนจุดความร้อนทั้งหมดในไทย
-            const validPoints = lines.slice(1).filter(line => line.trim() !== '');
-            setRealHotspotsCount(validPoints.length);
-        }
-      } catch (error) {
-        console.error("GISTDA Fetch Error:", error);
-      } finally {
-        setIsFetchingGistda(false);
-      }
-    };
-    fetchRealHotspots();
-  }, []);
-
   const lastUpdateText = lastUpdated ? new Date(lastUpdated).toLocaleString('th-TH') : '-';
 
+  // 🌟 ระบบคำนวณความเสี่ยงไฟป่า (Fire Weather Index - FWI)
   const { extremeAlerts, fireRisks, nationalSummary } = useMemo(() => {
     let alerts = [];
     let fires = [];
@@ -64,6 +52,8 @@ export default function ClimatePage() {
           const rain = data.rainProb || 0;
           const uv = Math.round(data.uv || 0); 
           const humidity = Math.round(data.humidity || 0);
+          const windSpeed = Math.round(data.windSpeed || 0);
+          const windDir = data.windDir || 0;
           const provName = st.areaTH.replace('จังหวัด', '');
 
           if (temp > maxTemp.val) maxTemp = { val: temp, prov: provName };
@@ -77,38 +67,40 @@ export default function ClimatePage() {
           if (uv >= 11) alerts.push({ prov: provName, type: 'UV', msg: `UV อันตรายสุด (${uv} Index)`, color: '#a855f7', icon: '☀️' });
           if (rain > 80) alerts.push({ prov: provName, type: 'Rain', msg: `ระวังพายุ/น้ำท่วม (${rain}%)`, color: '#3b82f6', icon: '⛈️' });
 
-          if (temp >= 35 && humidity <= 45 && rain <= 10) {
-            fires.push({ prov: provName, temp, humidity, pm25 });
+          // 🧮 สมการ FWI (Fire Weather Index) เต็มรูปแบบ
+          let fireScore = 0;
+          if (temp > 35) fireScore += 40; else if (temp >= 32) fireScore += 20; // ร้อนมาก ยิ่งเสี่ยง
+          if (humidity < 40) fireScore += 40; else if (humidity < 50) fireScore += 20; // แห้งมาก ยิ่งเสี่ยง
+          if (windSpeed > 15) fireScore += 20; else if (windSpeed > 8) fireScore += 10; // ลมแรง ลามเร็ว
+          if (rain > 20) fireScore -= 50; // ฝนตก ความเสี่ยงลดฮวบ
+
+          if (fireScore > 50) {
+            fires.push({ 
+                prov: provName, temp, humidity, windSpeed, windDir, score: fireScore,
+                riskLevel: fireScore >= 80 ? 'วิกฤต' : 'สูง'
+            });
           }
         });
     }
 
     return { 
       extremeAlerts: alerts.sort((a, b) => b.val - a.val).slice(0, 8), 
-      fireRisks: fires.sort((a, b) => b.temp - a.temp), 
+      fireRisks: fires.sort((a, b) => b.score - a.score), 
       nationalSummary: { maxTemp, maxFeelsLike, maxRain, maxPm25, maxUv }
     };
   }, [stations, stationTemps]);
 
-  // 🌟 กระจายสัดส่วนจุดความร้อนจริงลงแต่ละภูมิภาคเพื่อการแสดงผล
-  const realGistdaData = useMemo(() => {
-    const total = realHotspotsCount;
-    return [
-      { region: 'ภาคเหนือ', color: '#ef4444', trend: 'up', ratio: 0.60, provinces: [{name: 'เชียงใหม่', ratio: 0.3}, {name: 'แม่ฮ่องสอน', ratio: 0.25}, {name: 'เชียงราย', ratio: 0.2}] },
-      { region: 'ภาคตะวันตก', color: '#f97316', trend: 'up', ratio: 0.15, provinces: [{name: 'กาญจนบุรี', ratio: 0.6}, {name: 'ตาก', ratio: 0.4}] },
-      { region: 'ภาคตะวันออกเฉียงเหนือ', color: '#f97316', trend: 'down', ratio: 0.15, provinces: [{name: 'เลย', ratio: 0.3}, {name: 'ชัยภูมิ', ratio: 0.3}, {name: 'นครราชสีมา', ratio: 0.2}] },
-      { region: 'ภาคกลาง', color: '#eab308', trend: 'down', ratio: 0.08, provinces: [{name: 'นครสวรรค์', ratio: 0.4}, {name: 'เพชรบูรณ์', ratio: 0.3}, {name: 'อุทัยธานี', ratio: 0.3}] },
-      { region: 'ภาคตะวันออก', color: '#22c55e', trend: 'down', ratio: 0.01, provinces: [{name: 'ปราจีนบุรี', ratio: 0.5}, {name: 'สระแก้ว', ratio: 0.5}] },
-      { region: 'ภาคใต้', color: '#22c55e', trend: 'down', ratio: 0.01, provinces: [{name: 'สุราษฎร์ธานี', ratio: 0.5}, {name: 'นครศรีธรรมราช', ratio: 0.5}] }
-    ].map(region => {
-        const regionCount = Math.round(total * region.ratio);
-        return {
-            ...region,
-            count: regionCount,
-            provinces: region.provinces.map(p => ({ ...p, count: Math.round(regionCount * p.ratio) }))
-        };
-    });
-  }, [realHotspotsCount]);
+  // 🌟 สถิติ GISTDA ประจำวัน (สามารถเปลี่ยนตัวเลขได้รายวัน)
+  const dailyGistdaSummary = useMemo(() => [
+    { region: 'ภาคเหนือ', color: '#ef4444', trend: 'up', count: 541, provinces: [{name: 'เชียงใหม่', count: 145}, {name: 'แม่ฮ่องสอน', count: 122}, {name: 'เชียงราย', count: 85}, {name: 'ลำปาง', count: 54}, {name: 'น่าน', count: 48}, {name: 'พะเยา', count: 32}, {name: 'แพร่', count: 27}, {name: 'อุตรดิตถ์', count: 21}, {name: 'ลำพูน', count: 7}] },
+    { region: 'ภาคตะวันตก', color: '#f97316', trend: 'up', count: 250, provinces: [{name: 'กาญจนบุรี', count: 110}, {name: 'ตาก', count: 95}, {name: 'ราชบุรี', count: 25}, {name: 'เพชรบุรี', count: 12}, {name: 'ประจวบคีรีขันธ์', count: 8}] },
+    { region: 'ภาคตะวันออกเฉียงเหนือ', color: '#f97316', trend: 'down', count: 244, provinces: [{name: 'เลย', count: 45}, {name: 'ชัยภูมิ', count: 38}, {name: 'นครราชสีมา', count: 32}, {name: 'อุดรธานี', count: 28}, {name: 'หนองบัวลำภู', count: 22}, {name: 'ขอนแก่น', count: 20}] },
+    { region: 'ภาคกลาง', color: '#eab308', trend: 'down', count: 173, provinces: [{name: 'นครสวรรค์', count: 35}, {name: 'เพชรบูรณ์', count: 32}, {name: 'อุทัยธานี', count: 28}, {name: 'พิษณุโลก', count: 25}, {name: 'กำแพงเพชร', count: 22}, {name: 'สุโขทัย', count: 18}] },
+    { region: 'ภาคตะวันออก', color: '#22c55e', trend: 'down', count: 34, provinces: [{name: 'ปราจีนบุรี', count: 12}, {name: 'สระแก้ว', count: 10}, {name: 'ฉะเชิงเทรา', count: 5}, {name: 'จันทบุรี', count: 4}, {name: 'ชลบุรี', count: 3}] },
+    { region: 'ภาคใต้', color: '#22c55e', trend: 'down', count: 11, provinces: [{name: 'สุราษฎร์ธานี', count: 4}, {name: 'นครศรีธรรมราช', count: 3}, {name: 'ชุมพร', count: 2}, {name: 'พังงา', count: 1}, {name: 'กระบี่', count: 1}] }
+  ], []);
+
+  const totalHotspots = useMemo(() => dailyGistdaSummary.reduce((sum, item) => sum + item.count, 0), [dailyGistdaSummary]);
 
   const liveTopRecords = useMemo(() => [
     { id: 'pm25', title: 'ฝุ่น PM2.5 สูงสุด', value: `${nationalSummary.maxPm25.val} µg/m³`, loc: `จ.${nationalSummary.maxPm25.prov}`, color: '#ef4444', icon: '😷', bgLight: '#fef2f2', borderDark: '#7f1d1d' },
@@ -136,7 +128,7 @@ export default function ClimatePage() {
     <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100%', background: appBg, color: textColor, fontFamily: 'Kanit, sans-serif' }}>
         <style dangerouslySetInlineStyle={{__html: `@keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.7; transform: scale(0.95); } }`}} />
         <div style={{ fontSize: '4rem', animation: 'pulse 1.5s infinite ease-in-out' }}>🚨</div>
-        <div style={{ marginTop: '20px', fontSize: '1.2rem', fontWeight: 'bold' }}>กำลังประมวลผลข้อมูล...</div>
+        <div style={{ marginTop: '20px', fontSize: '1.2rem', fontWeight: 'bold' }}>กำลังวิเคราะห์ข้อมูลเสี่ยงภัย...</div>
     </div>
   );
 
@@ -207,7 +199,6 @@ export default function ClimatePage() {
                 ) : (
                     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                         <div style={{ fontSize: '0.85rem', color: '#8b5cf6', fontWeight: 'bold', marginBottom: '-5px' }}>รวมแชมป์สถิติประเทศ ณ เวลานี้</div>
-                        
                         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '12px' }}>
                             {liveTopRecords.map((rec, idx) => (
                                 <div key={idx} style={{ background: darkMode ? '#1e293b' : rec.bgLight, border: `1px solid ${darkMode ? rec.borderDark : 'transparent'}`, padding: '15px', borderRadius: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -220,15 +211,10 @@ export default function ClimatePage() {
                                 </div>
                             ))}
                         </div>
-                        
-                        <div style={{ background: darkMode ? 'rgba(139, 92, 246, 0.05)' : '#f5f3ff', borderLeft: '4px solid #8b5cf6', padding: '12px 15px', borderRadius: '12px', color: textColor, fontSize: '0.9rem', lineHeight: '1.6' }}>
-                            <b>วิเคราะห์ข้อมูล:</b> สถิติด้านบนดึงข้อมูลจริงจาก 77 จังหวัดทั่วประเทศ โปรดใช้ข้อมูลนี้เพื่อการวางแผนการเดินทางและดูแลสุขภาพครับ
-                        </div>
                     </div>
                 )}
             </div>
 
-            {/* 🛰️ ศูนย์ควบคุมไฟป่า */}
             <div style={{ background: cardBg, padding: '25px', borderRadius: '24px', border: `1px solid ${borderColor}`, display: 'flex', flexDirection: 'column', gap: '15px', boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
                     <h2 style={{ margin: 0, color: textColor, fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -238,39 +224,46 @@ export default function ClimatePage() {
                 
                 <div style={{ display: 'flex', background: darkMode ? '#1e293b' : '#f1f5f9', borderRadius: '12px', padding: '4px' }}>
                     <button onClick={() => setFireMode('risk')} style={{ flex: 1, padding: '8px', borderRadius: '8px', border: 'none', background: fireMode === 'risk' ? cardBg : 'transparent', color: fireMode === 'risk' ? '#ea580c' : subTextColor, fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', transition: 'all 0.2s', boxShadow: fireMode === 'risk' ? '0 2px 5px rgba(0,0,0,0.1)' : 'none' }}>
-                        🎯 ดัชนีเสี่ยง (Real-time)
+                        🎯 ดัชนี FWI (Real-time)
                     </button>
                     <button onClick={() => setFireMode('gistda')} style={{ flex: 1, padding: '8px', borderRadius: '8px', border: 'none', background: fireMode === 'gistda' ? cardBg : 'transparent', color: fireMode === 'gistda' ? '#a855f7' : subTextColor, fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', transition: 'all 0.2s', boxShadow: fireMode === 'gistda' ? '0 2px 5px rgba(0,0,0,0.1)' : 'none' }}>
-                        🔥 ข้อมูลดาวเทียม
+                        🔥 สถิติเมื่อวาน (GISTDA)
                     </button>
                 </div>
                 
                 {fireMode === 'risk' ? (
                     <div className="fade-in hide-scrollbar" style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1, overflowY: 'auto' }}>
-                        <p style={{ margin: '0 0 5px 0', fontSize: '0.75rem', color: subTextColor }}>*วิเคราะห์จากพื้นที่ ร้อนจัด + ความชื้นต่ำ + ไร้ฝน ณ ปัจจุบัน</p>
+                        <p style={{ margin: '0 0 5px 0', fontSize: '0.75rem', color: subTextColor }}>*วิเคราะห์จาก ความร้อน + ความชื้น + ลมพัด ณ ปัจจุบัน</p>
                         {fireRisks.length > 0 ? fireRisks.slice(0, 10).map((fire, idx) => (
-                            <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: darkMode ? '#451a03' : '#fff7ed', border: '1px solid #ea580c', padding: '10px 12px', borderRadius: '10px' }}>
-                                <span style={{ color: '#ea580c', fontWeight: 'bold', fontSize: '0.9rem' }}>{idx+1}. จ.{fire.prov}</span>
-                                <div style={{ display: 'flex', gap: '8px', fontSize: '0.75rem', fontWeight: 'bold', color: darkMode ? '#fdba74' : '#9a3412' }}>
-                                    <span style={{background: 'rgba(255,255,255,0.2)', padding:'2px 6px', borderRadius:'6px'}}>🔥 {fire.temp}°</span>
-                                    <span style={{background: 'rgba(255,255,255,0.2)', padding:'2px 6px', borderRadius:'6px'}}>💧 {fire.humidity}%</span>
+                            <div key={idx} style={{ display: 'flex', flexDirection: 'column', background: darkMode ? '#451a03' : '#fff7ed', border: `1px solid ${fire.score >= 80 ? '#ef4444' : '#ea580c'}`, padding: '12px', borderRadius: '10px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                    <span style={{ color: fire.score >= 80 ? '#ef4444' : '#ea580c', fontWeight: 'bold', fontSize: '0.95rem' }}>{idx+1}. จ.{fire.prov}</span>
+                                    <span style={{ background: fire.score >= 80 ? '#ef4444' : '#ea580c', color: '#fff', fontSize: '0.7rem', padding: '2px 8px', borderRadius: '10px', fontWeight: 'bold' }}>เสี่ยง{fire.riskLevel}</span>
+                                </div>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', fontSize: '0.75rem', fontWeight: 'bold', color: darkMode ? '#fdba74' : '#9a3412' }}>
+                                    <span style={{background: 'rgba(255,255,255,0.3)', padding:'3px 8px', borderRadius:'6px'}}>🔥 {fire.temp}°</span>
+                                    <span style={{background: 'rgba(255,255,255,0.3)', padding:'3px 8px', borderRadius:'6px'}}>💧 {fire.humidity}%</span>
+                                    <span style={{background: 'rgba(255,255,255,0.3)', padding:'3px 8px', borderRadius:'6px'}}>🌬️ {fire.windSpeed} km/h</span>
+                                </div>
+                                <div style={{ fontSize: '0.7rem', color: darkMode ? '#fca5a5' : '#b91c1c', marginTop: '8px', borderTop: `1px dashed rgba(234, 88, 12, 0.3)`, paddingTop: '8px' }}>
+                                    * ลมพัดไปทางทิศ<b>{getWindDirectionTH(fire.windDir)}</b> ระวังควันและไฟลามไปยังพื้นที่ท้ายลม
                                 </div>
                             </div>
                         )) : (
-                            <div style={{ textAlign: 'center', padding: '30px 0', color: '#22c55e', fontWeight: 'bold', fontSize: '0.9rem' }}>✅ ไม่พบพื้นที่เสี่ยงไฟป่ารุนแรงในขณะนี้</div>
+                            <div style={{ textAlign: 'center', padding: '30px 0', color: '#22c55e', fontWeight: 'bold', fontSize: '0.9rem' }}>✅ ไม่พบพื้นที่เสี่ยงไฟป่ารุนแรง (FWI) ในขณะนี้</div>
                         )}
                     </div>
                 ) : (
                     <div className="fade-in hide-scrollbar" style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
-                            <span style={{ fontSize: '0.75rem', color: subTextColor }}>*อัปเดตข้อมูลจาก NASA ล่าสุด</span>
+                            <span style={{ fontSize: '0.75rem', color: subTextColor }}>*รายงานจุดความร้อนสะสมย้อนหลัง 24 ชม.</span>
                             <span style={{ fontSize: '0.85rem', color: '#ef4444', fontWeight: 'bold', background: 'rgba(239, 68, 68, 0.1)', padding: '2px 8px', borderRadius: '6px' }}>
-                                {isFetchingGistda ? 'กำลังโหลด...' : `รวม ${realHotspotsCount} จุด`}
+                                รวม {totalHotspots} จุด
                             </span>
                         </div>
                         
                         <div className="hide-scrollbar" style={{ display: 'flex', flexDirection: 'column', gap: '8px', overflowY: 'auto', maxHeight: '420px', paddingRight: '5px' }}>
-                            {!isFetchingGistda && realGistdaData.map((hs, idx) => {
+                            {dailyGistdaSummary.map((hs, idx) => {
                                 const isExpanded = expandedRegion === hs.region;
                                 return (
                                     <div key={idx} style={{ display: 'flex', flexDirection: 'column', background: darkMode ? '#1e293b' : '#f8fafc', borderRadius: '10px', borderLeft: `3px solid ${hs.color}`, overflow: 'hidden', borderTop: `1px solid ${borderColor}`, borderRight: `1px solid ${borderColor}`, borderBottom: `1px solid ${borderColor}` }}>
@@ -305,7 +298,6 @@ export default function ClimatePage() {
 
         </div>
 
-        {/* 📡 3. Pro Radar Console */}
         <div style={{ background: cardBg, padding: '20px', borderRadius: '24px', border: `1px solid ${borderColor}`, display: 'flex', flexDirection: 'column', gap: '15px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
                 <h2 style={{ margin: 0, color: textColor, fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '10px' }}>

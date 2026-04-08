@@ -4,7 +4,6 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { WeatherContext } from '../context/WeatherContext';
 
-// 🌟 1. ดิกชันนารีแปลชื่อจังหวัด
 const provMap = {
   "Bangkok Metropolis": "กรุงเทพมหานคร", "Bangkok": "กรุงเทพมหานคร", 
   "Samut Prakan": "สมุทรปราการ", "Nonthaburi": "นนทบุรี", "Pathum Thani": "ปทุมธานี",
@@ -30,12 +29,8 @@ const provMap = {
   "Phatthalung": "พัทลุง", "Pattani": "ปัตตานี", "Yala": "ยะลา", "Narathiwat": "นราธิวาส"
 };
 
-// 🌟 2. เกณฑ์ประเมิน (Legend)
 const legendConfigs = {
-  pm25: [
-    { c: '#ef4444', t: '> 75 (มีผลกระทบ)' }, { c: '#f97316', t: '37.6 - 75 (เริ่มมีผล)' },
-    { c: '#eab308', t: '25.1 - 37.5 (ปานกลาง)' }, { c: '#22c55e', t: '15.1 - 25.0 (ดี)' }, { c: '#0ea5e9', t: '0 - 15.0 (ดีมาก)' }
-  ],
+  pm25: [ { c: '#ef4444', t: '> 75 (มีผลกระทบ)' }, { c: '#f97316', t: '37.6 - 75 (เริ่มมีผล)' }, { c: '#eab308', t: '25.1 - 37.5 (ปานกลาง)' }, { c: '#22c55e', t: '15.1 - 25.0 (ดี)' }, { c: '#0ea5e9', t: '0 - 15.0 (ดีมาก)' } ],
   heat: [ { c: '#ef4444', t: '> 39°C' }, { c: '#f97316', t: '35-39°C' }, { c: '#eab308', t: '29-34°C' }, { c: '#22c55e', t: '23-28°C' }, { c: '#3b82f6', t: '< 23°C' } ],
   temp: [ { c: '#ef4444', t: '> 39°C' }, { c: '#f97316', t: '35-39°C' }, { c: '#eab308', t: '29-34°C' }, { c: '#22c55e', t: '23-28°C' }, { c: '#3b82f6', t: '< 23°C' } ],
   uv: [ { c: '#a855f7', t: '> 10' }, { c: '#ef4444', t: '8-10' }, { c: '#ea580c', t: '6-7' }, { c: '#eab308', t: '3-5' }, { c: '#22c55e', t: '0-2' } ],
@@ -44,7 +39,6 @@ const legendConfigs = {
   wind: [ { c: '#ef4444', t: '> 40' }, { c: '#f97316', t: '21-40' }, { c: '#eab308', t: '11-20' }, { c: '#22c55e', t: '0-10' } ]
 };
 
-// Helpers
 function MapChangeView({ center, zoom }) {
   const map = useMap();
   useEffect(() => { if (center) map.flyTo(center, zoom, { animate: true, duration: 1.5 }); }, [center, zoom, map]);
@@ -59,7 +53,6 @@ function MapZoomListener({ setMapZoom }) {
 export default function MapPage() {
   const { stations, stationTemps, darkMode } = useContext(WeatherContext);
   
-  // States
   const [geoData, setGeoData] = useState(null);
   const [activeMode, setActiveMode] = useState('pm25');
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
@@ -77,11 +70,7 @@ export default function MapPage() {
   };
 
   useEffect(() => {
-    const handleResize = () => {
-        const mobile = window.innerWidth < 1024;
-        setIsMobile(mobile);
-        if (!mobile) setShowControls(true);
-    };
+    const handleResize = () => { setIsMobile(window.innerWidth < 1024); if (window.innerWidth >= 1024) setShowControls(true); };
     window.addEventListener('resize', handleResize);
     fetch('/thailand.json').then(res => res.json()).then(data => setGeoData(data)).catch(e => console.error(e));
     return () => window.removeEventListener('resize', handleResize);
@@ -92,7 +81,7 @@ export default function MapPage() {
     { id: 'heat', name: '🥵 ดัชนีความร้อน', unit: '°C', short: 'ความร้อน' },
     { id: 'temp', name: '🌡️ อุณหภูมิ', unit: '°C', short: 'อุณหภูมิ' },
     { id: 'uv', name: '☀️ รังสี UV', unit: 'Index', short: 'รังสี UV' },
-    { id: 'rain', name: '☔ โอกาสฝนตก', unit: '%', short: 'โอกาสฝนตก' },
+    { id: 'rain', name: '☔ โอกาสฝนตก', unit: '%', short: 'โอกาสฝน' },
     { id: 'humidity', name: '💧 ความชื้น', unit: '%', short: 'ความชื้น' },
     { id: 'wind', name: '🌬️ ความเร็วลม', unit: 'km/h', short: 'ความเร็วลม' }
   ];
@@ -143,7 +132,6 @@ export default function MapPage() {
     return { fillColor: color, weight: 1.5, opacity: 1, color: '#ffffff', fillOpacity: polyOpacity };
   };
 
-  // 🌟 อัปเกรดระบบคลิกปุ่ม Popup ให้โหลดข้อมูลตรงกับโหมด
   const onEachFeature = (feature, layer) => {
     layer.on({
         click: () => {
@@ -155,20 +143,37 @@ export default function MapPage() {
             if (station) {
                 setSelectedProvForecast({ loading: true, name: station.areaTH, mode: activeMode });
                 
-                // ยิง API 2 ตัวพร้อมกัน ทั้งสภาพอากาศและฝุ่น
                 Promise.all([
                   fetch(`https://api.open-meteo.com/v1/forecast?latitude=${station.lat}&longitude=${station.long}&daily=temperature_2m_max,temperature_2m_min,weathercode,precipitation_probability_max,uv_index_max,wind_speed_10m_max&timezone=Asia/Bangkok`),
-                  fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${station.lat}&longitude=${station.long}&daily=pm2_5_mean&timezone=Asia/Bangkok`)
+                  // 🌟 แก้ตรงนี้: ดึงค่า PM2.5 แบบ "รายชั่วโมง" (hourly) แทน
+                  fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${station.lat}&longitude=${station.long}&hourly=pm2_5&timezone=Asia/Bangkok`)
                 ])
                 .then(async ([wRes, aRes]) => {
                   const wData = await wRes.json();
                   const aData = await aRes.json();
+
+                  // 🌟 คำนวณหาค่าฝุ่นสูงสุดของแต่ละวัน
+                  const dailyPm25 = [];
+                  if (aData.hourly && aData.hourly.pm2_5) {
+                      for (let i = 0; i < 7; i++) {
+                          const startIdx = i * 24;
+                          // ตัดมาเฉพาะ 24 ชั่วโมงของวันนั้นๆ
+                          const dayData = aData.hourly.pm2_5.slice(startIdx, startIdx + 24).filter(v => v !== null);
+                          if (dayData.length > 0) {
+                              dailyPm25.push(Math.round(Math.max(...dayData))); // เอาค่าสูงสูด
+                          } else {
+                              // ถ้า OpenMeteo ให้ข้อมูลไม่ถึง 7 วัน ให้เอาค่าของวันก่อนหน้ามาใช้
+                              dailyPm25.push(dailyPm25[i - 1] || station.AQILast?.PM25?.value || 0);
+                          }
+                      }
+                  }
+
                   setSelectedProvForecast({ 
                     loading: false, 
                     name: station.areaTH, 
-                    mode: activeMode, // จำโหมดไว้เผื่อใช้
+                    mode: activeMode,
                     daily: wData.daily,
-                    aqiDaily: aData.daily
+                    aqiDaily: { pm2_5_max: dailyPm25 } // โยนค่าที่คำนวณเสร็จแล้วเข้าไป
                   });
                 })
                 .catch(() => setSelectedProvForecast({ loading: false, error: true }));
@@ -219,7 +224,6 @@ export default function MapPage() {
                 })}
             </MapContainer>
 
-            {/* Floating Controls */}
             <div style={{ position: 'absolute', top: '15px', right: '15px', zIndex: 1000, display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'flex-end' }}>
                 {isMobile && (
                     <button onClick={() => setShowControls(!showControls)} style={{ width: '45px', height: '45px', borderRadius: '50%', background: '#0ea5e9', color: '#fff', border: 'none', fontSize: '1.2rem', boxShadow: '0 4px 15px rgba(0,0,0,0.3)' }}>{showControls ? '✕' : '⚙️'}</button>
@@ -255,7 +259,6 @@ export default function MapPage() {
             </div>
           </div>
 
-          {/* 🌟 การ์ดจัดอันดับฝั่งขวา (อัปเกรดความสวยงาม + หน่วย) */}
           {!isMobile && (
               <div style={{ width: '320px', background: cardBg, borderRadius: '25px', padding: '20px', border: `1px solid ${borderColor}`, display: 'flex', flexDirection: 'column' }}>
                  <h3 style={{ margin: '0 0 15px 0', fontSize: '1.1rem', color: textColor, display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -276,7 +279,6 @@ export default function MapPage() {
           )}
       </div>
 
-      {/* 🌟 Popup พยากรณ์ 7 วัน (อัปเกรดโชว์ค่าตามโหมด) */}
       {selectedProvForecast && (
           <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 9999, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }} onClick={() => setSelectedProvForecast(null)}>
               <div style={{ background: cardBg, padding: '25px', borderRadius: '25px', width: '100%', maxWidth: '400px', border: `1px solid ${borderColor}`, boxShadow: '0 10px 40px rgba(0,0,0,0.3)' }} onClick={e => e.stopPropagation()}>
@@ -291,13 +293,11 @@ export default function MapPage() {
                   ) : (
                       <div style={{ maxHeight: '50vh', overflowY: 'auto' }} className="hide-scrollbar">
                           {selectedProvForecast.daily?.time.map((t, idx) => {
-                              
-                              // Logic การเลือกข้อมูลมาแสดงใน Popup ตามโหมดปัจจุบัน
                               let displayContent = null;
                               const isRain = selectedProvForecast.daily.weathercode[idx] > 50;
                               
                               if (activeMode === 'pm25') {
-                                  const pmVal = Math.round(selectedProvForecast.aqiDaily?.pm2_5_mean?.[idx] || 0);
+                                  const pmVal = selectedProvForecast.aqiDaily?.pm2_5_max?.[idx] || 0;
                                   displayContent = <span style={{ color: getColor(pmVal, 'pm25'), fontWeight: '900' }}>😷 {pmVal} µg/m³</span>;
                               } else if (activeMode === 'rain') {
                                   const rainProb = selectedProvForecast.daily.precipitation_probability_max?.[idx] || 0;
@@ -309,7 +309,6 @@ export default function MapPage() {
                                   const windSpd = Math.round(selectedProvForecast.daily.wind_speed_10m_max?.[idx] || 0);
                                   displayContent = <span style={{ color: getColor(windSpd, 'wind'), fontWeight: '900' }}>🌬️ {windSpd} km/h</span>;
                               } else {
-                                  // โหมด Temp, Heat, Humidity โชว์อุณหภูมิปกติ
                                   const tMax = Math.round(selectedProvForecast.daily.temperature_2m_max[idx]);
                                   const tMin = Math.round(selectedProvForecast.daily.temperature_2m_min[idx]);
                                   displayContent = <span style={{ fontWeight: '900', color: textColor }}><span style={{color:'#f97316'}}>{tMax}°</span> / <span style={{color:'#3b82f6'}}>{tMin}°</span></span>;

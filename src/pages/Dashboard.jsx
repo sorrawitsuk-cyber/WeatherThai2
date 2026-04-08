@@ -530,7 +530,7 @@ export default function Dashboard() {
         </div>
 
         <h3 style={{ margin: '0 0 10px 0', fontSize: '1.1rem', color: textColor, display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span>🇹🇭</span> สถิติ Top 5 ระดับประเทศ (อัปเดตเรียลไทม์)
+            <span></span> สถิติ Top 5 ระดับประเทศ (อัปเดตเรียลไทม์)
         </h3>
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(4, 1fr)', gap: '15px', flexShrink: 0, marginBottom: '20px' }}>
             
