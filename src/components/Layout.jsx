@@ -78,19 +78,6 @@ export default function Layout() {
             {darkMode ? '☀️ สลับโหมดสว่าง' : '🌙 สลับโหมดมืด'}
           </button>
 
-          {/* 🚨 ปุ่ม Admin สำหรับกด Sync ข้อมูลเข้า Firebase */}
-          <button 
-            onClick={syncDataToFirebase}
-            style={{ 
-              width: '100%', padding: '10px 0', borderRadius: '12px', cursor: 'pointer', 
-              fontSize: '0.85rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-              backgroundColor: '#f59e0b', color: '#fff', border: 'none',
-              boxShadow: '0 4px 10px rgba(245, 158, 11, 0.2)'
-            }}
-            title="กดเพื่อดึงข้อมูล Open-Meteo ล่าสุดเข้าสู่ฐานข้อมูล"
-          >
-            <span>🔄 Sync ข้อมูลใหม่</span>
-          </button>
 
         </div>
       </aside>
