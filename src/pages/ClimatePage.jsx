@@ -10,11 +10,12 @@ export default function ClimatePage() {
   // Location States
   const [userProv, setUserProv] = useState(null);
   const [userData, setUserData] = useState(null);
-  const [isLocating, setIsLocating] = useState(true); // เพิ่ม State เช็คการโหลดพิกัด
-  const [locationType, setLocationType] = useState('auto'); // 'auto' หรือ 'default'
+  const [isLocating, setIsLocating] = useState(true);
+  const [locationType, setLocationType] = useState('auto');
   
   const [currentTime, setCurrentTime] = useState(new Date());
 
+  // นาฬิกา LIVE
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
@@ -26,15 +27,15 @@ export default function ClimatePage() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // 🌟 ฟังก์ชันจัดการค้นหาพิกัด (รวมแบบ Auto และ Manual ไว้ด้วยกัน)
+  // ระบบค้นหาพิกัดและดึงชื่อสถานี
   const fetchUserLocation = useCallback(() => {
       setIsLocating(true);
 
       const fallbackToDefault = () => {
-          const closest = stations.find(st => st.areaTH.includes('กรุงเทพ'));
+          const closest = stations.find(st => st.areaTH && st.areaTH.includes('กรุงเทพ'));
           if (closest) {
               setUserProv('กรุงเทพมหานคร');
-              setLocationType('default'); // บอกว่าเป็นพิกัดจำลอง
+              setLocationType('default');
               if(stationTemps && stationTemps[closest.stationID]) {
                  setUserData({
                    temp: Math.round(stationTemps[closest.stationID].temp || 0),
@@ -59,8 +60,10 @@ export default function ClimatePage() {
               }
             });
             if (closest) {
-              setUserProv(closest.areaTH.replace('จังหวัด', ''));
-              setLocationType('auto'); // บอกว่าเป็นพิกัดจริง
+              const locName = closest.nameTH || closest.areaTH || 'ตำแหน่งปัจจุบัน';
+              setUserProv(locName.replace('จังหวัด', ''));
+              setLocationType('auto');
+              
               if(stationTemps && stationTemps[closest.stationID]) {
                  setUserData({
                    temp: Math.round(stationTemps[closest.stationID].temp || 0),
@@ -72,14 +75,13 @@ export default function ClimatePage() {
             setIsLocating(false);
           }, 
           () => { fallbackToDefault(); }, 
-          { timeout: 5000, maximumAge: 60000 } // จำกัดเวลาหาแค่ 5 วิ
+          { timeout: 5000, maximumAge: 60000 } 
         );
       } else {
         fallbackToDefault();
       }
   }, [stations, stationTemps]);
 
-  // เรียกใช้ครั้งแรกเมื่อโหลดข้อมูลสถานีเสร็จ
   useEffect(() => {
     if (stations && stations.length > 0) {
         fetchUserLocation();
@@ -97,7 +99,7 @@ export default function ClimatePage() {
           const temp = Math.round(data.temp || 0);
           const feelsLike = Math.round(data.feelsLike || temp || 0); 
           const rain = data.rainProb || 0;
-          const provName = st.areaTH.replace('จังหวัด', '');
+          const provName = (st.areaTH || st.nameTH || '').replace('จังหวัด', '');
 
           if (feelsLike >= 35) alerts.heat.push({ prov: provName, val: feelsLike, unit: '°C' });
           if (pm25 > 15) alerts.pm25.push({ prov: provName, val: pm25, unit: 'µg/m³' });
@@ -122,21 +124,22 @@ export default function ClimatePage() {
   const borderColor = darkMode ? '#1e293b' : '#e2e8f0';
   const subTextColor = darkMode ? '#94a3b8' : '#64748b'; 
 
+  // 🌟 เปลี่ยนคำย่อเป็นคำเต็มในข้อมูลสรุป
   const modeBriefings = {
       heat: { 
           level: '🔴 เฝ้าระวังฮีทสโตรก', 
           desc: 'อุณหภูมิทะลุเกณฑ์อันตรายในหลายพื้นที่ ควรงดกิจกรรมกลางแจ้งช่วง 11:00-15:00 น. และดื่มน้ำให้เพียงพอ',
-          statTitle: 'ร้อนสุดเมื่อวาน', statVal: '44.2 °C', statLoc: 'จ.สุโขทัย', bg: '#fef2f2', border: '#fecaca' 
+          statTitle: 'ร้อนสุดเมื่อวาน', statVal: '44.2 °C', statLoc: 'จังหวัดสุโขทัย', bg: '#fef2f2', border: '#fecaca' 
       },
       pm25: { 
           level: '🟠 อากาศเริ่มปิด', 
           desc: 'คุณภาพอากาศเริ่มมีผลกระทบต่อสุขภาพ แนะนำสวมหน้ากากอนามัย และเปิดเครื่องฟอกอากาศเมื่ออยู่ในอาคาร',
-          statTitle: 'ฝุ่นสูงสุดเมื่อวาน', statVal: '115 µg/m³', statLoc: 'จ.เชียงใหม่', bg: '#fff7ed', border: '#fed7aa' 
+          statTitle: 'ฝุ่นสูงสุดเมื่อวาน', statVal: '115 µg/m³', statLoc: 'จังหวัดเชียงใหม่', bg: '#fff7ed', border: '#fed7aa' 
       },
       rain: { 
           level: '🔵 พายุฤดูร้อน', 
           desc: 'มีโอกาสเกิดฝนฟ้าคะนองและลมกระโชกแรง ระวังอันตรายจากป้ายโฆษณาหรือต้นไม้หักโค่น',
-          statTitle: 'ฝนสะสมสูงสุดเมื่อวาน', statVal: '85 mm', statLoc: 'จ.ตราด', bg: '#eff6ff', border: '#bfdbfe' 
+          statTitle: 'ฝนสะสมสูงสุดเมื่อวาน', statVal: '85 mm', statLoc: 'จังหวัดตราด', bg: '#eff6ff', border: '#bfdbfe' 
       },
       fire: { 
           level: '🔴 เสี่ยงไฟป่ารุนแรง', 
@@ -162,13 +165,7 @@ export default function ClimatePage() {
       return 'temp';
   };
 
-  // 🌟 ประเมินสถานการณ์สำหรับพื้นที่ของผู้ใช้
-  let locSummary = { text: 'อากาศปกติ ไม่มีแจ้งเตือน', color: '#22c55e', bg: '#dcfce7', icon: '✅' };
-  if (userData) {
-      if (userData.temp >= 38) { locSummary = { text: 'อากาศร้อนจัด ระวังฮีทสโตรก', color: '#ef4444', bg: '#fee2e2', icon: '🥵' }; }
-      else if (userData.pm25 >= 37.5) { locSummary = { text: 'ฝุ่นหนา ควรสวมหน้ากาก', color: '#f97316', bg: '#ffedd5', icon: '😷' }; }
-      else if (userData.rain >= 40) { locSummary = { text: 'มีโอกาสฝนตก พกร่มเผื่อไว้', color: '#3b82f6', bg: '#dbeafe', icon: '⛈️' }; }
-  }
+  const isNight = new Date().getHours() >= 18 || new Date().getHours() < 6;
 
   if (loading || stations.length === 0) return <div style={{ height: '100%', background: appBg }}></div>;
 
@@ -191,62 +188,56 @@ export default function ClimatePage() {
                     LIVE: {currentTime.toLocaleTimeString('th-TH')}
                 </div>
                 <div style={{ fontSize: '0.7rem', color: subTextColor, paddingRight: '5px' }}>
-                    ข้อมูลอากาศล่าสุด: {lastUpdated ? new Date(lastUpdated).toLocaleTimeString('th-TH', {hour: '2-digit', minute:'2-digit'}) : '-'} น.
+                    *อัปเดตล่าสุดจากเซนเซอร์: {lastUpdated ? new Date(lastUpdated).toLocaleTimeString('th-TH', {hour: '2-digit', minute:'2-digit'}) : '-'} น.
                 </div>
             </div>
         </div>
 
-        {/* พิกัด + แท็บเมนู */}
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 2fr', gap: '20px' }}>
             
-            {/* 🌟 กล่อง Auto Location (อัปเกรดใหม่) */}
-            <div style={{ background: darkMode ? 'linear-gradient(135deg, #1e3a8a40, #3b82f610)' : 'linear-gradient(135deg, #eff6ff, #ffffff)', border: `1px solid ${darkMode ? '#1e3a8a' : '#bfdbfe'}`, padding: '25px', borderRadius: '24px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', position: 'relative' }}>
+            {/* กล่องพิกัดโฉมใหม่ */}
+            <div style={{ background: darkMode ? '#151c2f' : '#ffffff', border: `1px solid ${borderColor}`, borderRadius: '24px', padding: '25px', display: 'flex', flexDirection: 'column', position: 'relative', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
                 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <div style={{ background: '#3b82f6', color: '#fff', width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', boxShadow: '0 4px 10px rgba(59,130,246,0.3)' }}>📍</div>
-                        <div>
-                            <div style={{ fontSize: '0.8rem', color: '#3b82f6', fontWeight: 'bold' }}>
-                                {locationType === 'auto' ? 'พิกัดปัจจุบันของคุณ' : 'พิกัดเริ่มต้น (จำลอง)'}
-                            </div>
-                            <div style={{ fontSize: '1.4rem', fontWeight: '900', color: textColor }}>
-                                {isLocating ? 'กำลังค้นหา...' : `จ.${userProv}`}
-                            </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                        {/* 🌟 แสดงคำว่า จังหวัด เต็มๆ */}
+                        <div style={{ fontSize: '1.3rem', fontWeight: '900', color: textColor }}>
+                            {isLocating ? 'กำลังค้นหา...' : (userProv === 'กรุงเทพมหานคร' ? userProv : `จังหวัด${userProv}`)}
+                        </div>
+                        <div style={{ fontSize: '0.8rem', color: subTextColor, marginTop: '2px' }}>
+                            {locationType === 'auto' ? '📍 พิกัดปัจจุบันของคุณ' : '📍 พิกัดเริ่มต้น (จำลอง)'}
                         </div>
                     </div>
-                    {/* 🌟 ปุ่มกดอัปเดตพิกัด (Manual Refresh) */}
                     <button 
                         onClick={fetchUserLocation} 
                         disabled={isLocating}
-                        style={{ background: darkMode ? 'rgba(0,0,0,0.3)' : '#fff', border: `1px solid ${borderColor}`, padding: '8px 12px', borderRadius: '12px', color: textColor, cursor: isLocating ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.75rem', fontWeight: 'bold', transition: '0.2s', opacity: isLocating ? 0.5 : 1 }}
+                        style={{ background: 'transparent', border: 'none', color: '#0ea5e9', cursor: isLocating ? 'wait' : 'pointer', fontSize: '1.2rem', transition: '0.2s', opacity: isLocating ? 0.5 : 1 }}
                         title="ค้นหาพิกัดใหม่"
                     >
-                        {isLocating ? '⏳' : '📍 รีเฟรช'}
+                        {isLocating ? '⏳' : '🔍'}
                     </button>
                 </div>
 
-                {!isLocating && userData && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                        
-                        {/* 🌟 ป้ายสรุปสถานการณ์แบบเด่นชัด */}
-                        <div style={{ background: darkMode ? `${locSummary.color}20` : locSummary.bg, color: locSummary.color, padding: '10px 15px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', fontSize: '0.9rem', border: `1px solid ${locSummary.color}50` }}>
-                            <span style={{ fontSize: '1.2rem' }}>{locSummary.icon}</span> {locSummary.text}
+                {!isLocating && userData ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '10px' }}>
+                        <div style={{ fontSize: '4.5rem', display: 'flex', alignItems: 'center', gap: '15px', fontWeight: '900', color: textColor, lineHeight: '1' }}>
+                            {userData.rain > 40 ? '🌧️' : (isNight ? '🌙' : '☀️')}
+                            {userData.temp}°
+                        </div>
+                        <div style={{ fontSize: '1rem', color: textColor, fontWeight: 'bold', marginTop: '10px' }}>
+                            {userData.rain > 40 ? 'มีโอกาสเกิดฝนตก' : (isNight ? 'ท้องฟ้าโปร่งยามค่ำคืน' : 'ท้องฟ้าโปร่ง')}
+                        </div>
+                        <div style={{ fontSize: '0.8rem', color: subTextColor, marginTop: '2px', marginBottom: '15px' }}>
+                            รู้สึกเหมือน {userData.temp + 2}°C
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', background: darkMode ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.8)', padding: '15px', borderRadius: '16px', border: `1px solid ${borderColor}` }}>
-                            <div style={{ textAlign: 'center' }}>
-                                <div style={{ fontSize: '0.7rem', color: subTextColor }}>อุณหภูมิ</div>
-                                <div style={{ fontSize: '1.1rem', fontWeight: 'bold', color: userData.temp >= 38 ? '#ef4444' : textColor }}>{userData.temp}°</div>
-                            </div>
-                            <div style={{ textAlign: 'center', borderLeft: `1px solid ${borderColor}`, borderRight: `1px solid ${borderColor}` }}>
-                                <div style={{ fontSize: '0.7rem', color: subTextColor }}>ฝุ่น PM2.5</div>
-                                <div style={{ fontSize: '1.1rem', fontWeight: 'bold', color: userData.pm25 >= 37.5 ? '#f97316' : textColor }}>{userData.pm25}</div>
-                            </div>
-                            <div style={{ textAlign: 'center' }}>
-                                <div style={{ fontSize: '0.7rem', color: subTextColor }}>โอกาสฝน</div>
-                                <div style={{ fontSize: '1.1rem', fontWeight: 'bold', color: userData.rain >= 40 ? '#3b82f6' : textColor }}>{userData.rain}%</div>
-                            </div>
+                        <div style={{ background: userData.pm25 > 50 ? '#ef4444' : (userData.pm25 >= 37.5 ? '#f97316' : '#eab308'), color: '#fff', padding: '6px 20px', borderRadius: '50px', fontSize: '0.9rem', fontWeight: 'bold', boxShadow: '0 4px 10px rgba(0,0,0,0.1)' }}>
+                            😷 PM2.5: {userData.pm25} µg/m³ {(userData.pm25 > 50 ? '(อันตราย)' : (userData.pm25 >= 37.5 ? '(เริ่มมีผล)' : '(ปานกลาง)'))}
                         </div>
+                    </div>
+                ) : (
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: subTextColor }}>
+                        กำลังโหลดข้อมูลพิกัด...
                     </div>
                 )}
             </div>
@@ -261,9 +252,10 @@ export default function ClimatePage() {
                         <div key={idx} onClick={() => setActiveTab(tab.id)} style={{ background: cardBg, padding: '15px 10px', borderRadius: '24px', border: `2px solid ${activeTab === tab.id ? tab.color : borderColor}`, cursor: 'pointer', transition: 'all 0.2s', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '5px', boxShadow: activeTab === tab.id ? `0 10px 20px ${tab.color}15` : 'none', transform: activeTab === tab.id ? 'translateY(-3px)' : 'none' }}>
                             <span style={{ fontSize: '2rem' }}>{tab.icon}</span>
                             <span style={{ fontSize: '0.75rem', color: subTextColor, fontWeight: 'bold' }}>{tab.label}</span>
-                            <div style={{ display: 'flex', alignItems: 'baseline', gap: '2px' }}>
+                            <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
                                 <span style={{ fontSize: '1.5rem', fontWeight: '900', color: tab.color }}>{tab.data.length}</span>
-                                <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: tab.color }}>จ.</span>
+                                {/* 🌟 เปลี่ยน จ. เป็น จังหวัด ในแท็บ */}
+                                <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: tab.color }}>จังหวัด</span>
                             </div>
                         </div>
                     ))}
@@ -272,7 +264,7 @@ export default function ClimatePage() {
         </div>
 
         {/* แผนที่ + สรุปบริบท */}
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1.5fr 1fr', gap: '20px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1.5fr 1fr', gap: '20px', marginTop: '20px' }}>
             
             <div style={{ background: cardBg, padding: '20px', borderRadius: '24px', border: `1px solid ${borderColor}`, display: 'flex', flexDirection: 'column' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
@@ -312,8 +304,9 @@ export default function ClimatePage() {
                             <h3 style={{ margin: 0, color: textColor, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 📋 จัดอันดับพื้นที่เสี่ยง
                             </h3>
+                            {/* 🌟 เปลี่ยน จ. เป็น จังหวัด ในแถบรวม */}
                             <span style={{ fontSize: '0.8rem', background: `${activeTabData.color}20`, color: activeTabData.color, padding: '4px 10px', borderRadius: '12px', fontWeight: 'bold' }}>
-                                รวม {activeTabData.data.length} จ.
+                                รวม {activeTabData.data.length} จังหวัด
                             </span>
                         </div>
                         <div style={{ fontSize: '0.75rem', color: '#0ea5e9', fontWeight: 'bold', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '5px' }}>
@@ -334,7 +327,10 @@ export default function ClimatePage() {
                             <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 10px', borderBottom: `1px solid ${borderColor}` }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                     <span style={{ color: subTextColor, fontSize: '0.8rem', width: '20px', textAlign: 'right' }}>{i+1}.</span>
-                                    <span style={{ color: textColor, fontWeight: '600', fontSize: '0.9rem' }}>จ.{item.prov}</span>
+                                    {/* 🌟 เปลี่ยน จ. เป็น จังหวัด ในตารางรายชื่อ */}
+                                    <span style={{ color: textColor, fontWeight: '600', fontSize: '0.9rem' }}>
+                                        {item.prov === 'กรุงเทพมหานคร' ? item.prov : `จังหวัด${item.prov}`}
+                                    </span>
                                 </div>
                                 <span style={{ color: activeTabData.color, fontWeight: '900', fontSize: '1rem' }}>
                                     {item.val} <small style={{fontSize: '0.7rem', color: subTextColor}}>{item.unit}</small>
