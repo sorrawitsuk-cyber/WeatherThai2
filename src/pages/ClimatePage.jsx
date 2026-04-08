@@ -2,17 +2,13 @@ import React, { useContext, useState, useEffect, useMemo } from 'react';
 import { WeatherContext } from '../context/WeatherContext';
 
 export default function AlertsPage() {
-  // 🌟 ดึงเฉพาะตัวแปรที่มีอยู่ใน Firebase Context ใหม่ (ลบ weatherData ทิ้งไป)
   const { stations, stationTemps, loading, darkMode, lastUpdated } = useContext(WeatherContext);
   
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
   const [radarLayer, setRadarLayer] = useState('rain');
-  
   const [timeMode, setTimeMode] = useState('current'); 
-  const [fireMode, setFireMode] = useState('actual'); 
+  const [fireMode, setFireMode] = useState('risk'); // 🌟 เปลี่ยนค่าเริ่มต้นเป็น Real-time Risk
   
-  const [expandedRegion, setExpandedRegion] = useState(null);
-
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 1024);
     window.addEventListener('resize', handleResize);
@@ -21,6 +17,7 @@ export default function AlertsPage() {
 
   const lastUpdateText = lastUpdated ? new Date(lastUpdated).toLocaleString('th-TH') : '-';
 
+  // 🌟 ระบบวิเคราะห์ข้อมูล Real-time 100% จาก Firebase
   const { extremeAlerts, fireRisks, nationalSummary } = useMemo(() => {
     let alerts = [];
     let fires = [];
@@ -43,18 +40,21 @@ export default function AlertsPage() {
           const humidity = Math.round(data.humidity || 0);
           const provName = st.areaTH.replace('จังหวัด', '');
 
+          // หาแชมป์สูงสุดของประเทศแบบ Real-time
           if (temp > maxTemp.val) maxTemp = { val: temp, prov: provName };
           if (feelsLike > maxFeelsLike.val) maxFeelsLike = { val: feelsLike, prov: provName };
           if (rain > maxRain.val) maxRain = { val: rain, prov: provName };
           if (pm25 > maxPm25.val) maxPm25 = { val: pm25, prov: provName };
           if (uv > maxUv.val) maxUv = { val: uv, prov: provName };
 
+          // สร้างประกาศเตือนภัย
           if (pm25 > 75) alerts.push({ prov: provName, type: 'PM2.5', msg: `ฝุ่นระดับอันตราย (${pm25} µg/m³)`, color: '#ef4444', icon: '😷' });
           if (feelsLike >= 42) alerts.push({ prov: provName, type: 'Heat', msg: `วิกฤตฮีทสโตรก (${feelsLike}°C)`, color: '#ea580c', icon: '🔥' });
           if (uv >= 11) alerts.push({ prov: provName, type: 'UV', msg: `UV อันตรายสุด (${uv} Index)`, color: '#a855f7', icon: '☀️' });
-          if (rain > 80) alerts.push({ prov: provName, type: 'Rain', msg: `ระวังน้ำท่วม/พายุ (${rain}%)`, color: '#3b82f6', icon: '⛈️' });
+          if (rain > 80) alerts.push({ prov: provName, type: 'Rain', msg: `ระวังพายุ/น้ำท่วม (${rain}%)`, color: '#3b82f6', icon: '⛈️' });
 
-          if (temp >= 35 && humidity <= 40 && rain < 10) {
+          // คำนวณพื้นที่เสี่ยงไฟป่า (ร้อน + ความชื้นต่ำ + ไม่มีฝน)
+          if (temp >= 35 && humidity <= 45 && rain <= 10) {
             fires.push({ prov: provName, temp, humidity, pm25 });
           }
         });
@@ -62,81 +62,18 @@ export default function AlertsPage() {
 
     return { 
       extremeAlerts: alerts.sort((a, b) => b.val - a.val).slice(0, 8), 
-      fireRisks: fires.sort((a, b) => b.temp - a.temp).slice(0, 6), 
+      fireRisks: fires.sort((a, b) => b.temp - a.temp), 
       nationalSummary: { maxTemp, maxFeelsLike, maxRain, maxPm25, maxUv }
     };
   }, [stations, stationTemps]);
 
-  const mockGistdaHotspots = useMemo(() => [
-    { 
-      region: 'ภาคเหนือ', color: '#ef4444', trend: 'up', 
-      provinces: [
-        {name: 'เชียงใหม่', count: 145}, {name: 'แม่ฮ่องสอน', count: 122}, {name: 'เชียงราย', count: 85}, 
-        {name: 'ลำปาง', count: 54}, {name: 'น่าน', count: 48}, {name: 'พะเยา', count: 32}, 
-        {name: 'แพร่', count: 27}, {name: 'อุตรดิตถ์', count: 21}, {name: 'ลำพูน', count: 18}
-      ] 
-    },
-    { 
-      region: 'ภาคตะวันตก', color: '#f97316', trend: 'up', 
-      provinces: [
-        {name: 'กาญจนบุรี', count: 110}, {name: 'ตาก', count: 95}, {name: 'ราชบุรี', count: 25}, 
-        {name: 'เพชรบุรี', count: 12}, {name: 'ประจวบคีรีขันธ์', count: 8}
-      ] 
-    },
-    { 
-      region: 'ภาคตะวันออกเฉียงเหนือ', color: '#f97316', trend: 'down', 
-      provinces: [
-        {name: 'เลย', count: 45}, {name: 'ชัยภูมิ', count: 38}, {name: 'นครราชสีมา', count: 32}, 
-        {name: 'อุดรธานี', count: 28}, {name: 'หนองบัวลำภู', count: 22}, {name: 'ขอนแก่น', count: 20}, 
-        {name: 'สกลนคร', count: 18}, {name: 'มุกดาหาร', count: 15}, {name: 'กาฬสินธุ์', count: 14}, 
-        {name: 'หนองคาย', count: 12}, {name: 'นครพนม', count: 10}, {name: 'บึงกาฬ', count: 9}, 
-        {name: 'ร้อยเอ็ด', count: 8}, {name: 'มหาสารคาม', count: 7}, {name: 'บุรีรัมย์', count: 6}, 
-        {name: 'สุรินทร์', count: 5}, {name: 'ศรีสะเกษ', count: 5}, {name: 'อุบลราชธานี', count: 4}, 
-        {name: 'ยโสธร', count: 3}, {name: 'อำนาจเจริญ', count: 2}
-      ] 
-    },
-    { 
-      region: 'ภาคกลาง', color: '#eab308', trend: 'down', 
-      provinces: [
-        {name: 'นครสวรรค์', count: 35}, {name: 'เพชรบูรณ์', count: 32}, {name: 'อุทัยธานี', count: 28}, 
-        {name: 'พิษณุโลก', count: 25}, {name: 'กำแพงเพชร', count: 22}, {name: 'สุโขทัย', count: 18}, 
-        {name: 'พิจิตร', count: 15}, {name: 'ลพบุรี', count: 12}, {name: 'สระบุรี', count: 10}, 
-        {name: 'สุพรรณบุรี', count: 8}, {name: 'ชัยนาท', count: 6}, {name: 'นครนายก', count: 5}, 
-        {name: 'สิงห์บุรี', count: 4}, {name: 'อ่างทอง', count: 3}, {name: 'พระนครศรีอยุธยา', count: 2}, 
-        {name: 'นครปฐม', count: 2}, {name: 'ปทุมธานี', count: 1}, {name: 'นนทบุรี', count: 1}, 
-        {name: 'กรุงเทพมหานคร', count: 0}, {name: 'สมุทรปราการ', count: 0}, {name: 'สมุทรสาคร', count: 0}, {name: 'สมุทรสงคราม', count: 0}
-      ] 
-    },
-    { 
-      region: 'ภาคตะวันออก', color: '#22c55e', trend: 'down', 
-      provinces: [
-        {name: 'ปราจีนบุรี', count: 12}, {name: 'สระแก้ว', count: 10}, {name: 'ฉะเชิงเทรา', count: 5}, 
-        {name: 'จันทบุรี', count: 4}, {name: 'ชลบุรี', count: 2}, {name: 'ระยอง', count: 1}, {name: 'ตราด', count: 0}
-      ] 
-    },
-    { 
-      region: 'ภาคใต้', color: '#22c55e', trend: 'down', 
-      provinces: [
-        {name: 'สุราษฎร์ธานี', count: 4}, {name: 'นครศรีธรรมราช', count: 3}, {name: 'ชุมพร', count: 2}, 
-        {name: 'พังงา', count: 1}, {name: 'กระบี่', count: 1}, {name: 'ระนอง', count: 0}, 
-        {name: 'ภูเก็ต', count: 0}, {name: 'ตรัง', count: 0}, {name: 'พัทลุง', count: 0}, 
-        {name: 'สงขลา', count: 0}, {name: 'สตูล', count: 0}, {name: 'ปัตตานี', count: 0}, 
-        {name: 'ยะลา', count: 0}, {name: 'นราธิวาส', count: 0}
-      ] 
-    }
-  ].map(region => ({
-      ...region,
-      count: region.provinces.reduce((sum, p) => sum + p.count, 0)
-  })), []);
-
-  const totalHotspots = useMemo(() => mockGistdaHotspots.reduce((sum, item) => sum + item.count, 0), [mockGistdaHotspots]);
-
-  const yesterdayRecords = useMemo(() => [
-    { id: 'pm25', title: 'ฝุ่น PM2.5 สูงสุด', value: '124 µg/m³', loc: 'อ.เชียงดาว, จ.เชียงใหม่', color: '#ef4444', icon: '😷', bgLight: '#fef2f2', borderDark: '#7f1d1d' },
-    { id: 'heat', title: 'ดัชนีความร้อนสูงสุด', value: '42.1 °C', loc: 'อ.เมือง, จ.ตาก', color: '#ea580c', icon: '🔥', bgLight: '#fff7ed', borderDark: '#7c2d12' },
-    { id: 'rain', title: 'ปริมาณฝนสะสมสูงสุด', value: '45 มม.', loc: 'อ.เกาะสมุย, จ.สุราษฎร์ธานี', color: '#3b82f6', icon: '⛈️', bgLight: '#eff6ff', borderDark: '#1e3a8a' },
-    { id: 'uv', title: 'รังสี UV สูงสุด', value: '11 (อันตราย)', loc: 'เขตบางนา, กรุงเทพฯ', color: '#a855f7', icon: '☀️', bgLight: '#faf5ff', borderDark: '#4c1d95' }
-  ], []);
+  // 🌟 สร้างการ์ดสถิติสูงสุดแบบ Real-time แทน Mock Data ของเดิม
+  const liveTopRecords = useMemo(() => [
+    { id: 'pm25', title: 'ฝุ่น PM2.5 สูงสุด', value: `${nationalSummary.maxPm25.val} µg/m³`, loc: `จ.${nationalSummary.maxPm25.prov}`, color: '#ef4444', icon: '😷', bgLight: '#fef2f2', borderDark: '#7f1d1d' },
+    { id: 'heat', title: 'ดัชนีความร้อนสูงสุด', value: `${nationalSummary.maxFeelsLike.val} °C`, loc: `จ.${nationalSummary.maxFeelsLike.prov}`, color: '#ea580c', icon: '🔥', bgLight: '#fff7ed', borderDark: '#7c2d12' },
+    { id: 'rain', title: 'โอกาสฝนตกสูงสุด', value: `${nationalSummary.maxRain.val} %`, loc: `จ.${nationalSummary.maxRain.prov}`, color: '#3b82f6', icon: '⛈️', bgLight: '#eff6ff', borderDark: '#1e3a8a' },
+    { id: 'uv', title: 'รังสี UV สูงสุด', value: `ระดับ ${nationalSummary.maxUv.val}`, loc: `จ.${nationalSummary.maxUv.prov}`, color: '#a855f7', icon: '☀️', bgLight: '#faf5ff', borderDark: '#4c1d95' }
+  ], [nationalSummary]);
 
   const radarOptions = [
     { id: 'rain', icon: '⛈️', label: 'ฝน & พายุ', color: '#3b82f6' },
@@ -153,22 +90,13 @@ export default function AlertsPage() {
   const borderColor = darkMode ? '#1e293b' : '#e2e8f0';
   const subTextColor = darkMode ? '#94a3b8' : '#64748b'; 
 
-  // 🌟 แก้ไขเงื่อนไข Loading ให้เช็คจากสถานะโหลดของ Firebase หรือถ้ายังไม่มีข้อมูลจังหวัด
   if (loading || stations.length === 0) return (
     <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100%', background: appBg, color: textColor, fontFamily: 'Kanit, sans-serif' }}>
         <style dangerouslySetInlineStyle={{__html: `@keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.7; transform: scale(0.95); } }`}} />
         <div style={{ fontSize: '4rem', animation: 'pulse 1.5s infinite ease-in-out' }}>🚨</div>
-        <div style={{ marginTop: '20px', fontSize: '1.2rem', fontWeight: 'bold' }}>กำลังเชื่อมต่อศูนย์ข้อมูลเตือนภัย...</div>
+        <div style={{ marginTop: '20px', fontSize: '1.2rem', fontWeight: 'bold' }}>กำลังประมวลผลข้อมูล...</div>
     </div>
   );
-
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-  const fullDateOptions = { day: 'numeric', month: 'long', year: 'numeric' };
-  const shortDateOptions = { day: 'numeric', month: 'short', year: 'numeric' };
-  const yesterdayShortStr = yesterday.toLocaleDateString('th-TH', shortDateOptions); 
-  const yesterdayFullStr = yesterday.toLocaleDateString('th-TH', fullDateOptions); 
 
   return (
     <div style={{ height: '100%', width: '100%', background: appBg, display: 'flex', justifyContent: 'center', overflowY: 'auto', fontFamily: 'Kanit, sans-serif' }} className="hide-scrollbar">
@@ -208,11 +136,11 @@ export default function AlertsPage() {
                     </h2>
                     
                     <div style={{ display: 'flex', background: darkMode ? '#1e293b' : '#f1f5f9', borderRadius: '50px', padding: '4px' }}>
-                        <button onClick={() => setTimeMode('yesterday')} style={{ padding: '6px 16px', borderRadius: '50px', border: 'none', background: timeMode === 'yesterday' ? cardBg : 'transparent', color: timeMode === 'yesterday' ? textColor : subTextColor, fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', transition: 'all 0.2s', boxShadow: timeMode === 'yesterday' ? '0 2px 10px rgba(0,0,0,0.1)' : 'none' }}>
-                            {yesterdayShortStr} (เมื่อวาน)
-                        </button>
                         <button onClick={() => setTimeMode('current')} style={{ padding: '6px 16px', borderRadius: '50px', border: 'none', background: timeMode === 'current' ? '#0ea5e9' : 'transparent', color: timeMode === 'current' ? '#fff' : subTextColor, fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', transition: 'all 0.2s', boxShadow: timeMode === 'current' ? '0 2px 10px rgba(14,165,233,0.3)' : 'none' }}>
-                            ปัจจุบัน (Nowcast)
+                            🔴 วิกฤตตอนนี้
+                        </button>
+                        <button onClick={() => setTimeMode('max')} style={{ padding: '6px 16px', borderRadius: '50px', border: 'none', background: timeMode === 'max' ? cardBg : 'transparent', color: timeMode === 'max' ? textColor : subTextColor, fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', transition: 'all 0.2s', boxShadow: timeMode === 'max' ? '0 2px 10px rgba(0,0,0,0.1)' : 'none' }}>
+                            📊 สถิติสูงสุดวันนี้
                         </button>
                     </div>
                 </div>
@@ -220,45 +148,9 @@ export default function AlertsPage() {
                 {timeMode === 'current' ? (
                     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                         <div style={{ fontSize: '0.85rem', color: '#0ea5e9', fontWeight: 'bold', marginBottom: '-5px' }}>อัปเดตระบบล่าสุด: {lastUpdateText}</div>
-                        
-                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '12px' }}>
-                            <div style={{ background: darkMode ? '#1e293b' : '#fff7ed', border: `1px solid ${darkMode ? '#7c2d12' : '#fed7aa'}`, padding: '15px', borderRadius: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                <div style={{ fontSize: '2rem', flexShrink: 0 }}>🔥</div>
-                                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                    <span style={{ fontSize: '0.8rem', color: subTextColor, fontWeight: 'bold' }}>ดัชนีความร้อนสูงสุด</span>
-                                    <span style={{ fontSize: '1.2rem', fontWeight: '900', color: '#ea580c' }}>{nationalSummary.maxFeelsLike.val}°C</span>
-                                    <span style={{ fontSize: '0.8rem', color: textColor }}>📍 จ.{nationalSummary.maxFeelsLike.prov}</span>
-                                </div>
-                            </div>
-                            <div style={{ background: darkMode ? '#1e293b' : '#fef2f2', border: `1px solid ${darkMode ? '#7f1d1d' : '#fecaca'}`, padding: '15px', borderRadius: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                <div style={{ fontSize: '2rem', flexShrink: 0 }}>😷</div>
-                                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                    <span style={{ fontSize: '0.8rem', color: subTextColor, fontWeight: 'bold' }}>ฝุ่น PM2.5 แย่ที่สุด</span>
-                                    <span style={{ fontSize: '1.2rem', fontWeight: '900', color: '#ef4444' }}>{nationalSummary.maxPm25.val} µg/m³</span>
-                                    <span style={{ fontSize: '0.8rem', color: textColor }}>📍 จ.{nationalSummary.maxPm25.prov}</span>
-                                </div>
-                            </div>
-                            <div style={{ background: darkMode ? '#1e293b' : '#eff6ff', border: `1px solid ${darkMode ? '#1e3a8a' : '#bfdbfe'}`, padding: '15px', borderRadius: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                <div style={{ fontSize: '2rem', flexShrink: 0 }}>⛈️</div>
-                                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                    <span style={{ fontSize: '0.8rem', color: subTextColor, fontWeight: 'bold' }}>เสี่ยงพายุฝนฟ้าคะนอง</span>
-                                    <span style={{ fontSize: '1.2rem', fontWeight: '900', color: '#3b82f6' }}>{nationalSummary.maxRain.val}%</span>
-                                    <span style={{ fontSize: '0.8rem', color: textColor }}>📍 จ.{nationalSummary.maxRain.prov}</span>
-                                </div>
-                            </div>
-                            <div style={{ background: darkMode ? '#1e293b' : '#faf5ff', border: `1px solid ${darkMode ? '#4c1d95' : '#e9d5ff'}`, padding: '15px', borderRadius: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                <div style={{ fontSize: '2rem', flexShrink: 0 }}>☀️</div>
-                                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                    <span style={{ fontSize: '0.8rem', color: subTextColor, fontWeight: 'bold' }}>รังสี UV แรงที่สุด</span>
-                                    <span style={{ fontSize: '1.2rem', fontWeight: '900', color: '#a855f7' }}>ระดับ {nationalSummary.maxUv.val}</span>
-                                    <span style={{ fontSize: '0.8rem', color: textColor }}>📍 จ.{nationalSummary.maxUv.prov}</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <h3 style={{ margin: '10px 0 0 0', fontSize: '0.95rem', color: subTextColor }}>พื้นที่ที่ต้องเฝ้าระวังด่วนพิเศษ:</h3>
+                        <h3 style={{ margin: '10px 0 0 0', fontSize: '0.95rem', color: subTextColor }}>พื้นที่ที่ต้องเฝ้าระวังด่วนพิเศษ ณ ขณะนี้:</h3>
                         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '10px' }}>
-                            {extremeAlerts.slice(0, 4).map((alt, idx) => (
+                            {extremeAlerts.slice(0, 6).map((alt, idx) => (
                                 <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '12px', background: darkMode ? 'rgba(0,0,0,0.2)' : '#f8fafc', padding: '12px', borderRadius: '12px', border: `1px solid ${borderColor}` }}>
                                     <div style={{ width: '35px', height: '35px', borderRadius: '50%', background: `${alt.color}20`, color: alt.color, display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '1.1rem', flexShrink: 0 }}>{alt.icon}</div>
                                     <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -267,15 +159,15 @@ export default function AlertsPage() {
                                     </div>
                                 </div>
                             ))}
-                            {extremeAlerts.length === 0 && <div style={{ padding: '10px', color: '#22c55e', fontSize: '0.9rem', fontWeight: 'bold' }}>ไม่มีพื้นที่เฝ้าระวังพิเศษ</div>}
+                            {extremeAlerts.length === 0 && <div style={{ padding: '20px', color: '#22c55e', fontSize: '1rem', fontWeight: 'bold', textAlign: 'center', gridColumn: '1 / -1', border: `1px dashed #22c55e`, borderRadius: '12px' }}>✅ สถานการณ์ปกติ เยี่ยมมากครับ!</div>}
                         </div>
                     </div>
                 ) : (
                     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                        <div style={{ fontSize: '0.85rem', color: '#8b5cf6', fontWeight: 'bold', marginBottom: '-5px' }}>สถิติประเทศประจำวันที่: {yesterdayFullStr}</div>
+                        <div style={{ fontSize: '0.85rem', color: '#8b5cf6', fontWeight: 'bold', marginBottom: '-5px' }}>รวมแชมป์สถิติประเทศ ณ เวลานี้</div>
                         
                         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '12px' }}>
-                            {yesterdayRecords.map((rec, idx) => (
+                            {liveTopRecords.map((rec, idx) => (
                                 <div key={idx} style={{ background: darkMode ? '#1e293b' : rec.bgLight, border: `1px solid ${darkMode ? rec.borderDark : 'transparent'}`, padding: '15px', borderRadius: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
                                     <div style={{ fontSize: '2rem', flexShrink: 0 }}>{rec.icon}</div>
                                     <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -288,7 +180,7 @@ export default function AlertsPage() {
                         </div>
                         
                         <div style={{ background: darkMode ? 'rgba(139, 92, 246, 0.05)' : '#f5f3ff', borderLeft: '4px solid #8b5cf6', padding: '12px 15px', borderRadius: '12px', color: textColor, fontSize: '0.9rem', lineHeight: '1.6' }}>
-                            <b>วิเคราะห์ย้อนหลัง:</b> สภาพอากาศเมื่อวานมีความแปรปรวนสูง หลายพื้นที่มีค่าดัชนีความร้อนและ PM2.5 แตะระดับอันตราย โปรดเปรียบเทียบสถิติเพื่อการวางแผนในวันนี้
+                            <b>วิเคราะห์ข้อมูล:</b> สถิติด้านบนดึงข้อมูลจริงจาก 77 จังหวัดทั่วประเทศ โปรดใช้ข้อมูลนี้เพื่อการวางแผนการเดินทางและดูแลสุขภาพครับ
                         </div>
                     </div>
                 )}
@@ -298,62 +190,23 @@ export default function AlertsPage() {
             <div style={{ background: cardBg, padding: '25px', borderRadius: '24px', border: `1px solid ${borderColor}`, display: 'flex', flexDirection: 'column', gap: '15px', boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
                     <h2 style={{ margin: 0, color: textColor, fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <span style={{ fontSize: '1.5rem' }}>🛰️</span> ศูนย์ควบคุมไฟป่า
+                        <span style={{ fontSize: '1.5rem' }}>🛰️</span> ศูนย์ความเสี่ยงไฟป่า
                     </h2>
                 </div>
                 
                 <div style={{ display: 'flex', background: darkMode ? '#1e293b' : '#f1f5f9', borderRadius: '12px', padding: '4px' }}>
-                    <button onClick={() => setFireMode('actual')} style={{ flex: 1, padding: '8px', borderRadius: '8px', border: 'none', background: fireMode === 'actual' ? cardBg : 'transparent', color: fireMode === 'actual' ? '#ea580c' : subTextColor, fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', transition: 'all 0.2s', boxShadow: fireMode === 'actual' ? '0 2px 5px rgba(0,0,0,0.1)' : 'none' }}>
-                        🔥 จุดความร้อนจริง (GISTDA)
+                    <button onClick={() => setFireMode('risk')} style={{ flex: 1, padding: '8px', borderRadius: '8px', border: 'none', background: fireMode === 'risk' ? cardBg : 'transparent', color: fireMode === 'risk' ? '#ea580c' : subTextColor, fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', transition: 'all 0.2s', boxShadow: fireMode === 'risk' ? '0 2px 5px rgba(0,0,0,0.1)' : 'none' }}>
+                        🎯 ดัชนีพื้นที่เสี่ยง (Real-time)
                     </button>
-                    <button onClick={() => setFireMode('risk')} style={{ flex: 1, padding: '8px', borderRadius: '8px', border: 'none', background: fireMode === 'risk' ? cardBg : 'transparent', color: fireMode === 'risk' ? '#a855f7' : subTextColor, fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', transition: 'all 0.2s', boxShadow: fireMode === 'risk' ? '0 2px 5px rgba(0,0,0,0.1)' : 'none' }}>
-                        🎯 ดัชนีพื้นที่เสี่ยง
+                    <button onClick={() => setFireMode('gistda')} style={{ flex: 1, padding: '8px', borderRadius: '8px', border: 'none', background: fireMode === 'gistda' ? cardBg : 'transparent', color: fireMode === 'gistda' ? '#a855f7' : subTextColor, fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', transition: 'all 0.2s', boxShadow: fireMode === 'gistda' ? '0 2px 5px rgba(0,0,0,0.1)' : 'none' }}>
+                        🔥 ข้อมูล GISTDA
                     </button>
                 </div>
                 
-                {fireMode === 'actual' ? (
-                    <div className="fade-in hide-scrollbar" style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
-                            <span style={{ fontSize: '0.75rem', color: subTextColor }}>*ดาวเทียม Suomi NPP ({yesterdayShortStr})</span>
-                            <span style={{ fontSize: '0.85rem', color: '#ef4444', fontWeight: 'bold', background: 'rgba(239, 68, 68, 0.1)', padding: '2px 8px', borderRadius: '6px' }}>ยอดรวม {totalHotspots} จุด</span>
-                        </div>
-                        
-                        <div className="hide-scrollbar" style={{ display: 'flex', flexDirection: 'column', gap: '8px', overflowY: 'auto', maxHeight: '420px', paddingRight: '5px' }}>
-                            {mockGistdaHotspots.map((hs, idx) => {
-                                const isExpanded = expandedRegion === hs.region;
-                                return (
-                                    <div key={idx} style={{ display: 'flex', flexDirection: 'column', background: darkMode ? '#1e293b' : '#f8fafc', borderRadius: '10px', borderLeft: `3px solid ${hs.color}`, overflow: 'hidden', borderTop: `1px solid ${borderColor}`, borderRight: `1px solid ${borderColor}`, borderBottom: `1px solid ${borderColor}` }}>
-                                        <div onClick={() => setExpandedRegion(isExpanded ? null : hs.region)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', cursor: 'pointer', background: isExpanded ? (darkMode ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)') : 'transparent' }}>
-                                            <span style={{ color: textColor, fontWeight: 'bold', fontSize: '0.9rem' }}>{hs.region}</span>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                                <span style={{ color: hs.color, fontWeight: '900', fontSize: '1.1rem' }}>{hs.count}</span>
-                                                <span style={{ fontSize: '0.8rem', color: hs.trend === 'up' ? '#ef4444' : '#22c55e' }}>{hs.trend === 'up' ? '▲' : '▼'}</span>
-                                                <span style={{ fontSize: '1.2rem', color: subTextColor, transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.3s ease' }}>⌄</span>
-                                            </div>
-                                        </div>
-                                        
-                                        {isExpanded && (
-                                            <div style={{ padding: '0 12px 12px 12px', display: 'flex', flexDirection: 'column', gap: '8px', animation: 'fadeIn 0.2s ease-out' }}>
-                                                <div style={{ height: '1px', background: borderColor, marginBottom: '4px' }}></div>
-                                                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '8px' }}>
-                                                    {hs.provinces.map((prov, i) => (
-                                                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: subTextColor, padding: '4px', background: darkMode ? 'rgba(0,0,0,0.2)' : '#fff', borderRadius: '6px', border: `1px solid ${borderColor}` }}>
-                                                            <span>จ.{prov.name}</span>
-                                                            <span style={{ fontWeight: 'bold', color: prov.count > 0 ? textColor : subTextColor }}>{prov.count} จุด</span>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-                ) : (
+                {fireMode === 'risk' ? (
                     <div className="fade-in hide-scrollbar" style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1, overflowY: 'auto' }}>
-                        <p style={{ margin: '0 0 5px 0', fontSize: '0.75rem', color: subTextColor }}>*วิเคราะห์จากพื้นที่ ร้อนจัด+แห้งแล้ง+ไร้ฝน ณ ปัจจุบัน</p>
-                        {fireRisks.length > 0 ? fireRisks.map((fire, idx) => (
+                        <p style={{ margin: '0 0 5px 0', fontSize: '0.75rem', color: subTextColor }}>*วิเคราะห์จากพื้นที่ ร้อนจัด + ความชื้นต่ำ + ไร้ฝน ณ ปัจจุบัน</p>
+                        {fireRisks.length > 0 ? fireRisks.slice(0, 10).map((fire, idx) => (
                             <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: darkMode ? '#451a03' : '#fff7ed', border: '1px solid #ea580c', padding: '10px 12px', borderRadius: '10px' }}>
                                 <span style={{ color: '#ea580c', fontWeight: 'bold', fontSize: '0.9rem' }}>{idx+1}. จ.{fire.prov}</span>
                                 <div style={{ display: 'flex', gap: '8px', fontSize: '0.75rem', fontWeight: 'bold', color: darkMode ? '#fdba74' : '#9a3412' }}>
@@ -362,8 +215,14 @@ export default function AlertsPage() {
                                 </div>
                             </div>
                         )) : (
-                            <div style={{ textAlign: 'center', padding: '30px 0', color: '#22c55e', fontWeight: 'bold', fontSize: '0.9rem' }}>✅ ไม่พบพื้นที่เสี่ยงรุนแรง</div>
+                            <div style={{ textAlign: 'center', padding: '30px 0', color: '#22c55e', fontWeight: 'bold', fontSize: '0.9rem' }}>✅ ไม่พบพื้นที่เสี่ยงไฟป่ารุนแรงในขณะนี้</div>
                         )}
+                    </div>
+                ) : (
+                    <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100%', gap: '15px', padding: '20px', textAlign: 'center' }}>
+                        <span style={{fontSize: '3rem'}}>🚧</span>
+                        <div style={{color: textColor, fontWeight: 'bold'}}>รอการเชื่อมต่อ API</div>
+                        <div style={{color: subTextColor, fontSize: '0.85rem'}}>ข้อมูลจุดความร้อนจากดาวเทียม GISTDA/NASA อยู่ระหว่างการพัฒนาเชื่อมต่อระบบหลังบ้านครับ</div>
                     </div>
                 )}
             </div>
@@ -372,19 +231,16 @@ export default function AlertsPage() {
 
         {/* 📡 3. Pro Radar Console */}
         <div style={{ background: cardBg, padding: '20px', borderRadius: '24px', border: `1px solid ${borderColor}`, display: 'flex', flexDirection: 'column', gap: '15px', boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
-            
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
                 <h2 style={{ margin: 0, color: textColor, fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <span style={{ fontSize: '1.5rem' }}>📡</span> แผงควบคุมเรดาร์ (Windy)
                 </h2>
-
                 <div className="hide-scrollbar" style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '5px' }}>
                     {radarOptions.map(opt => {
                         const isActive = radarLayer === opt.id;
                         return (
                             <button 
-                                key={opt.id} 
-                                onClick={() => setRadarLayer(opt.id)}
+                                key={opt.id}  onClick={() => setRadarLayer(opt.id)}
                                 style={{ 
                                     padding: '8px 16px', borderRadius: '50px', border: `1px solid ${isActive ? opt.color : borderColor}`, 
                                     background: isActive ? (darkMode ? `${opt.color}30` : `${opt.color}15`) : (darkMode ? '#1e293b' : '#f8fafc'), 
@@ -408,7 +264,6 @@ export default function AlertsPage() {
                     title="Windy Radar Map"
                 ></iframe>
             </div>
-            
         </div>
 
       </div>
