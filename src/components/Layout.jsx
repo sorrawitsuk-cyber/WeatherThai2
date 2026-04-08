@@ -28,7 +28,7 @@ export default function Layout() {
   return (
     <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', height: '100vh', width: '100vw', overflow: 'hidden', background: appBg, color: textColor, fontFamily: 'Kanit, sans-serif' }}>
       
-      {/* 💻 Sidebar สำหรับคอมพิวเตอร์ */}
+      {/* 💻 Sidebar สำหรับคอมพิวเตอร์ (ไม่กระทบมือถือ) */}
       {!isMobile && (
         <div style={{ width: '260px', background: sidebarBg, borderRight: `1px solid ${borderColor}`, display: 'flex', flexDirection: 'column', padding: '20px', zIndex: 10, flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '40px' }}>
@@ -64,30 +64,22 @@ export default function Layout() {
         </div>
       )}
 
-      {/* 📱 Header สำหรับมือถือ */}
-      {isMobile && (
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 20px', background: sidebarBg, borderBottom: `1px solid ${borderColor}`, zIndex: 20 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontSize: '1.5rem' }}>🌙</span>
-            <div style={{ fontWeight: 'bold', fontSize: '1.1rem', color: '#0ea5e9' }}>Thai Weather</div>
-          </div>
-          <button onClick={() => setDarkMode(!darkMode)} style={{ background: darkMode ? '#1e293b' : '#f1f5f9', border: `1px solid ${borderColor}`, padding: '8px 12px', borderRadius: '10px', fontSize: '1.2rem', cursor: 'pointer', color: textColor }}>
-            {darkMode ? '☀️' : '🌙'}
-          </button>
-        </div>
-      )}
+      {/* 🛑 ลบ Header ของมือถือทิ้งไปแล้ว เพื่อคืนพื้นที่หน้าจอ! 
+      */}
 
-      {/* 🟢 Main Content */}
+      {/* 🟢 Main Content (พื้นที่แสดงเนื้อหา) */}
       <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', position: 'relative', paddingBottom: isMobile ? '80px' : '0' }}>
         <Outlet />
       </div>
 
-      {/* 📱 Bottom Navigation Bar สำหรับมือถือ (แก้บั๊ก isActive แล้ว) */}
+      {/* 📱 Bottom Navigation Bar สำหรับมือถือ */}
       {isMobile && (
         <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, height: '70px', background: sidebarBg, borderTop: `1px solid ${borderColor}`, display: 'flex', justifyContent: 'space-around', alignItems: 'center', zIndex: 9999, paddingBottom: 'env(safe-area-inset-bottom)', boxShadow: '0 -4px 10px rgba(0,0,0,0.1)' }}>
+          
+          {/* เมนูหลัก 4 อัน (ปรับความกว้างเหลือ 20% เพื่อแบ่งที่ให้ปุ่มโหมดมืด) */}
           {navItems.map(item => (
             <NavLink key={item.path} to={item.path} style={({ isActive }) => ({
-              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textDecoration: 'none', gap: '4px', width: '25%', height: '100%',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textDecoration: 'none', gap: '4px', width: '20%', height: '100%',
               color: isActive ? '#0ea5e9' : subTextColor,
               transform: isActive ? 'translateY(-2px)' : 'none', transition: 'all 0.2s'
             })}>
@@ -99,6 +91,16 @@ export default function Layout() {
               )}
             </NavLink>
           ))}
+
+          {/* 🌟 ปุ่มสลับโหมด มืด/สว่าง เนียนๆ รวมอยู่ในเมนูด้านล่าง */}
+          <div 
+            onClick={() => setDarkMode(!darkMode)}
+            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px', width: '20%', height: '100%', color: subTextColor, cursor: 'pointer', transition: 'all 0.2s' }}
+          >
+            <span style={{ fontSize: '1.4rem', opacity: 0.6 }}>{darkMode ? '☀️' : '🌙'}</span>
+            <span style={{ fontSize: '0.65rem', fontWeight: 'bold', opacity: 0.7 }}>{darkMode ? 'สว่าง' : 'มืด'}</span>
+          </div>
+
         </div>
       )}
 
