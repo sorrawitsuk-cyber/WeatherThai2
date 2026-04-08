@@ -4,8 +4,6 @@ import { WeatherContext } from '../context/WeatherContext';
 
 export default function Layout() {
   const { darkMode, setDarkMode } = useContext(WeatherContext);
-  
-  // 🌟 เพิ่มระบบตรวจจับหน้าจอมือถือ
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
   useEffect(() => {
@@ -30,10 +28,9 @@ export default function Layout() {
   return (
     <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', height: '100vh', width: '100vw', overflow: 'hidden', background: appBg, color: textColor, fontFamily: 'Kanit, sans-serif' }}>
       
-      {/* 💻 Sidebar สำหรับคอมพิวเตอร์ (จะซ่อนเมื่อเปิดในมือถือ) */}
+      {/* 💻 Sidebar สำหรับคอมพิวเตอร์ */}
       {!isMobile && (
         <div style={{ width: '260px', background: sidebarBg, borderRight: `1px solid ${borderColor}`, display: 'flex', flexDirection: 'column', padding: '20px', zIndex: 10, flexShrink: 0 }}>
-          {/* โลโก้ */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '40px' }}>
             <span style={{ fontSize: '2rem' }}>🌙</span>
             <div>
@@ -42,7 +39,6 @@ export default function Layout() {
             </div>
           </div>
 
-          {/* ลิงก์เมนู (คอม) */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: 1 }}>
             {navItems.map(item => (
               <NavLink key={item.path} to={item.path} style={({ isActive }) => ({
@@ -57,7 +53,6 @@ export default function Layout() {
             ))}
           </div>
 
-          {/* ปุ่มโหมดมืด (คอม) */}
           <div style={{ marginTop: 'auto' }}>
             <button 
               onClick={() => setDarkMode(!darkMode)} 
@@ -69,7 +64,7 @@ export default function Layout() {
         </div>
       )}
 
-      {/* 📱 Header สำหรับมือถือ (มีปุ่มโหมดมืดด้านบน) */}
+      {/* 📱 Header สำหรับมือถือ */}
       {isMobile && (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 20px', background: sidebarBg, borderBottom: `1px solid ${borderColor}`, zIndex: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -82,12 +77,12 @@ export default function Layout() {
         </div>
       )}
 
-      {/* 🟢 Main Content (พื้นที่แสดงเนื้อหาหลัก เลื่อนขึ้นลงได้) */}
+      {/* 🟢 Main Content */}
       <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', position: 'relative', paddingBottom: isMobile ? '80px' : '0' }}>
         <Outlet />
       </div>
 
-      {/* 📱 Bottom Navigation Bar สำหรับมือถือ */}
+      {/* 📱 Bottom Navigation Bar สำหรับมือถือ (แก้บั๊ก isActive แล้ว) */}
       {isMobile && (
         <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, height: '70px', background: sidebarBg, borderTop: `1px solid ${borderColor}`, display: 'flex', justifyContent: 'space-around', alignItems: 'center', zIndex: 9999, paddingBottom: 'env(safe-area-inset-bottom)', boxShadow: '0 -4px 10px rgba(0,0,0,0.1)' }}>
           {navItems.map(item => (
@@ -96,8 +91,12 @@ export default function Layout() {
               color: isActive ? '#0ea5e9' : subTextColor,
               transform: isActive ? 'translateY(-2px)' : 'none', transition: 'all 0.2s'
             })}>
-              <span style={{ fontSize: '1.4rem', opacity: isActive ? 1 : 0.6 }}>{item.icon}</span>
-              <span style={{ fontSize: '0.65rem', fontWeight: 'bold', opacity: isActive ? 1 : 0.7 }}>{item.label}</span>
+              {({ isActive }) => (
+                <>
+                  <span style={{ fontSize: '1.4rem', opacity: isActive ? 1 : 0.6 }}>{item.icon}</span>
+                  <span style={{ fontSize: '0.65rem', fontWeight: 'bold', opacity: isActive ? 1 : 0.7 }}>{item.label}</span>
+                </>
+              )}
             </NavLink>
           ))}
         </div>
