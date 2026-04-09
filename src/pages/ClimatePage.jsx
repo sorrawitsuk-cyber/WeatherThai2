@@ -2,7 +2,7 @@ import React, { useContext, useState, useEffect, useMemo, useCallback } from 're
 import { WeatherContext } from '../context/WeatherContext';
 
 export default function ClimatePage() {
-  const { stations, stationTemps, loading, darkMode } = useContext(WeatherContext);
+  const { stations, stationTemps, loading, darkMode, lastUpdated } = useContext(WeatherContext);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('heat'); 
@@ -182,41 +182,40 @@ export default function ClimatePage() {
       return 'temp';
   };
 
-  // 🌟 [แก้ปัญหาชี้เป้า] ประเมินสถานการณ์แบบเจาะจงสาเหตุ (Smart Threat Detection)
+  // 🌟 [ใหม่] ฟังก์ชันระบุช่วงเวลาของข้อมูลแต่ละโหมด
+  const getTimeframeLabel = (tabId) => {
+      if (['heat', 'pm25', 'wind'].includes(tabId)) {
+          return { text: `Nowcast - สภาพอากาศ ณ ปัจจุบัน (อัปเดตล่าสุด: ${lastUpdated ? new Date(lastUpdated).toLocaleTimeString('th-TH', {hour: '2-digit', minute:'2-digit'}) : '-'} น.)`, color: '#0ea5e9', dot: '#0ea5e9' };
+      } else if (tabId === 'uv' || tabId === 'rain') {
+          return { text: 'Forecast - พยากรณ์ค่าสูงสุดที่จะเกิดขึ้นในวันนี้', color: '#8b5cf6', dot: '#8b5cf6' };
+      } else if (tabId === 'fire') {
+          return { text: 'Historical - สถิติสะสมย้อนหลัง 24 ชั่วโมง', color: '#f59e0b', dot: '#f59e0b' };
+      }
+      return { text: 'Data Overview', color: '#0ea5e9', dot: '#0ea5e9' };
+  };
+
+  const timeframe = getTimeframeLabel(activeTab);
+
+  // 🌟 ประเมินสถานการณ์แบบเจาะจงสาเหตุ (Smart Threat Detection)
   let locSummary = { text: 'สถานการณ์ปกติ', color: '#22c55e', bg: darkMode ? '#052e16' : '#dcfce7', icon: '✅', desc: 'ไม่มีการแจ้งเตือนภัยพิบัติรุนแรงในพื้นที่ของคุณ' };
   
   if (userData && userData.temp !== '-') {
       let criticalThreats = [];
       let warningThreats = [];
 
-      // วิเคราะห์ระดับวิกฤต (สีแดง)
       if (userData.temp >= 40) criticalThreats.push(`ร้อนจัด (${userData.temp}°C)`);
       if (userData.pm25 >= 75) criticalThreats.push(`ฝุ่นอันตราย (${userData.pm25} µg)`);
       if (userData.rain >= 80) criticalThreats.push(`ฝนตกหนัก (${userData.rain}%)`);
 
-      // วิเคราะห์ระดับเฝ้าระวัง (สีส้ม)
       if (userData.temp >= 36 && userData.temp < 40) warningThreats.push(`อากาศร้อน (${userData.temp}°C)`);
       if (userData.pm25 >= 37.5 && userData.pm25 < 75) warningThreats.push(`ฝุ่นเริ่มหนา (${userData.pm25} µg)`);
       if (userData.rain >= 60 && userData.rain < 80) warningThreats.push(`โอกาสฝนตก (${userData.rain}%)`);
       if (userData.wind >= 20) warningThreats.push(`ลมพัดแรง (${userData.wind} km/h)`);
 
-      // สรุปผลลัพธ์เพื่อแสดงบนหน้าจอ
       if (criticalThreats.length > 0) {
-          locSummary = { 
-              text: 'อันตรายระดับวิกฤต', 
-              color: '#ef4444', 
-              bg: darkMode ? '#450a0a' : '#fee2e2', 
-              icon: '🚨', 
-              desc: `แจ้งเตือน: ${criticalThreats.join(', ')} ควรระมัดระวังสุขภาพเป็นพิเศษ` 
-          };
+          locSummary = { text: 'อันตรายระดับวิกฤต', color: '#ef4444', bg: darkMode ? '#450a0a' : '#fee2e2', icon: '🚨', desc: `แจ้งเตือน: ${criticalThreats.join(', ')} ควรระมัดระวังสุขภาพเป็นพิเศษ` };
       } else if (warningThreats.length > 0) {
-          locSummary = { 
-              text: 'พื้นที่เฝ้าระวังพิเศษ', 
-              color: '#f97316', 
-              bg: darkMode ? '#431407' : '#ffedd5', 
-              icon: '⚠️', 
-              desc: `เฝ้าระวัง: ${warningThreats.join(', ')} แนะนำให้เตรียมพร้อมรับมือ` 
-          };
+          locSummary = { text: 'พื้นที่เฝ้าระวังพิเศษ', color: '#f97316', bg: darkMode ? '#431407' : '#ffedd5', icon: '⚠️', desc: `เฝ้าระวัง: ${warningThreats.join(', ')} แนะนำให้เตรียมพร้อมรับมือ` };
       }
   }
 
@@ -244,6 +243,7 @@ export default function ClimatePage() {
 
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 2fr', gap: '20px', alignItems: 'start' }}>
             
+            {/* กล่อง Threat Assessment */}
             <div style={{ background: locSummary.bg, border: `1px solid ${locSummary.color}50`, borderRadius: '24px', padding: '25px', display: 'flex', flexDirection: 'column', position: 'relative', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', transition: '0.3s' }}>
                 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -267,7 +267,6 @@ export default function ClimatePage() {
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, marginTop: '20px', gap: '5px' }}>
                         <div style={{ fontSize: '3rem', animation: locSummary.icon === '🚨' ? 'pulse 1.5s infinite' : 'none' }}>{locSummary.icon}</div>
                         <div style={{ fontSize: '1.3rem', fontWeight: '900', color: locSummary.color, textAlign: 'center', lineHeight: '1.2' }}>{locSummary.text}</div>
-                        {/* 🌟 แสดงคำอธิบายที่บอกสาเหตุชัดเจน */}
                         <div style={{ fontSize: '0.85rem', color: textColor, textAlign: 'center', opacity: 0.8, padding: '0 10px', marginBottom: '10px' }}>{locSummary.desc}</div>
                         
                         <div style={{ display: 'flex', gap: '8px', width: '100%', flexWrap: 'wrap', justifyContent: 'center' }}>
@@ -289,6 +288,7 @@ export default function ClimatePage() {
                 )}
             </div>
 
+            {/* แผงควบคุม 6 โหมด (3x2 Grid) */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <div style={{ fontSize: '0.85rem', color: subTextColor, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '5px', paddingLeft: '5px' }}>
                     👆 แผงควบคุมและประเมินสถานการณ์ <span style={{fontWeight: 'normal', opacity: 0.8}}>(คลิกเพื่อสลับโหมด)</span>
@@ -352,10 +352,13 @@ export default function ClimatePage() {
                                 รวม {activeTabData.data.length} จังหวัด
                             </span>
                         </div>
-                        <div style={{ fontSize: '0.75rem', color: '#0ea5e9', fontWeight: 'bold', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                            <span style={{ display: 'inline-block', width: '6px', height: '6px', background: '#0ea5e9', borderRadius: '50%' }}></span>
-                            Nowcast - ข้อมูลสภาพอากาศ ณ ปัจจุบัน
+                        
+                        {/* 🌟 ป้ายกำกับข้อมูลแบบ Dynamic */}
+                        <div style={{ fontSize: '0.75rem', color: timeframe.color, fontWeight: 'bold', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ display: 'inline-block', width: '6px', height: '6px', background: timeframe.dot, borderRadius: '50%', animation: timeframe.dot === '#0ea5e9' ? 'pulse 2s infinite' : 'none' }}></span>
+                            {timeframe.text}
                         </div>
+
                         <input 
                             type="text" 
                             placeholder={`🔍 ค้นหาจังหวัด...`} 
