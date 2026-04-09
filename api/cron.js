@@ -1,4 +1,3 @@
-// api/cron.js
 import { initializeApp, getApps } from 'firebase/app';
 import { getDatabase, ref, set } from 'firebase/database';
 import { provinces77 } from '../src/provinces77.js';
@@ -14,7 +13,6 @@ const firebaseConfig = {
   appId: process.env.VITE_FIREBASE_APP_ID
 };
 
-// ป้องกันการ Initialize ซ้ำซ้อนใน Serverless
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 const db = getDatabase(app);
 
@@ -25,14 +23,17 @@ export default async function handler(req, res) {
     let allWData = [];
     let allAData = [];
 
+    // 🌟 สร้างตัวแปรเวลาเพื่อป้องกัน Cache (Cache Buster)
+    const timestamp = Date.now();
+
     for (let i = 0; i < provinces77.length; i += chunkSize) {
       const chunk = provinces77.slice(i, i + chunkSize);
       const lats = chunk.map(p => p.lat).join(',');
       const lons = chunk.map(p => p.lon).join(',');
 
-      // ดึงอากาศ + ทิศทางลม + ฝุ่น
-      const wUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,wind_speed_10m,wind_direction_10m&daily=precipitation_probability_max&timezone=Asia%2FBangkok`;
-      const aUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lats}&longitude=${lons}&current=pm2_5&timezone=Asia%2FBangkok`;
+      // 🌟 [ปรับปรุง] เพิ่ม uv_index_max เข้าไปในคำสั่งดึงข้อมูล และใส่ _t=timestamp ป้องกันข้อมูลเก่า
+      const wUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,wind_speed_10m,wind_direction_10m&daily=precipitation_probability_max,uv_index_max&timezone=Asia%2FBangkok&_t=${timestamp}`;
+      const aUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lats}&longitude=${lons}&current=pm2_5&timezone=Asia%2FBangkok&_t=${timestamp}`;
 
       const [wRes, aRes] = await Promise.all([fetch(wUrl), fetch(aUrl)]);
 
@@ -42,6 +43,7 @@ export default async function handler(req, res) {
         allWData = [...allWData, ...(Array.isArray(wJson) ? wJson : [wJson])];
         allAData = [...allAData, ...(Array.isArray(aJson) ? aJson : [aJson])];
       }
+      
       // พัก 1 วินาทีกันโดนแบน
       if (i + chunkSize < provinces77.length) await new Promise(r => setTimeout(r, 1000));
     }
@@ -65,7 +67,9 @@ export default async function handler(req, res) {
         humidity: Math.round(w.current?.relative_humidity_2m || 0),
         rainProb: Math.round(w.daily?.precipitation_probability_max?.[0] || 0),
         windSpeed: Math.round(w.current?.wind_speed_10m || 0),
-        windDir: Math.round(w.current?.wind_direction_10m || 0)
+        windDir: Math.round(w.current?.wind_direction_10m || 0),
+        // 🌟 [ใหม่] ดึงค่า UV Index จาก API มาใช้งาน
+        uv: Math.round(w.daily?.uv_index_max?.[0] || 0)
       };
     });
 
