@@ -2,15 +2,15 @@ import React, { useContext, useState, useEffect, useMemo, useCallback } from 're
 import { WeatherContext } from '../context/WeatherContext';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid } from 'recharts';
 
-// 🌟 Component ลูกศรบอกแนวโน้ม (Trend Indicator) - อิงตามหลักสีเตือนภัย
+// 🌟 Component ลูกศรบอกแนวโน้ม
 const TrendIndicator = ({ current, prev, mode, hideText = false }) => {
     if (current == null || prev == null || current === '-' || prev === '-') return null;
     const diff = Math.round(current - prev);
     if (diff === 0) return <span style={{fontSize:'0.75em', opacity:0.6, color:'#94a3b8', marginLeft:'6px', whiteSpace:'nowrap'}}>➖</span>;
     
-    let color = diff > 0 ? '#ef4444' : '#22c55e'; // แดง = เพิ่ม (แย่ลง), เขียว = ลด (ดีขึ้น)
-    if (mode === 'rain') color = diff > 0 ? '#3b82f6' : '#94a3b8'; // ฝนเพิ่ม = น้ำเงิน
-    if (mode === 'pm25') color = diff > 0 ? '#f97316' : '#22c55e'; // ฝุ่นเพิ่ม = ส้ม/แดง
+    let color = diff > 0 ? '#ef4444' : '#22c55e'; 
+    if (mode === 'rain') color = diff > 0 ? '#3b82f6' : '#94a3b8'; 
+    if (mode === 'pm25') color = diff > 0 ? '#f97316' : '#22c55e';
 
     const arrow = diff > 0 ? '🔺' : '🔻';
     return (
@@ -109,7 +109,6 @@ export default function ClimatePage() {
 
   useEffect(() => { if (stations && stations.length > 0) fetchUserLocation(); }, [stations, fetchUserLocation]);
 
-  // 🌟 ฟังก์ชันเช็คว่าค่าถึงเกณฑ์ "พื้นที่เสี่ยง" หรือไม่
   const isRisky = useCallback((mode, val) => {
       if(mode === 'heat') return val >= 35;
       if(mode === 'pm25') return val > 15;
@@ -141,7 +140,6 @@ export default function ClimatePage() {
           const currWind = Math.round(data.windSpeed || 0);
           const prevWind = yObj.wind !== undefined ? yObj.wind : currWind;
 
-          // นับจำนวนพื้นที่เสี่ยง
           if (isRisky('heat', currTemp)) counts.heat.live++;
           if (isRisky('heat', prevTemp)) counts.heat.yest++;
           if (isRisky('pm25', currPM)) counts.pm25.live++;
@@ -153,14 +151,12 @@ export default function ClimatePage() {
           if (isRisky('wind', currWind)) counts.wind.live++;
           if (isRisky('wind', prevWind)) counts.wind.yest++;
 
-          // โหมด LIVE: คัดเฉพาะจังหวัดที่เกินเกณฑ์
           if (currTemp >= 35) lData.heat.push({ prov: provName, val: currTemp, prevVal: prevTemp, unit: '°C' });
           if (currPM > 15) lData.pm25.push({ prov: provName, val: currPM, prevVal: prevPM, unit: 'µg' });
           if (currUV >= 3) lData.uv.push({ prov: provName, val: currUV, prevVal: prevUV, unit: 'Idx' });
           if (currRain > 30) lData.rain.push({ prov: provName, val: currRain, prevVal: prevRain, unit: '%' });
           if (currWind > 15) lData.wind.push({ prov: provName, val: currWind, prevVal: prevWind, unit: 'km/h' });
 
-          // โหมด YESTERDAY: เอาสถิติลงทั้ง 77 จังหวัด
           yData.heat.push({ prov: provName, val: prevTemp, currVal: currTemp, unit: '°C' });
           yData.pm25.push({ prov: provName, val: prevPM, currVal: currPM, unit: 'µg' });
           yData.uv.push({ prov: provName, val: prevUV, currVal: currUV, unit: 'Idx' });
@@ -207,23 +203,31 @@ export default function ClimatePage() {
   const activeBriefing = modeBriefings[activeTab];
   const filteredData = activeTabData.data.filter(item => item.prov.includes(searchTerm));
 
+  // 🌟 ฟังก์ชันคู่บุญที่หายไป เอากลับมาแล้ว!
+  const getWindyOverlay = (tabId) => {
+      if (tabId === 'rain') return 'rain';
+      if (tabId === 'pm25') return 'pm2p5';
+      if (tabId === 'uv') return 'uvindex';
+      if (tabId === 'wind') return 'wind'; 
+      return 'temp';
+  };
+
   const chartData = yesterdayData[activeTab].slice(0, 10).map(item => ({
       name: item.prov,
       'เมื่อวาน': item.val,
       'วันนี้': item.currVal
   }));
 
-  // 🌟 คำนวณสรุปแนวโน้ม (Trend Summary) ใต้กราฟ
   const riskyDiff = riskyCounts[activeTab].live - riskyCounts[activeTab].yest;
   let trendSummaryColor = subTextColor;
   let trendSummaryText = `สถานการณ์คงที่: จำนวนพื้นที่เสี่ยงเท่ากับเมื่อวาน (${riskyCounts[activeTab].live} จังหวัด)`;
   
   if (riskyDiff > 0) {
-      trendSummaryColor = '#ef4444'; // เพิ่มขึ้น = แย่ลง (แดง)
+      trendSummaryColor = '#ef4444'; 
       if(activeTab === 'rain') trendSummaryColor = '#3b82f6';
       trendSummaryText = `สถานการณ์แย่ลง 🔺: พบพื้นที่เสี่ยงเพิ่มขึ้น ${Math.abs(riskyDiff)} จังหวัด (วันนี้ ${riskyCounts[activeTab].live} จ. / เมื่อวาน ${riskyCounts[activeTab].yest} จ.)`;
   } else if (riskyDiff < 0) {
-      trendSummaryColor = '#22c55e'; // ลดลง = ดีขึ้น (เขียว)
+      trendSummaryColor = '#22c55e'; 
       trendSummaryText = `สถานการณ์ดีขึ้น 🔻: พื้นที่เสี่ยงลดลง ${Math.abs(riskyDiff)} จังหวัด (วันนี้ ${riskyCounts[activeTab].live} จ. / เมื่อวาน ${riskyCounts[activeTab].yest} จ.)`;
   }
 
