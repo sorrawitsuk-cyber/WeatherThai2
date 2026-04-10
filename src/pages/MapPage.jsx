@@ -324,8 +324,10 @@ export default function MapPage() {
         .custom-scrollbar::-webkit-scrollbar-thumb { background: ${darkMode ? '#334155' : '#cbd5e1'}; border-radius: 10px; }
       `}} />
 
-      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '15px', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'space-between', marginBottom: '15px', flexShrink: 0 }}>
+      {/* 🌟 1. Header (Desktop: Top-Down Compact Layout) */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '15px', flexShrink: 0 }}>
           {isMobile ? (
+              // 📱 Mobile Header
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <h2 style={{ margin: 0, color: textColor, fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>🗺️ แผนที่เฝ้าระวังภัย</h2>
@@ -348,29 +350,32 @@ export default function MapPage() {
                   </div>
               </div>
           ) : (
-              <>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                          <h2 style={{ margin: 0, color: textColor, fontSize: '1.4rem', display: 'flex', alignItems: 'center', gap: '8px' }}>🗺️ แผนที่สภาพอากาศ</h2>
-                          {mapCategory === 'risk' && (
-                              <button onClick={() => setShowReferenceModal(true)} style={{ background: 'transparent', color: '#8b5cf6', border: `1px solid #8b5cf6`, padding: '4px 12px', borderRadius: '50px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                  📚 แหล่งอ้างอิงทางวิชาการ
-                              </button>
-                          )}
+              // 💻 Desktop Header (Top-Down Layout)
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                  {/* แถว 1: Title + Main Toggles + Reference */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                          <h2 style={{ margin: 0, color: textColor, fontSize: '1.5rem', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>🗺️ แผนที่สภาพอากาศ</h2>
+                          <div style={{ display: 'flex', background: cardBg, borderRadius: '50px', border: `1px solid ${borderColor}`, padding: '4px' }}>
+                              <button onClick={() => setMapCategory('basic')} style={{ background: mapCategory === 'basic' ? '#0ea5e9' : 'transparent', color: mapCategory === 'basic' ? '#fff' : subTextColor, border: 'none', padding: '6px 20px', borderRadius: '50px', fontSize: '0.85rem', fontWeight: 'bold', cursor: 'pointer', transition: '0.2s', fontFamily: 'Kanit' }}>📊 ข้อมูลทั่วไป</button>
+                              <button onClick={() => setMapCategory('risk')} style={{ background: mapCategory === 'risk' ? '#8b5cf6' : 'transparent', color: mapCategory === 'risk' ? '#fff' : subTextColor, border: 'none', padding: '6px 20px', borderRadius: '50px', fontSize: '0.85rem', fontWeight: 'bold', cursor: 'pointer', transition: '0.2s', fontFamily: 'Kanit' }}>🧠 วิเคราะห์ความเสี่ยง</button>
+                          </div>
                       </div>
-                      <div style={{ display: 'flex', background: cardBg, borderRadius: '50px', border: `1px solid ${borderColor}`, padding: '4px', width: 'fit-content' }}>
-                          <button onClick={() => setMapCategory('basic')} style={{ background: mapCategory === 'basic' ? '#0ea5e9' : 'transparent', color: mapCategory === 'basic' ? '#fff' : subTextColor, border: 'none', padding: '6px 20px', borderRadius: '50px', fontSize: '0.85rem', fontWeight: 'bold', cursor: 'pointer', transition: '0.2s', fontFamily: 'Kanit' }}>📊 ข้อมูลทั่วไป</button>
-                          <button onClick={() => setMapCategory('risk')} style={{ background: mapCategory === 'risk' ? '#8b5cf6' : 'transparent', color: mapCategory === 'risk' ? '#fff' : subTextColor, border: 'none', padding: '6px 20px', borderRadius: '50px', fontSize: '0.85rem', fontWeight: 'bold', cursor: 'pointer', transition: '0.2s', fontFamily: 'Kanit' }}>🧠 วิเคราะห์ความเสี่ยง</button>
-                      </div>
+                      {mapCategory === 'risk' && (
+                          <button onClick={() => setShowReferenceModal(true)} style={{ background: darkMode ? '#1e293b' : '#f1f5f9', color: '#8b5cf6', border: `1px solid #8b5cf6`, padding: '6px 15px', borderRadius: '50px', fontSize: '0.85rem', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s' }}>
+                              📚 แหล่งอ้างอิงทางวิชาการ
+                          </button>
+                      )}
                   </div>
-                  <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', maxWidth: '600px' }} className="custom-scrollbar">
+                  {/* แถว 2: Sub-Modes กางออกเต็มความกว้าง (Flex-Wrap) */}
+                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                     {mapCategory === 'basic' ? basicModes.map(m => (
-                        <button key={m.id} onClick={() => setActiveBasicMode(m.id)} style={{ flexShrink: 0, padding: '8px 15px', borderRadius: '12px', border: `1px solid ${activeBasicMode === m.id ? m.color : borderColor}`, background: activeBasicMode === m.id ? (darkMode ? `${m.color}20` : `${m.color}15`) : cardBg, color: activeBasicMode === m.id ? m.color : textColor, fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'Kanit', fontSize: '0.85rem' }}>{m.name}</button>
+                        <button key={m.id} onClick={() => setActiveBasicMode(m.id)} style={{ padding: '8px 15px', borderRadius: '12px', border: `1px solid ${activeBasicMode === m.id ? m.color : borderColor}`, background: activeBasicMode === m.id ? (darkMode ? `${m.color}20` : `${m.color}15`) : cardBg, color: activeBasicMode === m.id ? m.color : textColor, fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'Kanit', fontSize: '0.9rem' }}>{m.name}</button>
                     )) : riskModes.map(m => (
-                        <button key={m.id} onClick={() => setActiveRiskMode(m.id)} style={{ flexShrink: 0, padding: '8px 15px', borderRadius: '12px', border: `1px solid ${activeRiskMode === m.id ? m.color : borderColor}`, background: activeRiskMode === m.id ? (darkMode ? `${m.color}20` : `${m.color}15`) : cardBg, color: activeRiskMode === m.id ? m.color : textColor, fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'Kanit', fontSize: '0.85rem' }}>{m.name}</button>
+                        <button key={m.id} onClick={() => setActiveRiskMode(m.id)} style={{ padding: '8px 15px', borderRadius: '12px', border: `1px solid ${activeRiskMode === m.id ? m.color : borderColor}`, background: activeRiskMode === m.id ? (darkMode ? `${m.color}20` : `${m.color}15`) : cardBg, color: activeRiskMode === m.id ? m.color : textColor, fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'Kanit', fontSize: '0.9rem' }}>{m.name}</button>
                     ))}
                   </div>
-              </>
+              </div>
           )}
       </div>
 
@@ -386,7 +391,6 @@ export default function MapPage() {
                     
                     {geoData && <GeoJSON key={`${mapCategory}-${activeRiskMode}-${activeBasicMode}-${polyOpacity}-${basemapStyle}`} data={geoData} style={styleGeoJSON} onEachFeature={onEachFeature} />}
                     
-                    {/* แก้ไขตรงนี้: ใช้ rankedData วนลูปวาด Marker แทน allMapData */}
                     {rankedData.map(st => {
                         const zoomThreshold = isMobile ? 6 : 7;
                         let isVisible = false;
@@ -511,7 +515,7 @@ export default function MapPage() {
         </div>
       )}
 
-      {/* POPUP 2: WEATHER DASHBOARD MODAL (โหมดทั่วไป) */}
+      {/* POPUP 2: WEATHER DASHBOARD MODAL */}
       {selectedHotspot && selectedHotspot.type === 'basic' && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10000, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(5px)', display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }} onClick={() => setSelectedHotspot(null)}>
           <div className="fade-in" style={{ background: cardBg, padding: '25px', borderRadius: '20px', width: '100%', maxWidth: '420px', border: `1px solid ${borderColor}`, boxShadow: '0 20px 50px rgba(0,0,0,0.5)', position: 'relative' }} onClick={e => e.stopPropagation()}>
