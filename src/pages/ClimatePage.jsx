@@ -2,11 +2,10 @@ import React, { useContext, useState, useEffect, useMemo, useCallback } from 're
 import { WeatherContext } from '../context/WeatherContext';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid } from 'recharts';
 
-// 🌟 Component ลูกศรบอกแนวโน้ม
 const TrendIndicator = ({ current, prev, mode, hideText = false }) => {
     if (current == null || prev == null || current === '-' || prev === '-') return null;
     const diff = Math.round(current - prev);
-    if (diff === 0) return <span style={{fontSize:'0.75em', opacity:0.6, color:'#94a3b8', marginLeft:'6px', whiteSpace:'nowrap'}}>➖</span>;
+    if (diff === 0) return <span title="ไม่มีการเปลี่ยนแปลง" style={{fontSize:'0.75em', opacity:0.6, color:'#94a3b8', marginLeft:'6px', whiteSpace:'nowrap'}}>➖</span>;
     
     let color = diff > 0 ? '#ef4444' : '#22c55e'; 
     if (mode === 'rain') color = diff > 0 ? '#3b82f6' : '#94a3b8'; 
@@ -14,7 +13,7 @@ const TrendIndicator = ({ current, prev, mode, hideText = false }) => {
 
     const arrow = diff > 0 ? '🔺' : '🔻';
     return (
-        <span style={{fontSize:'0.8em', color: color, opacity: 0.9, marginLeft: '6px', whiteSpace:'nowrap', fontWeight:'bold'}}>
+        <span title="แนวโน้มเปรียบเทียบกับเมื่อวาน" style={{fontSize:'0.8em', color: color, opacity: 0.9, marginLeft: '6px', whiteSpace:'nowrap', fontWeight:'bold', cursor:'help'}}>
             {arrow} {Math.abs(diff)} {hideText ? '' : <span style={{fontSize:'0.7em', fontWeight:'normal'}}></span>}
         </span>
     );
@@ -30,10 +29,8 @@ export default function ClimatePage() {
   const [userProv, setUserProv] = useState('');
   const [userData, setUserData] = useState(null);
   const [isLocating, setIsLocating] = useState(true);
-  const [currentTime, setCurrentTime] = useState(new Date());
-
-  // 🌟 [แทรกใหม่] State สำหรับเปิด/ปิด กล่องเลือกจังหวัด
   const [showLocFilter, setShowLocFilter] = useState(false);
+  const [currentTime, setCurrentTime] = useState(new Date());
 
   const yesterdayDate = new Date();
   yesterdayDate.setDate(yesterdayDate.getDate() - 1);
@@ -57,7 +54,6 @@ export default function ClimatePage() {
       return curr;
   }, []);
 
-  // ฟังก์ชันดึง GPS 
   const fetchUserLocation = useCallback(() => {
       setIsLocating(true);
       const fallbackToDefault = () => {
@@ -279,13 +275,11 @@ export default function ClimatePage() {
                         <div style={{ fontSize: '1.3rem', fontWeight: '900', color: textColor }}>{isLocating ? 'ค้นหา...' : (userProv === 'กรุงเทพมหานคร' ? userProv : `จ.${userProv}`)}</div>
                         <div style={{ fontSize: '0.8rem', color: subTextColor, marginTop: '2px' }}>📍 พื้นที่เฝ้าระวังของคุณ</div>
                     </div>
-                    {/* 🌟 เปลี่ยนปุ่มนี้ให้เปิด/ปิด Dropdown เลือกจังหวัดแทน */}
                     <button onClick={() => setShowLocFilter(!showLocFilter)} style={{ background: 'transparent', border: 'none', color: locSummary.color, cursor: 'pointer', fontSize: '1.2rem', transition: '0.2s' }} title="ค้นหา/เปลี่ยนจังหวัด">
                         🔍
                     </button>
                 </div>
 
-                {/* 🌟 กล่องตัวกรองเลือกจังหวัด (Dropdown) */}
                 {showLocFilter && (
                     <div className="fade-in" style={{ marginTop: '15px', display: 'flex', gap: '8px', zIndex: 10, position: 'relative' }}>
                         <select
@@ -325,6 +319,7 @@ export default function ClimatePage() {
                         <div style={{ fontSize: '3rem', animation: locSummary.icon === '🚨' ? 'pulse 1.5s infinite' : 'none' }}>{locSummary.icon}</div>
                         <div style={{ fontSize: '1.3rem', fontWeight: '900', color: locSummary.color, textAlign: 'center', lineHeight: '1.2' }}>{locSummary.text}</div>
                         <div style={{ fontSize: '0.85rem', color: textColor, textAlign: 'center', opacity: 0.8, padding: '0 10px', marginBottom: '10px' }}>{locSummary.desc}</div>
+                        
                         <div style={{ display: 'flex', gap: '8px', width: '100%', flexWrap: 'wrap', justifyContent: 'center' }}>
                             <div style={{ background: darkMode ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.7)', border: `1px solid ${borderColor}`, padding: '8px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 'bold', color: textColor, display: 'flex', alignItems: 'center', gap: '4px' }}>
                                 🌡️ <span style={{color: userData.temp >= 38 ? '#ef4444' : textColor}}>{userData.temp}°C</span>
@@ -335,6 +330,12 @@ export default function ClimatePage() {
                                 {timeMode === 'live' && <TrendIndicator current={userData.pm25} prev={userData.prevPm25} mode="pm25" />}
                             </div>
                         </div>
+                        {/* 🌟 เพิ่มคำอธิบายใต้กล่องนี้ */}
+                        {timeMode === 'live' && (
+                            <div style={{ fontSize: '0.7rem', opacity: 0.7, marginTop: '10px', fontWeight: 'normal', color: textColor }}>
+                                💡 ลูกศร 🔺🔻 แสดงแนวโน้มเปรียบเทียบกับเมื่อวาน
+                            </div>
+                        )}
                     </div>
                 ) : ( <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: subTextColor, marginTop: '20px' }}>กำลังโหลด...</div> )}
             </div>
@@ -386,6 +387,11 @@ export default function ClimatePage() {
                                 <h3 style={{ margin: 0, color: textColor, fontSize: '1rem' }}>📋 แจ้งเตือนพื้นที่เสี่ยง</h3>
                                 <span style={{ fontSize: '0.75rem', background: `${activeTabData.color}20`, color: activeTabData.color, padding: '4px 10px', borderRadius: '12px', fontWeight: 'bold' }}>พบ {activeTabData.data.length} จังหวัด</span>
                             </div>
+                            {/* 🌟 เพิ่มคำอธิบายที่หัวตาราง Live */}
+                            <div style={{ fontSize: '0.75rem', color: '#0ea5e9', fontWeight: 'bold', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                <span style={{ display: 'inline-block', width: '6px', height: '6px', background: '#0ea5e9', borderRadius: '50%' }}></span>
+                                Nowcast - ข้อมูลสภาพอากาศ ณ ปัจจุบัน <span style={{color: subTextColor, fontWeight: 'normal'}}>(ลูกศรเทียบกับเมื่อวาน)</span>
+                            </div>
                             <input type="text" placeholder={`🔍 ค้นหา...`} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '12px', border: `1px solid ${borderColor}`, background: cardBg, color: textColor, outline: 'none', fontFamily: 'Kanit' }} />
                         </div>
                         <div style={{ padding: '5px 15px', overflowY: 'auto', maxHeight: isMobile ? '300px' : '320px' }} className="hide-scrollbar">
@@ -409,7 +415,6 @@ export default function ClimatePage() {
             /* =================== โหมด YESTERDAY (สถิติเมื่อวาน) =================== */
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '20px' }}>
                 
-                {/* 🌟 กราฟเปรียบเทียบแนวโน้ม (Top 10) */}
                 <div style={{ background: cardBg, padding: '25px', borderRadius: '24px', border: `1px solid ${borderColor}`, width: '100%', overflow: 'hidden' }}>
                     <h2 style={{ margin: '0 0 5px 0', color: textColor, fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
                         📊 กราฟเปรียบเทียบแนวโน้ม Top 10 (เมื่อวาน vs วันนี้)
@@ -430,7 +435,6 @@ export default function ClimatePage() {
                         </ResponsiveContainer>
                     </div>
 
-                    {/* 🌟 สรุปแนวโน้มใต้กราฟ */}
                     <div style={{ marginTop: '15px', padding: '12px', background: darkMode ? '#1e293b' : '#f1f5f9', borderRadius: '12px', textAlign: 'center', border: `1px dashed ${trendSummaryColor}50` }}>
                         <span style={{ fontSize: '0.9rem', fontWeight: 'bold', color: trendSummaryColor }}>
                             {trendSummaryText}
@@ -438,15 +442,16 @@ export default function ClimatePage() {
                     </div>
                 </div>
 
-                {/* 🌟 ตาราง 77 จังหวัดเต็มๆ ของเมื่อวาน */}
                 <div style={{ background: cardBg, borderRadius: '24px', border: `1px solid ${borderColor}`, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                     <div style={{ padding: '20px 25px', borderBottom: `1px solid ${borderColor}`, background: darkMode ? '#1e293b' : '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
                         <div>
                             <h3 style={{ margin: 0, color: textColor, fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 📋 สรุปสถิติสูงสุด 77 จังหวัด
                             </h3>
-                            <div style={{ fontSize: '0.8rem', color: '#8b5cf6', fontWeight: 'bold', marginTop: '5px' }}>
-                                📅 ข้อมูลวันที่: {yesterdayDateText}
+                            {/* 🌟 เพิ่มคำอธิบายที่หัวตาราง Yesterday */}
+                            <div style={{ fontSize: '0.75rem', color: '#8b5cf6', fontWeight: 'bold', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                <span style={{ display: 'inline-block', width: '6px', height: '6px', background: '#8b5cf6', borderRadius: '50%' }}></span>
+                                Historical - สถิติสูงสุดของเมื่อวาน <span style={{color: subTextColor, fontWeight: 'normal'}}>(ลูกศรแสดงแนวโน้มของวันนี้ ว่าเพิ่ม/ลดจากสถิติในตารางเท่าไหร่)</span>
                             </div>
                         </div>
                         <input type="text" placeholder={`🔍 ค้นหาจังหวัด...`} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={{ width: isMobile ? '100%' : '250px', padding: '10px 15px', borderRadius: '12px', border: `1px solid ${borderColor}`, background: cardBg, color: textColor, outline: 'none', fontFamily: 'Kanit' }} />
@@ -460,7 +465,6 @@ export default function ClimatePage() {
                                     <span style={{ color: textColor, fontWeight: '600', fontSize: '1rem' }}>จ.{item.prov}</span>
                                 </div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                    {/* 🌟 ลูกศรเทียบแนวโน้ม วันนี้ vs เมื่อวาน ในรายละเอียด */}
                                     <TrendIndicator current={item.currVal} prev={item.val} mode={activeTab} hideText={false} />
                                     <span style={{ color: activeTabData.color, fontWeight: '900', fontSize: '1.2rem', minWidth: '60px', textAlign: 'right' }}>
                                         {item.val} <small style={{fontSize: '0.7rem', color: subTextColor}}>{item.unit}</small>
