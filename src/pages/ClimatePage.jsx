@@ -2,13 +2,12 @@ import React, { useContext, useState, useEffect, useMemo, useCallback } from 're
 import { WeatherContext } from '../context/WeatherContext';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid } from 'recharts';
 
-// 🌟 ปรับให้ลูกศรมีแค่สี แดง (เพิ่ม) และ เขียว (ลด) ในทุกโหมด
-const TrendIndicator = ({ current, prev, hideText = false }) => {
+// 🌟 Component ลูกศรบอกแนวโน้ม (ใช้ Text Symbol บังคับสี แดง=แย่ลง, เขียว=ดีขึ้น)
+const TrendIndicator = ({ current, prev, mode, hideText = false }) => {
     if (current == null || prev == null || current === '-' || prev === '-') return null;
     const diff = Math.round(current - prev);
     if (diff === 0) return <span title="ไม่มีการเปลี่ยนแปลง" style={{fontSize:'0.75em', opacity:0.6, color:'#94a3b8', marginLeft:'6px', whiteSpace:'nowrap'}}>➖</span>;
     
-    // แดง = ค่าเพิ่มขึ้น (แย่ลง), เขียว = ค่าลดลง (ดีขึ้น)
     const isWorse = diff > 0;
     const color = isWorse ? '#ef4444' : '#22c55e'; 
     const arrow = isWorse ? '▲' : '▼';
@@ -27,6 +26,13 @@ export default function ClimatePage() {
   const [activeTab, setActiveTab] = useState('heat'); 
   const [timeMode, setTimeMode] = useState('live'); 
 
+  // 🌟 State สำหรับฟีเจอร์ Desktop
+  const [sortOrder, setSortOrder] = useState('alpha'); 
+
+  // 🌟 State สำหรับฟีเจอร์ Mobile UX
+  const [isMapInteractive, setIsMapInteractive] = useState(false); // ล็อคแผนที่บนมือถือ
+  const [displayLimit, setDisplayLimit] = useState(20); // โหลดทีละ 20 จังหวัด
+
   const [userProv, setUserProv] = useState('');
   const [userData, setUserData] = useState(null);
   const [isLocating, setIsLocating] = useState(true);
@@ -36,6 +42,9 @@ export default function ClimatePage() {
   const yesterdayDate = new Date();
   yesterdayDate.setDate(yesterdayDate.getDate() - 1);
   const yesterdayDateText = yesterdayDate.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' });
+
+  // 🌟 Reset จำนวนจังหวัดที่แสดง เมื่อมีการเปลี่ยน Tab หรือ Mode
+  useEffect(() => { setDisplayLimit(20); }, [activeTab, timeMode, searchTerm, sortOrder]);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -173,10 +182,9 @@ export default function ClimatePage() {
 
     const gistdaMock = [{ prov: 'เชียงใหม่', count: 145 }, { prov: 'แม่ฮ่องสอน', count: 122 }, { prov: 'กาญจนบุรี', count: 110 }];
     lData.fire = gistdaMock.map(p => ({ prov: p.prov, val: p.count, prevVal: p.count + 10, unit: 'จุด' })).sort((a,b) => b.val - a.val);
-    yData.fire = gistdaMock.map(p => ({ prov: p.prov, val: p.count + 10, currVal: p.count, unit: 'จุด' })).sort((a,b) => a.prov.localeCompare(b.prov, 'th'));
+    yData.fire = gistdaMock.map(p => ({ prov: p.prov, val: p.count + 10, currVal: p.count, unit: 'จุด' }));
 
     Object.keys(lData).forEach(key => { if(key !== 'fire') lData[key].sort((a, b) => b.val - a.val) });
-    Object.keys(yData).forEach(key => { if(key !== 'fire') yData[key].sort((a, b) => a.prov.localeCompare(b.prov, 'th')) });
     
     return { liveData: lData, yesterdayData: yData, riskyCounts: counts };
   }, [stations, stationTemps, stationYesterday, stationMaxYesterday, getSafePrev, isRisky]);
@@ -207,7 +215,16 @@ export default function ClimatePage() {
 
   const activeTabData = tabs.find(t => t.id === activeTab);
   const activeBriefing = modeBriefings[activeTab];
-  const filteredData = activeTabData.data.filter(item => item.prov.includes(searchTerm));
+
+  // 🌟 กรองและจัดเรียงข้อมูล
+  const sortedFilteredData = useMemo(() => {
+      let filtered = activeTabData.data.filter(item => item.prov.includes(searchTerm));
+      if (timeMode === 'yesterday') {
+          if (sortOrder === 'desc') filtered.sort((a, b) => b.val - a.val); // มากไปน้อย
+          else filtered.sort((a, b) => a.prov.localeCompare(b.prov, 'th')); // ก-ฮ
+      }
+      return filtered;
+  }, [activeTabData.data, searchTerm, timeMode, sortOrder]);
 
   const getWindyOverlay = (tabId) => {
       if (tabId === 'rain') return 'rain';
@@ -217,22 +234,22 @@ export default function ClimatePage() {
       return 'temp';
   };
 
-  const chartData = liveData[activeTab].slice(0, 10).map(item => ({
-      name: item.prov,
-      'เมื่อวาน': item.prevVal,
-      'วันนี้': item.val
-  }));
+  const chartData = useMemo(() => {
+    return [...yesterdayData[activeTab]]
+        .sort((a,b) => b.val - a.val)
+        .slice(0, 10)
+        .map(item => ({ name: item.prov, 'เมื่อวาน': item.val, 'วันนี้': item.currVal }));
+  }, [yesterdayData, activeTab]);
 
-  // 🌟 บังคับสีสรุปแนวโน้มใต้กราฟ ให้แดง/เขียวเป๊ะๆ
   const riskyDiff = riskyCounts[activeTab].live - riskyCounts[activeTab].yest;
   let trendSummaryColor = subTextColor;
   let trendSummaryText = `สถานการณ์คงที่: จำนวนพื้นที่เสี่ยงเท่ากับเมื่อวาน (${riskyCounts[activeTab].live} จังหวัด)`;
   
   if (riskyDiff > 0) {
-      trendSummaryColor = '#ef4444'; // แดง = แย่ลง
+      trendSummaryColor = '#ef4444'; 
       trendSummaryText = `สถานการณ์แย่ลง ▲: พบพื้นที่เสี่ยงเพิ่มขึ้น ${Math.abs(riskyDiff)} จังหวัด (วันนี้ ${riskyCounts[activeTab].live} จ. / เมื่อวาน ${riskyCounts[activeTab].yest} จ.)`;
   } else if (riskyDiff < 0) {
-      trendSummaryColor = '#22c55e'; // เขียว = ดีขึ้น
+      trendSummaryColor = '#22c55e'; 
       trendSummaryText = `สถานการณ์ดีขึ้น ▼: พื้นที่เสี่ยงลดลง ${Math.abs(riskyDiff)} จังหวัด (วันนี้ ${riskyCounts[activeTab].live} จ. / เมื่อวาน ${riskyCounts[activeTab].yest} จ.)`;
   }
 
@@ -252,8 +269,19 @@ export default function ClimatePage() {
   if (loading || stations.length === 0) return <div style={{ height: '100%', background: appBg }}></div>;
 
   return (
-    <div style={{ height: '100%', width: '100%', background: timeMode === 'yesterday' ? (darkMode ? '#000000' : '#f1f5f9') : appBg, display: 'flex', justifyContent: 'center', overflowY: 'auto', fontFamily: 'Kanit, sans-serif', transition: 'background 0.3s' }} className="hide-scrollbar">
-      <div style={{ width: '100%', maxWidth: '1200px', display: 'flex', flexDirection: 'column', gap: '20px', padding: isMobile ? '15px' : '30px', paddingBottom: '100px' }}>
+    <div style={{ height: '100%', width: '100%', background: timeMode === 'yesterday' ? (darkMode ? '#000000' : '#f1f5f9') : appBg, display: 'flex', justifyContent: 'center', overflowY: 'auto', fontFamily: 'Kanit, sans-serif', transition: 'background 0.3s' }} className="custom-scrollbar">
+      
+      <style dangerouslySetInlineStyle={{__html: `
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: ${darkMode ? '#334155' : '#cbd5e1'}; border-radius: 10px; }
+        @media (max-width: 1024px) {
+            .custom-scrollbar::-webkit-scrollbar { display: none; }
+            .custom-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        }
+      `}} />
+
+      <div style={{ width: '100%', maxWidth: '1400px', display: 'flex', flexDirection: 'column', gap: '20px', padding: isMobile ? '15px' : '30px', paddingBottom: '100px' }}>
         
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '10px' }}>
             <div>
@@ -328,11 +356,11 @@ export default function ClimatePage() {
                         <div style={{ display: 'flex', gap: '8px', width: '100%', flexWrap: 'wrap', justifyContent: 'center' }}>
                             <div style={{ background: darkMode ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.7)', border: `1px solid ${borderColor}`, padding: '8px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 'bold', color: textColor, display: 'flex', alignItems: 'center', gap: '4px' }}>
                                 🌡️ <span style={{color: userData.temp >= 38 ? '#ef4444' : textColor}}>{userData.temp}°C</span>
-                                {timeMode === 'live' && <TrendIndicator current={userData.temp} prev={userData.prevTemp} />}
+                                {timeMode === 'live' && <TrendIndicator current={userData.temp} prev={userData.prevTemp} mode="temp" />}
                             </div>
                             <div style={{ background: darkMode ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.7)', border: `1px solid ${borderColor}`, padding: '8px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 'bold', color: textColor, display: 'flex', alignItems: 'center', gap: '4px' }}>
                                 😷 <span style={{color: userData.pm25 >= 37.5 ? '#f97316' : textColor}}>{userData.pm25} µg</span>
-                                {timeMode === 'live' && <TrendIndicator current={userData.pm25} prev={userData.prevPm25} />}
+                                {timeMode === 'live' && <TrendIndicator current={userData.pm25} prev={userData.prevPm25} mode="pm25" />}
                             </div>
                         </div>
                     </div>
@@ -367,8 +395,27 @@ export default function ClimatePage() {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
                         <h2 style={{ margin: '0 0 10px 0', color: textColor, fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>{activeTabData.icon} แผนที่ Nowcast: {activeTabData.label}</h2>
                     </div>
-                    <div style={{ flex: 1, minHeight: isMobile ? '350px' : '550px', borderRadius: '16px', overflow: 'hidden', background: '#000' }}>
-                        <iframe width="100%" height="100%" src={`https://embed.windy.com/embed2.html?lat=13.75&lon=100.5&zoom=5&level=surface&overlay=${getWindyOverlay(activeTab)}&product=ecmwf`} style={{ border: 'none' }}></iframe>
+                    <div style={{ flex: 1, minHeight: isMobile ? '350px' : '550px', borderRadius: '16px', overflow: 'hidden', background: '#000', position: 'relative' }}>
+                        {/* 🌟 1. แก้ปัญหา Iframe Trap บนมือถือ */}
+                        {isMobile && !isMapInteractive && (
+                            <div 
+                                onClick={() => setIsMapInteractive(true)}
+                                style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.4)', zIndex: 10, display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: 'pointer', backdropFilter: 'blur(2px)' }}
+                            >
+                                <div style={{ background: '#0ea5e9', color: '#fff', padding: '10px 20px', borderRadius: '50px', fontWeight: 'bold', boxShadow: '0 4px 15px rgba(0,0,0,0.3)' }}>
+                                    👆 แตะเพื่อเลื่อนแผนที่
+                                </div>
+                            </div>
+                        )}
+                        {isMobile && isMapInteractive && (
+                            <button 
+                                onClick={() => setIsMapInteractive(false)}
+                                style={{ position: 'absolute', top: '10px', right: '10px', background: '#ef4444', color: '#fff', padding: '5px 15px', borderRadius: '50px', border: 'none', zIndex: 10, fontWeight: 'bold', boxShadow: '0 2px 10px rgba(0,0,0,0.2)' }}
+                            >
+                                🔒 ล็อคแผนที่
+                            </button>
+                        )}
+                        <iframe width="100%" height="100%" src={`https://embed.windy.com/embed2.html?lat=13.75&lon=100.5&zoom=5&level=surface&overlay=${getWindyOverlay(activeTab)}&product=ecmwf`} style={{ border: 'none', pointerEvents: (isMobile && !isMapInteractive) ? 'none' : 'auto' }}></iframe>
                     </div>
                 </div>
 
@@ -390,19 +437,28 @@ export default function ClimatePage() {
                             </div>
                             <input type="text" placeholder={`🔍 ค้นหา...`} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '12px', border: `1px solid ${borderColor}`, background: cardBg, color: textColor, outline: 'none', fontFamily: 'Kanit' }} />
                         </div>
-                        <div style={{ padding: '5px 15px', overflowY: 'auto', maxHeight: isMobile ? '300px' : '320px' }} className="hide-scrollbar">
-                            {filteredData.length > 0 ? filteredData.map((item, i) => (
+                        <div style={{ padding: '5px 15px', overflowY: 'auto', maxHeight: isMobile ? '300px' : '450px' }} className="custom-scrollbar">
+                            {/* 🌟 2. ระบบ Progressive Disclosure (โหลดทีละ 20) */}
+                            {sortedFilteredData.slice(0, displayLimit).length > 0 ? sortedFilteredData.slice(0, displayLimit).map((item, i) => (
                                 <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 10px', borderBottom: `1px solid ${borderColor}` }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                         <span style={{ color: subTextColor, fontSize: '0.8rem', width: '20px' }}>{i+1}.</span>
                                         <span style={{ color: textColor, fontWeight: '600', fontSize: '0.9rem' }}>จ.{item.prov}</span>
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <TrendIndicator current={item.val} prev={item.prevVal} />
+                                        <TrendIndicator current={item.val} prev={item.prevVal} mode={activeTab} />
                                         <span style={{ color: activeTabData.color, fontWeight: '900', fontSize: '1rem', width: '60px', textAlign: 'right' }}>{item.val} <small style={{fontSize: '0.6rem'}}>{item.unit}</small></span>
                                     </div>
                                 </div>
                             )) : ( <div style={{ textAlign: 'center', padding: '50px 0', color: subTextColor }}>✅ สถานการณ์ปกติ</div> )}
+                            
+                            {sortedFilteredData.length > displayLimit && (
+                                <div style={{ textAlign: 'center', padding: '15px 0' }}>
+                                    <button onClick={() => setDisplayLimit(prev => prev + 20)} style={{ background: darkMode ? '#334155' : '#e2e8f0', color: textColor, border: 'none', padding: '8px 20px', borderRadius: '50px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.8rem' }}>
+                                        ⬇️ โหลดเพิ่มเติม ({sortedFilteredData.length - displayLimit})
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -441,14 +497,21 @@ export default function ClimatePage() {
                             </h3>
                             <div style={{ fontSize: '0.75rem', color: '#8b5cf6', fontWeight: 'bold', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '5px' }}>
                                 <span style={{ display: 'inline-block', width: '6px', height: '6px', background: '#8b5cf6', borderRadius: '50%' }}></span>
-                                Historical - สถิติสูงสุดของเมื่อวาน (ไม่มีลูกศรเทียบ)
+                                Historical - สถิติสูงสุดของเมื่อวาน
                             </div>
                         </div>
-                        <input type="text" placeholder={`🔍 ค้นหาจังหวัด...`} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={{ width: isMobile ? '100%' : '250px', padding: '10px 15px', borderRadius: '12px', border: `1px solid ${borderColor}`, background: cardBg, color: textColor, outline: 'none', fontFamily: 'Kanit' }} />
+                        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', width: isMobile ? '100%' : 'auto' }}>
+                            <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} style={{ padding: '10px 15px', borderRadius: '12px', border: `1px solid ${borderColor}`, background: cardBg, color: textColor, outline: 'none', fontFamily: 'Kanit', cursor: 'pointer' }}>
+                                <option value="alpha">🔤 เรียงตามชื่อ (ก-ฮ)</option>
+                                <option value="desc">🔥 เรียงตามความรุนแรง</option>
+                            </select>
+                            <input type="text" placeholder={`🔍 ค้นหาจังหวัด...`} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={{ flex: 1, padding: '10px 15px', borderRadius: '12px', border: `1px solid ${borderColor}`, background: cardBg, color: textColor, outline: 'none', fontFamily: 'Kanit' }} />
+                        </div>
                     </div>
                     
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1px', background: borderColor, padding: '1px' }}>
-                        {filteredData.length > 0 ? filteredData.map((item, i) => (
+                        {/* 🌟 2. ระบบ Progressive Disclosure (โหลดทีละ 20) สำหรับ 77 จังหวัด */}
+                        {sortedFilteredData.slice(0, displayLimit).length > 0 ? sortedFilteredData.slice(0, displayLimit).map((item, i) => (
                             <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 20px', background: cardBg }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                     <span style={{ color: subTextColor, fontSize: '0.9rem', width: '25px', fontWeight: 'bold' }}>{i+1}.</span>
@@ -462,6 +525,13 @@ export default function ClimatePage() {
                             </div>
                         )) : ( <div style={{ textAlign: 'center', padding: '50px 0', color: subTextColor, background: cardBg, gridColumn: '1 / -1' }}>ไม่พบข้อมูลจังหวัดที่ค้นหา</div> )}
                     </div>
+                    {sortedFilteredData.length > displayLimit && (
+                        <div style={{ textAlign: 'center', padding: '15px 0', background: cardBg }}>
+                            <button onClick={() => setDisplayLimit(prev => prev + 20)} style={{ background: darkMode ? '#334155' : '#e2e8f0', color: textColor, border: 'none', padding: '10px 25px', borderRadius: '50px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.9rem' }}>
+                                ⬇️ โหลดข้อมูลเพิ่มอีก ({sortedFilteredData.length - displayLimit} จังหวัด)
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
         )}
