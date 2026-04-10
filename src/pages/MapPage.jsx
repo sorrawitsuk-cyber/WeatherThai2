@@ -29,12 +29,10 @@ function MapZoomListener({ setMapZoom }) {
   return null;
 }
 
-// 🌟 ฟังก์ชันคำนวณทิศทางลมเป็นภาษาไทย พร้อมลูกศรชี้ทิศทางการพัด
 const getWindDirection = (degree) => {
     if (degree === undefined || degree === null) return { name: '-', arrow: '🌀' };
     const val = Math.floor((degree / 45) + 0.5);
     const arr = ["เหนือ", "ตะวันออกเฉียงเหนือ", "ตะวันออก", "ตะวันออกเฉียงใต้", "ใต้", "ตะวันตกเฉียงใต้", "ตะวันตก", "ตะวันตกเฉียงเหนือ"];
-    // ลูกศรชี้ไปตามทิศที่ลมพัดไป (เช่น ลมเหนือพัดลงใต้ ⬇️)
     const arrows = ["⬇️", "↙️", "⬅️", "↖️", "⬆️", "↗️", "➡️", "↘️"]; 
     return { name: arr[(val % 8)], arrow: arrows[(val % 8)] };
 };
@@ -82,7 +80,6 @@ export default function MapPage() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // เคลียร์ Popup เวลาเปลี่ยนโหมดหลัก จะได้ไม่ค้างข้อมูลเก่า
   useEffect(() => { setSelectedHotspot(null); }, [mapCategory]);
 
   const basicModes = [
@@ -218,13 +215,11 @@ export default function MapPage() {
     return { fillColor: color, weight: 1, opacity: 1, color: darkMode ? '#0f172a' : '#ffffff', fillOpacity: polyOpacity };
   };
 
-  // 🌟 ฟังก์ชันจัดการการคลิกแยกตามโหมด
   const handleRegionClick = (station) => {
       if (mapCategory === 'risk') {
           const risk = calculateRisk(station);
           setSelectedHotspot({ type: 'risk', station, riskScore: risk.score, factors: risk.factors, color: getRiskColor(risk.score) });
       } else {
-          // โหมดข้อมูลทั่วไป (Basic) - เก็บข้อมูลทั้งหมดเพื่อนำไปโชว์ใน Popup
           const data = stationTemps[station.stationID] || {};
           const pm25 = station.AQILast?.PM25?.value || 0;
           setSelectedHotspot({ type: 'basic', station, data, pm25 });
@@ -391,7 +386,8 @@ export default function MapPage() {
                     
                     {geoData && <GeoJSON key={`${mapCategory}-${activeRiskMode}-${activeBasicMode}-${polyOpacity}-${basemapStyle}`} data={geoData} style={styleGeoJSON} onEachFeature={onEachFeature} />}
                     
-                    {allMapData.map(st => {
+                    {/* แก้ไขตรงนี้: ใช้ rankedData วนลูปวาด Marker แทน allMapData */}
+                    {rankedData.map(st => {
                         const zoomThreshold = isMobile ? 6 : 7;
                         let isVisible = false;
                         if (mapZoom >= zoomThreshold) {
@@ -472,7 +468,7 @@ export default function MapPage() {
           </div>
       </div>
 
-      {/* 🌟 POPUP 1: โหมดความเสี่ยง (Diagnostic Modal) */}
+      {/* POPUP 1: DIAGNOSTIC MODAL */}
       {selectedHotspot && selectedHotspot.type === 'risk' && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10000, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(5px)', display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }} onClick={() => setSelectedHotspot(null)}>
             <div className="fade-in" style={{ background: cardBg, padding: '25px', borderRadius: '20px', width: '100%', maxWidth: '420px', border: `1px solid ${borderColor}`, boxShadow: '0 20px 50px rgba(0,0,0,0.5)', position: 'relative' }} onClick={e => e.stopPropagation()}>
@@ -515,7 +511,7 @@ export default function MapPage() {
         </div>
       )}
 
-      {/* 🌟 POPUP 2: โหมดทั่วไป (Weather Dashboard Modal) */}
+      {/* POPUP 2: WEATHER DASHBOARD MODAL (โหมดทั่วไป) */}
       {selectedHotspot && selectedHotspot.type === 'basic' && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10000, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(5px)', display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }} onClick={() => setSelectedHotspot(null)}>
           <div className="fade-in" style={{ background: cardBg, padding: '25px', borderRadius: '20px', width: '100%', maxWidth: '420px', border: `1px solid ${borderColor}`, boxShadow: '0 20px 50px rgba(0,0,0,0.5)', position: 'relative' }} onClick={e => e.stopPropagation()}>
@@ -527,27 +523,22 @@ export default function MapPage() {
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  {/* PM 2.5 */}
                   <div style={{ background: darkMode ? '#1e293b' : '#f1f5f9', padding: '15px', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '5px', borderLeft: `4px solid ${getBasicColor(selectedHotspot.pm25, 'pm25')}` }}>
                       <span style={{ fontSize: '0.8rem', color: subTextColor, fontWeight: 'bold' }}>😷 ฝุ่น PM2.5</span>
                       <span style={{ fontSize: '1.4rem', fontWeight: '900', color: getBasicColor(selectedHotspot.pm25, 'pm25') }}>{selectedHotspot.pm25} <span style={{fontSize: '0.7rem', color: subTextColor, fontWeight:'normal'}}>µg/m³</span></span>
                   </div>
-                  {/* อุณหภูมิ */}
                   <div style={{ background: darkMode ? '#1e293b' : '#f1f5f9', padding: '15px', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '5px', borderLeft: `4px solid ${getBasicColor(selectedHotspot.data.temp, 'temp')}` }}>
                       <span style={{ fontSize: '0.8rem', color: subTextColor, fontWeight: 'bold' }}>🌡️ อุณหภูมิ</span>
                       <span style={{ fontSize: '1.4rem', fontWeight: '900', color: getBasicColor(selectedHotspot.data.temp, 'temp') }}>{Math.round(selectedHotspot.data.temp || 0)}°C</span>
                   </div>
-                  {/* ดัชนีความร้อน */}
                   <div style={{ background: darkMode ? '#1e293b' : '#f1f5f9', padding: '15px', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '5px', borderLeft: `4px solid ${getBasicColor(selectedHotspot.data.feelsLike, 'heat')}` }}>
                       <span style={{ fontSize: '0.8rem', color: subTextColor, fontWeight: 'bold' }}>🥵 ดัชนีความร้อน</span>
                       <span style={{ fontSize: '1.4rem', fontWeight: '900', color: getBasicColor(selectedHotspot.data.feelsLike, 'heat') }}>{Math.round(selectedHotspot.data.feelsLike || 0)}°C</span>
                   </div>
-                  {/* โอกาสฝน */}
                   <div style={{ background: darkMode ? '#1e293b' : '#f1f5f9', padding: '15px', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '5px', borderLeft: `4px solid ${getBasicColor(selectedHotspot.data.rainProb, 'rain')}` }}>
                       <span style={{ fontSize: '0.8rem', color: subTextColor, fontWeight: 'bold' }}>☔ โอกาสฝนตก</span>
                       <span style={{ fontSize: '1.4rem', fontWeight: '900', color: getBasicColor(selectedHotspot.data.rainProb, 'rain') }}>{selectedHotspot.data.rainProb || 0} <span style={{fontSize: '0.7rem', color: subTextColor, fontWeight:'normal'}}>%</span></span>
                   </div>
-                  {/* ลมกระโชก + ทิศทาง */}
                   <div style={{ background: darkMode ? '#1e293b' : '#f1f5f9', padding: '15px', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '5px', gridColumn: '1 / -1', borderLeft: `4px solid ${getBasicColor(selectedHotspot.data.windSpeed, 'wind')}` }}>
                       <span style={{ fontSize: '0.8rem', color: subTextColor, fontWeight: 'bold' }}>🌬️ ลมกระโชกสูงสุด และทิศทางลม</span>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -558,7 +549,6 @@ export default function MapPage() {
                           </div>
                       </div>
                   </div>
-                  {/* รังสี UV */}
                   <div style={{ background: darkMode ? '#1e293b' : '#f1f5f9', padding: '15px', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '5px', gridColumn: '1 / -1', borderLeft: `4px solid ${getBasicColor(selectedHotspot.data.uv, 'uv')}` }}>
                       <span style={{ fontSize: '0.8rem', color: subTextColor, fontWeight: 'bold' }}>☀️ รังสี UV</span>
                       <span style={{ fontSize: '1.4rem', fontWeight: '900', color: getBasicColor(selectedHotspot.data.uv, 'uv') }}>{Math.round(selectedHotspot.data.uv || 0)} <span style={{fontSize: '0.8rem', color: textColor, fontWeight:'normal'}}>- {getUvText(selectedHotspot.data.uv)}</span></span>
@@ -578,31 +568,26 @@ export default function MapPage() {
                 <p style={{ color: subTextColor, fontSize: '0.85rem', marginBottom: '20px', lineHeight: 1.5 }}>การประเมินดัชนีความเสี่ยงในระบบ อ้างอิงจากแบบจำลองและมาตรฐานทางวิทยาศาสตร์ระดับสากล เพื่อความแม่นยำในการเตือนภัย</p>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                    
                     <div style={{ background: darkMode ? '#1e293b' : '#f1f5f9', padding: '15px', borderRadius: '12px', borderLeft: '4px solid #ec4899' }}>
                         <div style={{ fontSize: '0.95rem', fontWeight: 'bold', color: textColor, marginBottom: '5px' }}>🫁 สุขภาพและทางเดินหายใจ</div>
                         <div style={{ fontSize: '0.8rem', color: subTextColor, marginBottom: '5px' }}><strong>อ้างอิง:</strong> งานวิจัยอาชีวเวชศาสตร์ และ EPA Air Quality Index</div>
                         <div style={{ fontSize: '0.85rem', color: textColor, lineHeight: 1.5 }}>การสัมผัสความร้อนสูงจะทำให้เยื่อบุทางเดินหายใจระคายเคือง กลไกการกรองฝุ่นตามธรรมชาติลดลง ดัชนีนี้จึงนำความเข้มข้นของ PM2.5 (70%) มาคูณร่วมกับ อุณหภูมิความร้อน (30%) เพื่อสะท้อนผลกระทบต่อปอดที่แท้จริง</div>
                     </div>
-
                     <div style={{ background: darkMode ? '#1e293b' : '#f1f5f9', padding: '15px', borderRadius: '12px', borderLeft: '4px solid #3b82f6' }}>
                         <div style={{ fontSize: '0.95rem', fontWeight: 'bold', color: textColor, marginBottom: '5px' }}>🏕️ กิจกรรมกลางแจ้ง</div>
                         <div style={{ fontSize: '0.8rem', color: subTextColor, marginBottom: '5px' }}><strong>อ้างอิง:</strong> มาตรฐานความปลอดภัย OSHA (Occupational Safety)</div>
                         <div style={{ fontSize: '0.85rem', color: textColor, lineHeight: 1.5 }}>การดำเนินกิจกรรมหรืองานกลางแจ้ง ไม่ได้ขึ้นอยู่กับฝนเพียงอย่างเดียว ดัชนีนี้ประเมินความปลอดภัยครอบคลุมทั้งอุปสรรคทางกายภาพ (ฝน 40%, ลม 30%) และภัยคุกคามทางสุขภาพ (ความร้อน 20%, UV 10%)</div>
                     </div>
-
                     <div style={{ background: darkMode ? '#1e293b' : '#f1f5f9', padding: '15px', borderRadius: '12px', borderLeft: '4px solid #ea580c' }}>
                         <div style={{ fontSize: '0.95rem', fontWeight: 'bold', color: textColor, marginBottom: '5px' }}>🔥 ความเสี่ยงไฟป่า</div>
                         <div style={{ fontSize: '0.8rem', color: subTextColor, marginBottom: '5px' }}><strong>อ้างอิง:</strong> แบบจำลอง Canadian Forest Fire Weather Index (FWI)</div>
                         <div style={{ fontSize: '0.85rem', color: textColor, lineHeight: 1.5 }}>ประเมินสภาวะที่เอื้อต่อการลุกลามของไฟ โดยคำนวณจากความเร็วลมที่เป็นตัวพัดพา (45%) ผสานกับสภาพอากาศที่ทำให้เชื้อเพลิงแห้งติดไฟง่าย คือ ความชื้นสัมพัทธ์ต่ำ (35%) และอุณหภูมิสูง (20%)</div>
                     </div>
-
                     <div style={{ background: darkMode ? '#1e293b' : '#f1f5f9', padding: '15px', borderRadius: '12px', borderLeft: '4px solid #ef4444' }}>
                         <div style={{ fontSize: '0.95rem', fontWeight: 'bold', color: textColor, marginBottom: '5px' }}>🥵 เฝ้าระวังโรคลมแดด</div>
                         <div style={{ fontSize: '0.8rem', color: subTextColor, marginBottom: '5px' }}><strong>อ้างอิง:</strong> องค์การอนามัยโลก (WHO) และดัชนี WBGT</div>
                         <div style={{ fontSize: '0.85rem', color: textColor, lineHeight: 1.5 }}>การประเมินโรคลมแดดที่แม่นยำ ต้องคำนวณ <b>"ภาระความร้อนรวม"</b> ที่ร่างกายได้รับ ดัชนีนี้จึงผสานอุณหภูมิอากาศ (60%) เข้ากับรังสีความร้อนจากดวงอาทิตย์หรือ UV (40%) เพื่อประเมินความเสี่ยงต่อภาวะหน้ามืดเฉียบพลัน</div>
                     </div>
-
                 </div>
             </div>
         </div>
