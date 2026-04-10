@@ -107,40 +107,40 @@ export default function AIPage() {
 
     if (activeTab === 'summary') {
         finalScore = (scorePM * 0.3) + (scoreRain * 0.3) + (scoreTemp * 0.3) + (scoreUV * 0.1);
-        if (dayMax.pm25 > 50) mainAdvisory = "คุณภาพอากาศอยู่ในเกณฑ์เริ่มมีผลกระทบต่อสุขภาพ ควรหลีกเลี่ยงการอยู่ในที่โล่งแจ้งนานๆ นะครับ";
-        else if (dayMax.rain > 60) mainAdvisory = "วันนี้มีความเสี่ยงที่พายุฝนฟ้าคะนองจะตกหนัก แนะนำให้พกร่มและเผื่อเวลาเดินทางด้วยครับ";
-        else if (dayMax.temp > 39) mainAdvisory = "อากาศวันนี้ค่อนข้างร้อนจัด เสี่ยงต่อโรคลมแดด (Heatstroke) อย่าลืมดื่มน้ำบ่อยๆ ครับ";
-        else mainAdvisory = "สภาพอากาศวันนี้เป็นใจมากครับ เหมาะกับการใช้ชีวิตประจำวันและทำกิจกรรมต่างๆ ได้อย่างเต็มที่";
+        if (dayMax.pm25 > 50) mainAdvisory = "คุณภาพอากาศเริ่มมีผลกระทบต่อสุขภาพ เลี่ยงการอยู่ในที่โล่งแจ้งนานๆ นะครับ";
+        else if (dayMax.rain > 60) mainAdvisory = "เสี่ยงพายุฝนตกหนัก แนะนำให้พกร่มและเผื่อเวลาเดินทางด้วยครับ";
+        else if (dayMax.temp > 39) mainAdvisory = "อากาศร้อนจัด เสี่ยงโรคลมแดด (Heatstroke) อย่าลืมดื่มน้ำบ่อยๆ ครับ";
+        else mainAdvisory = "สภาพอากาศเป็นใจมาก เหมาะกับการทำกิจกรรมต่างๆ ได้อย่างเต็มที่ครับ";
     } 
     else if (activeTab === 'health') {
         finalScore = (scorePM * 0.5) + (scoreTemp * 0.3) + (scoreUV * 0.2); 
-        if (dayMax.pm25 > 50) mainAdvisory = "ฝุ่นค่อนข้างหนา งดออกกำลังกายกลางแจ้งชั่วคราว และสวมหน้ากากอนามัยเมื่อออกนอกบ้านครับ";
-        else if (dayMax.temp > 38) mainAdvisory = "อากาศร้อนจัด เสี่ยงต่อภาวะร่างกายขาดน้ำ แนะนำให้ออกกำลังกายในร่มหรือช่วงเช้าตรู่จะดีที่สุดครับ";
-        else mainAdvisory = "สภาพอากาศเป็นมิตรต่อสุขภาพครับ สามารถออกกำลังกายหรือทำกิจกรรมกลางแจ้งได้ตามปกติ";
+        if (dayMax.pm25 > 50) mainAdvisory = "ฝุ่นค่อนข้างหนา งดออกกำลังกายกลางแจ้ง และสวมหน้ากากอนามัยครับ";
+        else if (dayMax.temp > 38) mainAdvisory = "ร้อนจัด เสี่ยงร่างกายขาดน้ำ แนะนำให้ออกกำลังกายในร่มหรือช่วงเช้าตรู่ครับ";
+        else mainAdvisory = "สภาพอากาศเป็นมิตรต่อสุขภาพ สามารถทำกิจกรรมกลางแจ้งได้ตามปกติ";
     }
     else if (activeTab === 'driving') {
         finalScore = (scoreRain * 0.5) + (scoreWind * 0.3) + (scorePM * 0.2); 
-        if (dayMax.rain > 60) mainAdvisory = "มีโอกาสฝนตกหนัก ทัศนวิสัยอาจลดลงและถนนลื่น ควรขับขี่ด้วยความระมัดระวังครับ";
-        else if (dayMax.wind > 40) mainAdvisory = "ระมัดระวังลมกระโชกแรง โดยเฉพาะเมื่อต้องขับรถขึ้นสะพานสูงหรือจุดที่โล่งแจ้งครับ";
-        else mainAdvisory = "สภาพถนนและทัศนวิสัยวันนี้ชัดเจนดีมาก สามารถเดินทางได้อย่างปลอดภัยครับ";
+        if (dayMax.rain > 60) mainAdvisory = "ฝนตกหนัก ทัศนวิสัยต่ำและถนนลื่น ควรขับขี่ด้วยความระมัดระวังครับ";
+        else if (dayMax.wind > 40) mainAdvisory = "ระวังลมกระโชกแรง โดยเฉพาะบนสะพานสูงหรือจุดที่โล่งแจ้งครับ";
+        else mainAdvisory = "ทัศนวิสัยชัดเจนดีมาก สามารถเดินทางได้อย่างปลอดภัยครับ";
     }
     else if (activeTab === 'farm') {
         finalScore = (scoreRain * 0.4) + (scoreWind * 0.4) + (scoreTemp * 0.2); 
-        if (dayMax.wind > 25) mainAdvisory = "วันนี้ลมค่อนข้างแรง ไม่แนะนำให้ฉีดพ่นปุ๋ยหรือสารเคมี เพราะอาจปลิวไปกับลมครับ";
-        else if (dayMax.rain > 50) mainAdvisory = "มีโอกาสฝนตกสูง อาจชะล้างหน้าดินและปุ๋ยที่เพิ่งลงไป แนะนำให้รอดูสภาพอากาศก่อนรดน้ำครับ";
-        else mainAdvisory = "สภาพอากาศวันนี้เหมาะสมมากสำหรับการลงแปลงเกษตร ฉีดพ่นยา หรือรดน้ำต้นไม้ครับ";
+        if (dayMax.wind > 25) mainAdvisory = "ลมค่อนแรง ไม่เหมาะกับการฉีดพ่นปุ๋ยหรือสารเคมี เพราะอาจปลิวหายครับ";
+        else if (dayMax.rain > 50) mainAdvisory = "โอกาสฝนตกสูง อาจชะล้างปุ๋ยหน้าดิน แนะนำให้รอดูสภาพอากาศก่อนรดน้ำครับ";
+        else mainAdvisory = "อากาศเหมาะสมมากสำหรับการลงแปลงเกษตร ฉีดพ่นยา หรือรดน้ำต้นไม้ครับ";
     }
     else if (activeTab === 'home') {
         finalScore = (scoreRain * 0.6) + (scoreUV * 0.2) + (scorePM * 0.2); 
-        if (dayMax.rain > 40) mainAdvisory = "มีความเสี่ยงฝนตก ไม่แนะนำให้ซักผ้าชิ้นใหญ่หรือล้างรถในวันนี้นะครับ";
-        else if (dayMax.pm25 > 50) mainAdvisory = "วันนี้ฝุ่นละอองกระจายตัวค่อนข้างเยอะ แนะนำให้ปิดหน้าต่างเพื่อป้องกันฝุ่นเข้าบ้านครับ";
-        else mainAdvisory = "แดดดีและฝนทิ้งช่วง เป็นวันที่เหมาะกับการซักตากผ้า ล้างรถ หรือทำความสะอาดบ้านมากๆ ครับ";
+        if (dayMax.rain > 40) mainAdvisory = "เสี่ยงฝนตก ไม่แนะนำให้ซักผ้าชิ้นใหญ่หรือล้างรถในวันนี้นะครับ";
+        else if (dayMax.pm25 > 50) mainAdvisory = "ฝุ่นละอองค่อนข้างเยอะ แนะนำให้ปิดหน้าต่างเพื่อป้องกันฝุ่นเข้าบ้านครับ";
+        else mainAdvisory = "แดดดีและฝนทิ้งช่วง เหมาะกับการซักตากผ้าหรือล้างรถมากๆ ครับ";
     }
     else if (activeTab === 'travel') {
         finalScore = (scoreRain * 0.4) + (scoreUV * 0.3) + (scoreTemp * 0.3); 
-        if (dayMax.rain > 50) mainAdvisory = "โอกาสฝนตกค่อนข้างสูง แนะนำให้วางแผนเที่ยวในร่ม (Indoor) หรือคาเฟ่จะปลอดภัยกว่าครับ";
-        else if (dayMax.uv > 8) mainAdvisory = "แดดแรงและรังสี UV ค่อนข้างสูง หากมีทริปกลางแจ้งอย่าลืมทาครีมกันแดดและกางร่มด้วยนะครับ";
-        else mainAdvisory = "บรรยากาศดี ท้องฟ้าโปร่ง เป็นวันที่เพอร์เฟกต์สำหรับการออกไปเที่ยวและถ่ายรูปครับ";
+        if (dayMax.rain > 50) mainAdvisory = "โอกาสฝนตกสูง แนะนำให้เที่ยวในร่มหรือคาเฟ่จะปลอดภัยกว่าครับ";
+        else if (dayMax.uv > 8) mainAdvisory = "แดดแรงและ UV สูง หากมีทริปกลางแจ้งอย่าลืมทาครีมกันแดดและกางร่มครับ";
+        else mainAdvisory = "ท้องฟ้าโปร่ง บรรยากาศเป็นใจสำหรับการออกไปเที่ยวและถ่ายรูปครับ";
     }
 
     finalScore = Math.min(Math.max(Math.round(finalScore * 10) / 10, 1), 10); 
@@ -151,42 +151,42 @@ export default function AIPage() {
         const bPM = Math.max(...hPM.slice(start, end));
         const bUV = Math.max(...hUV.slice(start, end));
         
-        let text = "อากาศเปิด ทัศนวิสัยปกติ สามารถทำกิจกรรมได้ราบรื่นครับ";
+        let text = "อากาศเปิด ทำกิจกรรมได้ราบรื่นครับ";
         if (activeTab === 'health' || activeTab === 'summary') {
-            if (bPM > 50) text = `ฝุ่น PM2.5 ค่อนข้างหนา (${Math.round(bPM)} µg/m³) ควรเลี่ยงการอยู่กลางแจ้งนานๆ`;
-            else if (bTemp > 38) text = `อากาศร้อนสะสม (${Math.round(bTemp)}°C) ระวังอาการเพลียแดดและดื่มน้ำบ่อยๆ`;
-            else if (bRain > 40) text = `มีโอกาสฝนตก ${Math.round(bRain)}% อย่าลืมพกร่มติดกระเป๋าไว้นะครับ`;
+            if (bPM > 50) text = `ฝุ่นหนา (${Math.round(bPM)} µg) เลี่ยงที่โล่งแจ้ง`;
+            else if (bTemp > 38) text = `ร้อนสะสม (${Math.round(bTemp)}°C) ระวังเพลียแดด`;
+            else if (bRain > 40) text = `ฝนตก ${Math.round(bRain)}% อย่าลืมพกร่มครับ`;
         } else if (activeTab === 'driving') {
-            if (bRain > 50) text = `ระวังถนนลื่นและขับขี่ด้วยความระมัดระวัง ทัศนวิสัยอาจลดลงจากฝน`;
-            else if (bPM > 75) text = `หมอกควันและฝุ่นหนา ควรเปิดไฟหน้าและระมัดระวังในการใช้ความเร็ว`;
+            if (bRain > 50) text = `ถนนลื่น ทัศนวิสัยลดลงจากฝน`;
+            else if (bPM > 75) text = `ฝุ่นหนา ควรเปิดไฟหน้าและลดความเร็ว`;
         } else if (activeTab === 'home' || activeTab === 'farm') {
-            if (bRain > 40) text = `ระวังฝนตก ${Math.round(bRain)}% แนะนำให้เลี่ยงกิจกรรมที่ต้องตากแดดหรือกลัวความชื้น`;
-            else if (bUV > 7) text = `แดดจัดและรังสี UV ค่อนข้างแรง เหมาะกับการตากสิ่งของให้แห้งสนิท`;
+            if (bRain > 40) text = `ระวังฝน ${Math.round(bRain)}% เลี่ยงกิจกรรมตากแดด`;
+            else if (bUV > 7) text = `แดดจัด UV แรง เหมาะกับการตากของ`;
         } else if (activeTab === 'travel') {
-            if (bRain > 40) text = `อาจมีฝนตกรบกวน แผนการเดินทางกลางแจ้งอาจต้องปรับเปลี่ยนเล็กน้อย`;
-            else if (bTemp > 36) text = `อากาศช่วงนี้จะร้อนจัด ควรหาที่พักหลบแดดหรือแวะจิบเครื่องดื่มเย็นๆ`;
+            if (bRain > 40) text = `อาจมีฝนรบกวน แผนท่องเที่ยวอาจสะดุด`;
+            else if (bTemp > 36) text = `อากาศร้อนจัด ควรหาที่พักหลบแดด`;
         }
-        return { label: timeLabel, icon, time: `${start.toString().padStart(2,'0')}:00 - ${end.toString().padStart(2,'0')}:00`, text };
+        return { label: timeLabel, icon, time: `${start.toString().padStart(2,'0')}:00`, text };
     };
 
     return { 
         score: finalScore, 
         text: mainAdvisory, 
         timeline: [
-            getBlockAdvisory(6, 12, 'ช่วงเช้า', '🌅'),
-            getBlockAdvisory(12, 18, 'ช่วงบ่าย', '☀️'),
-            getBlockAdvisory(18, 23, 'ช่วงค่ำ', '🌙')
+            getBlockAdvisory(6, 12, 'เช้า', '🌅'),
+            getBlockAdvisory(12, 18, 'บ่าย', '☀️'),
+            getBlockAdvisory(18, 23, 'ค่ำ', '🌙')
         ] 
     };
   }, [activeTab, targetDateIdx, weatherData]);
 
   const tabConfigs = [
-    { id: 'summary', icon: '📋', label: 'ภาพรวมทั่วไป', color: '#8b5cf6', desc: 'ภาพรวมความเหมาะสมของสภาพอากาศวันนี้' },
-    { id: 'travel', icon: '🎒', label: 'การท่องเที่ยว', color: '#ec4899', desc: 'ความราบรื่นในการเดินทางและทำกิจกรรม' },
-    { id: 'health', icon: '🏃‍♂️', label: 'ด้านสุขภาพ', color: '#22c55e', desc: 'ผลกระทบต่อระบบทางเดินหายใจและสุขภาพ' },
-    { id: 'driving', icon: '🚘', label: 'การขับขี่', color: '#f97316', desc: 'ประเมินความปลอดภัยในการขับขี่' },
-    { id: 'home', icon: '🏡', label: 'เคหะสถาน', color: '#0ea5e9', desc: 'ความสะดวกในการซักตากผ้าและดูแลบ้าน' },
-    { id: 'farm', icon: '🌾', label: 'การเกษตร', color: '#10b981', desc: 'สภาพอากาศกับการดูแลแปลงเกษตร' }
+    { id: 'summary', icon: '📋', label: 'ภาพรวม', color: '#8b5cf6', desc: 'สภาพอากาศวันนี้' },
+    { id: 'travel', icon: '🎒', label: 'ท่องเที่ยว', color: '#ec4899', desc: 'ความราบรื่นในการเดินทาง' },
+    { id: 'health', icon: '🏃‍♂️', label: 'สุขภาพ', color: '#22c55e', desc: 'ผลกระทบต่อร่างกาย' },
+    { id: 'driving', icon: '🚘', label: 'ขับขี่', color: '#f97316', desc: 'ความปลอดภัยบนถนน' },
+    { id: 'home', icon: '🏡', label: 'เคหะสถาน', color: '#0ea5e9', desc: 'งานบ้านและซักตาก' },
+    { id: 'farm', icon: '🌾', label: 'การเกษตร', color: '#10b981', desc: 'การดูแลแปลงเกษตร' }
   ];
 
   const appBg = darkMode ? '#020617' : '#f8fafc'; 
@@ -198,56 +198,56 @@ export default function AIPage() {
   const activeColor = activeTabInfo?.color || '#8b5cf6';
 
   if (loadingWeather) return (
-    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100%', background: appBg, color: textColor, fontFamily: 'Kanit, sans-serif' }}>
-        <div style={{ fontSize: '4rem' }}>⚙️</div>
-        <div style={{ marginTop: '20px', fontSize: '1.2rem', fontWeight: 'bold' }}>กำลังประมวลผลข้อมูล...</div>
-        <div style={{ fontSize: '0.9rem', color: subTextColor, marginTop: '8px' }}>ผสานข้อมูลจากตัวแปรสภาพอากาศเพื่อคุณ</div>
+    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100%', background: appBg, color: textColor, fontFamily: 'Kanit' }}>
+        <div style={{ fontSize: '3rem', marginBottom: '15px' }}>⚙️</div>
+        <div style={{ fontSize: '1rem', fontWeight: 'bold' }}>กำลังวิเคราะห์ข้อมูล...</div>
     </div>
   );
   
-  if (!weatherData) return <div style={{ height: '100%', background: appBg, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: subTextColor, fontFamily: 'Kanit', padding: '20px', textAlign: 'center' }}><div style={{fontSize: '3rem'}}>⚠️</div><p>ไม่สามารถเชื่อมต่อข้อมูลสภาพอากาศได้ชั่วคราว</p><button onClick={() => window.location.reload()} style={{marginTop: '15px', padding: '10px 20px', borderRadius: '12px', background: '#0ea5e9', color: '#fff', border: 'none'}}>ลองใหม่อีกครั้ง</button></div>;
+  if (!weatherData) return <div style={{ height: '100%', background: appBg, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: subTextColor, fontFamily: 'Kanit', padding: '20px' }}><p>ไม่สามารถเชื่อมต่อข้อมูลได้</p><button onClick={() => window.location.reload()} style={{marginTop: '10px', padding: '8px 16px', borderRadius: '12px', background: '#0ea5e9', color: '#fff', border: 'none'}}>ลองอีกครั้ง</button></div>;
 
   return (
-    <div style={{ position: 'relative', height: '100%', width: '100%', background: appBg, overflowY: 'auto', WebkitOverflowScrolling: 'touch', fontFamily: 'Kanit, sans-serif', boxSizing: 'border-box' }} className="custom-scrollbar">
+    <div style={{ position: 'relative', height: '100%', width: '100%', background: appBg, overflowY: 'auto', WebkitOverflowScrolling: 'touch', fontFamily: 'Kanit, sans-serif' }} className="custom-scrollbar">
       
-      <style dangerouslySetInlineStyle={{__html: `
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: ${darkMode ? '#334155' : '#cbd5e1'}; border-radius: 10px; }
-        @media (max-width: 1024px) { .custom-scrollbar::-webkit-scrollbar { display: none; } .custom-scrollbar { -ms-overflow-style: none; scrollbar-width: none; } }
-      `}} />
+      <div style={{ width: '100%', maxWidth: '1400px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: isMobile ? '12px' : '20px', padding: isMobile ? '12px' : '30px', paddingBottom: '100px' }}>
 
-      <div style={{ width: '100%', maxWidth: '1400px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '15px', padding: isMobile ? '15px' : '25px', paddingBottom: '100px', boxSizing: 'border-box' }}>
-
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '10px' }}>
-            <div>
-                <h1 style={{ margin: 0, color: textColor, fontSize: '1.5rem', fontWeight: '900', display: 'flex', alignItems: 'center', gap: '10px' }}>🧠 ผู้ช่วยวางแผนกิจกรรม</h1>
-                <p style={{ margin: '5px 0 0 0', color: subTextColor, fontSize: '0.85rem' }}>ประเมินสภาพอากาศให้เหมาะกับไลฟ์สไตล์ของคุณ (ล่วงหน้า 7 วัน)</p>
+        {/* 1. Header Section - แยกระหว่าง Desktop กับ Mobile */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '10px', marginBottom: isMobile ? '4px' : '0' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: isMobile ? '1.8rem' : '2.5rem' }}>🧠</span>
+                <div>
+                    <h1 style={{ margin: 0, color: textColor, fontSize: isMobile ? '1.2rem' : '1.8rem', fontWeight: '900' }}>ผู้ช่วยวางแผนกิจกรรม</h1>
+                    <p style={{ margin: isMobile ? '0' : '5px 0 0 0', color: subTextColor, fontSize: isMobile ? '0.75rem' : '0.9rem' }}>ประเมินสภาพอากาศให้เหมาะกับไลฟ์สไตล์ (ล่วงหน้า 7 วัน)</p>
+                </div>
             </div>
         </div>
 
-        <div style={{ width: '100%', background: cardBg, borderRadius: '20px', padding: '15px 18px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.03)', boxSizing: 'border-box' }}>
+        {/* 2. Filter Bar */}
+        <div style={{ background: cardBg, borderRadius: isMobile ? '16px' : '24px', padding: isMobile ? '10px 14px' : '18px', border: `1px solid ${borderColor}`, boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h3 style={{ margin: 0, fontSize: '0.95rem', color: textColor }}>📍 พื้นที่ของคุณ: <span style={{color: '#0ea5e9'}}>{locationName}</span></h3>
-                {isMobile && <button onClick={() => setShowFilters(!showFilters)} style={{ background: 'rgba(14,165,233,0.1)', color: '#0ea5e9', border: 'none', padding: '6px 15px', borderRadius: '50px', fontWeight: 'bold', fontSize: '0.75rem' }}>{showFilters ? '▲ ปิด' : '▼ ปรับแต่ง'}</button>}
+                <div style={{ fontSize: isMobile ? '0.85rem' : '1rem', color: textColor, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    📍 พื้นที่ของคุณ: <span style={{ color: '#0ea5e9', maxWidth: isMobile ? '140px' : 'auto', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{locationName}</span>
+                </div>
+                {isMobile && <button onClick={() => setShowFilters(!showFilters)} style={{ background: 'rgba(14,165,233,0.1)', color: '#0ea5e9', border: 'none', padding: '4px 12px', borderRadius: '50px', fontWeight: 'bold', fontSize: '0.7rem' }}>
+                    {showFilters ? '▲ ปิด' : '▼ ปรับแต่ง'}
+                </button>}
             </div>
             {showFilters && (
-                <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '15px', width: '100%', boxSizing: 'border-box' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr auto', gap: '10px' }}>
-                        <select value={selectedProv} onChange={handleProvChange} style={{ width: '100%', padding: '10px 12px', borderRadius: '12px', background: darkMode ? '#1e293b' : '#f1f5f9', color: textColor, border: 'none', boxSizing: 'border-box', outline: 'none', fontFamily: 'Kanit' }}>
-                            <option value="">-- พิมพ์ชื่อจังหวัดเพื่อเปลี่ยนพื้นที่ --</option>
+                <div className="fade-in" style={{ marginTop: isMobile ? '10px' : '15px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr auto' : '1fr 1fr auto', gap: '8px' }}>
+                        <select value={selectedProv} onChange={handleProvChange} style={{ padding: isMobile ? '8px' : '12px', borderRadius: '10px', background: darkMode ? '#1e293b' : '#f1f5f9', color: textColor, border: 'none', fontSize: isMobile ? '0.85rem' : '1rem' }}>
+                            <option value="">-- เปลี่ยนจังหวัด --</option>
                             {stations.sort((a,b)=>a.areaTH.localeCompare(b.areaTH,'th')).map(s => <option key={s.stationID} value={s.areaTH}>{s.areaTH}</option>)}
                         </select>
-                        <button onClick={() => window.location.reload()} style={{ width: '100%', background: '#0ea5e9', color: '#fff', border: 'none', padding: '10px 12px', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer', boxSizing: 'border-box', fontFamily: 'Kanit' }}>📍 อัปเดตพิกัดอัตโนมัติ</button>
+                        <button onClick={() => window.location.reload()} style={{ background: '#0ea5e9', color: '#fff', border: 'none', padding: isMobile ? '8px 12px' : '12px', borderRadius: '10px', fontSize: isMobile ? '0.8rem' : '1rem', fontWeight: 'bold' }}>📍 อัปเดตพิกัด</button>
                     </div>
-                    
-                    <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '5px', width: '100%', boxSizing: 'border-box' }} className="custom-scrollbar">
+                    <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '4px' }} className="custom-scrollbar">
                         {[0,1,2,3,4,5,6].map(idx => {
                             const btnDate = new Date();
                             btnDate.setDate(btnDate.getDate() + idx);
                             const dateLabel = idx === 0 ? 'วันนี้' : idx === 1 ? 'พรุ่งนี้' : btnDate.toLocaleDateString('th-TH', {day:'numeric', month:'short'});
                             return (
-                                <button key={idx} onClick={() => setTargetDateIdx(idx)} style={{ flexShrink: 0, minWidth: '75px', padding: '8px', borderRadius: '12px', border: `1px solid ${targetDateIdx === idx ? activeColor : borderColor}`, background: targetDateIdx === idx ? activeColor : (darkMode ? '#1e293b' : '#f8fafc'), color: targetDateIdx === idx ? '#fff' : textColor, fontWeight: 'bold', fontSize: '0.8rem', cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'Kanit' }}>
+                                <button key={idx} onClick={() => setTargetDateIdx(idx)} style={{ flexShrink: 0, padding: isMobile ? '6px 12px' : '10px', borderRadius: '10px', border: `1px solid ${targetDateIdx === idx ? activeColor : borderColor}`, background: targetDateIdx === idx ? activeColor : 'transparent', color: targetDateIdx === idx ? '#fff' : textColor, fontSize: isMobile ? '0.75rem' : '0.85rem', fontWeight: 'bold', transition: 'all 0.2s' }}>
                                     {dateLabel}
                                 </button>
                             );
@@ -257,75 +257,93 @@ export default function AIPage() {
             )}
         </div>
 
-        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '15px', alignItems: 'flex-start', width: '100%', boxSizing: 'border-box' }}>
+        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? '15px' : '20px' }}>
             
-            <div style={{ display: 'flex', flexDirection: isMobile ? 'row' : 'column', gap: '10px', width: isMobile ? '100%' : '260px', overflowX: isMobile ? 'auto' : 'visible', order: isMobile ? 1 : 2, boxSizing: 'border-box', paddingBottom: isMobile ? '5px' : '0' }} className="custom-scrollbar">
+            {/* 3. Tabs Menu (Column on Desktop, Row on Mobile) */}
+            <div style={{ display: 'flex', flexDirection: isMobile ? 'row' : 'column', gap: '8px', width: isMobile ? '100%' : '280px', overflowX: isMobile ? 'auto' : 'visible' }} className="custom-scrollbar">
                 {tabConfigs.map(tab => {
                     const isActive = activeTab === tab.id;
                     return (
                         <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
-                            flexShrink: 0, display: 'flex', alignItems: 'flex-start', gap: '12px', padding: '12px', borderRadius: '16px', border: `1px solid ${isActive ? tab.color : borderColor}`,
-                            background: isActive ? (darkMode ? `${tab.color}15` : `${tab.color}10`) : (darkMode ? '#0f172a' : '#ffffff'),
-                            color: isActive ? (darkMode ? '#fff' : tab.color) : textColor,
-                            cursor: 'pointer', textAlign: 'left', width: isMobile ? 'auto' : '100%', transition: 'all 0.2s', boxSizing: 'border-box', fontFamily: 'Kanit'
+                            flexShrink: 0, display: 'flex', alignItems: isMobile ? 'center' : 'flex-start', gap: isMobile ? '10px' : '15px', padding: isMobile ? '10px 14px' : '15px', borderRadius: isMobile ? '12px' : '16px', border: `1px solid ${isActive ? tab.color : borderColor}`,
+                            background: isActive ? (darkMode ? `${tab.color}20` : `${tab.color}10`) : cardBg,
+                            color: isActive ? (darkMode ? '#fff' : tab.color) : (isMobile ? subTextColor : textColor),
+                            cursor: 'pointer', textAlign: 'left', width: isMobile ? 'auto' : '100%', transition: 'all 0.2s', fontSize: isMobile ? '0.85rem' : '1rem'
                         }}>
-                            <span style={{ fontSize: '1.4rem', marginTop: '-2px' }}>{tab.icon}</span>
+                            <span style={{ fontSize: isMobile ? '1.2rem' : '1.6rem', marginTop: isMobile ? '0' : '-2px' }}>{tab.icon}</span>
                             <div style={{ display: isMobile ? 'none' : 'flex', flexDirection: 'column' }}>
-                                <span style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>{tab.label}</span>
-                                <span style={{ fontSize: '0.7rem', color: subTextColor, marginTop: '2px', lineHeight: 1.3 }}>{tab.desc}</span>
+                                <span style={{ fontWeight: 'bold', fontSize: '1rem' }}>{tab.label}</span>
+                                <span style={{ fontSize: '0.75rem', color: subTextColor, marginTop: '2px', lineHeight: 1.4 }}>{tab.desc}</span>
                             </div>
-                            {isMobile && <span style={{ fontWeight: 'bold', fontSize: '0.85rem', alignSelf: 'center' }}>{tab.label}</span>}
+                            {isMobile && <span style={{ fontWeight: 'bold', whiteSpace: 'nowrap' }}>{tab.label}</span>}
                         </button>
                     );
                 })}
             </div>
 
-            <div className="fade-in" key={activeTab} style={{ flex: 1, width: '100%', background: cardBg, borderRadius: '24px', padding: isMobile ? '15px' : '25px', border: `1px solid ${borderColor}`, boxShadow: '0 10px 30px rgba(0,0,0,0.05)', order: isMobile ? 2 : 1, boxSizing: 'border-box', overflow: 'hidden' }}>
+            {/* 4. Result Dashboard */}
+            <div className="fade-in" key={activeTab} style={{ flex: 1, background: cardBg, borderRadius: '24px', padding: isMobile ? '16px' : '35px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 20px rgba(0,0,0,0.03)' }}>
                 {insights && (
                     <>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '15px', marginBottom: '25px' }}>
-                            <div style={{ maxWidth: '70%' }}>
-                                <h2 style={{ margin: 0, fontSize: '1.1rem', color: subTextColor, display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'normal' }}>
-                                    {activeTabInfo.desc}
-                                </h2>
-                                <div style={{ fontSize: '1.4rem', fontWeight: '900', color: textColor, marginTop: '5px' }}>{activeTabInfo.label}</div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: isMobile ? 'center' : 'flex-start', marginBottom: isMobile ? '16px' : '30px', gap: '10px' }}>
+                            <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: isMobile ? '0.75rem' : '1.2rem', color: subTextColor }}>{activeTabInfo.desc}</div>
+                                <div style={{ fontSize: isMobile ? '1.2rem' : '1.8rem', fontWeight: '900', color: textColor, marginTop: isMobile ? '0' : '5px' }}>{isMobile ? activeTabInfo.label : `หมวด${activeTabInfo.label}`}</div>
                             </div>
-                            
-                            <div style={{ background: darkMode ? '#1e293b' : '#f8fafc', padding: '10px 15px', borderRadius: '16px', border: `1px solid ${borderColor}`, textAlign: 'center', flexShrink: 0, boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.05)' }}>
-                                <div style={{ fontSize: '0.7rem', color: subTextColor, fontWeight: 'bold' }}>คะแนนความเหมาะสม</div>
-                                <div style={{ fontSize: '1.6rem', fontWeight: '900', color: insights.score > 7 ? '#22c55e' : insights.score > 4 ? '#f97316' : '#ef4444', lineHeight: 1.1, marginTop: '2px' }}>
-                                    {insights.score} <span style={{fontSize:'0.85rem', color: subTextColor}}>/ 10</span>
+                            <div style={{ background: darkMode ? '#1e293b' : '#f8fafc', padding: isMobile ? '6px 14px' : '12px 20px', borderRadius: isMobile ? '14px' : '20px', border: `1px solid ${borderColor}`, textAlign: 'center' }}>
+                                <div style={{ fontSize: isMobile ? '0.6rem' : '0.7rem', color: subTextColor, fontWeight: 'bold', textTransform: 'uppercase' }}>คะแนนความเหมาะสม</div>
+                                <div style={{ fontSize: isMobile ? '1.4rem' : '2rem', fontWeight: '900', color: insights.score > 7 ? '#22c55e' : insights.score > 4 ? '#f97316' : '#ef4444', lineHeight: 1.1 }}>
+                                    {insights.score}<span style={{fontSize: isMobile ? '0.75rem' : '1rem', color: subTextColor, fontWeight:'normal'}}>/10</span>
                                 </div>
                             </div>
                         </div>
 
-                        <div style={{ padding: '20px', background: insights.score > 7 ? (darkMode ? 'rgba(34,197,94,0.1)' : '#f0fdf4') : insights.score > 4 ? (darkMode ? 'rgba(249,115,22,0.1)' : '#fff7ed') : (darkMode ? 'rgba(239,68,68,0.1)' : '#fef2f2'), borderRadius: '16px', borderLeft: `6px solid ${insights.score > 7 ? '#22c55e' : insights.score > 4 ? '#f97316' : '#ef4444'}`, marginBottom: '25px', boxSizing: 'border-box' }}>
-                            <div style={{ fontSize: '0.8rem', color: insights.score > 7 ? '#22c55e' : insights.score > 4 ? '#f97316' : '#ef4444', fontWeight: 'bold', marginBottom: '6px' }}>คำแนะนำสำหรับคุณ:</div>
-                            <p style={{ margin: 0, fontSize: '1rem', color: textColor, lineHeight: 1.5, fontWeight: '600' }}>
-                                {insights.text}
-                            </p>
+                        <div style={{ padding: isMobile ? '14px 18px' : '25px', background: insights.score > 7 ? (darkMode ? 'rgba(34,197,94,0.1)' : '#f0fdf4') : insights.score > 4 ? (darkMode ? 'rgba(249,115,22,0.1)' : '#fff7ed') : (darkMode ? 'rgba(239,68,68,0.1)' : '#fef2f2'), borderRadius: isMobile ? '16px' : '20px', borderLeft: `${isMobile ? '5px' : '6px'} solid ${insights.score > 7 ? '#22c55e' : insights.score > 4 ? '#f97316' : '#ef4444'}`, marginBottom: isMobile ? '20px' : '35px' }}>
+                            <div style={{ fontSize: isMobile ? '0.75rem' : '0.85rem', color: insights.score > 7 ? '#22c55e' : insights.score > 4 ? '#f97316' : '#ef4444', fontWeight: 'bold', marginBottom: isMobile ? '4px' : '8px' }}>คำแนะนำสำหรับคุณ:</div>
+                            <p style={{ margin: 0, fontSize: isMobile ? '0.9rem' : '1.1rem', color: textColor, lineHeight: isMobile ? 1.5 : 1.6, fontWeight: '600' }}>{insights.text}</p>
                         </div>
 
-                        <h4 style={{ margin: '0 0 15px 0', color: textColor, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span style={{fontSize: '1.2rem'}}>⏱️</span> คาดการณ์สภาพอากาศรายช่วงเวลา
-                        </h4>
-                        
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%', boxSizing: 'border-box' }}>
-                            {insights.timeline.map((item, i) => (
-                                <div key={i} style={{ display: 'flex', gap: '15px', position: 'relative', width: '100%', boxSizing: 'border-box' }}>
-                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, marginTop: '8px' }}>
-                                        <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: activeColor, zIndex: 1, border: `3px solid ${cardBg}` }}></div>
-                                        {i < 2 && <div style={{ width: '2px', flex: 1, background: borderColor, marginTop: '-2px', marginBottom: '-8px' }}></div>}
-                                    </div>
-                                    <div style={{ flex: 1, background: darkMode ? 'rgba(255,255,255,0.03)' : '#f8fafc', padding: '15px', borderRadius: '16px', border: `1px solid ${borderColor}`, boxSizing: 'border-box' }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '5px' }}>
-                                            <span style={{ fontWeight: 'bold', color: activeColor, fontSize: '0.95rem' }}>{item.icon} {item.label}</span>
-                                            <span style={{ fontSize: '0.75rem', background: darkMode ? '#0f172a' : '#e2e8f0', padding: '4px 10px', borderRadius: '50px', color: subTextColor, fontWeight: 'bold' }}>{item.time}</span>
+                        <div style={{ borderTop: isMobile ? `1px solid ${borderColor}` : 'none', paddingTop: isMobile ? '15px' : '0' }}>
+                            <h4 style={{ margin: isMobile ? '0 0 12px 0' : '0 0 20px 0', color: isMobile ? subTextColor : textColor, fontSize: isMobile ? '0.85rem' : '1.1rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{fontSize: isMobile ? '1rem' : '1.4rem'}}>⏱️</span> คาดการณ์รายช่วงเวลา
+                            </h4>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '10px' : '15px' }}>
+                                {insights.timeline.map((item, i) => (
+                                    <div key={i} style={{ display: 'flex', gap: isMobile ? '12px' : '15px', position: 'relative', background: isMobile ? (darkMode ? 'rgba(255,255,255,0.03)' : '#f8fafc') : 'transparent', padding: isMobile ? '10px 14px' : '0', borderRadius: isMobile ? '14px' : '0', alignItems: isMobile ? 'center' : 'stretch' }}>
+                                        {/* Desktop Timeline Visual */}
+                                        {!isMobile && (
+                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, marginTop: '10px' }}>
+                                                <div style={{ width: '14px', height: '14px', borderRadius: '50%', background: activeColor, zIndex: 1, border: `3px solid ${cardBg}` }}></div>
+                                                {i < 2 && <div style={{ width: '2px', flex: 1, background: borderColor, marginTop: '-2px', marginBottom: '-10px' }}></div>}
+                                            </div>
+                                        )}
+                                        
+                                        {/* Content */}
+                                        <div style={isMobile ? { fontSize: '1.2rem', flexShrink: 0 } : { flex: 1, background: darkMode ? 'rgba(255,255,255,0.03)' : '#f8fafc', padding: '20px', borderRadius: '18px', border: `1px solid ${borderColor}` }}>
+                                            {isMobile ? item.icon : null}
+                                            {isMobile ? (
+                                                // Mobile Layout Inside Content
+                                                <div style={{ display: 'inline-block', width: '100%', marginLeft: '10px' }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                                                        <span style={{ fontWeight: 'bold', color: activeColor, fontSize: '0.85rem' }}>{item.label}</span>
+                                                        <span style={{ fontSize: '0.65rem', color: subTextColor }}>{item.time}</span>
+                                                    </div>
+                                                    <div style={{ fontSize: '0.8rem', color: textColor }}>{item.text}</div>
+                                                </div>
+                                            ) : (
+                                                // Desktop Layout Inside Content
+                                                <>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                                                        <span style={{ fontWeight: 'bold', color: activeColor, fontSize: '1.05rem' }}>{item.icon} {item.label}</span>
+                                                        <span style={{ fontSize: '0.8rem', background: darkMode ? '#0f172a' : '#e2e8f0', padding: '4px 10px', borderRadius: '50px', color: subTextColor, fontWeight: 'bold' }}>{item.time}</span>
+                                                    </div>
+                                                    <div style={{ fontSize: '0.95rem', color: textColor, lineHeight: 1.6 }}>{item.text}</div>
+                                                </>
+                                            )}
                                         </div>
-                                        <div style={{ fontSize: '0.9rem', color: textColor, lineHeight: 1.5 }}>{item.text}</div>
                                     </div>
-                                </div>
-                            ))}
+                                ))}
+                            </div>
                         </div>
                     </>
                 )}

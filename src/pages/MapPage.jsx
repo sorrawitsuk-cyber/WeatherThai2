@@ -89,7 +89,7 @@ export default function MapPage() {
         case 'heat': return Math.round(data.feelsLike || 0);
         case 'rain': return data.rainProb || 0;
         case 'wind': return Math.round(data.windSpeed || 0);
-        case 'uv': return Math.round(data.uv || 0);
+        case 'uv': return data.uv || 0;
         default: return 0;
     }
   }, [stationTemps]);
@@ -218,7 +218,7 @@ export default function MapPage() {
   const createMapIcon = (stationName, val, color) => {
     return L.divIcon({
         className: 'custom-risk-icon',
-        html: `<div style="background: ${color}; color: ${color === '#eab308' || color === '#cbd5e1' ? '#0f172a' : '#fff'}; font-weight: 900; font-size: 12px; padding: 4px 8px; border-radius: 8px; border: 2px solid #fff; box-shadow: 0 4px 10px rgba(0,0,0,0.3); display: flex; flex-direction: column; align-items: center; line-height: 1.1;">
+        html: `<div style="background: ${color}; color: ${color === '#eab308' || color === '#cbd5e1' ? '#0f172a' : '#fff'}; font-weight: 900; font-size: ${isMobile ? '10px' : '12px'}; padding: 4px 8px; border-radius: 8px; border: 2px solid #fff; box-shadow: 0 4px 10px rgba(0,0,0,0.3); display: flex; flex-direction: column; align-items: center; line-height: 1.1;">
                  <span style="font-size: 0.7em; opacity: 0.9;">${stationName}</span>
                  <span>${val}</span>
                </div>`,
@@ -234,7 +234,7 @@ export default function MapPage() {
 
   const activeModeObj = mapCategory === 'basic' ? basicModes.find(m => m.id === activeBasicMode) : riskModes.find(m => m.id === activeRiskMode);
 
-  if (!geoData || Object.keys(stationTemps).length === 0) return <div style={{ height: '100vh', background: appBg, display: 'flex', justifyContent:'center', alignItems:'center', color: subTextColor, fontFamily: 'Kanit' }}>กำลังโหลดแผนที่สภาพอากาศ...</div>;
+  if (!geoData || Object.keys(stationTemps).length === 0) return <div style={{ height: '100vh', background: appBg, display: 'flex', justifyContent:'center', alignItems:'center', color: subTextColor, fontFamily: 'Kanit' }}>กำลังโหลดแผนที่เฝ้าระวังภัย...</div>;
 
   return (
     <div style={{ height: '100%', width: '100%', background: appBg, display: 'flex', flexDirection: 'column', fontFamily: 'Kanit, sans-serif', padding: isMobile ? '10px' : '20px', boxSizing: 'border-box' }}>
@@ -245,102 +245,126 @@ export default function MapPage() {
         .custom-scrollbar::-webkit-scrollbar-thumb { background: ${darkMode ? '#334155' : '#cbd5e1'}; border-radius: 10px; }
       `}} />
 
-      {/* 🌟 Header ถูกบีบให้เหลือ 2 แถว และย้ายปุ่ม "อ้างอิง" มาไว้บนสุด */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '15px', flexShrink: 0 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flexWrap: 'wrap' }}>
-                  <h2 style={{ margin: 0, color: textColor, fontSize: '1.3rem', display: 'flex', alignItems: 'center', gap: '8px' }}>🗺️ แผนที่สภาพอากาศ</h2>
-                  {mapCategory === 'risk' && (
-                      <button onClick={() => setShowReferenceModal(true)} style={{ background: darkMode ? '#1e293b' : '#f1f5f9', color: '#8b5cf6', border: `1px solid #8b5cf6`, padding: '4px 10px', borderRadius: '50px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit', display: 'flex', alignItems: 'center', gap: '5px', transition: 'all 0.2s' }} title="หลักการทางวิชาการ">
-                          📚 <span style={{display: isMobile ? 'none' : 'inline'}}>อ้างอิงวิชาการ</span>
-                      </button>
-                  )}
+      {/* 🌟 1. Header (แยก 2 สไตล์ มือถือบีบอัด / คอมกางออก) */}
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '15px', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'space-between', marginBottom: '15px', flexShrink: 0 }}>
+          
+          {isMobile ? (
+              // 📱 Mobile Header (Compact 2-3 Rows)
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <h2 style={{ margin: 0, color: textColor, fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>🗺️ แผนที่เฝ้าระวังภัย</h2>
+                      {mapCategory === 'risk' && (
+                          <button onClick={() => setShowReferenceModal(true)} style={{ background: darkMode ? '#1e293b' : '#f1f5f9', color: '#8b5cf6', border: `1px solid #8b5cf6`, padding: '4px 10px', borderRadius: '50px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                              📚
+                          </button>
+                      )}
+                  </div>
+                  <div style={{ display: 'flex', background: cardBg, borderRadius: '50px', border: `1px solid ${borderColor}`, padding: '4px' }}>
+                      <button onClick={() => setMapCategory('basic')} style={{ flex: 1, background: mapCategory === 'basic' ? '#0ea5e9' : 'transparent', color: mapCategory === 'basic' ? '#fff' : subTextColor, border: 'none', padding: '6px', borderRadius: '50px', fontSize: '0.8rem', fontWeight: 'bold', cursor: 'pointer', transition: '0.2s', fontFamily: 'Kanit' }}>📊 ข้อมูลทั่วไป</button>
+                      <button onClick={() => setMapCategory('risk')} style={{ flex: 1, background: mapCategory === 'risk' ? '#8b5cf6' : 'transparent', color: mapCategory === 'risk' ? '#fff' : subTextColor, border: 'none', padding: '6px', borderRadius: '50px', fontSize: '0.8rem', fontWeight: 'bold', cursor: 'pointer', transition: '0.2s', fontFamily: 'Kanit' }}>🧠 วิเคราะห์ความเสี่ยง</button>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '5px' }} className="custom-scrollbar">
+                    {mapCategory === 'basic' ? basicModes.map(m => (
+                        <button key={m.id} onClick={() => setActiveBasicMode(m.id)} style={{ flexShrink: 0, padding: '6px 12px', borderRadius: '12px', border: `1px solid ${activeBasicMode === m.id ? m.color : borderColor}`, background: activeBasicMode === m.id ? (darkMode ? `${m.color}20` : `${m.color}15`) : cardBg, color: activeBasicMode === m.id ? m.color : textColor, fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'Kanit', fontSize: '0.75rem' }}>{m.name}</button>
+                    )) : riskModes.map(m => (
+                        <button key={m.id} onClick={() => setActiveRiskMode(m.id)} style={{ flexShrink: 0, padding: '6px 12px', borderRadius: '12px', border: `1px solid ${activeRiskMode === m.id ? m.color : borderColor}`, background: activeRiskMode === m.id ? (darkMode ? `${m.color}20` : `${m.color}15`) : cardBg, color: activeRiskMode === m.id ? m.color : textColor, fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'Kanit', fontSize: '0.75rem' }}>{m.name}</button>
+                    ))}
+                  </div>
               </div>
-              <div style={{ display: 'flex', background: cardBg, borderRadius: '50px', border: `1px solid ${borderColor}`, padding: '4px' }}>
-                  <button onClick={() => setMapCategory('basic')} style={{ background: mapCategory === 'basic' ? '#0ea5e9' : 'transparent', color: mapCategory === 'basic' ? '#fff' : subTextColor, border: 'none', padding: '6px 15px', borderRadius: '50px', fontSize: '0.8rem', fontWeight: 'bold', cursor: 'pointer', transition: '0.2s', fontFamily: 'Kanit' }}>
-                      📊 ข้อมูลทั่วไป
-                  </button>
-                  <button onClick={() => setMapCategory('risk')} style={{ background: mapCategory === 'risk' ? '#8b5cf6' : 'transparent', color: mapCategory === 'risk' ? '#fff' : subTextColor, border: 'none', padding: '6px 15px', borderRadius: '50px', fontSize: '0.8rem', fontWeight: 'bold', cursor: 'pointer', transition: '0.2s', fontFamily: 'Kanit' }}>
-                      🧠 วิเคราะห์ความเสี่ยง
-                  </button>
-              </div>
-          </div>
-
-          <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '5px' }} className="custom-scrollbar">
-            {mapCategory === 'basic' ? basicModes.map(m => (
-                <button key={m.id} onClick={() => setActiveBasicMode(m.id)} style={{ flexShrink: 0, padding: '8px 15px', borderRadius: '12px', border: `1px solid ${activeBasicMode === m.id ? m.color : borderColor}`, background: activeBasicMode === m.id ? (darkMode ? `${m.color}20` : `${m.color}15`) : cardBg, color: activeBasicMode === m.id ? m.color : textColor, fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'Kanit', fontSize: '0.85rem' }}>
-                    {m.name}
-                </button>
-            )) : riskModes.map(m => (
-                <button key={m.id} onClick={() => setActiveRiskMode(m.id)} style={{ flexShrink: 0, padding: '8px 15px', borderRadius: '12px', border: `1px solid ${activeRiskMode === m.id ? m.color : borderColor}`, background: activeRiskMode === m.id ? (darkMode ? `${m.color}20` : `${m.color}15`) : cardBg, color: activeRiskMode === m.id ? m.color : textColor, fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'Kanit', fontSize: '0.85rem' }}>
-                    {m.name}
-                </button>
-            ))}
-          </div>
+          ) : (
+              // 💻 Desktop Header (Spacious)
+              <>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                          <h2 style={{ margin: 0, color: textColor, fontSize: '1.4rem', display: 'flex', alignItems: 'center', gap: '8px' }}>🗺️ แผนที่สภาพอากาศ</h2>
+                          {mapCategory === 'risk' && (
+                              <button onClick={() => setShowReferenceModal(true)} style={{ background: 'transparent', color: '#8b5cf6', border: `1px solid #8b5cf6`, padding: '4px 12px', borderRadius: '50px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                  📚 แหล่งอ้างอิงทางวิชาการ
+                              </button>
+                          )}
+                      </div>
+                      <div style={{ display: 'flex', background: cardBg, borderRadius: '50px', border: `1px solid ${borderColor}`, padding: '4px', width: 'fit-content' }}>
+                          <button onClick={() => setMapCategory('basic')} style={{ background: mapCategory === 'basic' ? '#0ea5e9' : 'transparent', color: mapCategory === 'basic' ? '#fff' : subTextColor, border: 'none', padding: '6px 20px', borderRadius: '50px', fontSize: '0.85rem', fontWeight: 'bold', cursor: 'pointer', transition: '0.2s', fontFamily: 'Kanit' }}>📊 ข้อมูลทั่วไป</button>
+                          <button onClick={() => setMapCategory('risk')} style={{ background: mapCategory === 'risk' ? '#8b5cf6' : 'transparent', color: mapCategory === 'risk' ? '#fff' : subTextColor, border: 'none', padding: '6px 20px', borderRadius: '50px', fontSize: '0.85rem', fontWeight: 'bold', cursor: 'pointer', transition: '0.2s', fontFamily: 'Kanit' }}>🧠 วิเคราะห์ความเสี่ยง</button>
+                      </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', maxWidth: '600px' }} className="custom-scrollbar">
+                    {mapCategory === 'basic' ? basicModes.map(m => (
+                        <button key={m.id} onClick={() => setActiveBasicMode(m.id)} style={{ flexShrink: 0, padding: '8px 15px', borderRadius: '12px', border: `1px solid ${activeBasicMode === m.id ? m.color : borderColor}`, background: activeBasicMode === m.id ? (darkMode ? `${m.color}20` : `${m.color}15`) : cardBg, color: activeBasicMode === m.id ? m.color : textColor, fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'Kanit', fontSize: '0.85rem' }}>{m.name}</button>
+                    )) : riskModes.map(m => (
+                        <button key={m.id} onClick={() => setActiveRiskMode(m.id)} style={{ flexShrink: 0, padding: '8px 15px', borderRadius: '12px', border: `1px solid ${activeRiskMode === m.id ? m.color : borderColor}`, background: activeRiskMode === m.id ? (darkMode ? `${m.color}20` : `${m.color}15`) : cardBg, color: activeRiskMode === m.id ? m.color : textColor, fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'Kanit', fontSize: '0.85rem' }}>{m.name}</button>
+                    ))}
+                  </div>
+              </>
+          )}
       </div>
 
       <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', flex: 1, gap: '15px', overflow: 'hidden' }}>
           
-          <div style={{ flex: 1, borderRadius: '20px', overflow: 'hidden', border: `1px solid ${borderColor}`, position: 'relative', minHeight: isMobile ? '450px' : 'auto', background: cardBg }}>
-            <MapContainer center={[13.5, 100.5]} zoom={isMobile ? 5 : 6} style={{ height: '100%', width: '100%', background: appBg }} zoomControl={false}>
-                <TileLayer url={basemapUrls[basemapStyle]} />
-                <MapZoomListener setMapZoom={setMapZoom} />
-                <MapChangeView center={flyToPos} zoom={8} />
-                
-                {geoData && <GeoJSON key={`${mapCategory}-${activeRiskMode}-${activeBasicMode}-${polyOpacity}-${basemapStyle}`} data={geoData} style={styleGeoJSON} onEachFeature={onEachFeature} />}
-                
-                {mapZoom >= 6 && rankedData.map(st => {
-                    const shouldShow = mapCategory === 'basic' ? st.displayVal > 0 : st.displayVal >= 4;
-                    if (shouldShow) {
-                        return <Marker key={st.stationID} position={[st.lat, st.long]} icon={createMapIcon(st.areaTH.replace('จังหวัด',''), st.displayVal, st.color)} interactive={false} />
-                    }
-                    return null;
-                })}
-            </MapContainer>
+          {/* Column ซ้าย: แผนที่ + Legend */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: isMobile ? '10px' : '15px' }}>
+              <div style={{ flex: 1, borderRadius: isMobile ? '16px' : '20px', overflow: 'hidden', border: `1px solid ${borderColor}`, position: 'relative', minHeight: isMobile ? '400px' : 'auto', background: cardBg }}>
+                <MapContainer center={[13.5, 100.5]} zoom={isMobile ? 5 : 6} style={{ height: '100%', width: '100%', background: appBg }} zoomControl={false}>
+                    <TileLayer url={basemapUrls[basemapStyle]} />
+                    <MapZoomListener setMapZoom={setMapZoom} />
+                    <MapChangeView center={flyToPos} zoom={8} />
+                    
+                    {geoData && <GeoJSON key={`${mapCategory}-${activeRiskMode}-${activeBasicMode}-${polyOpacity}-${basemapStyle}`} data={geoData} style={styleGeoJSON} onEachFeature={onEachFeature} />}
+                    
+                    {mapZoom >= 6 && rankedData.map(st => {
+                        const shouldShow = mapCategory === 'basic' ? st.displayVal > 0 : st.displayVal >= 4;
+                        if (shouldShow) {
+                            return <Marker key={st.stationID} position={[st.lat, st.long]} icon={createMapIcon(st.areaTH.replace('จังหวัด',''), st.displayVal, st.color)} interactive={false} />
+                        }
+                        return null;
+                    })}
+                </MapContainer>
 
-            <div style={{ position: 'absolute', top: '15px', right: '15px', zIndex: 1000, display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'flex-end' }}>
-                {isMobile && (
-                    <button onClick={() => setShowControls(!showControls)} style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#1e293b', color: '#fff', border: `1px solid ${borderColor}`, fontSize: '1.1rem', boxShadow: '0 4px 15px rgba(0,0,0,0.3)' }}>{showControls ? '✕' : '⚙️'}</button>
-                )}
+                <div style={{ position: 'absolute', top: '15px', right: '15px', zIndex: 1000, display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'flex-end' }}>
+                    {isMobile && (
+                        <button onClick={() => setShowControls(!showControls)} style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#1e293b', color: '#fff', border: `1px solid ${borderColor}`, fontSize: '1.1rem', boxShadow: '0 4px 15px rgba(0,0,0,0.3)' }}>{showControls ? '✕' : '⚙️'}</button>
+                    )}
 
-                {(showControls || !isMobile) && (
-                    <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'flex-end' }}>
-                        <button onClick={() => { if(navigator.geolocation) navigator.geolocation.getCurrentPosition(p => setFlyToPos([p.coords.latitude, p.coords.longitude])); }} style={{ background: cardBg, color: textColor, border: `1px solid ${borderColor}`, padding: '8px 12px', borderRadius: '12px', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', boxShadow: '0 4px 10px rgba(0,0,0,0.1)', fontFamily: 'Kanit' }}>📍 พิกัดของฉัน</button>
-                        <div style={{ background: darkMode ? 'rgba(15, 23, 42, 0.9)' : 'rgba(255, 255, 255, 0.95)', backdropFilter: 'blur(10px)', padding: '12px', borderRadius: '16px', border: `1px solid ${borderColor}`, width: '150px', boxShadow: '0 4px 20px rgba(0,0,0,0.15)' }}>
-                            <div style={{ fontSize: '0.7rem', fontWeight: 'bold', color: textColor, marginBottom: '8px' }}>รูปแบบแผนที่</div>
-                            <select value={basemapStyle} onChange={(e) => setBasemapStyle(e.target.value)} style={{ width: '100%', background: darkMode ? '#1e293b' : '#f1f5f9', color: textColor, border: 'none', padding: '6px', borderRadius: '8px', fontSize: '0.75rem', outline: 'none', fontFamily: 'Kanit' }}>
-                                <option value="dark">สีเข้ม (Dark)</option><option value="light">สีสว่าง (Light)</option><option value="osm">ถนน (Street)</option><option value="satellite">ดาวเทียม</option>
-                            </select>
-                            <div style={{ fontSize: '0.7rem', fontWeight: 'bold', color: textColor, marginTop: '12px', marginBottom: '8px' }}>ความทึบเลเยอร์</div>
-                            <input type="range" min="0.1" max="1" step="0.1" value={polyOpacity} onChange={(e) => setPolyOpacity(parseFloat(e.target.value))} style={{ width: '100%', accentColor: activeModeObj?.color }} />
+                    {(showControls || !isMobile) && (
+                        <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'flex-end' }}>
+                            <button onClick={() => { if(navigator.geolocation) navigator.geolocation.getCurrentPosition(p => setFlyToPos([p.coords.latitude, p.coords.longitude])); }} style={{ background: cardBg, color: textColor, border: `1px solid ${borderColor}`, padding: '8px 12px', borderRadius: '12px', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', boxShadow: '0 4px 10px rgba(0,0,0,0.1)', fontFamily: 'Kanit' }}>📍 พิกัดของฉัน</button>
+                            <div style={{ background: darkMode ? 'rgba(15, 23, 42, 0.9)' : 'rgba(255, 255, 255, 0.95)', backdropFilter: 'blur(10px)', padding: '12px', borderRadius: '16px', border: `1px solid ${borderColor}`, width: '140px', boxShadow: '0 4px 20px rgba(0,0,0,0.15)' }}>
+                                <div style={{ fontSize: '0.7rem', fontWeight: 'bold', color: textColor, marginBottom: '8px' }}>รูปแบบแผนที่</div>
+                                <select value={basemapStyle} onChange={(e) => setBasemapStyle(e.target.value)} style={{ width: '100%', background: darkMode ? '#1e293b' : '#f1f5f9', color: textColor, border: 'none', padding: '6px', borderRadius: '8px', fontSize: '0.75rem', outline: 'none', fontFamily: 'Kanit' }}>
+                                    <option value="dark">สีเข้ม (Dark)</option><option value="light">สีสว่าง (Light)</option><option value="osm">ถนน (Street)</option><option value="satellite">ดาวเทียม</option>
+                                </select>
+                                <div style={{ fontSize: '0.7rem', fontWeight: 'bold', color: textColor, marginTop: '12px', marginBottom: '8px' }}>ความทึบเลเยอร์</div>
+                                <input type="range" min="0.1" max="1" step="0.1" value={polyOpacity} onChange={(e) => setPolyOpacity(parseFloat(e.target.value))} style={{ width: '100%', accentColor: activeModeObj?.color }} />
+                            </div>
                         </div>
-                    </div>
-                )}
-            </div>
-
-            {/* 🌟 ดัน Legend ขึ้นเพื่อกันการโดนตัดขอบ */}
-            <div style={{ position: 'absolute', bottom: '30px', left: '15px', zIndex: 1000, background: cardBg, padding: '10px 15px', borderRadius: '12px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                <div style={{ fontSize: '0.7rem', fontWeight: 'bold', color: subTextColor, marginBottom: '2px' }}>
-                    {mapCategory === 'risk' ? 'ระดับความเสี่ยง (0-10)' : `ระดับความเข้มข้น`}
+                    )}
                 </div>
-                {mapCategory === 'risk' ? (
-                    <>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', color: textColor }}><span style={{display:'inline-block', width:'10px', height:'10px', background:'#ef4444', borderRadius:'50%'}}></span> 8-10 (สูงมาก)</div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', color: textColor }}><span style={{display:'inline-block', width:'10px', height:'10px', background:'#f97316', borderRadius:'50%'}}></span> 6-7.9 (เฝ้าระวัง)</div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', color: textColor }}><span style={{display:'inline-block', width:'10px', height:'10px', background:'#eab308', borderRadius:'50%'}}></span> 4-5.9 (ปานกลาง)</div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', color: textColor }}><span style={{display:'inline-block', width:'10px', height:'10px', background:'#22c55e', borderRadius:'50%'}}></span> 0-3.9 (ปกติ)</div>
-                    </>
-                ) : (
-                    <>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', color: textColor }}><span style={{display:'inline-block', width:'10px', height:'10px', background:'#ef4444', borderRadius:'50%'}}></span> ระดับรุนแรง / สูงมาก</div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', color: textColor }}><span style={{display:'inline-block', width:'10px', height:'10px', background:'#f97316', borderRadius:'50%'}}></span> ระดับปานกลางค่อนข้างสูง</div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', color: textColor }}><span style={{display:'inline-block', width:'10px', height:'10px', background:'#3b82f6', borderRadius:'50%'}}></span> ระดับปกติ / ดี</div>
-                    </>
-                )}
-            </div>
+              </div>
+
+              {/* 🌟 2. Legend จัดวางใต้แผนที่พอดี ป้องกันการตกขอบ */}
+              <div style={{ background: cardBg, padding: isMobile ? '10px' : '12px 20px', borderRadius: '12px', border: `1px solid ${borderColor}`, boxShadow: '0 2px 10px rgba(0,0,0,0.05)', display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? '6px' : '15px', alignItems: isMobile ? 'flex-start' : 'center' }}>
+                  <div style={{ fontSize: '0.7rem', fontWeight: 'bold', color: subTextColor, whiteSpace: 'nowrap' }}>
+                      {mapCategory === 'risk' ? 'ระดับความเสี่ยง (0-10):' : `ระดับความเข้มข้น:`}
+                  </div>
+                  {mapCategory === 'risk' ? (
+                      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, auto)', gap: '10px', width: '100%' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: textColor }}><span style={{display:'inline-block', width:'10px', height:'10px', background:'#ef4444', borderRadius:'50%'}}></span> 8-10 (สูงมาก)</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: textColor }}><span style={{display:'inline-block', width:'10px', height:'10px', background:'#f97316', borderRadius:'50%'}}></span> 6-7.9 (เฝ้าระวัง)</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: textColor }}><span style={{display:'inline-block', width:'10px', height:'10px', background:'#eab308', borderRadius:'50%'}}></span> 4-5.9 (ปานกลาง)</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: textColor }}><span style={{display:'inline-block', width:'10px', height:'10px', background:'#22c55e', borderRadius:'50%'}}></span> 0-3.9 (ปกติ)</div>
+                      </div>
+                  ) : (
+                      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(1, 1fr)' : 'repeat(3, auto)', gap: '10px', width: '100%' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: textColor }}><span style={{display:'inline-block', width:'10px', height:'10px', background:'#ef4444', borderRadius:'50%'}}></span> ระดับรุนแรง / สูงมาก</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: textColor }}><span style={{display:'inline-block', width:'10px', height:'10px', background:'#f97316', borderRadius:'50%'}}></span> ระดับปานกลางค่อนข้างสูง</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: textColor }}><span style={{display:'inline-block', width:'10px', height:'10px', background:'#3b82f6', borderRadius:'50%'}}></span> ระดับปกติ / ดี</div>
+                      </div>
+                  )}
+              </div>
           </div>
 
-          <div style={{ width: isMobile ? '100%' : '320px', background: cardBg, borderRadius: '20px', padding: '15px', border: `1px solid ${borderColor}`, display: 'flex', flexDirection: 'column', zIndex: 10, flexShrink: 0 }}>
+          {/* Column ขวา: Sidebar จัดอันดับ */}
+          <div style={{ width: isMobile ? '100%' : '340px', background: cardBg, borderRadius: isMobile ? '16px' : '20px', padding: '15px', border: `1px solid ${borderColor}`, display: 'flex', flexDirection: 'column', zIndex: 10, flexShrink: 0 }}>
              <h3 style={{ margin: '0 0 5px 0', fontSize: '1rem', color: textColor }}>
                 📍 {mapCategory === 'risk' ? 'พื้นที่เสี่ยงสูงสุด (Top 15)' : 'จัดอันดับค่าสูงสุด (Top 15)'}
              </h3>
@@ -375,7 +399,7 @@ export default function MapPage() {
                 
                 <div style={{ marginBottom: '15px', paddingBottom: '15px', borderBottom: `1px solid ${borderColor}` }}>
                     <div style={{ fontSize: '0.8rem', color: subTextColor, fontWeight: 'bold', marginBottom: '5px' }}>ข้อมูลวิเคราะห์ความเสี่ยงรายพื้นที่</div>
-                    <h2 style={{ margin: 0, color: textColor, fontSize: '1.3rem' }}>📍 จ.{selectedHotspot.station.areaTH.replace('จังหวัด','')}</h2>
+                    <h2 style={{ margin: 0, color: textColor, fontSize: isMobile ? '1.1rem' : '1.3rem', fontWeight: 'bold' }}>📍 จ.{selectedHotspot.station.areaTH.replace('จังหวัด','')}</h2>
                 </div>
 
                 <div style={{ display: 'flex', gap: '15px', alignItems: 'center', marginBottom: '20px' }}>
@@ -416,7 +440,7 @@ export default function MapPage() {
             <div className="fade-in custom-scrollbar" style={{ background: cardBg, padding: '25px', borderRadius: '20px', width: '100%', maxWidth: '550px', maxHeight: '85vh', overflowY: 'auto', border: `1px solid ${borderColor}`, boxShadow: '0 20px 50px rgba(0,0,0,0.5)', position: 'relative' }} onClick={e => e.stopPropagation()}>
                 <button onClick={() => setShowReferenceModal(false)} style={{ position: 'absolute', top: '15px', right: '15px', background: darkMode ? '#1e293b' : '#f1f5f9', border: 'none', width: '30px', height: '30px', borderRadius: '50%', color: textColor, cursor: 'pointer', fontWeight: 'bold' }}>✕</button>
                 
-                <h2 style={{ margin: '0 0 5px 0', color: textColor, fontSize: '1.3rem', display: 'flex', alignItems: 'center', gap: '8px' }}>📚 หลักการและทฤษฎีอ้างอิง</h2>
+                <h2 style={{ margin: '0 0 5px 0', color: textColor, fontSize: '1.3rem', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>📚 หลักการและทฤษฎีอ้างอิง</h2>
                 <p style={{ color: subTextColor, fontSize: '0.85rem', marginBottom: '20px', lineHeight: 1.5 }}>การประเมินดัชนีความเสี่ยงในระบบ อ้างอิงจากแบบจำลองและมาตรฐานทางวิทยาศาสตร์ระดับสากล เพื่อความแม่นยำในการเตือนภัย</p>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
