@@ -4,7 +4,7 @@ import { provinces77 } from '../src/provinces77.js';
 
 export default async function handler(req, res) {
   try {
-    console.log("Cron: เริ่มทำงาน ดึงข้อมูลเปรียบเทียบแบบ Same-Time Yesterday...");
+    console.log("Cron: เริ่มทำงาน ดึงข้อมูลเปรียบเทียบแบบ Same-Time & Daily Max...");
 
     const dbUrl = process.env.VITE_FIREBASE_DATABASE_URL;
     if (!dbUrl) return res.status(500).json({ success: false, error: "🚨 หา VITE_FIREBASE_DATABASE_URL ไม่เจอ!" });
@@ -32,9 +32,7 @@ export default async function handler(req, res) {
       const lats = chunk.map(p => p.lat).join(',');
       const lons = chunk.map(p => p.lon).join(',');
 
-      // 🌟 เพิ่มการดึง hourly ของทุกค่า เพื่อเอามาเทียบชั่วโมงต่อชั่วโมง
       const wUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,wind_speed_10m,wind_direction_10m&hourly=apparent_temperature,precipitation_probability,wind_speed_10m,uv_index&daily=apparent_temperature_max,precipitation_probability_max,uv_index_max,wind_speed_10m_max&timezone=Asia%2FBangkok&past_days=1&forecast_days=2&_t=${timestamp}`;
-      
       const aUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lats}&longitude=${lons}&current=pm2_5&hourly=pm2_5&timezone=Asia%2FBangkok&past_days=1&forecast_days=1&_t=${timestamp}`;
 
       const [wRes, aRes] = await Promise.all([fetch(wUrl), fetch(aUrl)]);
@@ -45,16 +43,16 @@ export default async function handler(req, res) {
         allWData = [...allWData, ...(Array.isArray(wJson) ? wJson : [wJson])];
         allAData = [...allAData, ...(Array.isArray(aJson) ? aJson : [aJson])];
       }
-      if (i + chunkSize < provinces77.length) await new Promise(r => setTimeout(r, 1000));
+      if (i + chunkSize < provinces77.length) await new Promise(r => setTimeout(r, 200));
     }
 
     const newStations = [];
     const newTemps = {};
-    const newYesterday = {}; 
+    const newYesterday = {};    // ข้อมูลเวลาเดียวกัน (Same-Hour)
+    const newMaxYesterday = {}; // 🌟 ข้อมูลสูงสุดของเมื่อวาน (Daily Max)
 
-    // 🌟 ดึงเวลาปัจจุบันในโซน "ประเทศไทย" (ป้องกัน Vercel ใช้เวลา UTC ของอเมริกา)
     const bangkokTime = new Date(new Date().toLocaleString("en-US", {timeZone: "Asia/Bangkok"}));
-    const currentHour = bangkokTime.getHours(); // จะได้เลขชั่วโมง เช่น 20 (สำหรับ 2 ทุ่ม)
+    const currentHour = bangkokTime.getHours(); 
 
     provinces77.forEach((p, idx) => {
       const w = allWData[idx] || {};
@@ -76,14 +74,13 @@ export default async function handler(req, res) {
         uv: Math.round(w.daily?.uv_index_max?.[1] || 0)
       };
 
-      // 🌟 ดึงข้อมูล "ชั่วโมงเดียวกันของเมื่อวาน" (Index ของเมื่อวานจะตรงกับเลขชั่วโมงพอดี)
+      // 1. เก็บของเวลาเดียวกัน
       const prevTemp = w.hourly?.apparent_temperature?.[currentHour];
       const prevPm25 = a.hourly?.pm2_5?.[currentHour];
       const prevUv = w.hourly?.uv_index?.[currentHour];
       const prevRain = w.hourly?.precipitation_probability?.[currentHour];
       const prevWind = w.hourly?.wind_speed_10m?.[currentHour];
 
-      // 🌟 ยัดใส่ตู้เซฟส่งให้หน้าบ้าน ถ้า API ขัดข้องค่อย Fallback กลับไปใช้ค่า Max เดิมกันเหนียว
       newYesterday[sID] = {
         temp: Math.round(prevTemp !== undefined ? prevTemp : (w.daily?.apparent_temperature_max?.[0] || 0)),
         pm25: Math.round(prevPm25 !== undefined ? prevPm25 : (a.current?.pm2_5 || 0)),
@@ -91,19 +88,35 @@ export default async function handler(req, res) {
         rain: Math.round(prevRain !== undefined ? prevRain : (w.daily?.precipitation_probability_max?.[0] || 0)),
         wind: Math.round(prevWind !== undefined ? prevWind : (w.daily?.wind_speed_10m_max?.[0] || 0))
       };
+
+      // 2. 🌟 เก็บค่าสูงสุดของทั้งวัน
+      let maxPm25 = 0;
+      if (a.hourly?.pm2_5) {
+          const yesterdayHourly = a.hourly.pm2_5.slice(0, 24).filter(v => v !== null);
+          if(yesterdayHourly.length > 0) maxPm25 = Math.max(...yesterdayHourly);
+      }
+
+      newMaxYesterday[sID] = {
+        temp: Math.round(w.daily?.apparent_temperature_max?.[0] || 0),
+        pm25: Math.round(maxPm25 || a.current?.pm2_5 || 0),
+        uv: Math.round(w.daily?.uv_index_max?.[0] || 0),
+        rain: Math.round(w.daily?.precipitation_probability_max?.[0] || 0),
+        wind: Math.round(w.daily?.wind_speed_10m_max?.[0] || 0)
+      };
     });
 
     const payload = { 
         lastUpdated: bangkokTime.toISOString(), 
         stations: newStations, 
         stationTemps: newTemps,
-        stationYesterday: newYesterday 
+        stationYesterday: newYesterday,
+        stationMaxYesterday: newMaxYesterday // 🌟 โยนลง Firebase
     };
     
     await set(ref(db, 'weather_data'), payload);
-    return res.status(200).json({ success: true, message: `Auto-Sync สำเร็จ! ดึงข้อมูลเทียบเวลา ${currentHour}:00 น. ของเมื่อวานเรียบร้อย` });
+    return res.status(200).json({ success: true, message: `Auto-Sync สำเร็จ! ดึงข้อมูลเทียบเวลา ${currentHour}:00 น. + ค่าสูงสุดของเมื่อวานเรียบร้อย` });
   } catch (error) {
     console.error("Cron Error Details:", error);
-    return res.status(500).json({ success: false, error: error.toString(), stack: error.stack });
+    return res.status(500).json({ success: false, error: error.toString() });
   }
 }

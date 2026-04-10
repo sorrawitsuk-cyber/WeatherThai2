@@ -7,7 +7,8 @@ export const WeatherContext = createContext();
 export const WeatherProvider = ({ children }) => {
   const [stations, setStations] = useState([]);
   const [stationTemps, setStationTemps] = useState({});
-  const [stationYesterday, setStationYesterday] = useState({}); // 🌟 ท่อรับข้อมูลอดีต
+  const [stationYesterday, setStationYesterday] = useState({}); 
+  const [stationMaxYesterday, setStationMaxYesterday] = useState({}); // 🌟 เพิ่มท่อรับค่าสูงสุด
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState(null);
 
@@ -25,16 +26,17 @@ export const WeatherProvider = ({ children }) => {
 
     const unsubscribe = onValue(weatherRef, (snapshot) => {
       const data = snapshot.val();
-      
       if (data) {
         setStations(data.stations || []);
         setStationTemps(data.stationTemps || {});
-        setStationYesterday(data.stationYesterday || {}); // 🌟 รับของเข้า
+        setStationYesterday(data.stationYesterday || {}); 
+        setStationMaxYesterday(data.stationMaxYesterday || {}); // 🌟 รับข้อมูลเข้า
         setLastUpdated(data.lastUpdated || null);
       } else {
         setStations([]);
         setStationTemps({});
         setStationYesterday({});
+        setStationMaxYesterday({});
       }
       setLoading(false); 
     }, (error) => {
@@ -47,13 +49,9 @@ export const WeatherProvider = ({ children }) => {
 
   return (
     <WeatherContext.Provider value={{ 
-      stations, 
-      stationTemps, 
-      stationYesterday, // 🌟 ส่งต่อให้ ClimatePage เอาไปใช้
-      loading, 
-      lastUpdated,
-      darkMode,        
-      setDarkMode      
+      stations, stationTemps, stationYesterday, 
+      stationMaxYesterday, // 🌟 ส่งข้อมูลต่อให้หน้าบ้าน
+      loading, lastUpdated, darkMode, setDarkMode      
     }}>
       {children}
     </WeatherContext.Provider>
