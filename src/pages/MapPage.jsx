@@ -29,6 +29,24 @@ function MapZoomListener({ setMapZoom }) {
   return null;
 }
 
+// 🌟 ฟังก์ชันคำนวณทิศทางลมเป็นภาษาไทย พร้อมลูกศรชี้ทิศทางการพัด
+const getWindDirection = (degree) => {
+    if (degree === undefined || degree === null) return { name: '-', arrow: '🌀' };
+    const val = Math.floor((degree / 45) + 0.5);
+    const arr = ["เหนือ", "ตะวันออกเฉียงเหนือ", "ตะวันออก", "ตะวันออกเฉียงใต้", "ใต้", "ตะวันตกเฉียงใต้", "ตะวันตก", "ตะวันตกเฉียงเหนือ"];
+    // ลูกศรชี้ไปตามทิศที่ลมพัดไป (เช่น ลมเหนือพัดลงใต้ ⬇️)
+    const arrows = ["⬇️", "↙️", "⬅️", "↖️", "⬆️", "↗️", "➡️", "↘️"]; 
+    return { name: arr[(val % 8)], arrow: arrows[(val % 8)] };
+};
+
+const getUvText = (uv) => {
+    if (uv > 10) return 'อันตรายรุนแรง';
+    if (uv > 7) return 'สูงมาก';
+    if (uv > 5) return 'สูง';
+    if (uv > 2) return 'ปานกลาง';
+    return 'ต่ำ';
+}
+
 export default function MapPage() {
   const { stations, stationTemps, darkMode } = useContext(WeatherContext);
   
@@ -63,6 +81,9 @@ export default function MapPage() {
     fetch('/thailand.json').then(res => res.json()).then(data => setGeoData(data)).catch(e => console.error(e));
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  // เคลียร์ Popup เวลาเปลี่ยนโหมดหลัก จะได้ไม่ค้างข้อมูลเก่า
+  useEffect(() => { setSelectedHotspot(null); }, [mapCategory]);
 
   const basicModes = [
     { id: 'pm25', name: '😷 PM2.5', color: '#f97316', unit: 'µg/m³', desc: 'ความหนาแน่นของฝุ่นละอองขนาดเล็ก' },
@@ -155,26 +176,28 @@ export default function MapPage() {
       return 'สถานการณ์ปกติ';
   };
 
-  // 🌟 1. ดึงข้อมูล 77 จังหวัด สำหรับสร้าง Marker บนแผนที่
-  const allMapData = useMemo(() => {
-    return (stations || []).map(st => {
-        let val, color;
-        if (mapCategory === 'basic') {
-            val = getBasicVal(st, activeBasicMode);
-            color = getBasicColor(val, activeBasicMode);
-        } else {
-            const risk = calculateRisk(st);
-            val = risk.score;
-            color = getRiskColor(risk.score);
-        }
-        return { ...st, displayVal: val, color };
-    }).filter(st => st.displayVal !== null && st.displayVal !== undefined);
+  const rankedData = useMemo(() => {
+    if (mapCategory === 'basic') {
+        return (stations || [])
+          .map(st => {
+              const val = getBasicVal(st, activeBasicMode);
+              return { ...st, displayVal: val, color: getBasicColor(val, activeBasicMode) };
+          })
+          .filter(st => st.displayVal !== null)
+          .sort((a, b) => b.displayVal - a.displayVal);
+    } else {
+        return (stations || [])
+          .map(st => {
+              const risk = calculateRisk(st);
+              return { ...st, displayVal: risk.score, factors: risk.factors, color: getRiskColor(risk.score) };
+          })
+          .sort((a, b) => b.displayVal - a.displayVal);
+    }
   }, [stations, mapCategory, activeBasicMode, calculateRisk, getBasicVal, getBasicColor, getRiskColor]);
 
-  // 🌟 2. ดึงข้อมูลแค่ Top 15 สำหรับแถบด้านขวา
   const rankedSidebarData = useMemo(() => {
-    return [...allMapData].sort((a, b) => b.displayVal - a.displayVal).slice(0, 15);
-  }, [allMapData]);
+    return rankedData.slice(0, 15);
+  }, [rankedData]);
 
   const styleGeoJSON = (feature) => {
     const props = Object.values(feature.properties || {}).map(v => String(v).trim());
@@ -195,10 +218,16 @@ export default function MapPage() {
     return { fillColor: color, weight: 1, opacity: 1, color: darkMode ? '#0f172a' : '#ffffff', fillOpacity: polyOpacity };
   };
 
+  // 🌟 ฟังก์ชันจัดการการคลิกแยกตามโหมด
   const handleRegionClick = (station) => {
       if (mapCategory === 'risk') {
           const risk = calculateRisk(station);
-          setSelectedHotspot({ station, riskScore: risk.score, factors: risk.factors, color: getRiskColor(risk.score) });
+          setSelectedHotspot({ type: 'risk', station, riskScore: risk.score, factors: risk.factors, color: getRiskColor(risk.score) });
+      } else {
+          // โหมดข้อมูลทั่วไป (Basic) - เก็บข้อมูลทั้งหมดเพื่อนำไปโชว์ใน Popup
+          const data = stationTemps[station.stationID] || {};
+          const pm25 = station.AQILast?.PM25?.value || 0;
+          setSelectedHotspot({ type: 'basic', station, data, pm25 });
       }
       setFlyToPos([station.lat, station.long]);
   };
@@ -215,7 +244,6 @@ export default function MapPage() {
     });
   };
 
-  // 🌟 ย่อขนาดป้ายกำกับบนมือถือให้เล็กลง จะได้โชว์ได้ครบ 77 จังหวัดโดยไม่บังแผนที่
   const createMapIcon = (stationName, val, color) => {
     return L.divIcon({
         className: 'custom-risk-icon',
@@ -236,6 +264,60 @@ export default function MapPage() {
 
   const activeModeObj = mapCategory === 'basic' ? basicModes.find(m => m.id === activeBasicMode) : riskModes.find(m => m.id === activeRiskMode);
 
+  const getDynamicLegendContent = () => {
+    if (mapCategory === 'risk') {
+        return [
+            { c: '#ef4444', l: 'วิกฤต/อันตราย', r: '8-10' },
+            { c: '#f97316', l: 'ควรเฝ้าระวัง', r: '6-7.9' },
+            { c: '#eab308', l: 'ปานกลาง', r: '4-5.9' },
+            { c: '#22c55e', l: 'สถานการณ์ปกติ', r: '0-3.9' }
+        ];
+    }
+    
+    switch (activeBasicMode) {
+        case 'pm25':
+            return [
+                { c: '#ef4444', l: 'มีผลกระทบฯ', r: '> 75' },
+                { c: '#f97316', l: 'เริ่มมีผลกระทบฯ', r: '38-75' },
+                { c: '#eab308', l: 'ปานกลาง', r: '26-37' },
+                { c: '#22c55e', l: 'ดี', r: '16-25' },
+                { c: '#0ea5e9', l: 'ดีมาก', r: '0-15' }
+            ];
+        case 'temp':
+        case 'heat':
+            return [
+                { c: '#ef4444', l: 'ร้อนจัด', r: '> 39' },
+                { c: '#f97316', l: 'ร้อน', r: '35-39' },
+                { c: '#eab308', l: 'อบอ้าว', r: '29-34' },
+                { c: '#22c55e', l: 'ปกติ/อบอุ่น', r: '23-28' },
+                { c: '#3b82f6', l: 'เย็นสบาย', r: '< 23' }
+            ];
+        case 'rain':
+            return [
+                { c: '#1e3a8a', l: 'ตกหนัก/พายุ', r: '> 70%' },
+                { c: '#3b82f6', l: 'โอกาสตกสูง', r: '41-70%' },
+                { c: '#60a5fa', l: 'โอกาสตกต่ำ', r: '11-40%' },
+                { c: '#94a3b8', l: 'ไม่มีฝน', r: '0-10%' }
+            ];
+        case 'wind':
+            return [
+                { c: '#ef4444', l: 'พายุ/อันตราย', r: '> 40' },
+                { c: '#f97316', l: 'ลมแรง', r: '21-40' },
+                { c: '#eab308', l: 'ลมกำลังดี', r: '11-20' },
+                { c: '#22c55e', l: 'ลมสงบ', r: '0-10' }
+            ];
+        case 'uv':
+            return [
+                { c: '#a855f7', l: 'อันตรายรุนแรง', r: '> 10' },
+                { c: '#ef4444', l: 'สูงมาก', r: '8-10' },
+                { c: '#ea580c', l: 'สูง', r: '6-7' },
+                { c: '#eab308', l: 'ปานกลาง', r: '3-5' },
+                { c: '#22c55e', l: 'ต่ำ', r: '0-2' }
+            ];
+        default: return [];
+    }
+  };
+
   if (!geoData || Object.keys(stationTemps).length === 0) return <div style={{ height: '100vh', background: appBg, display: 'flex', justifyContent:'center', alignItems:'center', color: subTextColor, fontFamily: 'Kanit' }}>กำลังโหลดแผนที่เฝ้าระวังภัย...</div>;
 
   return (
@@ -247,7 +329,6 @@ export default function MapPage() {
         .custom-scrollbar::-webkit-scrollbar-thumb { background: ${darkMode ? '#334155' : '#cbd5e1'}; border-radius: 10px; }
       `}} />
 
-      {/* Header Section */}
       <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '15px', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'space-between', marginBottom: '15px', flexShrink: 0 }}>
           {isMobile ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -300,7 +381,6 @@ export default function MapPage() {
 
       <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', flex: 1, gap: '15px', overflow: 'hidden' }}>
           
-          {/* แผนที่ + Legend */}
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: isMobile ? '10px' : '15px' }}>
               <div style={{ flex: 1, borderRadius: isMobile ? '16px' : '20px', overflow: 'hidden', border: `1px solid ${borderColor}`, position: 'relative', minHeight: isMobile ? '400px' : 'auto', background: cardBg }}>
                 
@@ -311,31 +391,35 @@ export default function MapPage() {
                     
                     {geoData && <GeoJSON key={`${mapCategory}-${activeRiskMode}-${activeBasicMode}-${polyOpacity}-${basemapStyle}`} data={geoData} style={styleGeoJSON} onEachFeature={onEachFeature} />}
                     
-                    {/* 🌟 2. แสดงป้าย 77 จังหวัดทั้งหมด */}
-                    {mapZoom >= 5 && allMapData.map(st => (
-                        <Marker key={st.stationID} position={[st.lat, st.long]} icon={createMapIcon(st.areaTH.replace('จังหวัด',''), st.displayVal, st.color)} interactive={false} />
-                    ))}
+                    {allMapData.map(st => {
+                        const zoomThreshold = isMobile ? 6 : 7;
+                        let isVisible = false;
+                        if (mapZoom >= zoomThreshold) {
+                            isVisible = true; 
+                        } else {
+                            if (mapCategory === 'risk') {
+                                isVisible = st.displayVal >= 6; 
+                            } else {
+                                isVisible = rankedSidebarData.some(r => r.stationID === st.stationID);
+                            }
+                        }
+                        if (!isVisible) return null;
+                        return <Marker key={st.stationID} position={[st.lat, st.long]} icon={createMapIcon(st.areaTH.replace('จังหวัด',''), st.displayVal, st.color)} interactive={false} />;
+                    })}
                 </MapContainer>
 
-                {/* 🌟 1. ย้าย Legend เข้ามาลอยทับแผนที่ด้านซ้ายล่าง ป้องกันการตกขอบ */}
-                <div style={{ position: 'absolute', bottom: '15px', left: '15px', zIndex: 1000, background: cardBg, padding: '10px', borderRadius: '12px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <div style={{ fontSize: '0.7rem', fontWeight: 'bold', color: subTextColor, marginBottom: '2px' }}>
-                        {mapCategory === 'risk' ? 'ระดับความเสี่ยง (0-10)' : `ระดับความเข้มข้น`}
+                <div style={{ position: 'absolute', bottom: '15px', left: '15px', zIndex: 1000, background: cardBg, padding: '10px', borderRadius: '12px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', gap: '6px', maxWidth: isMobile ? 'calc(100% - 30px)' : 'auto' }}>
+                    <div style={{ fontSize: '0.7rem', fontWeight: 'bold', color: subTextColor }}>
+                        เกณฑ์ระดับ {activeModeObj?.name}
                     </div>
-                    {mapCategory === 'risk' ? (
-                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(1, 1fr)', gap: '6px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: textColor }}><span style={{display:'inline-block', width:'10px', height:'10px', background:'#ef4444', borderRadius:'50%'}}></span> 8-10 (สูงมาก)</div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: textColor }}><span style={{display:'inline-block', width:'10px', height:'10px', background:'#f97316', borderRadius:'50%'}}></span> 6-7.9 (เฝ้าระวัง)</div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: textColor }}><span style={{display:'inline-block', width:'10px', height:'10px', background:'#eab308', borderRadius:'50%'}}></span> 4-5.9 (ปานกลาง)</div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: textColor }}><span style={{display:'inline-block', width:'10px', height:'10px', background:'#22c55e', borderRadius:'50%'}}></span> 0-3.9 (ปกติ)</div>
-                        </div>
-                    ) : (
-                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(1, 1fr)' : 'repeat(1, 1fr)', gap: '6px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: textColor }}><span style={{display:'inline-block', width:'10px', height:'10px', background:'#ef4444', borderRadius:'50%'}}></span> รุนแรง / สูงมาก</div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: textColor }}><span style={{display:'inline-block', width:'10px', height:'10px', background:'#f97316', borderRadius:'50%'}}></span> ปานกลางค่อนข้างสูง</div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: textColor }}><span style={{display:'inline-block', width:'10px', height:'10px', background:'#3b82f6', borderRadius:'50%'}}></span> ปกติ / ดี</div>
-                        </div>
-                    )}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 15px' }}>
+                        {getDynamicLegendContent().map((item, idx) => (
+                            <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: textColor }}>
+                                <span style={{display:'inline-block', width:'10px', height:'10px', background: item.c, borderRadius:'50%', border: `1px solid ${darkMode?'#1e293b':'#e2e8f0'}`}}></span>
+                                <span style={{fontWeight: 'bold'}}>{item.r}</span> <span style={{opacity: 0.8}}>({item.l})</span>
+                            </div>
+                        ))}
+                    </div>
                 </div>
 
                 <div style={{ position: 'absolute', top: '15px', right: '15px', zIndex: 1000, display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'flex-end' }}>
@@ -360,7 +444,6 @@ export default function MapPage() {
               </div>
           </div>
 
-          {/* Sidebar จัดอันดับ */}
           <div style={{ width: isMobile ? '100%' : '320px', background: cardBg, borderRadius: isMobile ? '16px' : '20px', padding: '15px', border: `1px solid ${borderColor}`, display: 'flex', flexDirection: 'column', zIndex: 10, flexShrink: 0 }}>
              <h3 style={{ margin: '0 0 5px 0', fontSize: '1rem', color: textColor }}>
                 📍 {mapCategory === 'risk' ? 'พื้นที่เสี่ยงสูงสุด (Top 15)' : 'จัดอันดับค่าสูงสุด (Top 15)'}
@@ -372,9 +455,9 @@ export default function MapPage() {
                    <div 
                        key={st.stationID} 
                        onClick={() => handleRegionClick(st)} 
-                       style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: darkMode ? '#1e293b' : '#f8fafc', borderRadius: '12px', marginBottom: '8px', borderLeft: `5px solid ${st.color}`, cursor: mapCategory === 'risk' ? 'pointer' : 'default', transition: 'all 0.1s', border: `1px solid ${borderColor}` }}
-                       onMouseEnter={(e) => { if(mapCategory==='risk') { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 10px rgba(0,0,0,0.1)'; } }}
-                       onMouseLeave={(e) => { if(mapCategory==='risk') { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; } }}
+                       style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: darkMode ? '#1e293b' : '#f8fafc', borderRadius: '12px', marginBottom: '8px', borderLeft: `5px solid ${st.color}`, cursor: 'pointer', transition: 'all 0.1s', border: `1px solid ${borderColor}` }}
+                       onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 10px rgba(0,0,0,0.1)'; }}
+                       onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
                    >
                       <div>
                           <div style={{ fontSize: '0.9rem', fontWeight: 'bold', color: textColor }}>{idx+1}. จ.{st.areaTH.replace('จังหวัด', '')}</div>
@@ -389,8 +472,8 @@ export default function MapPage() {
           </div>
       </div>
 
-      {/* POPUP 1: DIAGNOSTIC MODAL */}
-      {selectedHotspot && mapCategory === 'risk' && (
+      {/* 🌟 POPUP 1: โหมดความเสี่ยง (Diagnostic Modal) */}
+      {selectedHotspot && selectedHotspot.type === 'risk' && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10000, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(5px)', display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }} onClick={() => setSelectedHotspot(null)}>
             <div className="fade-in" style={{ background: cardBg, padding: '25px', borderRadius: '20px', width: '100%', maxWidth: '420px', border: `1px solid ${borderColor}`, boxShadow: '0 20px 50px rgba(0,0,0,0.5)', position: 'relative' }} onClick={e => e.stopPropagation()}>
                 <button onClick={() => setSelectedHotspot(null)} style={{ position: 'absolute', top: '15px', right: '15px', background: darkMode ? '#1e293b' : '#f1f5f9', border: 'none', width: '30px', height: '30px', borderRadius: '50%', color: textColor, cursor: 'pointer', fontWeight: 'bold' }}>✕</button>
@@ -428,12 +511,64 @@ export default function MapPage() {
                         </div>
                     ))}
                 </div>
-
             </div>
         </div>
       )}
 
-      {/* POPUP 2: แหล่งอ้างอิงทางวิชาการ */}
+      {/* 🌟 POPUP 2: โหมดทั่วไป (Weather Dashboard Modal) */}
+      {selectedHotspot && selectedHotspot.type === 'basic' && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10000, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(5px)', display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }} onClick={() => setSelectedHotspot(null)}>
+          <div className="fade-in" style={{ background: cardBg, padding: '25px', borderRadius: '20px', width: '100%', maxWidth: '420px', border: `1px solid ${borderColor}`, boxShadow: '0 20px 50px rgba(0,0,0,0.5)', position: 'relative' }} onClick={e => e.stopPropagation()}>
+              <button onClick={() => setSelectedHotspot(null)} style={{ position: 'absolute', top: '15px', right: '15px', background: darkMode ? '#1e293b' : '#f1f5f9', border: 'none', width: '30px', height: '30px', borderRadius: '50%', color: textColor, cursor: 'pointer', fontWeight: 'bold' }}>✕</button>
+              
+              <div style={{ marginBottom: '20px', paddingBottom: '15px', borderBottom: `1px solid ${borderColor}` }}>
+                  <div style={{ fontSize: '0.8rem', color: subTextColor, fontWeight: 'bold', marginBottom: '5px' }}>ข้อมูลสภาพอากาศปัจจุบัน</div>
+                  <h2 style={{ margin: 0, color: textColor, fontSize: isMobile ? '1.2rem' : '1.4rem', fontWeight: 'bold' }}>📍 จ.{selectedHotspot.station.areaTH.replace('จังหวัด','')}</h2>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  {/* PM 2.5 */}
+                  <div style={{ background: darkMode ? '#1e293b' : '#f1f5f9', padding: '15px', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '5px', borderLeft: `4px solid ${getBasicColor(selectedHotspot.pm25, 'pm25')}` }}>
+                      <span style={{ fontSize: '0.8rem', color: subTextColor, fontWeight: 'bold' }}>😷 ฝุ่น PM2.5</span>
+                      <span style={{ fontSize: '1.4rem', fontWeight: '900', color: getBasicColor(selectedHotspot.pm25, 'pm25') }}>{selectedHotspot.pm25} <span style={{fontSize: '0.7rem', color: subTextColor, fontWeight:'normal'}}>µg/m³</span></span>
+                  </div>
+                  {/* อุณหภูมิ */}
+                  <div style={{ background: darkMode ? '#1e293b' : '#f1f5f9', padding: '15px', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '5px', borderLeft: `4px solid ${getBasicColor(selectedHotspot.data.temp, 'temp')}` }}>
+                      <span style={{ fontSize: '0.8rem', color: subTextColor, fontWeight: 'bold' }}>🌡️ อุณหภูมิ</span>
+                      <span style={{ fontSize: '1.4rem', fontWeight: '900', color: getBasicColor(selectedHotspot.data.temp, 'temp') }}>{Math.round(selectedHotspot.data.temp || 0)}°C</span>
+                  </div>
+                  {/* ดัชนีความร้อน */}
+                  <div style={{ background: darkMode ? '#1e293b' : '#f1f5f9', padding: '15px', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '5px', borderLeft: `4px solid ${getBasicColor(selectedHotspot.data.feelsLike, 'heat')}` }}>
+                      <span style={{ fontSize: '0.8rem', color: subTextColor, fontWeight: 'bold' }}>🥵 ดัชนีความร้อน</span>
+                      <span style={{ fontSize: '1.4rem', fontWeight: '900', color: getBasicColor(selectedHotspot.data.feelsLike, 'heat') }}>{Math.round(selectedHotspot.data.feelsLike || 0)}°C</span>
+                  </div>
+                  {/* โอกาสฝน */}
+                  <div style={{ background: darkMode ? '#1e293b' : '#f1f5f9', padding: '15px', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '5px', borderLeft: `4px solid ${getBasicColor(selectedHotspot.data.rainProb, 'rain')}` }}>
+                      <span style={{ fontSize: '0.8rem', color: subTextColor, fontWeight: 'bold' }}>☔ โอกาสฝนตก</span>
+                      <span style={{ fontSize: '1.4rem', fontWeight: '900', color: getBasicColor(selectedHotspot.data.rainProb, 'rain') }}>{selectedHotspot.data.rainProb || 0} <span style={{fontSize: '0.7rem', color: subTextColor, fontWeight:'normal'}}>%</span></span>
+                  </div>
+                  {/* ลมกระโชก + ทิศทาง */}
+                  <div style={{ background: darkMode ? '#1e293b' : '#f1f5f9', padding: '15px', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '5px', gridColumn: '1 / -1', borderLeft: `4px solid ${getBasicColor(selectedHotspot.data.windSpeed, 'wind')}` }}>
+                      <span style={{ fontSize: '0.8rem', color: subTextColor, fontWeight: 'bold' }}>🌬️ ลมกระโชกสูงสุด และทิศทางลม</span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: '1.4rem', fontWeight: '900', color: getBasicColor(selectedHotspot.data.windSpeed, 'wind') }}>{Math.round(selectedHotspot.data.windSpeed || 0)} <span style={{fontSize: '0.7rem', color: subTextColor, fontWeight:'normal'}}>km/h</span></span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: cardBg, padding: '4px 10px', borderRadius: '8px', border: `1px solid ${borderColor}` }}>
+                              <span style={{ fontSize: '1.2rem' }}>{getWindDirection(selectedHotspot.data.windDir).arrow}</span>
+                              <span style={{ fontSize: '0.8rem', color: textColor, fontWeight: 'bold' }}>ลม{getWindDirection(selectedHotspot.data.windDir).name}</span>
+                          </div>
+                      </div>
+                  </div>
+                  {/* รังสี UV */}
+                  <div style={{ background: darkMode ? '#1e293b' : '#f1f5f9', padding: '15px', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '5px', gridColumn: '1 / -1', borderLeft: `4px solid ${getBasicColor(selectedHotspot.data.uv, 'uv')}` }}>
+                      <span style={{ fontSize: '0.8rem', color: subTextColor, fontWeight: 'bold' }}>☀️ รังสี UV</span>
+                      <span style={{ fontSize: '1.4rem', fontWeight: '900', color: getBasicColor(selectedHotspot.data.uv, 'uv') }}>{Math.round(selectedHotspot.data.uv || 0)} <span style={{fontSize: '0.8rem', color: textColor, fontWeight:'normal'}}>- {getUvText(selectedHotspot.data.uv)}</span></span>
+                  </div>
+              </div>
+          </div>
+        </div>
+      )}
+
+      {/* POPUP 3: แหล่งอ้างอิงทางวิชาการ */}
       {showReferenceModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10000, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(5px)', display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }} onClick={() => setShowReferenceModal(false)}>
             <div className="fade-in custom-scrollbar" style={{ background: cardBg, padding: '25px', borderRadius: '20px', width: '100%', maxWidth: '550px', maxHeight: '85vh', overflowY: 'auto', border: `1px solid ${borderColor}`, boxShadow: '0 20px 50px rgba(0,0,0,0.5)', position: 'relative' }} onClick={e => e.stopPropagation()}>
