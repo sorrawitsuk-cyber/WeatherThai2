@@ -55,8 +55,6 @@ export default function MapPage() {
   const [geoData, setGeoData] = useState(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
   const [mapZoom, setMapZoom] = useState(window.innerWidth < 1024 ? 5 : 6);
-  
-  // 🌟 ปรับ Transparency เริ่มต้นให้โปร่งแสงขึ้น (0.7) เพื่อให้เห็น Basemap
   const [polyOpacity, setPolyOpacity] = useState(0.7);
   
   const [mapCategory, setMapCategory] = useState('basic'); 
@@ -70,7 +68,6 @@ export default function MapPage() {
   const [flyToPos, setFlyToPos] = useState(null);
   const [showControls, setShowControls] = useState(window.innerWidth >= 1024);
 
-  // 🌟 State สำหรับจัดการการกะพริบ (Flash) ของพื้นที่แบบ ArcGIS
   const [flashProv, setFlashProv] = useState(null);
   const hasAutoLocated = useRef(false);
 
@@ -90,11 +87,11 @@ export default function MapPage() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // 🌟 ระบบ Auto-Locate ทันทีที่เปิดหน้าแผนที่
+  // 🌟 UX แบ่งตามอุปกรณ์: มือถือออโต้ซูม (Portable) / คอมอยู่เฉยๆ (Monitor)
   useEffect(() => {
     if (stations && stations.length > 0 && !hasAutoLocated.current) {
-        hasAutoLocated.current = true; // ป้องกันการดึงพิกัดซ้ำ
-        if (navigator.geolocation) {
+        hasAutoLocated.current = true; 
+        if (isMobile && navigator.geolocation) { // เช็ค isMobile ตรงนี้!
             navigator.geolocation.getCurrentPosition(
                 (p) => {
                     let closest = null; let minDistance = Infinity;
@@ -105,14 +102,9 @@ export default function MapPage() {
                         }
                     });
                     if (closest) {
-                        // ซูมเข้าไปที่จังหวัดนั้นอัตโนมัติ (Zoom: 8)
                         setFlyToPos({ pos: [closest.lat, closest.long], zoom: 8 });
-                        
-                        // เปิดเอฟเฟกต์กะพริบพื้นที่ (ArcGIS Style)
                         const cleanName = closest.areaTH.replace('จังหวัด', '').trim();
                         setFlashProv(cleanName);
-                        
-                        // ปิดเอฟเฟกต์หลังกะพริบเสร็จ (ประมาณ 3 วินาที)
                         setTimeout(() => setFlashProv(null), 3000);
                     }
                 }, 
@@ -120,7 +112,7 @@ export default function MapPage() {
             );
         }
     }
-  }, [stations]);
+  }, [stations, isMobile]);
 
   useEffect(() => { setSelectedHotspot(null); }, [mapCategory]);
 
@@ -237,7 +229,6 @@ export default function MapPage() {
 
   const hasHighRisk = useMemo(() => allMapData.some(d => d.displayVal >= 8), [allMapData]);
 
-  // 🌟 ระบบจัดการสีและคลาสของ Polygon (เพิ่มระบบ Flash)
   const styleGeoJSON = (feature) => {
     const props = Object.values(feature.properties || {}).map(v => String(v).trim());
     let thaiNameFromMap = "";
@@ -254,17 +245,16 @@ export default function MapPage() {
         else color = getRiskColor(calculateRisk(station).score);
     }
     
-    // ตรวจสอบว่าจังหวัดนี้คือจังหวัดที่ถูก Flash หรือไม่
     const cleanStationName = station ? station.areaTH.replace('จังหวัด', '').trim() : '';
     const isFlashed = cleanStationName !== '' && cleanStationName === flashProv;
 
     return { 
         fillColor: color, 
-        weight: isFlashed ? 3 : 1, // ถ้ากะพริบ ให้เส้นขอบหนาขึ้น
+        weight: isFlashed ? 3 : 1,
         opacity: 1, 
-        color: isFlashed ? '#0ea5e9' : (darkMode ? '#0f172a' : '#ffffff'), // สีขอบเปลี่ยนเป็นสีฟ้าตอนกะพริบ
+        color: isFlashed ? '#0ea5e9' : (darkMode ? '#0f172a' : '#ffffff'),
         fillOpacity: polyOpacity,
-        className: isFlashed ? 'arcgis-flash-polygon' : '' // ยัด CSS Class เข้าไป
+        className: isFlashed ? 'arcgis-flash-polygon' : '' 
     };
   };
 
@@ -278,7 +268,6 @@ export default function MapPage() {
           setSelectedHotspot({ type: 'basic', station, data, pm25 });
       }
       
-      // เมื่อคลิกให้ซูมเข้า และกระพริบพื้นที่ (ArcGIS style)
       setFlyToPos({ pos: [station.lat, station.long], zoom: 8 });
       const cleanName = station.areaTH.replace('จังหวัด', '').trim();
       setFlashProv(cleanName);
@@ -348,7 +337,6 @@ export default function MapPage() {
   return (
     <div style={{ height: '100%', width: '100%', background: appBg, display: 'flex', flexDirection: 'column', fontFamily: 'Kanit, sans-serif', padding: isMobile ? '10px' : '20px', boxSizing: 'border-box' }}>
       
-      {/* 🌟 CSS สำหรับ Animation ArcGIS Flash และ Scrollbar */}
       <style dangerouslySetInlineStyle={{__html: `
         .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
@@ -424,8 +412,6 @@ export default function MapPage() {
                 <MapContainer center={[13.5, 100.5]} zoom={isMobile ? 5 : 6} style={{ height: '100%', width: '100%', background: appBg }} zoomControl={false}>
                     <TileLayer url={basemapUrls[basemapStyle]} />
                     <MapZoomListener setMapZoom={setMapZoom} />
-                    
-                    {/* 🌟 ส่ง Object {pos, zoom} ไปให้ MapChangeView จัดการซูมและแพนกล้อง */}
                     <MapChangeView center={flyToPos} />
                     
                     {geoData && <GeoJSON key={`${mapCategory}-${activeRiskMode}-${activeBasicMode}-${polyOpacity}-${basemapStyle}-${flashProv}`} data={geoData} style={styleGeoJSON} onEachFeature={onEachFeature} />}
@@ -481,7 +467,6 @@ export default function MapPage() {
                             <button onClick={() => { 
                                 if(navigator.geolocation) {
                                     navigator.geolocation.getCurrentPosition(p => {
-                                        // หาจังหวัดที่ใกล้ที่สุดเพื่อทำ Flash Polygon
                                         let closest = null; let minDistance = Infinity;
                                         stations.forEach(st => {
                                             const dist = Math.sqrt(Math.pow(st.lat - p.coords.latitude, 2) + Math.pow(st.long - p.coords.longitude, 2));
