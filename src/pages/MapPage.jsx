@@ -53,8 +53,9 @@ export default function MapPage() {
   const [mapZoom, setMapZoom] = useState(window.innerWidth < 1024 ? 5 : 6);
   const [polyOpacity, setPolyOpacity] = useState(0.85);
   
-  const [mapCategory, setMapCategory] = useState('risk'); 
-  const [activeBasicMode, setActiveBasicMode] = useState('pm25');
+  // 🌟 เปลี่ยนค่าเริ่มต้นเป็น 'basic' (ข้อมูลทั่วไป)
+  const [mapCategory, setMapCategory] = useState('basic'); 
+  const [activeBasicMode, setActiveBasicMode] = useState('pm25'); // ค่าเริ่มต้นย่อยเป็น pm25
   const [activeRiskMode, setActiveRiskMode] = useState('respiratory');
   
   const [selectedHotspot, setSelectedHotspot] = useState(null); 
@@ -113,12 +114,12 @@ export default function MapPage() {
   }, [stationTemps]);
 
   const getBasicColor = useCallback((val, mode) => {
-    if (val === null || val === undefined) return darkMode ? '#334155' : '#cbd5e1';
-    if (mode === 'pm25') return val > 75 ? '#ef4444' : val > 37.5 ? '#f97316' : val > 25 ? '#eab308' : val > 15 ? '#22c55e' : '#0ea5e9';
-    if (mode === 'temp' || mode === 'heat') return val > 39 ? '#ef4444' : val > 34 ? '#f97316' : val > 28 ? '#eab308' : val > 22 ? '#22c55e' : '#3b82f6';
-    if (mode === 'rain') return val > 70 ? '#1e3a8a' : val > 40 ? '#3b82f6' : val > 10 ? '#60a5fa' : '#94a3b8';
-    if (mode === 'wind') return val > 40 ? '#ef4444' : val > 20 ? '#f97316' : val > 10 ? '#eab308' : '#22c55e';
-    if (mode === 'uv') return val > 10 ? '#a855f7' : val > 7 ? '#ef4444' : val > 5 ? '#ea580c' : val > 2 ? '#eab308' : '#22c55e';
+    if (val === null || val === undefined || val === '') return darkMode ? '#334155' : '#cbd5e1';
+    if (mode === 'pm25') return val >= 75 ? '#ef4444' : val >= 37.5 ? '#f97316' : val >= 25 ? '#eab308' : val >= 15 ? '#22c55e' : '#0ea5e9';
+    if (mode === 'temp' || mode === 'heat') return val >= 39 ? '#ef4444' : val >= 35 ? '#f97316' : val >= 29 ? '#eab308' : val >= 23 ? '#22c55e' : '#3b82f6';
+    if (mode === 'rain') return val >= 70 ? '#1e3a8a' : val >= 40 ? '#3b82f6' : val >= 10 ? '#60a5fa' : '#94a3b8';
+    if (mode === 'wind') return val >= 40 ? '#ef4444' : val >= 20 ? '#f97316' : val >= 10 ? '#eab308' : '#22c55e';
+    if (mode === 'uv') return val >= 8 ? '#a855f7' : val >= 6 ? '#ef4444' : val >= 3 ? '#ea580c' : val >= 1 ? '#eab308' : '#22c55e';
     return darkMode ? '#334155' : '#cbd5e1';
   }, [darkMode]);
 
@@ -159,10 +160,11 @@ export default function MapPage() {
   }, [activeRiskMode, stationTemps]);
 
   const getRiskColor = useCallback((score) => {
+      if (score === null || score === undefined) return darkMode ? '#334155' : '#cbd5e1';
       if (score >= 8) return '#ef4444'; 
       if (score >= 6) return '#f97316'; 
       if (score >= 4) return '#eab308'; 
-      if (score > 0)  return '#22c55e'; 
+      if (score >= 0) return '#22c55e'; 
       return darkMode ? '#334155' : '#cbd5e1'; 
   }, [darkMode]);
 
@@ -188,10 +190,11 @@ export default function MapPage() {
     }).filter(st => st.displayVal !== null && st.displayVal !== undefined);
   }, [stations, mapCategory, activeBasicMode, calculateRisk, getBasicVal, getBasicColor, getRiskColor]);
 
-  // คัดเฉพาะ Top 15 ไปโชว์ Sidebar ขวามือ
   const rankedSidebarData = useMemo(() => {
     return [...allMapData].sort((a, b) => b.displayVal - a.displayVal).slice(0, 15);
   }, [allMapData]);
+
+  const hasHighRisk = useMemo(() => allMapData.some(d => d.displayVal >= 8), [allMapData]);
 
   const styleGeoJSON = (feature) => {
     const props = Object.values(feature.properties || {}).map(v => String(v).trim());
@@ -217,7 +220,6 @@ export default function MapPage() {
           const risk = calculateRisk(station);
           setSelectedHotspot({ type: 'risk', station, riskScore: risk.score, factors: risk.factors, color: getRiskColor(risk.score) });
       } else {
-          // โหมดข้อมูลทั่วไป (Basic) - เก็บข้อมูลทั้งหมดเพื่อนำไปโชว์ใน Popup
           const data = stationTemps[station.stationID] || {};
           const pm25 = station.AQILast?.PM25?.value || 0;
           setSelectedHotspot({ type: 'basic', station, data, pm25 });
@@ -257,7 +259,6 @@ export default function MapPage() {
 
   const activeModeObj = mapCategory === 'basic' ? basicModes.find(m => m.id === activeBasicMode) : riskModes.find(m => m.id === activeRiskMode);
 
-  // ฟังก์ชันสร้างกล่อง Legend แบบเจาะจงแต่ละข้อมูล
   const getDynamicLegendContent = () => {
     if (mapCategory === 'risk') {
         return [
@@ -267,47 +268,13 @@ export default function MapPage() {
             { c: '#22c55e', l: 'สถานการณ์ปกติ', r: '0-3.9' }
         ];
     }
-    
     switch (activeBasicMode) {
-        case 'pm25':
-            return [
-                { c: '#ef4444', l: 'มีผลกระทบต่อสุขภาพ', r: '> 75' },
-                { c: '#f97316', l: 'เริ่มมีผลกระทบฯ', r: '38-75' },
-                { c: '#eab308', l: 'ปานกลาง', r: '26-37' },
-                { c: '#22c55e', l: 'ดี', r: '16-25' },
-                { c: '#0ea5e9', l: 'ดีมาก', r: '0-15' }
-            ];
+        case 'pm25': return [{ c: '#ef4444', l: 'มีผลกระทบฯ', r: '> 75' }, { c: '#f97316', l: 'เริ่มมีผลกระทบฯ', r: '38-75' }, { c: '#eab308', l: 'ปานกลาง', r: '26-37' }, { c: '#22c55e', l: 'ดี', r: '16-25' }, { c: '#0ea5e9', l: 'ดีมาก', r: '0-15' }];
         case 'temp':
-        case 'heat':
-            return [
-                { c: '#ef4444', l: 'ร้อนจัด/อันตราย', r: '> 39' },
-                { c: '#f97316', l: 'ร้อน', r: '35-39' },
-                { c: '#eab308', l: 'อบอ้าว', r: '29-34' },
-                { c: '#22c55e', l: 'ปกติ/อบอุ่น', r: '23-28' },
-                { c: '#3b82f6', l: 'เย็นสบาย', r: '< 23' }
-            ];
-        case 'rain':
-            return [
-                { c: '#1e3a8a', l: 'ตกหนัก/พายุ', r: '> 70%' },
-                { c: '#3b82f6', l: 'โอกาสตกสูง', r: '41-70%' },
-                { c: '#60a5fa', l: 'โอกาสตกต่ำ', r: '11-40%' },
-                { c: '#94a3b8', l: 'ไม่มีฝน', r: '0-10%' }
-            ];
-        case 'wind':
-            return [
-                { c: '#ef4444', l: 'พายุ/อันตราย', r: '> 40' },
-                { c: '#f97316', l: 'ลมแรง', r: '21-40' },
-                { c: '#eab308', l: 'ลมกำลังดี', r: '11-20' },
-                { c: '#22c55e', l: 'ลมสงบ', r: '0-10' }
-            ];
-        case 'uv':
-            return [
-                { c: '#a855f7', l: 'อันตรายรุนแรง', r: '> 10' },
-                { c: '#ef4444', l: 'สูงมาก', r: '8-10' },
-                { c: '#ea580c', l: 'สูง', r: '6-7' },
-                { c: '#eab308', l: 'ปานกลาง', r: '3-5' },
-                { c: '#22c55e', l: 'ต่ำ', r: '0-2' }
-            ];
+        case 'heat': return [{ c: '#ef4444', l: 'ร้อนจัด', r: '> 39' }, { c: '#f97316', l: 'ร้อน', r: '35-39' }, { c: '#eab308', l: 'อบอ้าว', r: '29-34' }, { c: '#22c55e', l: 'ปกติ/อบอุ่น', r: '23-28' }, { c: '#3b82f6', l: 'เย็นสบาย', r: '< 23' }];
+        case 'rain': return [{ c: '#1e3a8a', l: 'ตกหนัก/พายุ', r: '> 70%' }, { c: '#3b82f6', l: 'โอกาสตกสูง', r: '41-70%' }, { c: '#60a5fa', l: 'โอกาสตกต่ำ', r: '11-40%' }, { c: '#94a3b8', l: 'ไม่มีฝน', r: '0-10%' }];
+        case 'wind': return [{ c: '#ef4444', l: 'พายุ/อันตราย', r: '> 40' }, { c: '#f97316', l: 'ลมแรง', r: '21-40' }, { c: '#eab308', l: 'ลมกำลังดี', r: '11-20' }, { c: '#22c55e', l: 'ลมสงบ', r: '0-10' }];
+        case 'uv': return [{ c: '#a855f7', l: 'อันตรายรุนแรง', r: '> 10' }, { c: '#ef4444', l: 'สูงมาก', r: '8-10' }, { c: '#ea580c', l: 'สูง', r: '6-7' }, { c: '#eab308', l: 'ปานกลาง', r: '3-5' }, { c: '#22c55e', l: 'ต่ำ', r: '0-2' }];
         default: return [];
     }
   };
@@ -315,8 +282,8 @@ export default function MapPage() {
   if (!geoData || Object.keys(stationTemps).length === 0) return (
     <div className="loading-container" style={{ background: appBg, color: textColor }}>
         <div className="loading-spinner"></div>
-        <div style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>กำลังโหลดแผนที่เฝ้าระวังภัย...</div>
-        <div style={{ fontSize: '0.85rem', color: subTextColor, marginTop: '5px' }}>เตรียมข้อมูลพื้นที่ทั้ง 77 จังหวัด</div>
+        <div style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>กำลังเตรียมแผนที่เฝ้าระวังภัย...</div>
+        <div style={{ fontSize: '0.85rem', color: subTextColor, marginTop: '5px' }}>ประมวลผลข้อมูลทั้ง 77 จังหวัด</div>
     </div>
   );
 
@@ -329,12 +296,11 @@ export default function MapPage() {
         .custom-scrollbar::-webkit-scrollbar-thumb { background: ${darkMode ? '#334155' : '#cbd5e1'}; border-radius: 10px; }
       `}} />
 
-      {/* 🌟 Header Section */}
-      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '15px', marginBottom: '15px', flexShrink: 0 }}>
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '15px', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'space-between', marginBottom: '15px', flexShrink: 0 }}>
           {isMobile ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <h2 style={{ margin: 0, color: textColor, fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>🗺️ แผนที่เฝ้าระวังภัย</h2>
+                      <h2 style={{ margin: 0, color: textColor, fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>🗺️ แผนที่สภาพอากาศ</h2>
                       {mapCategory === 'risk' && (
                           <button onClick={() => setShowReferenceModal(true)} style={{ background: darkMode ? '#1e293b' : '#f1f5f9', color: '#8b5cf6', border: `1px solid #8b5cf6`, padding: '4px 10px', borderRadius: '50px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit', display: 'flex', alignItems: 'center', gap: '5px' }}>
                               📚
@@ -392,29 +358,25 @@ export default function MapPage() {
                     
                     {geoData && <GeoJSON key={`${mapCategory}-${activeRiskMode}-${activeBasicMode}-${polyOpacity}-${basemapStyle}`} data={geoData} style={styleGeoJSON} onEachFeature={onEachFeature} />}
                     
-                    {/* 🌟 ระบบแสดงป้ายอัจฉริยะ (แก้บั๊กเรียบร้อย) */}
                     {allMapData.map(st => {
                         let isVisible = false;
 
                         if (mapZoom >= 8) { 
-                            isVisible = true; // ซูมลึก: โชว์ 77 จังหวัด
+                            isVisible = true; 
                         } else if (mapZoom >= 6) {
-                            // ซูมกลาง: 
                             if (mapCategory === 'risk') {
-                                isVisible = st.displayVal >= 6; // สีส้ม/แดง
+                                isVisible = st.displayVal >= 4; 
                             } else {
-                                isVisible = rankedSidebarData.some(r => r.stationID === st.stationID); // โหมดทั่วไป โชว์ Top 15
+                                isVisible = rankedSidebarData.some(r => r.stationID === st.stationID);
                             }
                         } else {
-                            // ซูมนอกสุด:
                             if (mapCategory === 'risk') {
-                                isVisible = st.displayVal >= 8; // สีแดงเท่านั้น
-                                // ถ้าไม่มีแดงเลย เอาแค่ 3 อันดับแรกของ Sidebar จะได้ปลอดภัย ไม่ติด undefined
-                                if (!allMapData.some(d => d.displayVal >= 8)) {
+                                isVisible = st.displayVal >= 6; 
+                                if (!hasHighRisk) {
                                     isVisible = rankedSidebarData.slice(0, 3).some(r => r.stationID === st.stationID);
                                 }
                             } else {
-                                isVisible = rankedSidebarData.slice(0, 5).some(r => r.stationID === st.stationID); // โหมดทั่วไป โชว์ Top 5
+                                isVisible = rankedSidebarData.slice(0, 5).some(r => r.stationID === st.stationID);
                             }
                         }
 
