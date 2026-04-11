@@ -2,191 +2,142 @@ import React, { useContext, useState, useEffect, useMemo } from 'react';
 import { WeatherContext } from '../context/WeatherContext';
 
 export default function AIPage() {
-  const { stations, darkMode } = useContext(WeatherContext);
+  const { stations, weatherData, fetchWeatherByCoords, loadingWeather, darkMode } = useContext(WeatherContext);
   
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
   const [locationName, setLocationName] = useState('กำลังระบุตำแหน่ง...');
   const [selectedProv, setSelectedProv] = useState('');
   const [targetDateIdx, setTargetDateIdx] = useState(0); 
   const [activeTab, setActiveTab] = useState('summary'); 
-  const [showFilters, setShowFilters] = useState(window.innerWidth >= 1024);
-
-  const [weatherData, setWeatherData] = useState(null);
-  const [loadingWeather, setLoadingWeather] = useState(true);
-
-  const fetchWeatherByCoords = async (lat, lon) => {
-    try {
-      setLoadingWeather(true);
-      const wUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=temperature_2m,apparent_temperature,precipitation_probability,wind_speed_10m,uv_index&daily=temperature_2m_max,apparent_temperature_max,precipitation_probability_max&timezone=Asia%2FBangkok&forecast_days=7`;
-      const aUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&hourly=pm2_5&timezone=Asia%2FBangkok&forecast_days=7`;
-
-      const [wRes, aRes] = await Promise.all([fetch(wUrl), fetch(aUrl)]);
-      const wData = await wRes.json();
-      const aData = await aRes.json();
-
-      if (wRes.ok && aRes.ok) {
-        setWeatherData({
-          hourly: {
-            time: wData.hourly.time,
-            temp: wData.hourly.apparent_temperature, 
-            rain: wData.hourly.precipitation_probability,
-            wind: wData.hourly.wind_speed_10m,
-            uv: wData.hourly.uv_index,
-            pm25: aData.hourly.pm2_5
-          },
-          daily: wData.daily
-        });
-      }
-    } catch (err) {
-      console.error("Fetch Data Error:", err);
-    } finally {
-      setLoadingWeather(false);
-    }
-  };
 
   useEffect(() => {
-    const handleResize = () => {
-      const mobile = window.innerWidth < 1024;
-      setIsMobile(mobile);
-      if (!mobile) setShowFilters(true);
-    };
+    const handleResize = () => setIsMobile(window.innerWidth < 1024);
     window.addEventListener('resize', handleResize);
 
+    // ดึงพิกัดอัตโนมัติเฉพาะตอนเปิดหน้าครั้งแรก (และตอนที่ weatherData ยังว่าง)
     if (!weatherData && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition((pos) => {
         fetchWeatherByCoords(pos.coords.latitude, pos.coords.longitude);
-        setLocationName('ตำแหน่งปัจจุบัน');
+        fetchLocationName(pos.coords.latitude, pos.coords.longitude);
       }, () => {
-        fetchWeatherByCoords(13.75, 100.5); 
+        if (!weatherData) fetchWeatherByCoords(13.75, 100.5); 
         setLocationName('กรุงเทพมหานคร');
       }, { timeout: 5000 });
-    } else if (!weatherData) {
-      fetchWeatherByCoords(13.75, 100.5); 
-      setLocationName('กรุงเทพมหานคร');
     }
     return () => window.removeEventListener('resize', handleResize);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleProvChange = (e) => {
-    const pName = e.target.value;
-    setSelectedProv(pName); 
-    const found = stations?.find(s => s.areaTH === pName);
-    if (found) { 
-      fetchWeatherByCoords(found.lat, found.long); 
-      setLocationName(pName); 
-    }
+  const fetchLocationName = async (lat, lon) => {
+    try {
+      const res = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=th`);
+      const data = await res.json();
+      setLocationName(data?.locality || data?.city || 'ตำแหน่งปัจจุบัน');
+    } catch (e) { setLocationName('ตำแหน่งปัจจุบัน'); }
   };
 
-  const insights = useMemo(() => {
-    if (!weatherData || !weatherData.hourly.time) return null;
+  // 🧠 AI Engine: ดึงข้อมูลและคำนวณตามวันที่เลือก
+  const aiReport = useMemo(() => {
+    if (!weatherData || !weatherData.daily) return null;
 
-    const startIdx = targetDateIdx * 24;
-    const endIdx = startIdx + 24;
-    const hTemp = weatherData.hourly.temp.slice(startIdx, endIdx);
-    const hRain = weatherData.hourly.rain.slice(startIdx, endIdx);
-    const hWind = weatherData.hourly.wind.slice(startIdx, endIdx);
-    const hUV = weatherData.hourly.uv.slice(startIdx, endIdx);
-    const hPM = weatherData.hourly.pm25.slice(startIdx, endIdx).map(v => v || 0);
+    const d = weatherData.daily;
+    // ดึงข้อมูลตาม Index ของวันที่ผู้ใช้เลือก (0 = วันนี้, 1 = พรุ่งนี้, ...)
+    const tMax = Math.round(d.temperature_2m_max?.[targetDateIdx] ?? 0);
+    const tMin = Math.round(d.temperature_2m_min?.[targetDateIdx] ?? 0);
+    const rain = d.precipitation_probability_max?.[targetDateIdx] ?? 0;
+    // API ฟรีอาจไม่มีฝุ่นล่วงหน้า 7 วัน ให้ใช้ค่าปัจจุบันแทนในกรณีที่ไม่มีข้อมูล
+    const pm25 = d.pm25_max?.[targetDateIdx] !== undefined ? Math.round(d.pm25_max[targetDateIdx]) : Math.round(weatherData.current?.pm25 ?? 0);
 
-    const dayMax = {
-        temp: Math.max(...hTemp),
-        rain: Math.max(...hRain),
-        wind: Math.max(...hWind),
-        uv: Math.max(...hUV),
-        pm25: Math.max(...hPM)
+    // 💡 1. สรุปด่วน (TL;DR) สำหรับ 3 คำถามยอดฮิต
+    const getQuickAnswers = () => {
+      let rainAns = { icon: '☀️', title: 'ฝนตกไหม?', text: 'รอด! ไม่มีฝนชัวร์', color: '#22c55e' };
+      if (rain > 60) rainAns = { icon: '☔', title: 'ฝนตกไหม?', text: `ตกแน่ โอกาส ${rain}%`, color: '#ef4444' };
+      else if (rain > 20) rainAns = { icon: '⛅', title: 'ฝนตกไหม?', text: `อาจมีหยิมๆ ${rain}%`, color: '#f97316' };
+
+      let heatAns = { icon: '😊', title: 'ร้อนไหม?', text: `สบายๆ ${tMax}°C`, color: '#22c55e' };
+      if (tMax >= 39) heatAns = { icon: '🥵', title: 'ร้อนไหม?', text: `นรกส่งเข้าประกวด ${tMax}°C`, color: '#ef4444' };
+      else if (tMax >= 35) heatAns = { icon: '🔥', title: 'ร้อนไหม?', text: `ร้อนเอาเรื่อง ${tMax}°C`, color: '#f97316' };
+
+      let dustAns = { icon: '🍃', title: 'ฝุ่นเยอะไหม?', text: `อากาศดี ${pm25} µg`, color: '#22c55e' };
+      if (pm25 > 50) dustAns = { icon: '😷', title: 'ฝุ่นเยอะไหม?', text: `อันตราย! ${pm25} µg`, color: '#ef4444' };
+      else if (pm25 > 25) dustAns = { icon: '🤧', title: 'ฝุ่นเยอะไหม?', text: `เริ่มมีฝุ่น ${pm25} µg`, color: '#f97316' };
+
+      return [rainAns, heatAns, dustAns];
     };
 
-    const scoreTemp = dayMax.temp <= 32 ? 10 : dayMax.temp <= 36 ? 7 : dayMax.temp <= 40 ? 4 : 1;
-    const scoreRain = dayMax.rain <= 10 ? 10 : dayMax.rain <= 30 ? 8 : dayMax.rain <= 60 ? 4 : 1;
-    const scoreWind = dayMax.wind <= 15 ? 10 : dayMax.wind <= 30 ? 7 : dayMax.wind <= 45 ? 4 : 1;
-    const scoreUV = dayMax.uv <= 3 ? 10 : dayMax.uv <= 6 ? 7 : dayMax.uv <= 9 ? 4 : 1;
-    const scorePM = dayMax.pm25 <= 15 ? 10 : dayMax.pm25 <= 37.5 ? 7 : dayMax.pm25 <= 75 ? 3 : 1;
+    // 💡 2. คำนวณคะแนนตามบริบท (Contextual Score)
+    const calculateScore = () => {
+      let baseScore = 10;
+      switch (activeTab) {
+        case 'home': // ซักผ้า เกลียดฝน
+          if (rain > 40) baseScore -= 5;
+          if (tMax > 33) baseScore += 1; // แดดแรงซักผ้าดี
+          break;
+        case 'travel': // เที่ยว เกลียดฝนและร้อน
+          if (rain > 30) baseScore -= 3;
+          if (tMax > 36) baseScore -= 3;
+          if (pm25 > 37.5) baseScore -= 2;
+          break;
+        case 'health': // สุขภาพ เกลียดฝุ่นและร้อนจัด
+          if (pm25 > 37.5) baseScore -= 4;
+          if (tMax > 38) baseScore -= 3;
+          break;
+        case 'driving': // ขับรถ เกลียดฝนหนัก
+          if (rain > 60) baseScore -= 4;
+          break;
+        default: // ภาพรวม
+          if (rain > 50) baseScore -= 2;
+          if (tMax > 37) baseScore -= 2;
+          if (pm25 > 50) baseScore -= 2;
+      }
+      return Math.max(1, Math.min(10, baseScore)); // บังคับให้อยู่ระหว่าง 1-10
+    };
+    const finalScore = calculateScore();
 
-    let finalScore = 10;
-    let mainAdvisory = "";
+    // 💡 3. ข้อความแนะนำหลัก
+    const getMainAdvice = () => {
+      if (activeTab === 'home' && rain > 40) return `คำแนะนำจาก AI: วันนี้มีความเสี่ยงฝนตก ${rain}% เลี่ยงการซักผ้านวมหรือผ้าชิ้นใหญ่ไปก่อนนะคะ ถ้ารีบซักแนะนำให้อบแห้งหรือตากในที่ร่มค่ะ`;
+      if (activeTab === 'health' && pm25 > 37.5) return `คำแนะนำจาก AI: ค่าฝุ่นสูงถึง ${pm25} µg/m³ งดวิ่งสวนสาธารณะชั่วคราว เปลี่ยนมาคาร์ดิโอในบ้าน เปิดเครื่องฟอกอากาศเพื่อสุขภาพปอดที่ดีนะคะ`;
+      if (activeTab === 'travel' && tMax > 37) return `คำแนะนำจาก AI: แดดแรงมากทะลุ ${tMax}°C! ถ้ามีแพลนเที่ยว แนะนำจัดคิวคาเฟ่ห้องแอร์ช่วงบ่าย แล้วค่อยไปเดินเล่นที่เปิดโล่งตอนเย็นนะคะ`;
+      if (finalScore >= 8) return `คำแนะนำจาก AI: สภาพอากาศวันนี้เป็นใจสุดๆ ค่ะ! ${tMax > 35 ? 'ถึงแดดจะแรงไปนิด' : 'อากาศโปร่งสบาย'} ลุยแพลนที่คุณตั้งใจไว้ได้เต็มที่เลยค่ะ ✨`;
+      return `คำแนะนำจาก AI: สภาพอากาศวันนี้อยู่ในเกณฑ์ปานกลาง มีสลับเปลี่ยนระหว่างวัน เตรียมตัวให้พร้อมและเผื่อเวลาแผนสำรองไว้ด้วยนะคะ`;
+    };
 
-    if (activeTab === 'summary') {
-        finalScore = (scorePM * 0.3) + (scoreRain * 0.3) + (scoreTemp * 0.3) + (scoreUV * 0.1);
-        if (dayMax.pm25 > 50) mainAdvisory = "คุณภาพอากาศเริ่มมีผลกระทบต่อสุขภาพ เลี่ยงการอยู่ในที่โล่งแจ้งนานๆ นะครับ";
-        else if (dayMax.rain > 60) mainAdvisory = "เสี่ยงพายุฝนตกหนัก แนะนำให้พกร่มและเผื่อเวลาเดินทางด้วยครับ";
-        else if (dayMax.temp > 39) mainAdvisory = "อากาศร้อนจัด เสี่ยงโรคลมแดด (Heatstroke) อย่าลืมดื่มน้ำบ่อยๆ ครับ";
-        else mainAdvisory = "สภาพอากาศเป็นใจมาก เหมาะกับการทำกิจกรรมต่างๆ ได้อย่างเต็มที่ครับ";
-    } 
-    else if (activeTab === 'health') {
-        finalScore = (scorePM * 0.5) + (scoreTemp * 0.3) + (scoreUV * 0.2); 
-        if (dayMax.pm25 > 50) mainAdvisory = "ฝุ่นค่อนข้างหนา งดออกกำลังกายกลางแจ้ง และสวมหน้ากากอนามัยครับ";
-        else if (dayMax.temp > 38) mainAdvisory = "ร้อนจัด เสี่ยงร่างกายขาดน้ำ แนะนำให้ออกกำลังกายในร่มหรือช่วงเช้าตรู่ครับ";
-        else mainAdvisory = "สภาพอากาศเป็นมิตรต่อสุขภาพ สามารถทำกิจกรรมกลางแจ้งได้ตามปกติ";
-    }
-    else if (activeTab === 'driving') {
-        finalScore = (scoreRain * 0.5) + (scoreWind * 0.3) + (scorePM * 0.2); 
-        if (dayMax.rain > 60) mainAdvisory = "ฝนตกหนัก ทัศนวิสัยต่ำและถนนลื่น ควรขับขี่ด้วยความระมัดระวังครับ";
-        else if (dayMax.wind > 40) mainAdvisory = "ระวังลมกระโชกแรง โดยเฉพาะบนสะพานสูงหรือจุดที่โล่งแจ้งครับ";
-        else mainAdvisory = "ทัศนวิสัยชัดเจนดีมาก สามารถเดินทางได้อย่างปลอดภัยครับ";
-    }
-    else if (activeTab === 'farm') {
-        finalScore = (scoreRain * 0.4) + (scoreWind * 0.4) + (scoreTemp * 0.2); 
-        if (dayMax.wind > 25) mainAdvisory = "ลมค่อนแรง ไม่เหมาะกับการฉีดพ่นปุ๋ยหรือสารเคมี เพราะอาจปลิวหายครับ";
-        else if (dayMax.rain > 50) mainAdvisory = "โอกาสฝนตกสูง อาจชะล้างปุ๋ยหน้าดิน แนะนำให้รอดูสภาพอากาศก่อนรดน้ำครับ";
-        else mainAdvisory = "อากาศเหมาะสมมากสำหรับการลงแปลงเกษตร ฉีดพ่นยา หรือรดน้ำต้นไม้ครับ";
-    }
-    else if (activeTab === 'home') {
-        finalScore = (scoreRain * 0.6) + (scoreUV * 0.2) + (scorePM * 0.2); 
-        if (dayMax.rain > 40) mainAdvisory = "เสี่ยงฝนตก ไม่แนะนำให้ซักผ้าชิ้นใหญ่หรือล้างรถในวันนี้นะครับ";
-        else if (dayMax.pm25 > 50) mainAdvisory = "ฝุ่นละอองค่อนข้างเยอะ แนะนำให้ปิดหน้าต่างเพื่อป้องกันฝุ่นเข้าบ้านครับ";
-        else mainAdvisory = "แดดดีและฝนทิ้งช่วง เหมาะกับการซักตากผ้าหรือล้างรถมากๆ ครับ";
-    }
-    else if (activeTab === 'travel') {
-        finalScore = (scoreRain * 0.4) + (scoreUV * 0.3) + (scoreTemp * 0.3); 
-        if (dayMax.rain > 50) mainAdvisory = "โอกาสฝนตกสูง แนะนำให้เที่ยวในร่มหรือคาเฟ่จะปลอดภัยกว่าครับ";
-        else if (dayMax.uv > 8) mainAdvisory = "แดดแรงและ UV สูง หากมีทริปกลางแจ้งอย่าลืมทาครีมกันแดดและกางร่มครับ";
-        else mainAdvisory = "ท้องฟ้าโปร่ง บรรยากาศเป็นใจสำหรับการออกไปเที่ยวและถ่ายรูปครับ";
-    }
-
-    finalScore = Math.min(Math.max(Math.round(finalScore * 10) / 10, 1), 10); 
-
-    const getBlockAdvisory = (start, end, timeLabel, icon) => {
-        const bRain = Math.max(...hRain.slice(start, end));
-        const bTemp = Math.max(...hTemp.slice(start, end));
-        const bPM = Math.max(...hPM.slice(start, end));
-        const bUV = Math.max(...hUV.slice(start, end));
-        
-        let text = "อากาศเปิด ทำกิจกรรมได้ราบรื่นครับ";
-        if (activeTab === 'health' || activeTab === 'summary') {
-            if (bPM > 50) text = `ฝุ่นหนา (${Math.round(bPM)} µg) เลี่ยงที่โล่งแจ้ง`;
-            else if (bTemp > 38) text = `ร้อนสะสม (${Math.round(bTemp)}°C) ระวังเพลียแดด`;
-            else if (bRain > 40) text = `ฝนตก ${Math.round(bRain)}% อย่าลืมพกร่มครับ`;
-        } else if (activeTab === 'driving') {
-            if (bRain > 50) text = `ถนนลื่น ทัศนวิสัยลดลงจากฝน`;
-            else if (bPM > 75) text = `ฝุ่นหนา ควรเปิดไฟหน้าและลดความเร็ว`;
-        } else if (activeTab === 'home' || activeTab === 'farm') {
-            if (bRain > 40) text = `ระวังฝน ${Math.round(bRain)}% เลี่ยงกิจกรรมตากแดด`;
-            else if (bUV > 7) text = `แดดจัด UV แรง เหมาะกับการตากของ`;
-        } else if (activeTab === 'travel') {
-            if (bRain > 40) text = `อาจมีฝนรบกวน แผนท่องเที่ยวอาจสะดุด`;
-            else if (bTemp > 36) text = `อากาศร้อนจัด ควรหาที่พักหลบแดด`;
-        }
-        return { label: timeLabel, icon, time: `${start.toString().padStart(2,'0')}:00`, text };
+    // 💡 4. Timeline เช้า บ่าย ค่ำ
+    const getTimeline = () => {
+      const isRainy = rain > 40;
+      const isHot = tMax > 35;
+      
+      const lines = {
+        summary: [
+          { time: 'เช้า (06:00 - 12:00)', icon: '🌅', text: `อุณหภูมิเริ่มที่ ${tMin}°C อากาศยังพอสบาย ทำธุระช่วงนี้จะดีที่สุดค่ะ` },
+          { time: 'บ่าย (12:00 - 18:00)', icon: '☀️', text: isHot ? `แดดพีคสุดที่ ${tMax}°C ทาครีมกันแดดด้วยนะคะ` : `แดดร่มลมตก อุณหภูมิสูงสุด ${tMax}°C` },
+          { time: 'ค่ำ (18:00 เป็นต้นไป)', icon: '🌙', text: isRainy ? `ระวังฝนหลงหลงช่วงค่ำ พกร่มไว้สักนิดค่ะ` : `อากาศเริ่มเย็นลง เหมาะกับการพักผ่อน` }
+        ],
+        home: [
+          { time: 'เช้า', icon: '🧺', text: isRainy ? 'เช็คเมฆก่อนซักผ้า ถ้าครึ้มรอไปก่อนค่ะ' : 'แดดมาแล้ว! รีบเอาผ้าลงเครื่องด่วนเลย' },
+          { time: 'บ่าย', icon: '🧹', text: isHot ? 'ความร้อนช่วยฆ่าเชื้อโรค ตากหมอน ตากผ้านวมได้เลย' : 'ทำความสะอาดบ้าน ถูพื้นช่วงนี้แห้งไวค่ะ' },
+          { time: 'ค่ำ', icon: '🪟', text: pm25 > 25 ? 'ฝุ่นเริ่มมา ปิดหน้าต่างให้มิดชิดนะคะ' : 'เปิดหน้าต่างรับลม ระบายอากาศในบ้านได้ค่ะ' }
+        ]
+      };
+      
+      return lines[activeTab] || lines.summary; // ถ้าแท็บไหนยังไม่เขียนลอจิกเฉพาะ ให้ใช้ summary แทน
     };
 
     return { 
-        score: finalScore, 
-        text: mainAdvisory, 
-        timeline: [
-            getBlockAdvisory(6, 12, 'เช้า', '🌅'),
-            getBlockAdvisory(12, 18, 'บ่าย', '☀️'),
-            getBlockAdvisory(18, 23, 'ค่ำ', '🌙')
-        ] 
+      score: finalScore, 
+      quickAnswers: getQuickAnswers(),
+      advice: getMainAdvice(), 
+      timeline: getTimeline() 
     };
   }, [activeTab, targetDateIdx, weatherData]);
 
   const tabConfigs = [
-    { id: 'summary', icon: '📋', label: 'ภาพรวม', color: '#8b5cf6', desc: 'สภาพอากาศวันนี้' },
-    { id: 'travel', icon: '🎒', label: 'ท่องเที่ยว', color: '#ec4899', desc: 'ความราบรื่นในการเดินทาง' },
-    { id: 'health', icon: '🏃‍♂️', label: 'สุขภาพ', color: '#22c55e', desc: 'ผลกระทบต่อร่างกาย' },
-    { id: 'driving', icon: '🚘', label: 'ขับขี่', color: '#f97316', desc: 'ความปลอดภัยบนถนน' },
-    { id: 'home', icon: '🏡', label: 'เคหะสถาน', color: '#0ea5e9', desc: 'งานบ้านและซักตาก' },
-    { id: 'farm', icon: '🌾', label: 'การเกษตร', color: '#10b981', desc: 'การดูแลแปลงเกษตร' }
+    { id: 'summary', icon: '📋', label: 'ภาพรวม', color: '#8b5cf6' },
+    { id: 'travel', icon: '🎒', label: 'ท่องเที่ยว', color: '#ec4899' },
+    { id: 'health', icon: '🏃‍♂️', label: 'สุขภาพ', color: '#22c55e' },
+    { id: 'driving', icon: '🚘', label: 'ขับขี่', color: '#f97316' },
+    { id: 'home', icon: '🧺', label: 'งานบ้าน', color: '#0ea5e9' }
   ];
 
   const appBg = darkMode ? '#020617' : '#f8fafc'; 
@@ -194,161 +145,155 @@ export default function AIPage() {
   const textColor = darkMode ? '#f8fafc' : '#0f172a'; 
   const borderColor = darkMode ? '#1e293b' : '#e2e8f0';
   const subTextColor = darkMode ? '#94a3b8' : '#64748b'; 
-  const activeTabInfo = tabConfigs.find(t => t.id === activeTab);
-  const activeColor = activeTabInfo?.color || '#8b5cf6';
+  const activeColor = tabConfigs.find(t => t.id === activeTab)?.color || '#8b5cf6';
 
   if (loadingWeather) return (
-    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100%', background: appBg, color: textColor, fontFamily: 'Kanit' }}>
-        <div style={{ fontSize: '3rem', marginBottom: '15px' }}>⚙️</div>
-        <div style={{ fontSize: '1rem', fontWeight: 'bold' }}>กำลังวิเคราะห์ข้อมูล...</div>
+    <div className="loading-container" style={{ background: appBg, color: textColor }}>
+        <div className="loading-spinner" style={{ borderTopColor: '#8b5cf6' }}></div>
+        <div style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>AI กำลังคำนวณแผนชีวิตให้คุณ...</div>
+        <div style={{ fontSize: '0.85rem', color: subTextColor, marginTop: '5px' }}>วิเคราะห์ฝน แดด และฝุ่น</div>
     </div>
   );
   
-  if (!weatherData) return <div style={{ height: '100%', background: appBg, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: subTextColor, fontFamily: 'Kanit', padding: '20px' }}><p>ไม่สามารถเชื่อมต่อข้อมูลได้</p><button onClick={() => window.location.reload()} style={{marginTop: '10px', padding: '8px 16px', borderRadius: '12px', background: '#0ea5e9', color: '#fff', border: 'none'}}>ลองอีกครั้ง</button></div>;
+  if (!weatherData) return (
+    <div style={{ minHeight: '100dvh', background: appBg, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: subTextColor, fontFamily: 'Kanit', padding: '20px', textAlign: 'center' }}>
+      <div style={{fontSize: '3rem'}}>⚠️</div>
+      <p style={{fontWeight: 'bold'}}>ไม่สามารถโหลดข้อมูลได้ชั่วคราว</p>
+      <button onClick={() => window.location.reload()} style={{marginTop: '15px', padding: '10px 25px', borderRadius: '50px', background: '#0ea5e9', color: '#fff', border: 'none', fontWeight: 'bold', cursor: 'pointer'}}>ลองใหม่อีกครั้ง</button>
+    </div>
+  );
 
   return (
-    <div style={{ position: 'relative', height: '100%', width: '100%', background: appBg, overflowY: 'auto', WebkitOverflowScrolling: 'touch', fontFamily: 'Kanit, sans-serif' }} className="custom-scrollbar">
+    <div style={{ width: '100%', minHeight: '100dvh', background: appBg, display: 'block', overflowY: 'auto', WebkitOverflowScrolling: 'touch', fontFamily: 'Kanit, sans-serif' }} className="hide-scrollbar">
       
-      <div style={{ width: '100%', maxWidth: '1400px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: isMobile ? '12px' : '20px', padding: isMobile ? '12px' : '30px', paddingBottom: '100px' }}>
+      {/* ซ่อน Scrollbar ของหน้าต่าง */}
+      <style dangerouslySetInlineStyle={{__html: `
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .fade-in { animation: fadeIn 0.4s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+      `}} />
 
-        {/* 1. Header Section - แยกระหว่าง Desktop กับ Mobile */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '10px', marginBottom: isMobile ? '4px' : '0' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span style={{ fontSize: isMobile ? '1.8rem' : '2.5rem' }}>🧠</span>
+      <div style={{ width: '100%', maxWidth: '900px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px', padding: isMobile ? '15px' : '30px', paddingBottom: '120px' }}>
+
+        {/* 📍 Header & Date Selector */}
+        <div style={{ background: cardBg, borderRadius: '24px', padding: '20px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
                 <div>
-                    <h1 style={{ margin: 0, color: textColor, fontSize: isMobile ? '1.2rem' : '1.8rem', fontWeight: '900' }}>ผู้ช่วยวางแผนกิจกรรม</h1>
-                    <p style={{ margin: isMobile ? '0' : '5px 0 0 0', color: subTextColor, fontSize: isMobile ? '0.75rem' : '0.9rem' }}>ประเมินสภาพอากาศให้เหมาะกับไลฟ์สไตล์ (ล่วงหน้า 7 วัน)</p>
+                    <h1 style={{ margin: 0, fontSize: '1.4rem', color: textColor, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        ✨ AI ผู้ช่วยส่วนตัว
+                    </h1>
+                    <div style={{ fontSize: '0.85rem', color: subTextColor, marginTop: '2px' }}>วิเคราะห์: <span style={{color: '#0ea5e9', fontWeight: 'bold'}}>{locationName}</span></div>
+                </div>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                    <select value={selectedProv} onChange={(e) => { 
+                        const val = e.target.value;
+                        setSelectedProv(val); 
+                        if(val){
+                            const st = stations.find(s => s.areaTH === val);
+                            if(st) { fetchWeatherByCoords(st.lat, st.long); fetchLocationName(st.lat, st.long); }
+                        }
+                    }} style={{ padding: '8px 12px', borderRadius: '12px', background: darkMode ? '#1e293b' : '#f1f5f9', color: textColor, border: `1px solid ${borderColor}`, fontFamily: 'Kanit', outline: 'none' }}>
+                        <option value="">เปลี่ยนพื้นที่</option>
+                        {stations.map(s => <option key={s.stationID} value={s.areaTH}>{s.areaTH}</option>)}
+                    </select>
                 </div>
             </div>
-        </div>
 
-        {/* 2. Filter Bar */}
-        <div style={{ background: cardBg, borderRadius: isMobile ? '16px' : '24px', padding: isMobile ? '10px 14px' : '18px', border: `1px solid ${borderColor}`, boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ fontSize: isMobile ? '0.85rem' : '1rem', color: textColor, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    📍 พื้นที่ของคุณ: <span style={{ color: '#0ea5e9', maxWidth: isMobile ? '140px' : 'auto', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{locationName}</span>
-                </div>
-                {isMobile && <button onClick={() => setShowFilters(!showFilters)} style={{ background: 'rgba(14,165,233,0.1)', color: '#0ea5e9', border: 'none', padding: '4px 12px', borderRadius: '50px', fontWeight: 'bold', fontSize: '0.7rem' }}>
-                    {showFilters ? '▲ ปิด' : '▼ ปรับแต่ง'}
-                </button>}
-            </div>
-            {showFilters && (
-                <div className="fade-in" style={{ marginTop: isMobile ? '10px' : '15px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr auto' : '1fr 1fr auto', gap: '8px' }}>
-                        <select value={selectedProv} onChange={handleProvChange} style={{ padding: isMobile ? '8px' : '12px', borderRadius: '10px', background: darkMode ? '#1e293b' : '#f1f5f9', color: textColor, border: 'none', fontSize: isMobile ? '0.85rem' : '1rem' }}>
-                            <option value="">-- เปลี่ยนจังหวัด --</option>
-                            {stations.sort((a,b)=>a.areaTH.localeCompare(b.areaTH,'th')).map(s => <option key={s.stationID} value={s.areaTH}>{s.areaTH}</option>)}
-                        </select>
-                        <button onClick={() => window.location.reload()} style={{ background: '#0ea5e9', color: '#fff', border: 'none', padding: isMobile ? '8px 12px' : '12px', borderRadius: '10px', fontSize: isMobile ? '0.8rem' : '1rem', fontWeight: 'bold' }}>📍 อัปเดตพิกัด</button>
-                    </div>
-                    <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '4px' }} className="custom-scrollbar">
-                        {[0,1,2,3,4,5,6].map(idx => {
-                            const btnDate = new Date();
-                            btnDate.setDate(btnDate.getDate() + idx);
-                            const dateLabel = idx === 0 ? 'วันนี้' : idx === 1 ? 'พรุ่งนี้' : btnDate.toLocaleDateString('th-TH', {day:'numeric', month:'short'});
-                            return (
-                                <button key={idx} onClick={() => setTargetDateIdx(idx)} style={{ flexShrink: 0, padding: isMobile ? '6px 12px' : '10px', borderRadius: '10px', border: `1px solid ${targetDateIdx === idx ? activeColor : borderColor}`, background: targetDateIdx === idx ? activeColor : 'transparent', color: targetDateIdx === idx ? '#fff' : textColor, fontSize: isMobile ? '0.75rem' : '0.85rem', fontWeight: 'bold', transition: 'all 0.2s' }}>
-                                    {dateLabel}
-                                </button>
-                            );
-                        })}
-                    </div>
-                </div>
-            )}
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? '15px' : '20px' }}>
-            
-            {/* 3. Tabs Menu (Column on Desktop, Row on Mobile) */}
-            <div style={{ display: 'flex', flexDirection: isMobile ? 'row' : 'column', gap: '8px', width: isMobile ? '100%' : '280px', overflowX: isMobile ? 'auto' : 'visible' }} className="custom-scrollbar">
-                {tabConfigs.map(tab => {
-                    const isActive = activeTab === tab.id;
+            {/* แถบเลือกวันที่ (เลื่อนซ้ายขวาได้) */}
+            <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', marginTop: '20px', paddingBottom: '5px' }} className="hide-scrollbar">
+                {[0,1,2,3,4,5,6].map(idx => {
+                    const date = new Date(weatherData?.daily?.time?.[idx] || Date.now());
+                    const dateStr = idx === 0 ? 'วันนี้' : idx === 1 ? 'พรุ่งนี้' : date.toLocaleDateString('th-TH', {weekday:'short', day:'numeric'});
                     return (
-                        <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
-                            flexShrink: 0, display: 'flex', alignItems: isMobile ? 'center' : 'flex-start', gap: isMobile ? '10px' : '15px', padding: isMobile ? '10px 14px' : '15px', borderRadius: isMobile ? '12px' : '16px', border: `1px solid ${isActive ? tab.color : borderColor}`,
-                            background: isActive ? (darkMode ? `${tab.color}20` : `${tab.color}10`) : cardBg,
-                            color: isActive ? (darkMode ? '#fff' : tab.color) : (isMobile ? subTextColor : textColor),
-                            cursor: 'pointer', textAlign: 'left', width: isMobile ? 'auto' : '100%', transition: 'all 0.2s', fontSize: isMobile ? '0.85rem' : '1rem'
+                        <button key={idx} onClick={() => setTargetDateIdx(idx)} style={{ 
+                            flexShrink: 0, padding: '10px 15px', borderRadius: '14px', 
+                            border: `1px solid ${targetDateIdx === idx ? activeColor : borderColor}`, 
+                            background: targetDateIdx === idx ? activeColor : 'transparent', 
+                            color: targetDateIdx === idx ? '#fff' : textColor, 
+                            fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', transition: '0.2s' 
                         }}>
-                            <span style={{ fontSize: isMobile ? '1.2rem' : '1.6rem', marginTop: isMobile ? '0' : '-2px' }}>{tab.icon}</span>
-                            <div style={{ display: isMobile ? 'none' : 'flex', flexDirection: 'column' }}>
-                                <span style={{ fontWeight: 'bold', fontSize: '1rem' }}>{tab.label}</span>
-                                <span style={{ fontSize: '0.75rem', color: subTextColor, marginTop: '2px', lineHeight: 1.4 }}>{tab.desc}</span>
-                            </div>
-                            {isMobile && <span style={{ fontWeight: 'bold', whiteSpace: 'nowrap' }}>{tab.label}</span>}
+                            {dateStr}
                         </button>
                     );
                 })}
             </div>
+        </div>
 
-            {/* 4. Result Dashboard */}
-            <div className="fade-in" key={activeTab} style={{ flex: 1, background: cardBg, borderRadius: '24px', padding: isMobile ? '16px' : '35px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 20px rgba(0,0,0,0.03)' }}>
-                {insights && (
-                    <>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: isMobile ? 'center' : 'flex-start', marginBottom: isMobile ? '16px' : '30px', gap: '10px' }}>
-                            <div style={{ flex: 1 }}>
-                                <div style={{ fontSize: isMobile ? '0.75rem' : '1.2rem', color: subTextColor }}>{activeTabInfo.desc}</div>
-                                <div style={{ fontSize: isMobile ? '1.2rem' : '1.8rem', fontWeight: '900', color: textColor, marginTop: isMobile ? '0' : '5px' }}>{isMobile ? activeTabInfo.label : `หมวด${activeTabInfo.label}`}</div>
+        {/* ⚡ TL;DR Quick Summary Cards (3 คำถามยอดฮิต) */}
+        {aiReport && (
+            <div className="fade-in" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '10px' }}>
+                {aiReport.quickAnswers.map((item, idx) => (
+                    <div key={idx} style={{ background: cardBg, border: `1px solid ${item.color}50`, borderRadius: '20px', padding: '15px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', boxShadow: '0 4px 10px rgba(0,0,0,0.02)' }}>
+                        <div style={{ fontSize: '2rem', marginBottom: '5px' }}>{item.icon}</div>
+                        <div style={{ fontSize: '0.8rem', color: subTextColor, fontWeight: 'bold' }}>{item.title}</div>
+                        <div style={{ fontSize: '0.95rem', color: item.color, fontWeight: '900', marginTop: '2px', lineHeight: 1.3 }}>{item.text}</div>
+                    </div>
+                ))}
+            </div>
+        )}
+
+        {/* 📑 หมวดหมู่ไลฟ์สไตล์ */}
+        <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '5px' }} className="hide-scrollbar">
+            {tabConfigs.map(tab => {
+                const isActive = activeTab === tab.id;
+                return (
+                    <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
+                        flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 20px', borderRadius: '50px', border: 'none',
+                        background: isActive ? (darkMode ? `${tab.color}30` : `${tab.color}15`) : cardBg,
+                        color: isActive ? tab.color : subTextColor,
+                        border: `1px solid ${isActive ? tab.color : borderColor}`,
+                        fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s'
+                    }}>
+                        <span style={{ fontSize: '1.2rem' }}>{tab.icon}</span> {tab.label}
+                    </button>
+                );
+            })}
+        </div>
+
+        {/* 🤖 AI Detailed Report */}
+        {aiReport && (
+            <div className="fade-in" key={activeTab + targetDateIdx} style={{ background: cardBg, borderRadius: '24px', padding: isMobile ? '20px' : '30px', border: `1px solid ${borderColor}`, boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+                    <h2 style={{ margin: 0, fontSize: '1.3rem', color: textColor, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {tabConfigs.find(t=>t.id===activeTab)?.icon} วางแผน {tabConfigs.find(t=>t.id===activeTab)?.label}
+                    </h2>
+                    <div style={{ background: darkMode ? '#1e293b' : '#f8fafc', padding: '8px 15px', borderRadius: '15px', border: `1px solid ${borderColor}`, textAlign: 'center' }}>
+                        <div style={{ fontSize: '0.65rem', color: subTextColor, fontWeight: 'bold' }}>ความเหมาะสม</div>
+                        <div style={{ fontSize: '1.2rem', fontWeight: '900', color: aiReport.score >= 8 ? '#22c55e' : aiReport.score >= 5 ? '#eab308' : '#ef4444' }}>
+                            {aiReport.score}/10
+                        </div>
+                    </div>
+                </div>
+
+                <div style={{ padding: '20px', background: darkMode ? 'rgba(0,0,0,0.2)' : '#f8fafc', borderRadius: '20px', borderLeft: `5px solid ${activeColor}`, marginBottom: '30px' }}>
+                    <p style={{ margin: 0, fontSize: '1rem', color: textColor, lineHeight: 1.6 }}>{aiReport.advice}</p>
+                </div>
+
+                <h4 style={{ margin: '0 0 15px 0', color: textColor, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span>🕒</span> ไทม์ไลน์แนะนำ
+                </h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                    {aiReport.timeline.map((item, i) => (
+                        <div key={i} style={{ display: 'flex', gap: '15px', position: 'relative' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                <div style={{ width: '14px', height: '14px', borderRadius: '50%', background: activeColor, zIndex: 1, border: `3px solid ${cardBg}` }}></div>
+                                {i < 2 && <div style={{ width: '2px', flex: 1, background: borderColor, marginTop: '-5px', marginBottom: '-5px' }}></div>}
                             </div>
-                            <div style={{ background: darkMode ? '#1e293b' : '#f8fafc', padding: isMobile ? '6px 14px' : '12px 20px', borderRadius: isMobile ? '14px' : '20px', border: `1px solid ${borderColor}`, textAlign: 'center' }}>
-                                <div style={{ fontSize: isMobile ? '0.6rem' : '0.7rem', color: subTextColor, fontWeight: 'bold', textTransform: 'uppercase' }}>คะแนนความเหมาะสม</div>
-                                <div style={{ fontSize: isMobile ? '1.4rem' : '2rem', fontWeight: '900', color: insights.score > 7 ? '#22c55e' : insights.score > 4 ? '#f97316' : '#ef4444', lineHeight: 1.1 }}>
-                                    {insights.score}<span style={{fontSize: isMobile ? '0.75rem' : '1rem', color: subTextColor, fontWeight:'normal'}}>/10</span>
+                            <div style={{ flex: 1, paddingBottom: i < 2 ? '15px' : '0' }}>
+                                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '5px' }}>
+                                    <span style={{ fontSize: '1.2rem' }}>{item.icon}</span>
+                                    <span style={{ fontWeight: 'bold', color: textColor, fontSize: '0.95rem' }}>{item.time}</span>
+                                </div>
+                                <div style={{ fontSize: '0.9rem', color: subTextColor, lineHeight: 1.5, background: darkMode ? '#1e293b' : '#f1f5f9', padding: '12px 15px', borderRadius: '15px' }}>
+                                    {item.text}
                                 </div>
                             </div>
                         </div>
-
-                        <div style={{ padding: isMobile ? '14px 18px' : '25px', background: insights.score > 7 ? (darkMode ? 'rgba(34,197,94,0.1)' : '#f0fdf4') : insights.score > 4 ? (darkMode ? 'rgba(249,115,22,0.1)' : '#fff7ed') : (darkMode ? 'rgba(239,68,68,0.1)' : '#fef2f2'), borderRadius: isMobile ? '16px' : '20px', borderLeft: `${isMobile ? '5px' : '6px'} solid ${insights.score > 7 ? '#22c55e' : insights.score > 4 ? '#f97316' : '#ef4444'}`, marginBottom: isMobile ? '20px' : '35px' }}>
-                            <div style={{ fontSize: isMobile ? '0.75rem' : '0.85rem', color: insights.score > 7 ? '#22c55e' : insights.score > 4 ? '#f97316' : '#ef4444', fontWeight: 'bold', marginBottom: isMobile ? '4px' : '8px' }}>คำแนะนำสำหรับคุณ:</div>
-                            <p style={{ margin: 0, fontSize: isMobile ? '0.9rem' : '1.1rem', color: textColor, lineHeight: isMobile ? 1.5 : 1.6, fontWeight: '600' }}>{insights.text}</p>
-                        </div>
-
-                        <div style={{ borderTop: isMobile ? `1px solid ${borderColor}` : 'none', paddingTop: isMobile ? '15px' : '0' }}>
-                            <h4 style={{ margin: isMobile ? '0 0 12px 0' : '0 0 20px 0', color: isMobile ? subTextColor : textColor, fontSize: isMobile ? '0.85rem' : '1.1rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <span style={{fontSize: isMobile ? '1rem' : '1.4rem'}}>⏱️</span> คาดการณ์รายช่วงเวลา
-                            </h4>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '10px' : '15px' }}>
-                                {insights.timeline.map((item, i) => (
-                                    <div key={i} style={{ display: 'flex', gap: isMobile ? '12px' : '15px', position: 'relative', background: isMobile ? (darkMode ? 'rgba(255,255,255,0.03)' : '#f8fafc') : 'transparent', padding: isMobile ? '10px 14px' : '0', borderRadius: isMobile ? '14px' : '0', alignItems: isMobile ? 'center' : 'stretch' }}>
-                                        {/* Desktop Timeline Visual */}
-                                        {!isMobile && (
-                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0, marginTop: '10px' }}>
-                                                <div style={{ width: '14px', height: '14px', borderRadius: '50%', background: activeColor, zIndex: 1, border: `3px solid ${cardBg}` }}></div>
-                                                {i < 2 && <div style={{ width: '2px', flex: 1, background: borderColor, marginTop: '-2px', marginBottom: '-10px' }}></div>}
-                                            </div>
-                                        )}
-                                        
-                                        {/* Content */}
-                                        <div style={isMobile ? { fontSize: '1.2rem', flexShrink: 0 } : { flex: 1, background: darkMode ? 'rgba(255,255,255,0.03)' : '#f8fafc', padding: '20px', borderRadius: '18px', border: `1px solid ${borderColor}` }}>
-                                            {isMobile ? item.icon : null}
-                                            {isMobile ? (
-                                                // Mobile Layout Inside Content
-                                                <div style={{ display: 'inline-block', width: '100%', marginLeft: '10px' }}>
-                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                                                        <span style={{ fontWeight: 'bold', color: activeColor, fontSize: '0.85rem' }}>{item.label}</span>
-                                                        <span style={{ fontSize: '0.65rem', color: subTextColor }}>{item.time}</span>
-                                                    </div>
-                                                    <div style={{ fontSize: '0.8rem', color: textColor }}>{item.text}</div>
-                                                </div>
-                                            ) : (
-                                                // Desktop Layout Inside Content
-                                                <>
-                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                                                        <span style={{ fontWeight: 'bold', color: activeColor, fontSize: '1.05rem' }}>{item.icon} {item.label}</span>
-                                                        <span style={{ fontSize: '0.8rem', background: darkMode ? '#0f172a' : '#e2e8f0', padding: '4px 10px', borderRadius: '50px', color: subTextColor, fontWeight: 'bold' }}>{item.time}</span>
-                                                    </div>
-                                                    <div style={{ fontSize: '0.95rem', color: textColor, lineHeight: 1.6 }}>{item.text}</div>
-                                                </>
-                                            )}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    </>
-                )}
+                    ))}
+                </div>
             </div>
-        </div>
+        )}
 
       </div>
     </div>
