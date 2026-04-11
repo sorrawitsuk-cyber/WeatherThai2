@@ -1,4 +1,4 @@
-import React, { useContext, useState, useEffect, useMemo, useRef } from 'react';
+import React, { useContext, useState, useEffect, useMemo } from 'react';
 import { WeatherContext } from '../context/WeatherContext';
 
 export default function AIPage() {
@@ -12,17 +12,6 @@ export default function AIPage() {
   
   const [weatherData, setWeatherData] = useState(null);
   const [loadingWeather, setLoadingWeather] = useState(true);
-
-  // 🌟 Ref สำหรับปุ่มลูกศรเลื่อนซ้าย-ขวาบน Desktop
-  const dateScrollRef = useRef(null);
-  const tabScrollRef = useRef(null);
-
-  // ฟังก์ชันเลื่อน Scroll แนวนอน
-  const handleScroll = (ref, direction) => {
-      if (ref.current) {
-          ref.current.scrollBy({ left: direction * 200, behavior: 'smooth' });
-      }
-  };
 
   const fetchWeatherByCoords = async (lat, lon) => {
     try {
@@ -310,33 +299,31 @@ export default function AIPage() {
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         .fade-in { animation: fadeIn 0.4s ease-in-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        
-        /* สไตล์สำหรับ Container ที่ปุ่มเลื่อนได้ */
-        .scroll-button-container {
-            display: flex;
-            gap: 10px;
-            overflow-x: auto;
-            scroll-behavior: smooth;
-        }
-        
-        /* สำหรับ Desktop ให้เว้น Padding ด้านซ้ายขวาเผื่อพื้นที่ให้ปุ่มลูกศร */
-        @media (min-width: 1024px) {
-            .has-arrows { padding: 0 40px; }
-        }
       `}} />
 
       <div style={{ width: '100%', maxWidth: '900px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px', padding: isMobile ? '15px' : '30px', paddingBottom: '120px' }}>
 
-        {/* 📍 Header & Date Selector */}
+        {/* 📍 Header & Date Selector (Mobile = 1 แถว, Desktop = แยกแถว) */}
         <div style={{ background: cardBg, borderRadius: '24px', padding: '20px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
                 <div>
                     <h1 style={{ margin: 0, fontSize: '1.4rem', color: textColor, display: 'flex', alignItems: 'center', gap: '8px' }}>
                         ✨ ระบบประเมินสภาพอากาศ
                     </h1>
                     <div style={{ fontSize: '0.85rem', color: subTextColor, marginTop: '2px' }}>พื้นที่การวิเคราะห์: <span style={{color: '#0ea5e9', fontWeight: 'bold'}}>{locationName}</span></div>
                 </div>
-                <div style={{ display: 'flex', gap: '10px' }}>
+
+                <div style={{ display: 'flex', gap: '10px', width: isMobile ? '100%' : 'auto', overflowX: 'auto' }} className="hide-scrollbar">
+                    {/* 🌟 มือถือ: ยัดปุ่มเลือกวันที่มาไว้ตรงนี้ */}
+                    {isMobile && (
+                        <select value={targetDateIdx} onChange={(e) => setTargetDateIdx(parseInt(e.target.value))} style={{ flex: 1, padding: '8px 12px', borderRadius: '12px', background: darkMode ? '#1e293b' : '#f1f5f9', color: textColor, border: `1px solid ${borderColor}`, fontFamily: 'Kanit', outline: 'none' }}>
+                            {[0,1,2,3,4,5,6].map(idx => {
+                                const date = new Date(weatherData?.daily?.time?.[idx] || Date.now());
+                                const dateStr = idx === 0 ? 'วันนี้' : idx === 1 ? 'พรุ่งนี้' : date.toLocaleDateString('th-TH', {weekday:'short', day:'numeric'});
+                                return <option key={idx} value={idx}>{dateStr}</option>;
+                            })}
+                        </select>
+                    )}
                     <select value={selectedProv} onChange={(e) => { 
                         const val = e.target.value;
                         setSelectedProv(val); 
@@ -344,20 +331,16 @@ export default function AIPage() {
                             const st = (stations || []).find(s => s.areaTH === val);
                             if(st) { fetchWeatherByCoords(st.lat, st.long); fetchLocationName(st.lat, st.long); }
                         }
-                    }} style={{ padding: '8px 12px', borderRadius: '12px', background: darkMode ? '#1e293b' : '#f1f5f9', color: textColor, border: `1px solid ${borderColor}`, fontFamily: 'Kanit', outline: 'none' }}>
+                    }} style={{ flex: isMobile ? 1 : 'auto', padding: '8px 12px', borderRadius: '12px', background: darkMode ? '#1e293b' : '#f1f5f9', color: textColor, border: `1px solid ${borderColor}`, fontFamily: 'Kanit', outline: 'none' }}>
                         <option value="">เปลี่ยนพื้นที่</option>
                         {(stations || []).map(s => <option key={s.stationID} value={s.areaTH}>{s.areaTH}</option>)}
                     </select>
                 </div>
             </div>
 
-            {/* 🌟 ปรับปรุง: แถบเลือกวันที่ + ปุ่มลูกศร */}
-            <div style={{ position: 'relative', marginTop: '20px' }}>
-                {!isMobile && (
-                    <button onClick={() => handleScroll(dateScrollRef, -1)} style={{ position: 'absolute', left: '-5px', top: '50%', transform: 'translateY(-50%)', zIndex: 10, background: cardBg, border: `1px solid ${borderColor}`, color: textColor, borderRadius: '50%', width: '35px', height: '35px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', boxShadow: '2px 0 10px rgba(0,0,0,0.05)' }}>◀</button>
-                )}
-                
-                <div ref={dateScrollRef} className="scroll-button-container hide-scrollbar has-arrows">
+            {/* 🌟 Desktop: แสดงปุ่มเลือกวันที่แบบแนวนอน (ซ่อนในมือถือ) */}
+            {!isMobile && (
+                <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', marginTop: '20px', paddingBottom: '5px' }} className="hide-scrollbar">
                     {[0,1,2,3,4,5,6].map(idx => {
                         const date = new Date(weatherData?.daily?.time?.[idx] || Date.now());
                         const dateStr = idx === 0 ? 'วันนี้' : idx === 1 ? 'พรุ่งนี้' : date.toLocaleDateString('th-TH', {weekday:'short', day:'numeric'});
@@ -375,11 +358,7 @@ export default function AIPage() {
                         );
                     })}
                 </div>
-
-                {!isMobile && (
-                    <button onClick={() => handleScroll(dateScrollRef, 1)} style={{ position: 'absolute', right: '-5px', top: '50%', transform: 'translateY(-50%)', zIndex: 10, background: cardBg, border: `1px solid ${borderColor}`, color: textColor, borderRadius: '50%', width: '35px', height: '35px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', boxShadow: '-2px 0 10px rgba(0,0,0,0.05)' }}>▶</button>
-                )}
-            </div>
+            )}
         </div>
 
         {/* ⚡ TL;DR Quick Summary Cards */}
@@ -395,13 +374,27 @@ export default function AIPage() {
             </div>
         )}
 
-        {/* 🌟 ปรับปรุง: หมวดหมู่ไลฟ์สไตล์ + ปุ่มลูกศร */}
-        <div style={{ position: 'relative' }}>
-            {!isMobile && (
-                <button onClick={() => handleScroll(tabScrollRef, -1)} style={{ position: 'absolute', left: '-5px', top: '50%', transform: 'translateY(-50%)', zIndex: 10, background: cardBg, border: `1px solid ${borderColor}`, color: textColor, borderRadius: '50%', width: '35px', height: '35px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', boxShadow: '2px 0 10px rgba(0,0,0,0.05)' }}>◀</button>
-            )}
-
-            <div ref={tabScrollRef} className="scroll-button-container hide-scrollbar has-arrows">
+        {/* 📑 หมวดหมู่ไลฟ์สไตล์ (Mobile = Grid 4x2, Desktop = Scroll แนวนอน) */}
+        {isMobile ? (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+                {tabConfigs.map(tab => {
+                    const isActive = activeTab === tab.id;
+                    return (
+                        <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px', padding: '12px 5px', borderRadius: '16px', border: 'none',
+                            background: isActive ? (darkMode ? `${tab.color}30` : `${tab.color}15`) : cardBg,
+                            color: isActive ? tab.color : subTextColor,
+                            border: `1px solid ${isActive ? tab.color : borderColor}`,
+                            cursor: 'pointer', transition: 'all 0.2s'
+                        }}>
+                            <span style={{ fontSize: '1.4rem' }}>{tab.icon}</span> 
+                            <span style={{ fontSize: '0.65rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}>{tab.label}</span>
+                        </button>
+                    );
+                })}
+            </div>
+        ) : (
+            <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '5px' }} className="hide-scrollbar">
                 {tabConfigs.map(tab => {
                     const isActive = activeTab === tab.id;
                     return (
@@ -418,11 +411,7 @@ export default function AIPage() {
                     );
                 })}
             </div>
-
-            {!isMobile && (
-                <button onClick={() => handleScroll(tabScrollRef, 1)} style={{ position: 'absolute', right: '-5px', top: '50%', transform: 'translateY(-50%)', zIndex: 10, background: cardBg, border: `1px solid ${borderColor}`, color: textColor, borderRadius: '50%', width: '35px', height: '35px', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', boxShadow: '-2px 0 10px rgba(0,0,0,0.05)' }}>▶</button>
-            )}
-        </div>
+        )}
 
         {/* 🤖 AI Detailed Report */}
         {aiReport && (
