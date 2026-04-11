@@ -260,7 +260,14 @@ export default function ClimatePage() {
       else if (warningThreats.length > 0) locSummary = { text: 'พื้นที่เฝ้าระวังพิเศษ', color: '#f97316', bg: darkMode ? '#431407' : '#ffedd5', icon: '⚠️', desc: `เฝ้าระวัง: ${warningThreats.join(', ')}` };
   }
 
-  if (loading || stations.length === 0) return <div style={{ height: '100%', background: appBg }}></div>;
+  // 🌟 ใช้ Loading Spinner แบบใหม่ (หมุนๆ)
+  if (loading || stations.length === 0) return (
+    <div className="loading-container" style={{ background: appBg, color: textColor }}>
+        <div className="loading-spinner" style={{ borderTopColor: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.15)' }}></div>
+        <div style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>กำลังเตรียมศูนย์ปฏิบัติการ...</div>
+        <div style={{ fontSize: '0.85rem', color: subTextColor, marginTop: '5px' }}>วิเคราะห์พื้นที่เสี่ยงทั่วประเทศ</div>
+    </div>
+  );
 
   return (
     <div style={{ height: '100%', width: '100%', background: timeMode === 'yesterday' ? (darkMode ? '#000000' : '#f1f5f9') : appBg, display: 'flex', justifyContent: 'center', overflowY: 'auto', fontFamily: 'Kanit, sans-serif', transition: 'background 0.3s' }} className="custom-scrollbar">

@@ -45,3 +45,37 @@ body.dark-theme {
 .dark-theme .leaflet-popup-tip {
   background-color: #1e293b !important;
 }
+
+/* =========================================
+   🌟 CSS สำหรับหน้า Loading หมุนๆ (Global)
+   ========================================= */
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  width: 100%;
+}
+
+.loading-spinner {
+  width: 50px;
+  height: 50px;
+  border: 4px solid rgba(14, 165, 233, 0.15); /* สีฟ้าจางๆ สำหรับ Light Mode */
+  border-top: 4px solid #0ea5e9; /* สีฟ้าหลัก */
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 15px;
+}
+
+/* ปรับสีขอบ Spinner ให้เข้ากับ Dark Mode */
+.dark-theme .loading-spinner {
+  border: 4px solid rgba(255, 255, 255, 0.05);
+  border-top: 4px solid #38bdf8;
+}
+
+/* อนิเมชันหมุน 360 องศา */
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}

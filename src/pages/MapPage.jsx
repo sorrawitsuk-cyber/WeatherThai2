@@ -312,7 +312,13 @@ export default function MapPage() {
     }
   };
 
-  if (!geoData || Object.keys(stationTemps).length === 0) return <div style={{ height: '100vh', background: appBg, display: 'flex', justifyContent:'center', alignItems:'center', color: subTextColor, fontFamily: 'Kanit' }}>กำลังโหลดแผนที่เฝ้าระวังภัย...</div>;
+  if (!geoData || Object.keys(stationTemps).length === 0) return (
+    <div className="loading-container" style={{ background: appBg, color: textColor }}>
+        <div className="loading-spinner"></div>
+        <div style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>กำลังโหลดแผนที่เฝ้าระวังภัย...</div>
+        <div style={{ fontSize: '0.85rem', color: subTextColor, marginTop: '5px' }}>เตรียมข้อมูลพื้นที่ทั้ง 77 จังหวัด</div>
+    </div>
+  );
 
   return (
     <div style={{ height: '100%', width: '100%', background: appBg, display: 'flex', flexDirection: 'column', fontFamily: 'Kanit, sans-serif', padding: isMobile ? '10px' : '20px', boxSizing: 'border-box' }}>

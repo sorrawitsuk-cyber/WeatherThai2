@@ -212,12 +212,12 @@ export default function Dashboard() {
 
   const lastUpdateText = lastUpdated ? new Date(lastUpdated).toLocaleString('th-TH') : '-';
 
+  // 🌟 ใช้ Loading Spinner แบบใหม่ (หมุนๆ)
   if (loadingWeather || !weatherData) return (
-    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100%', background: appBg, color: textColor, fontFamily: 'Kanit, sans-serif' }}>
-        <style dangerouslySetInlineStyle={{__html: `@keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.7; transform: scale(0.95); } }`}} />
-        <div style={{ fontSize: '4rem', animation: 'pulse 1.5s infinite ease-in-out' }}>🌤️</div>
-        <div style={{ marginTop: '20px', fontSize: '1.2rem', fontWeight: 'bold' }}>กำลังประมวลผลข้อมูลสภาพอากาศ</div>
-        <div style={{ fontSize: '0.9rem', color: subTextColor, marginTop: '8px' }}>กรุณารอสักครู่...</div>
+    <div className="loading-container" style={{ background: appBg, color: textColor }}>
+        <div className="loading-spinner"></div>
+        <div style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>กำลังประมวลผลข้อมูลสภาพอากาศ...</div>
+        <div style={{ fontSize: '0.85rem', color: subTextColor, marginTop: '5px' }}>เตรียมพร้อมข้อมูลพื้นที่ของคุณ</div>
     </div>
   );
 
