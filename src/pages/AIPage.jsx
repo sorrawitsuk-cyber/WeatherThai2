@@ -2,31 +2,70 @@ import React, { useContext, useState, useEffect, useMemo } from 'react';
 import { WeatherContext } from '../context/WeatherContext';
 
 export default function AIPage() {
-  const { stations, weatherData, fetchWeatherByCoords, loadingWeather, darkMode } = useContext(WeatherContext);
+  // 🌟 ดึงเฉพาะข้อมูลที่มีใน Context จริงๆ
+  const { stations, darkMode } = useContext(WeatherContext);
   
+  // --- 1. States (Hooks) ---
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
   const [locationName, setLocationName] = useState('กำลังระบุตำแหน่ง...');
   const [selectedProv, setSelectedProv] = useState('');
   const [targetDateIdx, setTargetDateIdx] = useState(0); 
   const [activeTab, setActiveTab] = useState('summary'); 
 
-  useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 1024);
-    window.addEventListener('resize', handleResize);
+  // 🌟 2. สร้าง State สำหรับเก็บข้อมูลสภาพอากาศของหน้านี้โดยเฉพาะ
+  const [weatherData, setWeatherData] = useState(null);
+  const [loadingWeather, setLoadingWeather] = useState(true);
 
-    // ดึงพิกัดอัตโนมัติเฉพาะตอนเปิดหน้าครั้งแรก (และตอนที่ weatherData ยังว่าง)
-    if (!weatherData && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition((pos) => {
-        fetchWeatherByCoords(pos.coords.latitude, pos.coords.longitude);
-        fetchLocationName(pos.coords.latitude, pos.coords.longitude);
-      }, () => {
-        if (!weatherData) fetchWeatherByCoords(13.75, 100.5); 
-        setLocationName('กรุงเทพมหานคร');
-      }, { timeout: 5000 });
+  // 🌟 3. ฟังก์ชันดึงข้อมูล API 
+  const fetchWeatherByCoords = async (lat, lon) => {
+    try {
+      setLoadingWeather(true);
+      const wUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,rain,weather_code,surface_pressure,wind_speed_10m,visibility&hourly=temperature_2m,precipitation_probability,pm2_5&daily=weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,sunrise,sunset,uv_index_max,precipitation_probability_max&timezone=Asia%2FBangkok`;
+      const aUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=pm2_5&hourly=pm2_5&timezone=Asia%2FBangkok`;
+
+      const [wRes, aRes] = await Promise.all([fetch(wUrl), fetch(aUrl)]);
+      const wData = await wRes.json();
+      const aData = await aRes.json();
+
+      if (wRes.ok && aRes.ok) {
+        setWeatherData({
+          current: {
+            temp: wData.current.temperature_2m,
+            feelsLike: wData.current.apparent_temperature,
+            humidity: wData.current.relative_humidity_2m,
+            windSpeed: wData.current.wind_speed_10m,
+            pressure: wData.current.surface_pressure,
+            visibility: wData.current.visibility,
+            uv: wData.daily.uv_index_max[0],
+            pm25: aData.current.pm2_5,
+            sunrise: wData.daily.sunrise[0],
+            sunset: wData.daily.sunset[0],
+            rainProb: wData.hourly.precipitation_probability[new Date().getHours()],
+          },
+          hourly: {
+            time: wData.hourly.time,
+            temperature_2m: wData.hourly.temperature_2m,
+            precipitation_probability: wData.hourly.precipitation_probability,
+            pm25: aData.hourly.pm2_5
+          },
+          daily: {
+            time: wData.daily.time,
+            weathercode: wData.daily.weather_code,
+            temperature_2m_max: wData.daily.temperature_2m_max,
+            temperature_2m_min: wData.daily.temperature_2m_min,
+            apparent_temperature_max: wData.daily.apparent_temperature_max,
+            pm25_max: new Array(7).fill(aData.current.pm2_5),
+            precipitation_probability_max: wData.daily.precipitation_probability_max
+          },
+          coords: { lat, lon }
+        });
+      }
+    } catch (err) {
+      console.error("Fetch local weather failed", err);
+    } finally {
+      setLoadingWeather(false);
     }
-    return () => window.removeEventListener('resize', handleResize);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  };
 
   const fetchLocationName = async (lat, lon) => {
     try {
@@ -36,19 +75,37 @@ export default function AIPage() {
     } catch (e) { setLocationName('ตำแหน่งปัจจุบัน'); }
   };
 
-  // 🧠 AI Engine: ดึงข้อมูลและคำนวณตามวันที่เลือก
+  // --- 4. Effects เริ่มต้นทำงาน ---
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 1024);
+    window.addEventListener('resize', handleResize);
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition((pos) => {
+        fetchWeatherByCoords(pos.coords.latitude, pos.coords.longitude);
+        fetchLocationName(pos.coords.latitude, pos.coords.longitude);
+      }, () => {
+        fetchWeatherByCoords(13.75, 100.5); 
+        setLocationName('กรุงเทพมหานคร');
+      }, { timeout: 5000 });
+    } else {
+        fetchWeatherByCoords(13.75, 100.5); 
+        setLocationName('กรุงเทพมหานคร');
+    }
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // --- 5. AI Engine: ดึงข้อมูลและคำนวณตามวันที่เลือก ---
   const aiReport = useMemo(() => {
     if (!weatherData || !weatherData.daily) return null;
 
     const d = weatherData.daily;
-    // ดึงข้อมูลตาม Index ของวันที่ผู้ใช้เลือก (0 = วันนี้, 1 = พรุ่งนี้, ...)
     const tMax = Math.round(d.temperature_2m_max?.[targetDateIdx] ?? 0);
     const tMin = Math.round(d.temperature_2m_min?.[targetDateIdx] ?? 0);
     const rain = d.precipitation_probability_max?.[targetDateIdx] ?? 0;
-    // API ฟรีอาจไม่มีฝุ่นล่วงหน้า 7 วัน ให้ใช้ค่าปัจจุบันแทนในกรณีที่ไม่มีข้อมูล
     const pm25 = d.pm25_max?.[targetDateIdx] !== undefined ? Math.round(d.pm25_max[targetDateIdx]) : Math.round(weatherData.current?.pm25 ?? 0);
 
-    // 💡 1. สรุปด่วน (TL;DR) สำหรับ 3 คำถามยอดฮิต
+    // 💡 สรุปด่วน (TL;DR)
     const getQuickAnswers = () => {
       let rainAns = { icon: '☀️', title: 'ฝนตกไหม?', text: 'รอด! ไม่มีฝนชัวร์', color: '#22c55e' };
       if (rain > 60) rainAns = { icon: '☔', title: 'ฝนตกไหม?', text: `ตกแน่ โอกาส ${rain}%`, color: '#ef4444' };
@@ -65,13 +122,13 @@ export default function AIPage() {
       return [rainAns, heatAns, dustAns];
     };
 
-    // 💡 2. คำนวณคะแนนตามบริบท (Contextual Score)
+    // 💡 คำนวณคะแนนตามบริบท (Contextual Score)
     const calculateScore = () => {
       let baseScore = 10;
       switch (activeTab) {
         case 'home': // ซักผ้า เกลียดฝน
           if (rain > 40) baseScore -= 5;
-          if (tMax > 33) baseScore += 1; // แดดแรงซักผ้าดี
+          if (tMax > 33) baseScore += 1;
           break;
         case 'travel': // เที่ยว เกลียดฝนและร้อน
           if (rain > 30) baseScore -= 3;
@@ -90,11 +147,11 @@ export default function AIPage() {
           if (tMax > 37) baseScore -= 2;
           if (pm25 > 50) baseScore -= 2;
       }
-      return Math.max(1, Math.min(10, baseScore)); // บังคับให้อยู่ระหว่าง 1-10
+      return Math.max(1, Math.min(10, baseScore)); 
     };
     const finalScore = calculateScore();
 
-    // 💡 3. ข้อความแนะนำหลัก
+    // 💡 ข้อความแนะนำหลัก
     const getMainAdvice = () => {
       if (activeTab === 'home' && rain > 40) return `คำแนะนำจาก AI: วันนี้มีความเสี่ยงฝนตก ${rain}% เลี่ยงการซักผ้านวมหรือผ้าชิ้นใหญ่ไปก่อนนะคะ ถ้ารีบซักแนะนำให้อบแห้งหรือตากในที่ร่มค่ะ`;
       if (activeTab === 'health' && pm25 > 37.5) return `คำแนะนำจาก AI: ค่าฝุ่นสูงถึง ${pm25} µg/m³ งดวิ่งสวนสาธารณะชั่วคราว เปลี่ยนมาคาร์ดิโอในบ้าน เปิดเครื่องฟอกอากาศเพื่อสุขภาพปอดที่ดีนะคะ`;
@@ -103,7 +160,7 @@ export default function AIPage() {
       return `คำแนะนำจาก AI: สภาพอากาศวันนี้อยู่ในเกณฑ์ปานกลาง มีสลับเปลี่ยนระหว่างวัน เตรียมตัวให้พร้อมและเผื่อเวลาแผนสำรองไว้ด้วยนะคะ`;
     };
 
-    // 💡 4. Timeline เช้า บ่าย ค่ำ
+    // 💡 Timeline เช้า บ่าย ค่ำ
     const getTimeline = () => {
       const isRainy = rain > 40;
       const isHot = tMax > 35;
@@ -121,7 +178,7 @@ export default function AIPage() {
         ]
       };
       
-      return lines[activeTab] || lines.summary; // ถ้าแท็บไหนยังไม่เขียนลอจิกเฉพาะ ให้ใช้ summary แทน
+      return lines[activeTab] || lines.summary; 
     };
 
     return { 
@@ -166,7 +223,6 @@ export default function AIPage() {
   return (
     <div style={{ width: '100%', minHeight: '100dvh', background: appBg, display: 'block', overflowY: 'auto', WebkitOverflowScrolling: 'touch', fontFamily: 'Kanit, sans-serif' }} className="hide-scrollbar">
       
-      {/* ซ่อน Scrollbar ของหน้าต่าง */}
       <style dangerouslySetInlineStyle={{__html: `
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
@@ -200,7 +256,7 @@ export default function AIPage() {
                 </div>
             </div>
 
-            {/* แถบเลือกวันที่ (เลื่อนซ้ายขวาได้) */}
+            {/* แถบเลือกวันที่ */}
             <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', marginTop: '20px', paddingBottom: '5px' }} className="hide-scrollbar">
                 {[0,1,2,3,4,5,6].map(idx => {
                     const date = new Date(weatherData?.daily?.time?.[idx] || Date.now());
