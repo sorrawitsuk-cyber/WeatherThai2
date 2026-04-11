@@ -29,7 +29,6 @@ function MapZoomListener({ setMapZoom }) {
   return null;
 }
 
-// ฟังก์ชันแปลองศาลมเป็นชื่อทิศและลูกศร
 const getWindDirection = (degree) => {
     if (degree === undefined || degree === null) return { name: '-', arrow: '🌀' };
     const val = Math.floor((degree / 45) + 0.5);
@@ -81,7 +80,6 @@ export default function MapPage() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // เคลียร์ Popup เวลาเปลี่ยนโหมดหลัก จะได้ไม่ค้างข้อมูลเก่า
   useEffect(() => { setSelectedHotspot(null); }, [mapCategory]);
 
   const basicModes = [
@@ -388,7 +386,7 @@ export default function MapPage() {
                     
                     {geoData && <GeoJSON key={`${mapCategory}-${activeRiskMode}-${activeBasicMode}-${polyOpacity}-${basemapStyle}`} data={geoData} style={styleGeoJSON} onEachFeature={onEachFeature} />}
                     
-                    {/* 🌟 ระบบแสดงป้ายอัจฉริยะ Progressive Decluttering */}
+                    {/* 🌟 ระบบแสดงป้ายอัจฉริยะ (แก้บั๊กเรียบร้อย) */}
                     {allMapData.map(st => {
                         let isVisible = false;
 
@@ -405,11 +403,12 @@ export default function MapPage() {
                             // ซูมนอกสุด:
                             if (mapCategory === 'risk') {
                                 isVisible = st.displayVal >= 8; // สีแดงเท่านั้น
+                                // ถ้าไม่มีแดงเลย เอาแค่ 3 อันดับแรกของ Sidebar จะได้ปลอดภัย ไม่ติด undefined
                                 if (!allMapData.some(d => d.displayVal >= 8)) {
-                                    isVisible = rankedData.slice(0, 3).some(r => r.stationID === st.stationID);
+                                    isVisible = rankedSidebarData.slice(0, 3).some(r => r.stationID === st.stationID);
                                 }
                             } else {
-                                isVisible = rankedData.slice(0, 5).some(r => r.stationID === st.stationID); // โหมดทั่วไป โชว์ Top 5
+                                isVisible = rankedSidebarData.slice(0, 5).some(r => r.stationID === st.stationID); // โหมดทั่วไป โชว์ Top 5
                             }
                         }
 
