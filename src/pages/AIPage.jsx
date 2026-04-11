@@ -2,30 +2,68 @@ import React, { useContext, useState, useEffect, useMemo } from 'react';
 import { WeatherContext } from '../context/WeatherContext';
 
 export default function AIPage() {
-  const { stations, weatherData, fetchWeatherByCoords, loadingWeather, darkMode } = useContext(WeatherContext);
+  // 🌟 1. ดึงเฉพาะสิ่งที่มีใน Context จริงๆ
+  const { stations, darkMode } = useContext(WeatherContext);
   
+  // 🌟 2. States สำหรับเก็บข้อมูลและสถานะของหน้านี้
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
   const [locationName, setLocationName] = useState('กำลังระบุตำแหน่ง...');
   const [selectedProv, setSelectedProv] = useState('');
   const [targetDateIdx, setTargetDateIdx] = useState(0); 
   const [activeTab, setActiveTab] = useState('summary'); 
+  const [weatherData, setWeatherData] = useState(null);
+  const [loadingWeather, setLoadingWeather] = useState(true);
 
-  useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 1024);
-    window.addEventListener('resize', handleResize);
+  // 🌟 3. ฟังก์ชันดึงข้อมูล API 
+  const fetchWeatherByCoords = async (lat, lon) => {
+    try {
+      setLoadingWeather(true);
+      const wUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,rain,weather_code,surface_pressure,wind_speed_10m,visibility&hourly=temperature_2m,precipitation_probability,pm2_5&daily=weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,sunrise,sunset,uv_index_max,precipitation_probability_max&timezone=Asia%2FBangkok`;
+      const aUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=pm2_5&hourly=pm2_5&timezone=Asia%2FBangkok`;
 
-    if (!weatherData && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition((pos) => {
-        fetchWeatherByCoords(pos.coords.latitude, pos.coords.longitude);
-        fetchLocationName(pos.coords.latitude, pos.coords.longitude);
-      }, () => {
-        if (!weatherData) fetchWeatherByCoords(13.75, 100.5); 
-        setLocationName('กรุงเทพมหานคร');
-      }, { timeout: 5000 });
+      const [wRes, aRes] = await Promise.all([fetch(wUrl), fetch(aUrl)]);
+      const wData = await wRes.json();
+      const aData = await aRes.json();
+
+      if (wRes.ok && aRes.ok) {
+        setWeatherData({
+          current: {
+            temp: wData.current.temperature_2m,
+            feelsLike: wData.current.apparent_temperature,
+            humidity: wData.current.relative_humidity_2m,
+            windSpeed: wData.current.wind_speed_10m,
+            pressure: wData.current.surface_pressure,
+            visibility: wData.current.visibility,
+            uv: wData.daily.uv_index_max[0],
+            pm25: aData.current.pm2_5,
+            sunrise: wData.daily.sunrise[0],
+            sunset: wData.daily.sunset[0],
+            rainProb: wData.hourly.precipitation_probability[new Date().getHours()],
+          },
+          hourly: {
+            time: wData.hourly.time,
+            temperature_2m: wData.hourly.temperature_2m,
+            precipitation_probability: wData.hourly.precipitation_probability,
+            pm25: aData.hourly.pm2_5
+          },
+          daily: {
+            time: wData.daily.time,
+            weathercode: wData.daily.weather_code,
+            temperature_2m_max: wData.daily.temperature_2m_max,
+            temperature_2m_min: wData.daily.temperature_2m_min,
+            apparent_temperature_max: wData.daily.apparent_temperature_max,
+            pm25_max: new Array(7).fill(aData.current.pm2_5),
+            precipitation_probability_max: wData.daily.precipitation_probability_max
+          },
+          coords: { lat, lon }
+        });
+      }
+    } catch (err) {
+      console.error("Fetch local weather failed", err);
+    } finally {
+      setLoadingWeather(false);
     }
-    return () => window.removeEventListener('resize', handleResize);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  };
 
   const fetchLocationName = async (lat, lon) => {
     try {
@@ -35,7 +73,28 @@ export default function AIPage() {
     } catch (e) { setLocationName('ตำแหน่งปัจจุบัน'); }
   };
 
-  // 🧠 AI Engine: ประมวลผลข้อมูลและสร้างคำแนะนำแบบ Professional Tone
+  // 🌟 4. Effects ตอนเปิดหน้า
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 1024);
+    window.addEventListener('resize', handleResize);
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition((pos) => {
+        fetchWeatherByCoords(pos.coords.latitude, pos.coords.longitude);
+        fetchLocationName(pos.coords.latitude, pos.coords.longitude);
+      }, () => {
+        fetchWeatherByCoords(13.75, 100.5); 
+        setLocationName('กรุงเทพมหานคร');
+      }, { timeout: 5000 });
+    } else {
+        fetchWeatherByCoords(13.75, 100.5); 
+        setLocationName('กรุงเทพมหานคร');
+    }
+    return () => window.removeEventListener('resize', handleResize);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 🧠 5. AI Engine: ดึงข้อมูลและคำนวณ
   const aiReport = useMemo(() => {
     if (!weatherData || !weatherData.daily) return null;
 
@@ -45,44 +104,44 @@ export default function AIPage() {
     const rain = d.precipitation_probability_max?.[targetDateIdx] ?? 0;
     const pm25 = d.pm25_max?.[targetDateIdx] !== undefined ? Math.round(d.pm25_max[targetDateIdx]) : Math.round(weatherData.current?.pm25 ?? 0);
 
-    // 💡 1. สรุปด่วน (TL;DR) - ปรับโทนเป็นทางการ
+    // 💡 สรุปด่วน (TL;DR)
     const getQuickAnswers = () => {
       let rainAns = { icon: '☀️', title: 'ฝนตกไหม?', text: 'ปลอดฝน ท้องฟ้าโปร่ง', color: '#22c55e' };
-      if (rain > 60) rainAns = { icon: '☔', title: 'ฝนตกไหม?', text: `มีความเสี่ยงสูง โอกาส ${rain}%`, color: '#ef4444' };
-      else if (rain > 20) rainAns = { icon: '⛅', title: 'ฝนตกไหม?', text: `อาจมีฝนประปราย ${rain}%`, color: '#f97316' };
+      if (rain > 60) rainAns = { icon: '☔', title: 'ฝนตกไหม?', text: `เสี่ยงสูง โอกาส ${rain}%`, color: '#ef4444' };
+      else if (rain > 20) rainAns = { icon: '⛅', title: 'ฝนตกไหม?', text: `อาจมีประปราย ${rain}%`, color: '#f97316' };
 
       let heatAns = { icon: '😊', title: 'ร้อนไหม?', text: `เกณฑ์ปกติ ${tMax}°C`, color: '#22c55e' };
       if (tMax >= 39) heatAns = { icon: '🥵', title: 'ร้อนไหม?', text: `อุณหภูมิวิกฤต ${tMax}°C`, color: '#ef4444' };
-      else if (tMax >= 35) heatAns = { icon: '🔥', title: 'ร้อนไหม?', text: `สภาพอากาศร้อนจัด ${tMax}°C`, color: '#f97316' };
+      else if (tMax >= 35) heatAns = { icon: '🔥', title: 'ร้อนไหม?', text: `ร้อนจัด ${tMax}°C`, color: '#f97316' };
 
       let dustAns = { icon: '🍃', title: 'ฝุ่นเยอะไหม?', text: `คุณภาพอากาศดี ${pm25} µg`, color: '#22c55e' };
-      if (pm25 > 50) dustAns = { icon: '😷', title: 'ฝุ่นเยอะไหม?', text: `มลพิษระดับอันตราย ${pm25} µg`, color: '#ef4444' };
-      else if (pm25 > 25) dustAns = { icon: '🤧', title: 'ฝุ่นเยอะไหม?', text: `คุณภาพอากาศปานกลาง ${pm25} µg`, color: '#f97316' };
+      if (pm25 > 50) dustAns = { icon: '😷', title: 'ฝุ่นเยอะไหม?', text: `ระดับอันตราย ${pm25} µg`, color: '#ef4444' };
+      else if (pm25 > 25) dustAns = { icon: '🤧', title: 'ฝุ่นเยอะไหม?', text: `เริ่มมีมลพิษ ${pm25} µg`, color: '#f97316' };
 
       return [rainAns, heatAns, dustAns];
     };
 
-    // 💡 2. คำนวณคะแนนตามบริบท (Contextual Score)
+    // 💡 คำนวณคะแนนตามบริบท
     const calculateScore = () => {
       let baseScore = 10;
       switch (activeTab) {
-        case 'home': // ซักผ้า เกลียดฝน
+        case 'home': 
           if (rain > 40) baseScore -= 5;
           if (tMax > 33) baseScore += 1;
           break;
-        case 'travel': // เที่ยว เกลียดฝนและร้อน
+        case 'travel': 
           if (rain > 30) baseScore -= 3;
           if (tMax > 36) baseScore -= 3;
           if (pm25 > 37.5) baseScore -= 2;
           break;
-        case 'health': // สุขภาพ เกลียดฝุ่นและร้อนจัด
+        case 'health': 
           if (pm25 > 37.5) baseScore -= 4;
           if (tMax > 38) baseScore -= 3;
           break;
-        case 'driving': // ขับรถ เกลียดฝนหนัก
+        case 'driving': 
           if (rain > 60) baseScore -= 4;
           break;
-        default: // ภาพรวม
+        default: 
           if (rain > 50) baseScore -= 2;
           if (tMax > 37) baseScore -= 2;
           if (pm25 > 50) baseScore -= 2;
@@ -91,7 +150,7 @@ export default function AIPage() {
     };
     const finalScore = calculateScore();
 
-    // 💡 3. ข้อความแนะนำหลัก (Main Advice) - ปรับโทนวิชาการ
+    // 💡 ข้อความแนะนำหลัก (วิชาการ)
     const getMainAdvice = () => {
       if (activeTab === 'home' && rain > 40) return `คำแนะนำจากข้อมูล: สภาพอากาศมีความเสี่ยงฝนตก ${rain}% ควรหลีกเลี่ยงการซักผ้าหรือตากสิ่งของภายนอกอาคาร แนะนำให้ใช้วิธีการอบแห้งหรือตากในที่ร่มเพื่อป้องกันความชื้นสะสม`;
       if (activeTab === 'health' && pm25 > 37.5) return `คำแนะนำด้านสุขภาพ: คุณภาพอากาศอยู่ในเกณฑ์ที่มีผลกระทบต่อสุขภาพ (PM2.5: ${pm25} µg/m³) ควรงดการออกกำลังกายกลางแจ้ง และพิจารณาทำกิจกรรมในร่มที่มีระบบฟอกอากาศ`;
@@ -100,7 +159,7 @@ export default function AIPage() {
       return `สรุปการประเมิน: สภาพอากาศอยู่ในเกณฑ์ปานกลาง มีความผันผวนของปัจจัยสภาพแวดล้อมบางประการ ควรเตรียมความพร้อมและแผนสำรองสำหรับการเปลี่ยนแปลงระหว่างวัน`;
     };
 
-    // 💡 4. Timeline เช้า บ่าย ค่ำ แยกตามหมวดหมู่ - โทนวิชาการ ไม่ลงท้ายด้วยค่ะ/ครับ
+    // 💡 Timeline แนะนำแบบวิชาการ
     const getTimeline = () => {
       const isRainy = rain > 40;
       const isHot = tMax > 35;
@@ -133,7 +192,6 @@ export default function AIPage() {
         ]
       };
       
-      // ถ้าเลือกแท็บที่ไม่ได้เขียนไว้ (เผื่ออนาคต) ให้ใช้ summary เป็น default
       return lines[activeTab] || lines.summary; 
     };
 
@@ -164,7 +222,7 @@ export default function AIPage() {
     <div className="loading-container" style={{ background: appBg, color: textColor }}>
         <div className="loading-spinner" style={{ borderTopColor: '#8b5cf6', borderColor: 'rgba(139, 92, 246, 0.15)' }}></div>
         <div style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>ระบบกำลังวิเคราะห์ข้อมูล...</div>
-        <div style={{ fontSize: '0.85rem', color: subTextColor, marginTop: '5px' }}>ผสานพารามิเตอร์ทางอุตุนิยมวิทยา</div>
+        <div style={{ fontSize: '0.85rem', color: subTextColor, marginTop: '5px' }}>ประมวลผลพารามิเตอร์ทางอุตุนิยมวิทยา</div>
     </div>
   );
   
@@ -212,7 +270,6 @@ export default function AIPage() {
                 </div>
             </div>
 
-            {/* แถบเลือกวันที่ */}
             <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', marginTop: '20px', paddingBottom: '5px' }} className="hide-scrollbar">
                 {[0,1,2,3,4,5,6].map(idx => {
                     const date = new Date(weatherData?.daily?.time?.[idx] || Date.now());
@@ -232,7 +289,7 @@ export default function AIPage() {
             </div>
         </div>
 
-        {/* ⚡ TL;DR Quick Summary Cards (3 คำถามยอดฮิต) */}
+        {/* ⚡ TL;DR Quick Summary Cards */}
         {aiReport && (
             <div className="fade-in" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '10px' }}>
                 {aiReport.quickAnswers.map((item, idx) => (
