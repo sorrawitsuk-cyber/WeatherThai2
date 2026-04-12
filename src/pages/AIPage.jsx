@@ -1,4 +1,4 @@
-import React, { useContext, useState, useEffect, useMemo, useRef } from 'react';
+import React, { useContext, useState, useEffect, useMemo } from 'react';
 import { WeatherContext } from '../context/WeatherContext';
 
 export default function AIPage() {
@@ -12,15 +12,6 @@ export default function AIPage() {
   
   const [weatherData, setWeatherData] = useState(null);
   const [loadingWeather, setLoadingWeather] = useState(true);
-
-  const dateScrollRef = useRef(null);
-  const tabScrollRef = useRef(null);
-
-  const handleScroll = (ref, direction) => {
-      if (ref.current) {
-          ref.current.scrollBy({ left: direction * 200, behavior: 'smooth' });
-      }
-  };
 
   const fetchWeatherByCoords = async (lat, lon) => {
     try {
@@ -60,7 +51,19 @@ export default function AIPage() {
             temperature_2m_max: wData.daily.temperature_2m_max,
             temperature_2m_min: wData.daily.temperature_2m_min,
             apparent_temperature_max: wData.daily.apparent_temperature_max,
-            pm25_max: new Array(7).fill(aData.current.pm2_5), // API ฟรีอาจไม่มีรายวัน ให้ใช้ค่าปัจจุบันแทน
+            pm25_max: wData.daily.time.map(dateStr => {
+              let maxPm = null;
+              if (aData.hourly && aData.hourly.time) {
+                aData.hourly.time.forEach((t, i) => {
+                  if (t.startsWith(dateStr) && aData.hourly.pm2_5[i] != null) {
+                    if (maxPm === null || aData.hourly.pm2_5[i] > maxPm) {
+                      maxPm = aData.hourly.pm2_5[i];
+                    }
+                  }
+                });
+              }
+              return maxPm !== null ? Math.round(maxPm) : Math.round(aData.current?.pm2_5 || 0);
+            }), // แก้ไขให้ดึงข้อมูลจริงจากรายชั่วโมงแล้ว
             precipitation_probability_max: wData.daily.precipitation_probability_max,
             uv_index_max: wData.daily.uv_index_max,
             wind_speed_10m_max: wData.daily.wind_speed_10m_max
@@ -80,7 +83,7 @@ export default function AIPage() {
       const res = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=th`);
       const data = await res.json();
       setLocationName(data?.locality || data?.city || 'ตำแหน่งปัจจุบัน');
-    } catch (e) { setLocationName('ตำแหน่งปัจจุบัน'); }
+    } catch { setLocationName('ตำแหน่งปัจจุบัน'); }
   };
 
   useEffect(() => {
@@ -295,6 +298,71 @@ export default function AIPage() {
     { id: 'carwash', icon: '🚗', label: 'ดูแลรถยนต์', color: '#3b82f6' }
   ];
 
+  const downloadFile = (content, filename, mimeType) => {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const exportToCSV = () => {
+    if (!aiReport) return;
+    const tabName = tabConfigs.find(t => t.id === activeTab)?.label || 'Report';
+    const dateStr = new Date(weatherData?.daily?.time?.[targetDateIdx] || Date.now()).toLocaleDateString('th-TH');
+    let csv = `\uFEFFหัวข้อ,รายละเอียด\n`;
+    csv += `รายงานการประเมินสภาพอากาศ,${tabName}\n`;
+    csv += `สถานที่,${locationName}\n`;
+    csv += `วันที่,${dateStr}\n`;
+    csv += `คะแนนความเหมาะสม,${aiReport.score}/10\n\n`;
+    csv += `คำแนะนำหลัก,"${aiReport.advice.replace(/"/g, '""')}"\n\n`;
+    csv += `ช่วงเวลา,รายการ\n`;
+    if (aiReport.timeline) {
+      aiReport.timeline.forEach(t => {
+        csv += `"${t.time}","${t.text.replace(/"/g, '""')}"\n`;
+      });
+    }
+    downloadFile(csv, `weather_report_${tabName}.csv`, 'text/csv;charset=utf-8;');
+  };
+
+  const exportToJSON = () => {
+    if (!aiReport) return;
+    const tabName = tabConfigs.find(t => t.id === activeTab)?.label || 'Report';
+    const data = {
+      location: locationName,
+      date: new Date(weatherData?.daily?.time?.[targetDateIdx] || Date.now()).toLocaleDateString('th-TH'),
+      category: tabName,
+      report: aiReport
+    };
+    downloadFile(JSON.stringify(data, null, 2), `weather_report_${tabName}.json`, 'application/json');
+  };
+
+  const exportToPDF = () => {
+    window.print();
+  };
+
+  const handleShare = async () => {
+    if (!aiReport) return;
+    const text = `สรุปสภาพอากาศที่ ${locationName} (คะแนนความเหมาะสม: ${aiReport.score}/10) - ${aiReport.advice}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'รายงานสภาพอากาศ',
+          text: text,
+        });
+      } catch {
+        // user cancelled or share failed
+      }
+    } else {
+      navigator.clipboard.writeText(text);
+      alert("คัดลอกข้อความแล้ว");
+    }
+  };
+
   const appBg = darkMode ? '#020617' : '#f8fafc'; 
   const cardBg = darkMode ? '#0f172a' : '#ffffff';
   const textColor = darkMode ? '#f8fafc' : '#0f172a'; 
@@ -326,12 +394,16 @@ export default function AIPage() {
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         .fade-in { animation: fadeIn 0.4s ease-in-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @media print {
+          .no-print { display: none !important; }
+          body { background: white !important; color: black !important; }
+        }
       `}} />
 
       <div style={{ width: '100%', maxWidth: '900px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px', padding: isMobile ? '15px' : '30px', paddingBottom: '120px', boxSizing: 'border-box' }}>
 
         {/* 📍 Header & Date Selector */}
-        <div style={{ background: cardBg, borderRadius: '24px', padding: '20px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
+        <div className="no-print" style={{ background: cardBg, borderRadius: '24px', padding: '20px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
                 <div>
                     <h1 style={{ margin: 0, fontSize: '1.4rem', color: textColor, display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -400,12 +472,12 @@ export default function AIPage() {
 
         {/* 📑 หมวดหมู่ไลฟ์สไตล์ */}
         {isMobile ? (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '8px', width: '100%' }}>
+            <div className="no-print" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '8px', width: '100%' }}>
                 {tabConfigs.map(tab => {
                     const isActive = activeTab === tab.id;
                     return (
                         <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
-                            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px', padding: '12px 2px', borderRadius: '16px', border: 'none',
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px', padding: '12px 2px', borderRadius: '16px',
                             background: isActive ? (darkMode ? `${tab.color}30` : `${tab.color}15`) : cardBg,
                             color: isActive ? tab.color : subTextColor,
                             border: `1px solid ${isActive ? tab.color : borderColor}`,
@@ -418,12 +490,12 @@ export default function AIPage() {
                 })}
             </div>
         ) : (
-            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            <div className="no-print" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                 {tabConfigs.map(tab => {
                     const isActive = activeTab === tab.id;
                     return (
                         <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
-                            display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '12px 20px', borderRadius: '50px', border: 'none',
+                            display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '12px 20px', borderRadius: '50px',
                             background: isActive ? (darkMode ? `${tab.color}30` : `${tab.color}15`) : cardBg,
                             color: isActive ? tab.color : subTextColor,
                             border: `1px solid ${isActive ? tab.color : borderColor}`,
@@ -438,39 +510,64 @@ export default function AIPage() {
 
         {/* 🤖 AI Detailed Report */}
         {aiReport && (
-            <div className="fade-in" key={activeTab + targetDateIdx} style={{ background: cardBg, borderRadius: '24px', padding: isMobile ? '20px' : '30px', border: `1px solid ${borderColor}`, boxShadow: '0 10px 30px rgba(0,0,0,0.05)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
-                    <h2 style={{ margin: 0, fontSize: '1.3rem', color: textColor, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        {tabConfigs.find(t=>t.id===activeTab)?.icon} แผนปฏิบัติการ: {tabConfigs.find(t=>t.id===activeTab)?.label}
-                    </h2>
-                    <div style={{ background: darkMode ? '#1e293b' : '#f8fafc', padding: '8px 15px', borderRadius: '15px', border: `1px solid ${borderColor}`, textAlign: 'center' }}>
-                        <div style={{ fontSize: '0.65rem', color: subTextColor, fontWeight: 'bold' }}>ดัชนีความเหมาะสม</div>
-                        <div style={{ fontSize: '1.2rem', fontWeight: '900', color: aiReport.score >= 8 ? '#22c55e' : aiReport.score >= 5 ? '#eab308' : '#ef4444' }}>
-                            {aiReport.score}/10
+            <div className="fade-in" key={activeTab + targetDateIdx} style={{ 
+                background: darkMode ? `linear-gradient(145deg, ${activeColor}10, ${cardBg})` : `linear-gradient(145deg, ${activeColor}08, #ffffff)`, 
+                borderRadius: '24px', padding: isMobile ? '20px' : '30px', 
+                border: `1px solid ${activeColor}30`, 
+                boxShadow: `0 15px 40px ${activeColor}15`, position: 'relative', overflow: 'hidden'
+            }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '25px', flexWrap: 'wrap', gap: '15px' }}>
+                    <div>
+                        <h2 style={{ margin: 0, fontSize: '1.4rem', color: textColor, display: 'flex', alignItems: 'center', gap: '10px', fontWeight: '800' }}>
+                            <span style={{ fontSize: '1.8rem' }}>{tabConfigs.find(t=>t.id===activeTab)?.icon}</span>
+                            บทวิเคราะห์ AI: {tabConfigs.find(t=>t.id===activeTab)?.label}
+                        </h2>
+                        <div style={{ fontSize: '0.85rem', color: subTextColor, marginTop: '4px', marginLeft: '4px' }}>
+                            ประมวลผลสภาพอากาศเพื่อการตัดสินใจ
                         </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '12px', alignItems: 'stretch', flexWrap: 'wrap' }}>
+                        <div className="no-print" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <button onClick={exportToCSV} title="Export to CSV" style={{ background: darkMode ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.5)', color: textColor, border: `1px solid ${borderColor}`, padding: '8px 12px', borderRadius: '12px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold', backdropFilter: 'blur(5px)' }}>CSV</button>
+                            <button onClick={exportToJSON} title="Export to JSON" style={{ background: darkMode ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.5)', color: textColor, border: `1px solid ${borderColor}`, padding: '8px 12px', borderRadius: '12px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold', backdropFilter: 'blur(5px)' }}>JSON</button>
+                            <button onClick={exportToPDF} title="Export to PDF (Print)" style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: '12px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold', boxShadow: '0 4px 10px rgba(239,68,68,0.3)' }}>PDF</button>
+                            <button onClick={handleShare} title="Share" style={{ background: '#10b981', color: '#fff', border: 'none', padding: '8px 15px', borderRadius: '12px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 4px 10px rgba(16,185,129,0.3)' }}><span>📤</span> แชร์</button>
+                        </div>
+                        {(() => {
+                            const sc = aiReport.score >= 8 ? '#10b981' : aiReport.score >= 5 ? '#f59e0b' : '#ef4444';
+                            return (
+                                <div style={{ background: `linear-gradient(135deg, ${sc}15, ${sc}05)`, padding: '10px 20px', borderRadius: '18px', border: `1px solid ${sc}40`, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', boxShadow: `0 4px 15px ${sc}20`, backdropFilter: 'blur(10px)' }}>
+                                    <div style={{ fontSize: '0.65rem', color: sc, fontWeight: '800', letterSpacing: '0.5px' }}>คะแนนความเหมาะสม</div>
+                                    <div style={{ fontSize: '1.6rem', fontWeight: '900', color: sc, lineHeight: 1, marginTop: '2px' }}>
+                                        {aiReport.score}<span style={{fontSize: '1rem', opacity: 0.6}}>/10</span>
+                                    </div>
+                                </div>
+                            );
+                        })()}
                     </div>
                 </div>
 
-                <div style={{ padding: '20px', background: darkMode ? 'rgba(0,0,0,0.2)' : '#f8fafc', borderRadius: '20px', borderLeft: `5px solid ${activeColor}`, marginBottom: '30px' }}>
-                    <p style={{ margin: 0, fontSize: '1rem', color: textColor, lineHeight: 1.6 }}>{aiReport.advice}</p>
+                <div style={{ padding: '24px', background: darkMode ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.7)', borderRadius: '20px', border: `1px solid ${activeColor}20`, borderLeft: `6px solid ${activeColor}`, marginBottom: '35px', backdropFilter: 'blur(10px)', boxShadow: '0 4px 20px rgba(0,0,0,0.02)' }}>
+                    <p style={{ margin: 0, fontSize: '1.05rem', color: textColor, lineHeight: 1.7, fontWeight: '500' }}>{aiReport.advice}</p>
                 </div>
 
-                <h4 style={{ margin: '0 0 15px 0', color: textColor, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span>🕒</span> ไทม์ไลน์คาดการณ์สภาพอากาศ
+                <h4 style={{ margin: '0 0 20px 0', color: textColor, display: 'flex', alignItems: 'center', gap: '12px', fontSize: '1.1rem' }}>
+                    <div style={{background: `linear-gradient(135deg, ${activeColor}, ${activeColor}dd)`, color: '#fff', width: '32px', height: '32px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.1rem', boxShadow: `0 4px 10px ${activeColor}40`}}>🕒</div> 
+                    <span style={{fontWeight: '800'}}>ไทม์ไลน์สภาพอากาศแวดล้อม</span>
                 </h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                     {aiReport.timeline.map((item, i) => (
-                        <div key={i} style={{ display: 'flex', gap: '15px', position: 'relative' }}>
+                        <div key={i} style={{ display: 'flex', gap: '18px', position: 'relative' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                <div style={{ width: '14px', height: '14px', borderRadius: '50%', background: activeColor, zIndex: 1, border: `3px solid ${cardBg}` }}></div>
-                                {i < 2 && <div style={{ width: '2px', flex: 1, background: borderColor, marginTop: '-5px', marginBottom: '-5px' }}></div>}
+                                <div style={{ width: '16px', height: '16px', borderRadius: '50%', background: activeColor, zIndex: 1, border: `4px solid ${darkMode ? '#0f172a' : '#ffffff'}`, boxShadow: `0 0 0 1px ${activeColor}40` }}></div>
+                                {i !== aiReport.timeline.length - 1 && <div style={{ width: '2px', flex: 1, background: `linear-gradient(to bottom, ${activeColor}80, ${activeColor}20)`, marginTop: '-8px', marginBottom: '-8px' }}></div>}
                             </div>
-                            <div style={{ flex: 1, paddingBottom: i < 2 ? '15px' : '0' }}>
-                                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '5px' }}>
-                                    <span style={{ fontSize: '1.2rem' }}>{item.icon}</span>
-                                    <span style={{ fontWeight: 'bold', color: textColor, fontSize: '0.95rem' }}>{item.time}</span>
+                            <div style={{ flex: 1, paddingBottom: i !== aiReport.timeline.length - 1 ? '20px' : '0' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                                    <span style={{ fontSize: '1.3rem', background: darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)', padding: '5px', borderRadius: '10px' }}>{item.icon}</span>
+                                    <span style={{ fontWeight: '800', color: textColor, fontSize: '1rem' }}>{item.time}</span>
                                 </div>
-                                <div style={{ fontSize: '0.9rem', color: subTextColor, lineHeight: 1.5, background: darkMode ? '#1e293b' : '#f1f5f9', padding: '12px 15px', borderRadius: '15px' }}>
+                                <div style={{ fontSize: '0.95rem', color: darkMode ? '#cbd5e1' : '#475569', lineHeight: 1.6, background: darkMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', padding: '15px 18px', borderRadius: '16px', border: `1px solid ${borderColor}` }}>
                                     {item.text}
                                 </div>
                             </div>
@@ -483,4 +580,4 @@ export default function AIPage() {
       </div>
     </div>
   );
-}  //to Antigravity
+}

@@ -62,7 +62,19 @@ export default function Dashboard() {
             temperature_2m_max: wData.daily.temperature_2m_max,
             temperature_2m_min: wData.daily.temperature_2m_min,
             apparent_temperature_max: wData.daily.apparent_temperature_max,
-            pm25_max: new Array(7).fill(aData.current.pm2_5), 
+            pm25_max: wData.daily.time.map(dateStr => {
+              let maxPm = null;
+              if (aData.hourly && aData.hourly.time) {
+                aData.hourly.time.forEach((t, i) => {
+                  if (t.startsWith(dateStr) && aData.hourly.pm2_5[i] != null) {
+                    if (maxPm === null || aData.hourly.pm2_5[i] > maxPm) {
+                      maxPm = aData.hourly.pm2_5[i];
+                    }
+                  }
+                });
+              }
+              return maxPm !== null ? Math.round(maxPm) : Math.round(aData.current?.pm2_5 || 0);
+            }),
             precipitation_probability_max: wData.daily.precipitation_probability_max
           },
           coords: { lat, lon }

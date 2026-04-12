@@ -47,7 +47,7 @@ body.dark-theme {
 }
 
 /* =========================================
-   🌟 CSS สำหรับหน้า Loading หมุนๆ (Global)
+   🌟 CSS สำหรับหน้า Loading หมุนๆ (Global) แบบสวยงามมีมิติ (3D Ring)
    ========================================= */
 .loading-container {
   display: flex;
@@ -56,26 +56,103 @@ body.dark-theme {
   align-items: center;
   height: 100vh;
   width: 100%;
+  animation: containerFadeIn 0.8s ease-out;
 }
 
+/* ซ่อนสไตล์เดิม และเตรียมสร้าง 3D Ring */
 .loading-spinner {
-  width: 50px;
-  height: 50px;
-  border: 4px solid rgba(14, 165, 233, 0.15); /* สีฟ้าจางๆ สำหรับ Light Mode */
-  border-top: 4px solid #0ea5e9; /* สีฟ้าหลัก */
+  position: relative !important;
+  width: 80px !important;
+  height: 80px !important;
+  margin-bottom: 25px !important;
+  border: none !important; /* เอา border ที่ติดมาจาก inline style ออก */
+  background: transparent !important;
+}
+
+/* วงแหวนนอก (สีม่วง-ชมพู) หมุนตามเข็มนาฬิกา */
+.loading-spinner::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
   border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 15px;
+  border: 4px solid transparent;
+  border-top-color: #a855f7;
+  border-bottom-color: #ec4899;
+  animation: spinOuter 1.5s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
+  box-shadow: 0 0 15px rgba(168, 85, 247, 0.4), inset 0 0 15px rgba(236, 72, 153, 0.4);
 }
 
-/* ปรับสีขอบ Spinner ให้เข้ากับ Dark Mode */
-.dark-theme .loading-spinner {
-  border: 4px solid rgba(255, 255, 255, 0.05);
-  border-top: 4px solid #38bdf8;
+/* วงแหวนใน (สีฟ้า-เขียว) หมุนทวนเข็มนาฬิกา */
+.loading-spinner::after {
+  content: "";
+  position: absolute;
+  top: 12px; left: 12px; right: 12px; bottom: 12px;
+  border-radius: 50%;
+  border: 4px solid transparent;
+  border-left-color: #0ea5e9;
+  border-right-color: #10b981;
+  animation: spinInner 2s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
+  box-shadow: 0 0 10px rgba(14, 165, 233, 0.4), inset 0 0 10px rgba(16, 185, 129, 0.4);
 }
 
-/* อนิเมชันหมุน 360 องศา */
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+/* Dark mode enhancements */
+.dark-theme .loading-spinner::before {
+  border-top-color: #c084fc;
+  border-bottom-color: #f472b6;
+  box-shadow: 0 0 25px rgba(192, 132, 252, 0.6), inset 0 0 25px rgba(244, 114, 182, 0.6);
+}
+
+.dark-theme .loading-spinner::after {
+  border-left-color: #38bdf8;
+  border-right-color: #34d399;
+  box-shadow: 0 0 20px rgba(56, 189, 248, 0.6), inset 0 0 20px rgba(52, 211, 153, 0.6);
+}
+
+/* เอฟเฟกต์สำหรับ Text ที่เป็นลูกของ container */
+.loading-container > div:nth-child(2) {
+  margin-top: 15px !important;
+  font-size: 1.3rem !important;
+  font-weight: 800 !important;
+  background: linear-gradient(to right, #0ea5e9, #8b5cf6, #ec4899);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: gradientText 3s linear infinite;
+  letter-spacing: 0.5px;
+}
+
+.loading-container > div:nth-child(3) {
+  font-size: 0.95rem !important;
+  opacity: 0.6 !important;
+  margin-top: 8px !important;
+  letter-spacing: 0.5px;
+  animation: floatUp 1.2s ease-out;
+}
+
+/* --- Animations --- */
+@keyframes spinOuter {
+  0% { transform: rotate(0deg) scale(1); }
+  50% { transform: rotate(180deg) scale(1.05); }
+  100% { transform: rotate(360deg) scale(1); }
+}
+
+@keyframes spinInner {
+  0% { transform: rotate(360deg) scale(1); }
+  50% { transform: rotate(180deg) scale(0.95); }
+  100% { transform: rotate(0deg) scale(1); }
+}
+
+@keyframes gradientText {
+  0% { background-position: 0% center; }
+  100% { background-position: 200% center; }
+}
+
+@keyframes containerFadeIn {
+  from { opacity: 0; transform: scale(0.96); filter: blur(5px); }
+  to { opacity: 1; transform: scale(1); filter: blur(0); }
+}
+
+@keyframes floatUp {
+  from { opacity: 0; transform: translateY(15px); }
+  to { opacity: 0.6; transform: translateY(0); }
 }
