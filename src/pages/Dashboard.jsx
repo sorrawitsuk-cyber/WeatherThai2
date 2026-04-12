@@ -172,16 +172,25 @@ export default function Dashboard() {
   }, [stations, stationTemps]);
 
   useEffect(() => {
+    const useDefaultLocation = () => {
+      fetchWeatherByCoords(13.75, 100.5); 
+      setLocationName('กรุงเทพมหานคร');
+    };
+
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           fetchWeatherByCoords(pos.coords.latitude, pos.coords.longitude);
           fetchLocationName(pos.coords.latitude, pos.coords.longitude);
         }, 
-        () => { fetchWeatherByCoords(13.75, 100.5); setLocationName('กรุงเทพมหานคร'); }
+        (err) => { 
+          console.warn("Geolocation error/timeout:", err.message);
+          useDefaultLocation(); 
+        },
+        { enableHighAccuracy: false, timeout: 5000, maximumAge: 300000 } // เพิ่ม timeout 5 วิ ป้องกันแอปค้าง
       );
     } else {
-      fetchWeatherByCoords(13.75, 100.5); setLocationName('กรุงเทพมหานคร');
+      useDefaultLocation();
     }
   }, []);
 
