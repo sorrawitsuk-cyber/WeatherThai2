@@ -10,16 +10,45 @@
   font-family: 'Sarabun', sans-serif !important;
 }
 
+/* ตั้งค่า CSS Variables (Custom Properties) สำหรับการจัดการ Theme อย่างสะอาด */
+:root {
+  --bg-app: #f8fafc;
+  --bg-card: #ffffff;
+  --text-main: #0f172a;
+  --text-sub: #64748b;
+  --border-color: #e2e8f0;
+  --bg-secondary: #f1f5f9;
+  --bg-tertiary: #f8fafc;
+  --bg-overlay: #f1f5f9;
+  --bg-overlay-heavy: rgba(255, 255, 255, 0.7);
+  --bg-success: #dcfce7;
+  --bg-danger: #fee2e2;
+  --bg-warning: #ffedd5;
+  --bg-nav-blur: rgba(255, 255, 255, 0.95);
+}
+
+body.dark-theme {
+  --bg-app: #020617;
+  --bg-card: #0f172a;
+  --text-main: #f8fafc;
+  --text-sub: #94a3b8;
+  --border-color: #1e293b;
+  --bg-secondary: #1e293b;
+  --bg-tertiary: #1e293b;
+  --bg-overlay: rgba(0, 0, 0, 0.2);
+  --bg-overlay-heavy: rgba(0, 0, 0, 0.3);
+  --bg-success: #052e16;
+  --bg-danger: #450a0a;
+  --bg-warning: #431407;
+  --bg-nav-blur: rgba(15, 23, 42, 0.9);
+}
+
 body {
   margin: 0;
   overflow-x: hidden;
   transition: background-color 0.3s ease, color 0.3s ease;
-}
-
-/* ตั้งค่าโหมดมืด (Dark Theme) แบบ Global */
-body.dark-theme {
-  background-color: #0f172a;
-  color: #f8fafc;
+  background-color: var(--bg-app);
+  color: var(--text-main);
 }
 
 /* คลาสซ่อน Scrollbar */

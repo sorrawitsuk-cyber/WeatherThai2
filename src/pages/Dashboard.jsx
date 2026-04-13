@@ -229,11 +229,11 @@ export default function Dashboard() {
   };
 
   // --- 🎨 UI Theme ---
-  const appBg = darkMode ? '#020617' : '#f8fafc'; 
-  const cardBg = darkMode ? '#0f172a' : '#ffffff';
-  const textColor = darkMode ? '#f8fafc' : '#0f172a'; 
-  const borderColor = darkMode ? '#1e293b' : '#e2e8f0';
-  const subTextColor = darkMode ? '#94a3b8' : '#64748b'; 
+  const appBg = 'var(--bg-app)'; 
+  const cardBg = 'var(--bg-card)';
+  const textColor = 'var(--text-main)'; 
+  const borderColor = 'var(--border-color)';
+  const subTextColor = 'var(--text-sub)'; 
 
   const lastUpdateText = lastUpdated ? new Date(lastUpdated).toLocaleString('th-TH') : '-';
 
@@ -360,11 +360,11 @@ export default function Dashboard() {
 
         {showFilter && (
             <div className="fade-in" style={{ display: 'flex', alignItems: 'center', gap: '10px', background: cardBg, padding: '10px', borderRadius: '16px', border: `1px solid ${borderColor}`, flexWrap: 'wrap', flexShrink: 0 }}>
-              <select value={selectedProv} onChange={handleProvChange} style={{ flex: 1, minWidth: '130px', background: darkMode?'#1e293b':'#f1f5f9', color: '#0ea5e9', border: 'none', fontWeight: 'bold', fontSize: '0.95rem', padding: '10px', borderRadius: '12px', outline: 'none', cursor: 'pointer' }}>
+              <select value={selectedProv} onChange={handleProvChange} style={{ flex: 1, minWidth: '130px', background: 'var(--bg-secondary)', color: '#0ea5e9', border: 'none', fontWeight: 'bold', fontSize: '0.95rem', padding: '10px', borderRadius: '12px', outline: 'none', cursor: 'pointer' }}>
                 <option value="">-- เลือกจังหวัด --</option>
                 {sortedStations.map(p => <option key={p.stationID} value={p.areaTH}>{p.areaTH}</option>)}
               </select>
-              <select value={selectedDist} onChange={handleDistChange} disabled={!selectedProv || geoData.length === 0 || currentAmphoes.length === 0} style={{ flex: 1, minWidth: '130px', background: darkMode?'#1e293b':'#f1f5f9', color: textColor, border: 'none', fontWeight: 'bold', fontSize: '0.95rem', padding: '10px', borderRadius: '12px', outline: 'none', cursor: 'pointer', opacity: (!selectedProv || currentAmphoes.length === 0) ? 0.5 : 1 }}>
+              <select value={selectedDist} onChange={handleDistChange} disabled={!selectedProv || geoData.length === 0 || currentAmphoes.length === 0} style={{ flex: 1, minWidth: '130px', background: 'var(--bg-secondary)', color: textColor, border: 'none', fontWeight: 'bold', fontSize: '0.95rem', padding: '10px', borderRadius: '12px', outline: 'none', cursor: 'pointer', opacity: (!selectedProv || currentAmphoes.length === 0) ? 0.5 : 1 }}>
                 <option value="">
                   {geoError ? '⚠️ โหลดไฟล์ล้มเหลว' : geoData.length === 0 ? 'กำลังดึงข้อมูล...' : (!selectedProv ? '-- เลือกอำเภอ --' : (currentAmphoes.length === 0 ? '⚠️ ไม่พบข้อมูล' : '-- เลือกอำเภอ --'))}
                 </option>
@@ -475,14 +475,14 @@ export default function Dashboard() {
                             <div style={{ fontSize: isMobile ? '1.2rem' : '1.4rem', textAlign: 'center', width: isMobile ? 'auto' : '30px' }}>{daily.weathercode[idx] > 50 ? '🌧️' : '🌤️'}</div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
                                <span style={{ fontSize: '0.85rem', color: subTextColor, fontWeight: 'bold', width: '25px', textAlign: 'right' }}>{Math.round(daily?.temperature_2m_min?.[idx] || 0)}°</span>
-                               <div style={{ flex: 1, height: '4px', background: darkMode ? '#1e293b' : '#e2e8f0', borderRadius: '10px', overflow: 'hidden', position: 'relative' }}>
+                               <div style={{ flex: 1, height: '4px', background: 'var(--border-color)', borderRadius: '10px', overflow: 'hidden', position: 'relative' }}>
                                   <div style={{ position: 'absolute', left: '20%', right: '20%', top: 0, bottom: 0, background: 'linear-gradient(to right, #3b82f6, #f97316)' }}></div>
                                </div>
                                <span style={{ fontSize: '0.85rem', color: textColor, fontWeight: '900', width: '25px' }}>{Math.round(daily?.temperature_2m_max?.[idx] || 0)}°</span>
                             </div>
                         </div>
 
-                        <div style={{ marginLeft: isMobile ? '0' : '55px', display: 'flex', justifyContent: 'space-between', marginTop: '8px', background: darkMode ? 'rgba(0,0,0,0.2)' : '#f1f5f9', padding: '6px 10px', borderRadius: '10px', fontSize: '0.75rem', color: subTextColor, fontWeight: 'bold' }}>
+                        <div style={{ marginLeft: isMobile ? '0' : '55px', display: 'flex', justifyContent: 'space-between', marginTop: '8px', background: 'var(--bg-overlay)', padding: '6px 10px', borderRadius: '10px', fontSize: '0.75rem', color: subTextColor, fontWeight: 'bold' }}>
                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                              <span style={{fontSize:'0.9rem'}}>☔</span> 
                              {daily?.precipitation_probability_max?.[idx] || 0}% 

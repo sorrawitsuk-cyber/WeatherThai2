@@ -184,11 +184,11 @@ export default function ClimatePage() {
     return { liveData: lData, yesterdayData: yData, riskyCounts: counts };
   }, [stations, stationTemps, stationYesterday, stationMaxYesterday, getSafePrev, isRisky]);
 
-  const appBg = darkMode ? '#020617' : '#f8fafc'; 
-  const cardBg = darkMode ? '#0f172a' : '#ffffff';
-  const textColor = darkMode ? '#f8fafc' : '#0f172a'; 
-  const borderColor = darkMode ? '#1e293b' : '#e2e8f0';
-  const subTextColor = darkMode ? '#94a3b8' : '#64748b'; 
+  const appBg = 'var(--bg-app)'; 
+  const cardBg = 'var(--bg-card)';
+  const textColor = 'var(--text-main)'; 
+  const borderColor = 'var(--border-color)';
+  const subTextColor = 'var(--text-sub)'; 
 
   const modeBriefings = {
       heat: { level: '🔴 เฝ้าระวังฮีทสโตรก', desc: 'อุณหภูมิทะลุเกณฑ์อันตรายในหลายพื้นที่ ควรงดกิจกรรมกลางแจ้ง และดื่มน้ำให้เพียงพอ', bg: '#fef2f2', border: '#fecaca', color: '#ef4444' },
@@ -247,7 +247,7 @@ export default function ClimatePage() {
       trendSummaryText = `สถานการณ์ดีขึ้น ▼: พื้นที่เสี่ยงลดลง ${Math.abs(riskyDiff)} จังหวัด (วันนี้ ${riskyCounts[activeTab].live} จ. / เมื่อวาน ${riskyCounts[activeTab].yest} จ.)`;
   }
 
-  let locSummary = { text: 'สถานการณ์ปกติ', color: '#22c55e', bg: darkMode ? '#052e16' : '#dcfce7', icon: '✅', desc: 'ไม่มีการแจ้งเตือนสภาพอากาศรุนแรงในพื้นที่ของคุณ' };
+  let locSummary = { text: 'สถานการณ์ปกติ', color: '#22c55e', bg: 'var(--bg-success)', icon: '✅', desc: 'ไม่มีการแจ้งเตือนสภาพอากาศรุนแรงในพื้นที่ของคุณ' };
   if (userData && userData.temp !== '-') {
       let criticalThreats = []; let warningThreats = [];
       if (userData.temp >= 40) criticalThreats.push(`ร้อนจัด`);
@@ -256,8 +256,8 @@ export default function ClimatePage() {
       if (userData.temp >= 36 && userData.temp < 40) warningThreats.push(`อากาศร้อน`);
       if (userData.pm25 >= 37.5 && userData.pm25 < 75) warningThreats.push(`ฝุ่นเริ่มหนา`);
       
-      if (criticalThreats.length > 0) locSummary = { text: 'อันตรายระดับวิกฤต', color: '#ef4444', bg: darkMode ? '#450a0a' : '#fee2e2', icon: '🚨', desc: `เฝ้าระวัง: ${criticalThreats.join(', ')}` };
-      else if (warningThreats.length > 0) locSummary = { text: 'พื้นที่เฝ้าระวังพิเศษ', color: '#f97316', bg: darkMode ? '#431407' : '#ffedd5', icon: '⚠️', desc: `เฝ้าระวัง: ${warningThreats.join(', ')}` };
+      if (criticalThreats.length > 0) locSummary = { text: 'อันตรายระดับวิกฤต', color: '#ef4444', bg: 'var(--bg-danger)', icon: '🚨', desc: `เฝ้าระวัง: ${criticalThreats.join(', ')}` };
+      else if (warningThreats.length > 0) locSummary = { text: 'พื้นที่เฝ้าระวังพิเศษ', color: '#f97316', bg: 'var(--bg-warning)', icon: '⚠️', desc: `เฝ้าระวัง: ${warningThreats.join(', ')}` };
   }
 
   // 🌟 ใช้ Loading Spinner แบบใหม่ (หมุนๆ)
@@ -291,7 +291,7 @@ export default function ClimatePage() {
                 <p style={{ margin: '5px 0 0 0', color: subTextColor, fontSize: '0.9rem' }}>ระบบติดตามและวิเคราะห์ความเสี่ยงสภาพอากาศ</p>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '5px' }}>
-                <div style={{ background: darkMode ? '#1e293b' : '#f1f5f9', padding: '8px 16px', borderRadius: '50px', border: `1px solid ${borderColor}`, fontSize: '0.9rem', color: textColor, display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>
+                <div style={{ background: 'var(--bg-secondary)', padding: '8px 16px', borderRadius: '50px', border: `1px solid ${borderColor}`, fontSize: '0.9rem', color: textColor, display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>
                     <span style={{ display: 'inline-block', width: '10px', height: '10px', background: timeMode === 'live' ? '#22c55e' : '#8b5cf6', borderRadius: '50%', boxShadow: timeMode === 'live' ? '0 0 8px #22c55e' : '0 0 8px #8b5cf6', animation: timeMode === 'live' ? 'pulse 1.5s infinite' : 'none' }}></span>
                     {timeMode === 'live' ? `LIVE: ${currentTime.toLocaleTimeString('th-TH')}` : `DATA: ${yesterdayDateText}`}
                 </div>
@@ -351,11 +351,11 @@ export default function ClimatePage() {
                         <div style={{ fontSize: '1.3rem', fontWeight: '900', color: locSummary.color, textAlign: 'center', lineHeight: '1.2' }}>{locSummary.text}</div>
                         <div style={{ fontSize: '0.85rem', color: textColor, textAlign: 'center', opacity: 0.8, padding: '0 10px', marginBottom: '10px' }}>{locSummary.desc}</div>
                         <div style={{ display: 'flex', gap: '8px', width: '100%', flexWrap: 'wrap', justifyContent: 'center' }}>
-                            <div style={{ background: darkMode ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.7)', border: `1px solid ${borderColor}`, padding: '8px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 'bold', color: textColor, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <div style={{ background: 'var(--bg-overlay-heavy)', border: `1px solid ${borderColor}`, padding: '8px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 'bold', color: textColor, display: 'flex', alignItems: 'center', gap: '4px' }}>
                                 🌡️ <span style={{color: userData.temp >= 38 ? '#ef4444' : textColor}}>{userData.temp}°C</span>
                                 {timeMode === 'live' && <TrendIndicator current={userData.temp} prev={userData.prevTemp} />}
                             </div>
-                            <div style={{ background: darkMode ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.7)', border: `1px solid ${borderColor}`, padding: '8px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 'bold', color: textColor, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <div style={{ background: 'var(--bg-overlay-heavy)', border: `1px solid ${borderColor}`, padding: '8px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 'bold', color: textColor, display: 'flex', alignItems: 'center', gap: '4px' }}>
                                 😷 <span style={{color: userData.pm25 >= 37.5 ? '#f97316' : textColor}}>{userData.pm25} µg</span>
                                 {timeMode === 'live' && <TrendIndicator current={userData.pm25} prev={userData.prevPm25} />}
                             </div>
@@ -413,7 +413,7 @@ export default function ClimatePage() {
                     </div>
 
                     <div style={{ background: cardBg, borderRadius: '24px', border: `1px solid ${borderColor}`, flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                        <div style={{ padding: '15px 20px', borderBottom: `1px solid ${borderColor}`, background: darkMode ? '#1e293b' : '#f8fafc' }}>
+                        <div style={{ padding: '15px 20px', borderBottom: `1px solid ${borderColor}`, background: 'var(--bg-tertiary)' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                                 <h3 style={{ margin: 0, color: textColor, fontSize: '1rem' }}>📋 แจ้งเตือนพื้นที่เสี่ยง</h3>
                                 <span style={{ fontSize: '0.75rem', background: `${activeTabData.color}20`, color: activeTabData.color, padding: '4px 10px', borderRadius: '12px', fontWeight: 'bold' }}>พบ {activeTabData.data.length} จังหวัด</span>
@@ -455,20 +455,20 @@ export default function ClimatePage() {
                                 <CartesianGrid strokeDasharray="3 3" stroke={borderColor} vertical={false} />
                                 <XAxis dataKey="name" stroke={subTextColor} tick={{fontSize: 10, fill: subTextColor, fontFamily: 'Kanit'}} axisLine={false} tickLine={false} interval={0} />
                                 <YAxis stroke={subTextColor} tick={{fontSize: 10, fill: subTextColor}} axisLine={false} tickLine={false} />
-                                <Tooltip cursor={{fill: darkMode ? '#1e293b' : '#f1f5f9'}} contentStyle={{background: cardBg, borderRadius: '12px', border: `1px solid ${borderColor}`, color: textColor, fontFamily: 'Kanit'}} />
+                                <Tooltip cursor={{fill: 'var(--bg-secondary)'}} contentStyle={{background: cardBg, borderRadius: '12px', border: `1px solid ${borderColor}`, color: textColor, fontFamily: 'Kanit'}} />
                                 <Legend wrapperStyle={{fontFamily: 'Kanit', fontSize: '0.85rem'}} />
                                 <Bar dataKey="เมื่อวาน" fill="#8b5cf6" radius={[4, 4, 0, 0]} maxBarSize={30} />
                                 <Bar dataKey="วันนี้" fill={activeTabData.color} radius={[4, 4, 0, 0]} maxBarSize={30} />
                             </BarChart>
                         </ResponsiveContainer>
                     </div>
-                    <div style={{ marginTop: '15px', padding: '12px', background: darkMode ? '#1e293b' : '#f1f5f9', borderRadius: '12px', textAlign: 'center', border: `1px dashed ${trendSummaryColor}50` }}>
+                    <div style={{ marginTop: '15px', padding: '12px', background: 'var(--bg-secondary)', borderRadius: '12px', textAlign: 'center', border: `1px dashed ${trendSummaryColor}50` }}>
                         <span style={{ fontSize: '0.9rem', fontWeight: 'bold', color: trendSummaryColor }}>{trendSummaryText}</span>
                     </div>
                 </div>
 
                 <div style={{ background: cardBg, borderRadius: '24px', border: `1px solid ${borderColor}`, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                    <div style={{ padding: '20px 25px', borderBottom: `1px solid ${borderColor}`, background: darkMode ? '#1e293b' : '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                    <div style={{ padding: '20px 25px', borderBottom: `1px solid ${borderColor}`, background: 'var(--bg-tertiary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
                         <div>
                             <h3 style={{ margin: '0 0 5px 0', color: textColor, fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 📋 สรุปสถิติสูงสุด 77 จังหวัด

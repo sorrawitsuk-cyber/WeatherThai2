@@ -363,11 +363,11 @@ export default function AIPage() {
     }
   };
 
-  const appBg = darkMode ? '#020617' : '#f8fafc'; 
-  const cardBg = darkMode ? '#0f172a' : '#ffffff';
-  const textColor = darkMode ? '#f8fafc' : '#0f172a'; 
-  const borderColor = darkMode ? '#1e293b' : '#e2e8f0';
-  const subTextColor = darkMode ? '#94a3b8' : '#64748b'; 
+  const appBg = 'var(--bg-app)'; 
+  const cardBg = 'var(--bg-card)';
+  const textColor = 'var(--text-main)'; 
+  const borderColor = 'var(--border-color)';
+  const subTextColor = 'var(--text-sub)'; 
   const activeColor = tabConfigs.find(t => t.id === activeTab)?.color || '#8b5cf6';
 
   if (loadingWeather) return (
@@ -414,7 +414,7 @@ export default function AIPage() {
 
                 <div style={{ display: 'flex', gap: '10px', width: isMobile ? '100%' : 'auto' }}>
                     {isMobile && (
-                        <select value={targetDateIdx} onChange={(e) => setTargetDateIdx(parseInt(e.target.value))} style={{ flex: 1, minWidth: 0, padding: '8px 12px', borderRadius: '12px', background: darkMode ? '#1e293b' : '#f1f5f9', color: textColor, border: `1px solid ${borderColor}`, fontFamily: 'Kanit', outline: 'none' }}>
+                        <select value={targetDateIdx} onChange={(e) => setTargetDateIdx(parseInt(e.target.value))} style={{ flex: 1, minWidth: 0, padding: '8px 12px', borderRadius: '12px', background: 'var(--bg-secondary)', color: textColor, border: `1px solid ${borderColor}`, fontFamily: 'Kanit', outline: 'none' }}>
                             {[0,1,2,3,4,5,6].map(idx => {
                                 const date = new Date(weatherData?.daily?.time?.[idx] || Date.now());
                                 const dateStr = idx === 0 ? 'วันนี้' : idx === 1 ? 'พรุ่งนี้' : date.toLocaleDateString('th-TH', {weekday:'short', day:'numeric'});
@@ -429,7 +429,7 @@ export default function AIPage() {
                             const st = (stations || []).find(s => s.areaTH === val);
                             if(st) { fetchWeatherByCoords(st.lat, st.long); fetchLocationName(st.lat, st.long); }
                         }
-                    }} style={{ flex: isMobile ? 1 : 'auto', minWidth: 0, padding: '8px 12px', borderRadius: '12px', background: darkMode ? '#1e293b' : '#f1f5f9', color: textColor, border: `1px solid ${borderColor}`, fontFamily: 'Kanit', outline: 'none' }}>
+                    }} style={{ flex: isMobile ? 1 : 'auto', minWidth: 0, padding: '8px 12px', borderRadius: '12px', background: 'var(--bg-secondary)', color: textColor, border: `1px solid ${borderColor}`, fontFamily: 'Kanit', outline: 'none' }}>
                         <option value="">เปลี่ยนพื้นที่</option>
                         {(stations || []).map(s => <option key={s.stationID} value={s.areaTH}>{s.areaTH}</option>)}
                     </select>
@@ -547,7 +547,7 @@ export default function AIPage() {
                     </div>
                 </div>
 
-                <div style={{ padding: '24px', background: darkMode ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.7)', borderRadius: '20px', border: `1px solid ${activeColor}20`, borderLeft: `6px solid ${activeColor}`, marginBottom: '35px', backdropFilter: 'blur(10px)', boxShadow: '0 4px 20px rgba(0,0,0,0.02)' }}>
+                <div style={{ padding: '24px', background: 'var(--bg-overlay-heavy)', borderRadius: '20px', border: `1px solid ${activeColor}20`, borderLeft: `6px solid ${activeColor}`, marginBottom: '35px', backdropFilter: 'blur(10px)', boxShadow: '0 4px 20px rgba(0,0,0,0.02)' }}>
                     <p style={{ margin: 0, fontSize: '1.05rem', color: textColor, lineHeight: 1.7, fontWeight: '500' }}>{aiReport.advice}</p>
                 </div>
 
