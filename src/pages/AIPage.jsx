@@ -1,5 +1,7 @@
-import React, { useContext, useState, useEffect, useMemo } from 'react';
+import React, { useContext, useState, useEffect, useMemo, useRef } from 'react';
 import { WeatherContext } from '../context/WeatherContext';
+import { LineChart, Line, XAxis, Tooltip, ResponsiveContainer, YAxis, CartesianGrid } from 'recharts';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 export default function AIPage() {
   const { stations, darkMode } = useContext(WeatherContext);
@@ -7,11 +9,22 @@ export default function AIPage() {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
   const [locationName, setLocationName] = useState('กำลังระบุตำแหน่ง...');
   const [selectedProv, setSelectedProv] = useState('');
-  const [targetDateIdx, setTargetDateIdx] = useState(0); 
+  const [targetDateIdx, setTargetDateIdx] = useState(-1); 
   const [activeTab, setActiveTab] = useState('summary'); 
   
   const [weatherData, setWeatherData] = useState(null);
   const [loadingWeather, setLoadingWeather] = useState(true);
+
+  const [chatInput, setChatInput] = useState('');
+  const [chatLogs, setChatLogs] = useState([]);
+  const [isChatLoading, setIsChatLoading] = useState(false);
+  const chatEndRef = useRef(null);
+
+  useEffect(() => {
+      if (chatEndRef.current) {
+          chatEndRef.current.scrollIntoView({ behavior: "smooth" });
+      }
+  }, [chatLogs]);
 
   const fetchWeatherByCoords = async (lat, lon) => {
     try {
@@ -63,7 +76,7 @@ export default function AIPage() {
                 });
               }
               return maxPm !== null ? Math.round(maxPm) : Math.round(aData.current?.pm2_5 || 0);
-            }), // แก้ไขให้ดึงข้อมูลจริงจากรายชั่วโมงแล้ว
+            }), 
             precipitation_probability_max: wData.daily.precipitation_probability_max,
             uv_index_max: wData.daily.uv_index_max,
             wind_speed_10m_max: wData.daily.wind_speed_10m_max
@@ -72,7 +85,7 @@ export default function AIPage() {
         });
       }
     } catch (err) {
-      console.error("Fetch local weather failed", err);
+        console.error("Fetch local weather failed", err);
     } finally {
       setLoadingWeather(false);
     }
@@ -84,6 +97,19 @@ export default function AIPage() {
       const data = await res.json();
       setLocationName(data?.locality || data?.city || 'ตำแหน่งปัจจุบัน');
     } catch { setLocationName('ตำแหน่งปัจจุบัน'); }
+  };
+
+  const handleCurrentLocation = () => {
+    if (navigator.geolocation) {
+      setLoadingWeather(true);
+      navigator.geolocation.getCurrentPosition((pos) => {
+        fetchWeatherByCoords(pos.coords.latitude, pos.coords.longitude);
+        fetchLocationName(pos.coords.latitude, pos.coords.longitude);
+        setSelectedProv('');
+      }, () => {
+        setLoadingWeather(false);
+      }, { timeout: 5000 });
+    }
   };
 
   useEffect(() => {
@@ -103,7 +129,6 @@ export default function AIPage() {
         setLocationName('กรุงเทพมหานคร');
     }
     return () => window.removeEventListener('resize', handleResize);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const cleanMd = (text) => text ? text.replace(/\*\*/g, '') : '';
@@ -120,84 +145,197 @@ export default function AIPage() {
     });
   };
 
-  // 🧠 AI Engine: ประมวลผลลึกซึ้งด้วย UV และ ความเร็วลม
-  const aiReport = useMemo(() => {
+  const getWeatherFactorsForDay = (dayIdx) => {
     if (!weatherData || !weatherData.daily) return null;
-
+    if (dayIdx === -1) {
+        return {
+            tMax: Math.round(weatherData.current?.temp ?? 0),
+            tMin: Math.round(weatherData.current?.temp ?? 0),
+            rain: weatherData.current?.rainProb ?? 0,
+            uvMax: weatherData.daily.uv_index_max?.[0] ?? 0,
+            windMax: Math.round(weatherData.current?.windSpeed ?? 0),
+            pm25: Math.round(weatherData.current?.pm25 ?? 0)
+        };
+    }
     const d = weatherData.daily;
-    const tMax = Math.round(d.temperature_2m_max?.[targetDateIdx] ?? 0);
-    const tMin = Math.round(d.temperature_2m_min?.[targetDateIdx] ?? 0);
-    const rain = d.precipitation_probability_max?.[targetDateIdx] ?? 0;
-    const uvMax = d.uv_index_max?.[targetDateIdx] ?? 0;
-    const windMax = Math.round(d.wind_speed_10m_max?.[targetDateIdx] ?? 0); // km/h
-    const pm25 = d.pm25_max?.[targetDateIdx] !== undefined ? Math.round(d.pm25_max[targetDateIdx]) : Math.round(weatherData.current?.pm25 ?? 0);
+    const tMax = Math.round(d.temperature_2m_max?.[dayIdx] ?? 0);
+    const tMin = Math.round(d.temperature_2m_min?.[dayIdx] ?? 0);
+    const rain = d.precipitation_probability_max?.[dayIdx] ?? 0;
+    const uvMax = d.uv_index_max?.[dayIdx] ?? 0;
+    const windMax = Math.round(d.wind_speed_10m_max?.[dayIdx] ?? 0); 
+    const pm25 = d.pm25_max?.[dayIdx] !== undefined ? Math.round(d.pm25_max[dayIdx]) : Math.round(weatherData.current?.pm25 ?? 0);
+    return { tMax, tMin, rain, uvMax, windMax, pm25 };
+  };
 
-    const getQuickAnswers = () => {
-      let rainAns = { icon: '☀️', title: 'ฝนตกไหม?', text: 'ปลอดฝน ท้องฟ้าโปร่ง', color: '#22c55e' };
-      if (rain > 60) rainAns = { icon: '☔', title: 'ฝนตกไหม?', text: `มีความเสี่ยงสูง โอกาส ${rain}%`, color: '#ef4444' };
-      else if (rain > 20) rainAns = { icon: '⛅', title: 'ฝนตกไหม?', text: `อาจมีฝนประปราย ${rain}%`, color: '#f97316' };
+  const calcScore = (tabId, dayIdx) => {
+    const factors = getWeatherFactorsForDay(dayIdx);
+    if (!factors) return 0;
+    const { rain, tMax, uvMax, windMax, pm25, tMin } = factors;
+    let baseScore = 10;
+    switch (tabId) {
+      case 'laundry': 
+        if (rain > 30) baseScore -= 5;
+        if (rain > 60) baseScore -= 3;
+        if (windMax >= 10 && windMax <= 25 && rain < 20) baseScore += 1; 
+        if (windMax > 35) baseScore -= 3;
+        break;
+      case 'exercise': 
+        if (pm25 > 37.5) baseScore -= 5;
+        if (tMax > 36) baseScore -= 3;
+        if (rain > 50) baseScore -= 2;
+        if (uvMax > 8) baseScore -= 1; 
+        break;
+      case 'outdoor': 
+        if (rain > 40) baseScore -= 4;
+        if (tMax > 37) baseScore -= 3;
+        if (uvMax > 8) baseScore -= 2;
+        if (windMax > 30) baseScore -= 2; 
+        break;
+      case 'travel': 
+        if (rain > 50) baseScore -= 4;
+        if (tMax > 38) baseScore -= 3;
+        if (uvMax > 10) baseScore -= 2;
+        break;
+      case 'farming': 
+        if (rain > 70) baseScore -= 4;
+        if (tMax > 38) baseScore -= 3;
+        if (windMax > 15) baseScore -= 3; 
+        break;
+      case 'pets': 
+        if (tMax > 35) baseScore -= 4;
+        if (rain > 40) baseScore -= 3;
+        if (uvMax > 8) baseScore -= 1; 
+        break;
+      case 'construction': 
+        if (rain > 50) baseScore -= 5;
+        if (rain > 30) baseScore -= 2;
+        if (windMax > 20) baseScore -= 3;
+        if (tMax > 36) baseScore -= 2;
+        break;
+      case 'rain_risk':
+        baseScore -= Math.round(rain / 10);
+        break;
+      case 'health':
+        if (pm25 > 37.5) baseScore -= 4;
+        if (pm25 > 50) baseScore -= 3;
+        if (tMax > 35) baseScore -= 2;
+        break;
+      case 'photography':
+        if (rain > 40) baseScore -= 4;
+        if (pm25 > 37.5) baseScore -= 3;
+        break;
+      case 'vending':
+        if (rain > 40) baseScore -= 4;
+        if (tMax > 38) baseScore -= 3;
+        if (windMax > 25) baseScore -= 2;
+        break;
+      case 'solar':
+        if (rain > 40) baseScore -= 4;
+        if (uvMax < 5) baseScore -= 2;
+        if (rain > 60) baseScore -= 3;
+        break;
+      default: 
+        if (rain > 50) baseScore -= 2;
+        if (tMax > 37) baseScore -= 2;
+        if (pm25 > 50) baseScore -= 2;
+    }
+    return Math.max(1, Math.min(10, baseScore)); 
+  };
 
-      let heatAns = { icon: '😊', title: 'ร้อนไหม?', text: `เกณฑ์ปกติ ${tMax}°C`, color: '#22c55e' };
-      if (tMax >= 39) heatAns = { icon: '🥵', title: 'ร้อนไหม?', text: `อุณหภูมิวิกฤต ${tMax}°C`, color: '#ef4444' };
-      else if (tMax >= 35) heatAns = { icon: '🔥', title: 'ร้อนไหม?', text: `สภาพอากาศร้อนจัด ${tMax}°C`, color: '#f97316' };
-
-      let dustAns = { icon: '🍃', title: 'ฝุ่นเยอะไหม?', text: `คุณภาพอากาศดี ${pm25} µg`, color: '#22c55e' };
-      if (pm25 > 50) dustAns = { icon: '😷', title: 'ฝุ่นเยอะไหม?', text: `มลพิษระดับอันตราย ${pm25} µg`, color: '#ef4444' };
-      else if (pm25 > 25) dustAns = { icon: '🤧', title: 'ฝุ่นเยอะไหม?', text: `คุณภาพอากาศปานกลาง ${pm25} µg`, color: '#f97316' };
-
-      return [rainAns, heatAns, dustAns];
+  const currentScores = useMemo(() => {
+    if (!weatherData) return {};
+    return {
+      summary: calcScore('summary', targetDateIdx),
+      exercise: calcScore('exercise', targetDateIdx),
+      outdoor: calcScore('outdoor', targetDateIdx),
+      travel: calcScore('travel', targetDateIdx),
+      laundry: calcScore('laundry', targetDateIdx),
+      farming: calcScore('farming', targetDateIdx),
+      pets: calcScore('pets', targetDateIdx),
+      construction: calcScore('construction', targetDateIdx),
+      rain_risk: calcScore('rain_risk', targetDateIdx),
+      health: calcScore('health', targetDateIdx),
+      photography: calcScore('photography', targetDateIdx),
+      vending: calcScore('vending', targetDateIdx),
+      solar: calcScore('solar', targetDateIdx)
     };
+  }, [weatherData, targetDateIdx]);
 
-    const calculateScore = () => {
-      let baseScore = 10;
-      switch (activeTab) {
-        case 'laundry': 
-          if (rain > 30) baseScore -= 5;
-          if (rain > 60) baseScore -= 3;
-          // ลมดีช่วยให้ผ้าแห้งไวขึ้น แม้แดดจะน้อย
-          if (windMax >= 10 && windMax <= 25 && rain < 20) baseScore += 1; 
-          // ลมแรงพายุ ผ้าปลิว
-          if (windMax > 35) baseScore -= 3;
-          break;
-        case 'exercise': 
-          if (pm25 > 37.5) baseScore -= 5;
-          if (tMax > 36) baseScore -= 3;
-          if (rain > 50) baseScore -= 2;
-          if (uvMax > 8) baseScore -= 1; // UV สูงไป วิ่งกลางแจ้งไม่ดี
-          break;
-        case 'outdoor': 
-          if (rain > 40) baseScore -= 4;
-          if (tMax > 37) baseScore -= 3;
-          if (uvMax > 8) baseScore -= 2;
-          if (windMax > 30) baseScore -= 2; // ลมพัดเต็นท์ปลิว
-          break;
-        case 'travel': 
-          if (rain > 50) baseScore -= 4;
-          if (tMax > 38) baseScore -= 3;
-          if (uvMax > 10) baseScore -= 2;
-          break;
-        case 'farming': 
-          if (rain > 70) baseScore -= 4;
-          if (tMax > 38) baseScore -= 3;
-          if (windMax > 15) baseScore -= 3; // ลมแรงฉีดยาไม่ได้
-          break;
-        case 'pets': 
-          if (tMax > 35) baseScore -= 4;
-          if (rain > 40) baseScore -= 3;
-          if (uvMax > 8) baseScore -= 1; // หมาแมวก็ผิวไหม้ได้
-          break;
-        case 'carwash': 
-          if (rain > 20) baseScore -= 5;
-          if (rain > 50) baseScore -= 4;
-          break;
-        default: 
-          if (rain > 50) baseScore -= 2;
-          if (tMax > 37) baseScore -= 2;
-          if (pm25 > 50) baseScore -= 2;
+  const forecastChartData = useMemo(() => {
+    if (!weatherData?.daily?.time) return [];
+    return [0,1,2,3,4,5,6].map(idx => {
+      const date = new Date(weatherData.daily.time[idx]);
+      const dayStr = idx === 0 ? 'วันนี้' : idx === 1 ? 'พรุ่งนี้' : date.toLocaleDateString('th-TH', {weekday:'short'});
+      let score = calcScore(activeTab, idx);
+      if (activeTab === 'rain_risk') {
+          const f = getWeatherFactorsForDay(idx);
+          score = f ? f.rain : 0;
       }
-      return Math.max(1, Math.min(10, baseScore)); 
-    };
-    const finalScore = calculateScore();
+      return { name: dayStr, score: score, index: idx };
+    });
+  }, [weatherData, activeTab]);
+
+  const tabConfigs = [
+    { id: 'summary', icon: '📋', label: 'ภาพรวม', color: '#8b5cf6' },
+    { id: 'rain_risk', icon: '☔', label: 'โอกาสฝนตก', color: '#0ea5e9' },
+    { id: 'exercise', icon: '🏃‍♂️', label: 'ออกกำลังกาย', color: '#22c55e' },
+    { id: 'outdoor', icon: '🏕️', label: 'กิจกรรมกลางแจ้ง', color: '#f59e0b' },
+    { id: 'travel', icon: '🎒', label: 'ท่องเที่ยว', color: '#ec4899' },
+    { id: 'laundry', icon: '🧺', label: 'ตากผ้า', color: '#3b82f6' },
+    { id: 'farming', icon: '🌾', label: 'การเกษตร', color: '#10b981' },
+    { id: 'vending', icon: '🏪', label: 'ค้าขาย', color: '#ef4444' },
+    { id: 'construction', icon: '🏗️', label: 'งานก่อสร้าง', color: '#6366f1' },
+    { id: 'health', icon: '🩺', label: 'สุขภาพ', color: '#f43f5e' },
+    { id: 'photography', icon: '📸', label: 'ถ่ายภาพ', color: '#d946ef' },
+    { id: 'pets', icon: '🐶', label: 'สัตว์เลี้ยง', color: '#64748b' },
+    { id: 'solar', icon: '☀️', label: 'รับแดด/ตากผลผลิต', color: '#eab308' }
+  ];
+
+  const handleChatSubmit = async (e) => {
+    e.preventDefault();
+    if (!chatInput.trim()) return;
+    
+    const userMsg = { role: 'user', text: chatInput };
+    const newLogs = [...chatLogs, userMsg];
+    setChatLogs(newLogs);
+    setChatInput('');
+    setIsChatLoading(true);
+    
+    try {
+        const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+        if (!apiKey) {
+            setChatLogs([...newLogs, { role: 'ai', text: '⚠️ ระบบตอบกลับอัตโนมัติ AI ยังไม่สามารถใช้งานได้ กรุณาตั้งค่า VITE_GEMINI_API_KEY ก่อนครับ' }]);
+            setIsChatLoading(false);
+            return;
+        }
+        
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+        const factors = getWeatherFactorsForDay(targetDateIdx);
+        const modeLabel = tabConfigs.find(t=>t.id===activeTab)?.label || "ทั่วไป";
+        
+        const context = `คุณคือ AI ผู้เชี่ยวชาญการพยากรณ์อากาศของ Thai Weather. ตอบคำถามผู้ใช้อย่างเป็นมิตร กระชับ เข้าใจง่าย 
+ข้อมูลอุตุนิยมวิทยาวันนี้: โหมด ${modeLabel}, อุณหภูมิ ${factors.tMin}-${factors.tMax}°C, ขับลูมUV ${factors.uvMax}, โอกาสฝน ${factors.rain}%, ความเร็วลม ${factors.windMax}กม/ชม, ฝุ่น PM2.5: ${factors.pm25} µg/m³.
+ประวัติแชท: ${newLogs.map(l => l.role + ': ' + l.text).join(' | ')}.
+ตอบคำถามล่าสุดได้เลย:`;
+
+        const result = await model.generateContent(context);
+        const text = await result.response.text();
+        setChatLogs([...newLogs, { role: 'ai', text: text }]);
+    } catch (err) {
+        console.error(err);
+        setChatLogs([...newLogs, { role: 'ai', text: 'ขออภัย เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์ กรุณาลองใหม่อีกครั้ง' }]);
+    } finally {
+        setIsChatLoading(false);
+    }
+  };
+
+  const aiReport = useMemo(() => {
+    if (!weatherData || !activeTab) return null;
+    const factors = getWeatherFactorsForDay(targetDateIdx);
+    if (!factors) return null;
+    const { tMax, tMin, rain, uvMax, windMax, pm25 } = factors;
+    const finalScore = currentScores[activeTab];
 
     const getMainAdvice = () => {
       if (activeTab === 'laundry') {
@@ -233,10 +371,36 @@ export default function AIPage() {
           if (rain > 40) return `ประเมินความเสี่ยง: โอกาสฝนตก **${rain}%** แนะนำให้**อยู่ภายในอาคาร** และระวังความชื้นที่อาจก่อให้เกิดโรคเชื้อรา`;
           return `ประเมินความเสี่ยง: **สภาพอากาศเป็นมิตร**ต่อสัตว์เลี้ยง อุณหภูมิอยู่ใน**เกณฑ์ปลอดภัย** สามารถพาออกไปทำกิจกรรมนอกอาคารได้`;
       }
-      if (activeTab === 'carwash') {
-          if (rain > 20) return `ประเมินความเสี่ยง: ความน่าจะเป็นของการเกิดฝนสูงถึง **${rain}%** **แนะนำให้เลื่อนการล้างรถออกไปก่อน** เพื่อหลีกเลี่ยงคราบน้ำฝนและดินโคลนกระเด็นซ้ำ`;
-          if (uvMax > 8 || tMax > 35) return `ประเมินความเสี่ยง: แสงแดดและรังสี UV **รุนแรงมาก** **ไม่ควรล้างรถกลางแจ้ง** เนื่องจากหยดน้ำจะทำหน้าที่เป็นแว่นขยายทำลายชั้นแลคเกอร์ และแชมพูจะแห้งไวจนเกิดคราบฝังแน่น`;
-          return `ประเมินความเสี่ยง: ท้องฟ้าโปร่ง โอกาสฝนตกต่ำ เป็นสภาวะแวดล้อมที่**เหมาะสมที่สุด**สำหรับการล้างรถ ขัดสี และเคลือบเงา`;
+      if (activeTab === 'construction') {
+          if (rain > 50) return `ประเมินความเสี่ยง: ความน่าจะเป็นของการเกิดฝนสูงถึง **${rain}%** **แนะนำให้หลีกเลี่ยงการก่อสร้างภายนอกอาคาร การเทปูน และงานที่เกี่ยวกับระบบไฟฟ้าเด็ดขาด**`;
+          if (windMax > 20) return `ประเมินความเสี่ยง: **กระแสลมค่อนข้างแรง** **ควรตรวจสอบและเพิ่มความรัดกุมของนั่งร้านหรือจุดติดตั้งบนที่สูง** เพื่อความปลอดภัยของคนงาน`;
+          if (tMax > 36) return `ประเมินความเสี่ยง: ความร้อนและอุณหภูมิอยู่ใน**ระดับสูงมาก** **ผู้คุมงานควรสลับช่วงเวลาพักให้บ่อยขึ้นและเตรียมน้ำดื่มให้เพียงพอ เพื่อป้องกันภาวะฮีทสโตรก**`;
+          return `ประเมินความเสี่ยง: สภาพอากาศโดยรวมปลอดโปร่ง เอื้ออำนวยให้**สามารถดำเนินงานก่อสร้างหรือเทคอนกรีตภายนอกอาคารได้ตามปกติ**`;
+      }
+      if (activeTab === 'rain_risk') {
+          if (rain > 60) return `ประเมินความเสี่ยง: **มีความเสี่ยงที่จะมีฝนตกหนักสูงมาก โอกาส ${rain}%** **แนะนำให้หลีกเลี่ยงการทำกิจกรรมกลางแจ้ง และพกร่มหรือสิ่งกันฝนอย่างแน่นอน**`;
+          if (rain > 30) return `ประเมินความเสี่ยง: **อาจมีฝนตกระหว่างวัน โอกาสประมาณ ${rain}%** **ควรพกร่มเป็นตัวช่วยหากต้องออกจากตัวบ้าน**`;
+          return `ประเมินความเสี่ยง: โอกาสการเกิดฝนตกอยู่ในเกณฑ์ที่ปลอดภัย ท้องฟ้าส่วนใหญ่น่าจะสดใส **ไม่จำเป็นต้องกังวลเรื่องฝนตก**`;
+      }
+      if (activeTab === 'health') {
+          if (pm25 > 50) return `ประเมินความเสี่ยง: สภาพแวดล้อมและฝุ่นอยู่ในระดับ **อันตรายอย่างยิ่งต่อสุขภาพ (${pm25} µg/m³)** ผู้สูงอายุและผู้ป่วยควรหลีกเลี่ยงควันฝุ่นเด็ดขาด`;
+          if (tMax > 37) return `ประเมินความเสี่ยง: อุณหภูมิพุ่งสูง **${tMax}°C** ซึ่งอันตรายต่อภาวะฮีทสโตรก **ดื่มน้ำสม่ำเสมอและอย่าอยู่กับแสงแดดนานเกินไป**`;
+          return `ประเมินความเสี่ยง: สภาพอากาศเป็นใจ ไม่มีปัญหาเกี่ยวกับมลพิษทางอากาศหรือความร้อนรุนแรงที่กระทบสุขภาพ`;
+      }
+      if (activeTab === 'photography') {
+          if (rain > 40) return `ประเมินความเสี่ยง: โอกาสฝนตกรบกวน**${rain}%** ท้องฟ้ามืดครึ้ม แสงธรรมชาติอาจถูกบัง **เหมาะกับการถ่ายรูปสไตล์ Cinematic ในร่มหรือมู้ดต่างๆ** มากกว่า`;
+          if (pm25 > 37.5) return `ประเมินความเสี่ยง: ฟ้าหลัว มีฝุ่นเยอะ **อาจทำให้ภาพถ่ายที่เน้นวิวหรือทิวทัศน์ห่างไกลดรอปลง** แต่ยังถ่ายภาพบุคคลระยะใกล้ได้ดีอยู่`;
+          return `ประเมินความเสี่ยง: สภาพแสงและทัศนวิสัย **ยอดเยี่ยม** เหมาะสมอย่างยิ่งกับการถ่ายภาพทุกรูปแบบและทุกๆ มุมแสง`;
+      }
+      if (activeTab === 'vending') {
+          if (rain > 40) return `ประเมินความเสี่ยง: เมฆมากและความน่าจะเป็นของฝน **${rain}%** **ควรเตรียมเต็นท์หรือร่มผ้าใบให้พร้อม** ฝนอาจเป็นอุปสรรคต่อการตั้งแผงค้าขาย`;
+          if (windMax > 25) return `ประเมินความเสี่ยง: ลมกระโชกแรง **ควรหาที่ยึดเต็นท์และรัดตึงป้ายไวนิลหน้าร้านให้แน่นหนา**`;
+          if (tMax > 38) return `ประเมินความเสี่ยง: อากาศร้อนจัดในช่วงบ่าย **ยอดขายอาจดรอปลงสำหรับสินค้าที่ไม่ดับร้อน** พ่อค้าแม่ค้าควรระมัดระวังสุขภาพเวลาตั้งร้าน`;
+          return `ประเมินความเสี่ยง: สภาพแวดล้อมน่าเดินเล่น อากาศแจ่มใส **ลูกค้ามีแนวโน้มจะออกมาจับจ่ายใช้สอยเป็นจำนวนมาก โอกาสทำยอดขายเป็นไปได้สูง**`;
+      }
+      if (activeTab === 'solar') {
+          if (rain > 40) return `ประเมินความเสี่ยง: แสงแดดถูกบดบังจากเมฆฝน โอกาสฝนตก ${rain}% **ประสิทธิภาพการรับแสงจากหน้าแผงโซลาร์อาจลดลงรัดับกลางถึงมาก**`;
+          return `ประเมินความเสี่ยง: ท้องฟ้าเปิด รังสี UV และลักซ์แสงดีเยี่ยม **เหมาะกับการรับพลังงานแสงอาทิตย์และการตากผลผลิตทางการเกษตรได้เต็มที่**`;
       }
       
       if (finalScore >= 8) return `สรุปการประเมิน: **สภาพอากาศโดยรวมอยู่ในเกณฑ์ดีเยี่ยม** ปัจจัยทางอุตุนิยมวิทยาเอื้ออำนวยต่อการดำเนินชีวิตประจำวันตามปกติ`;
@@ -283,34 +447,53 @@ export default function AIPage() {
           { time: 'ช่วงบ่าย (12:00 - 18:00)', icon: '☀️', text: isHot || uvMax > 8 ? `พื้นยางมะตอยร้อนจัดและ UV รุนแรง **เสี่ยงต่อแผลไหม้ที่อุ้งเท้าและฮีทสโตรก** **ควรจัดให้อยู่ในที่ร่ม**` : `สามารถทำกิจกรรมระยะสั้นได้ แต่**ควรจัดเตรียมน้ำสะอาดให้สัตว์เลี้ยงเข้าถึงได้ตลอดเวลา**` },
           { time: 'ช่วงค่ำ (18:00 เป็นต้นไป)', icon: '🌙', text: isRainy ? `**ระวังพาหะนำโรค** เช่น เห็บ หมัด และสัตว์มีพิษที่มากับความชื้นหลังฝนตก` : `อุณหภูมิแวดล้อมผ่อนคลายลง **เหมาะสมต่อการพาสัตว์เลี้ยงไปเดินเล่นคลายเครียด**ก่อนพักผ่อน` }
         ],
-        carwash: [
-          { time: 'ช่วงเช้า (06:00 - 12:00)', icon: '🌅', text: isRainy ? `สภาพอากาศมีเมฆฝนปกคลุม **ยังไม่แนะนำให้ดำเนินการล้างรถ**ในเวลานี้` : `ช่วงเวลา**เหมาะสมที่สุด** อุณหภูมิผิวยังไม่สูงเกินไป ทำให้เช็ดแห้งได้ทันและลดความเสี่ยงการเกิดคราบน้ำ (Water spot)` },
-          { time: 'ช่วงบ่าย (12:00 - 18:00)', icon: '☀️', text: uvMax > 8 || tMax > 35 ? `รังสี UV และความร้อนสูงเกินไป จะทำให้สารทำความสะอาดแห้งไวและทำลายชั้นเคลือบสี **ควรล้างรถในที่ร่มเท่านั้น**` : `สามารถล้างทำความสะอาด ขัดสี และลงแว็กซ์เคลือบเงาได้ตามกระบวนการปกติ` },
-          { time: 'ช่วงค่ำ (18:00 เป็นต้นไป)', icon: '🌙', text: isRainy ? `มีความเสี่ยงที่จะเกิดหยาดน้ำฟ้า หากต้องใช้รถ**ควรขับด้วยความระมัดระวัง**เพื่อหลีกเลี่ยงโคลนกระเด็นจากพื้นถนน` : `สามารถจอดพักรถทิ้งไว้ภายนอกอาคารได้อย่างไร้กังวล ไม่มีปัจจัยสภาพอากาศที่ทำให้รถหมองคล้ำ` }
+        construction: [
+          { time: 'ช่วงเช้า (06:00 - 12:00)', icon: '🌅', text: isRainy ? `ประเมินพื้นที่ว่ามีความชื้นและโคลนเจิ่งนองหรือไม่ **ระวังอันตรายจากการใช้อุปกรณ์ไฟฟ้า**` : `สภาพอากาศเปิด **เหมาะสำหรับการเริ่มเทคอนกรีตหรือปฏิบัติงานบนที่สูง** ก่อนช่วงเวลาที่ลมจะแรงขึ้น` },
+          { time: 'ช่วงบ่าย (12:00 - 18:00)', icon: '☀️', text: tMax > 36 ? `เตือนภัยอากาศร้อนทะลุพิกัด **เฝ้าระวังอาการลมแดดของช่างและคนงาน ควรดื่มน้ำเกลือแร่หรือน้ำเย็นจัดบ่อยๆ**` : `ดำเนินการก่อสร้างต่อไปได้ แต่หลีกเลี่ยงจุดที่โดนแสงแดดส่องเต็มๆ หากเป็นไปได้` },
+          { time: 'ช่วงค่ำ (18:00 เป็นต้นไป)', icon: '🌙', text: windMax > 20 ? `ตรวจเช็คความแข็งแรงของนั่งร้านและโครงสร้างชั่วคราว **ก่อนยุติการทำงาน**` : `สามารถเดินเครื่องจักรหรือทำงานล่วงเวลาได้ในสภาวะที่ปลอดภัยและเสียงลดหลั่นลง` }
+        ],
+        rain_risk: [
+          { time: 'ช่วงเช้า (06:00 - 12:00)', icon: '🌅', text: isRainy ? `พกร่มไปทำงานหรือกิจกรรมเสมอ` : `ท้องฟ้าโปร่ง ไม่มีความเสี่ยงที่ชัดเจน` },
+          { time: 'ช่วงบ่าย (12:00 - 18:00)', icon: '☀️', text: rain > 30 ? `เมฆก่อตัว และฝนอาจตกลงมาในช่วงตอนเย็นๆ แนะนำให้เตรียมเสื้อกันฝน` : `เมฆเล็กน้อย ไม่มีโอกาสเป็นฝน` },
+          { time: 'ช่วงค่ำ (18:00 เป็นต้นไป)', icon: '🌙', text: isRainy ? `อาจเจอกับฝนระหว่างทางกลับบ้าน รักษาระยะห่างในการขับขี่` : `กลับบ้านได้อย่างปลอดภัย` }
+        ],
+        health: [
+          { time: 'ช่วงเช้า (06:00 - 12:00)', icon: '🌅', text: pm25 > 50 ? `สวมหน้ากากเมื่ออกจากที่พัก **ฝุ่นเป็นอันตราย**` : `คุณภาพอากาศตอนเช้าอยู่ในระยะที่สะอาด ปลอดภัย` },
+          { time: 'ช่วงบ่าย (12:00 - 18:00)', icon: '☀️', text: tMax > 35 ? `เลี่ยงกางแสงแดดจัด เนื่องจากความร้อนส่งผลร้ายต่อสุขภาพได้` : `อากาศยังคงถ่ายเท ปลอดโปร่ง` },
+          { time: 'ช่วงค่ำ (18:00 เป็นต้นไป)', icon: '🌙', text: `ผ่อนคลายและดูแลสุขภาพทั่วไปที่บ้าน` }
+        ],
+        photography: [
+          { time: 'ช่วงเช้า (06:00 - 12:00)', icon: '🌅', text: `แสงเช้าเป็น Golden Hour ช่วงที่สวยงามที่สุดสำหรับแสงอบอุ่น` },
+          { time: 'ช่วงบ่าย (12:00 - 18:00)', icon: '☀️', text: pm25 > 37.5 ? `ฟ้าอาจจะหม่นไปบ้างเนื่องจากฝุ่นละอองกระจาย` : `แสงแรง เหมาะกับงานที่ต้องการคอนทราสต์ที่ชัดเจน` },
+          { time: 'ช่วงค่ำ (18:00 เป็นต้นไป)', icon: '🌙', text: rain > 30 ? `หากฝนตกจะมีความเจ๋งในการถ่ายภาพแสงสะท้อนบนพื้นถนน` : `แสงประดิษฐ์และไฟเมืองเริ่มทำงาน ถ่ายภาพกลางคืนได้ง่าย` }
+        ],
+        vending: [
+          { time: 'ช่วงเช้า (06:00 - 12:00)', icon: '🌅', text: `อุณหภูมิและแสงเหมาะกับการตั้งร้านแต่เช้าเพื่อจับกลุ่มคนทำงาน` },
+          { time: 'ช่วงบ่าย (12:00 - 18:00)', icon: '☀️', text: rain > 40 ? `สังเกตเมฆฝนอย่างใกล้ชิด **ปกป้องสินค้าจากน้ำและระบุพื้นที่หลบฝนของลูกค้า**` : `คาดคะเนทิศทางแดดและกางร่มบังแดดให้ลูกค้าเพื่อเพิ่มโอกาสการขาย` },
+          { time: 'ช่วงค่ำ (18:00 เป็นต้นไป)', icon: '🌙', text: `อากาศเย็นสบายลง **ตลาดกลางคืนน่าจะคึกคักและยอดขายน่าจะวิ่งได้ดีที่สุด**` }
+        ],
+        solar: [
+          { time: 'ช่วงเช้า (06:00 - 12:00)', icon: '🌅', text: `เริ่มเก็บเกี่ยวพลังงานแสงอาทิตย์ได้ช่วงหลังพระอาทิตย์ขึ้น` },
+          { time: 'ช่วงบ่าย (12:00 - 16:00)', icon: '☀️', text: uvMax > 8 ? `รังสีแรง **ประสิทธิภาพแผงโซลาร์ทำและรับสเกลแสงได้เต็มที่**` : `แสงอ่อนลงบ้างตามเมฆบัง` },
+          { time: 'ช่วงค่ำ (16:00 เป็นต้นไป)', icon: '🌙', text: `แสงอาทิตย์เริ่มทำมุมตกกระทบต่ำลง ประสิทธิภาพรับแสงจะลดหลั่นลงตามเวลา` }
         ]
       };
       
+      
+      if (targetDateIdx === -1) {
+          return [
+              { time: `อัปเดตล่าสุด: ${new Date().toLocaleTimeString('th-TH')}`, icon: '⏱️', text: `ข้อมูล ณ ขณะนี้สะท้อนสภาวะอากาศแบบ Real-time ของพื้นที่ หากคุณต้องการดูคำพยากรณ์ล่วงหน้าในแต่ละช่วงเวลาของวัน สามารถกดปุ่ม **"วันนี้ (พยากรณ์รายวัน)"** ด้านบนได้ครับ` }
+          ];
+      }
       return lines[activeTab] || lines.summary; 
     };
 
     return { 
       score: finalScore, 
-      quickAnswers: getQuickAnswers(),
       advice: getMainAdvice(), 
       timeline: getTimeline() 
     };
-  }, [activeTab, targetDateIdx, weatherData]);
-
-  const tabConfigs = [
-    { id: 'summary', icon: '📋', label: 'ภาพรวม', color: '#8b5cf6' },
-    { id: 'exercise', icon: '🏃‍♂️', label: 'ออกกำลังกาย', color: '#22c55e' },
-    { id: 'outdoor', icon: '🏕️', label: 'กิจกรรมกลางแจ้ง', color: '#f59e0b' },
-    { id: 'travel', icon: '🎒', label: 'ท่องเที่ยว', color: '#ec4899' },
-    { id: 'laundry', icon: '🧺', label: 'ตากผ้า', color: '#0ea5e9' },
-    { id: 'farming', icon: '🌾', label: 'การเกษตร', color: '#10b981' },
-    { id: 'pets', icon: '🐶', label: 'สัตว์เลี้ยง', color: '#f43f5e' },
-    { id: 'carwash', icon: '🚗', label: 'ดูแลรถยนต์', color: '#3b82f6' }
-  ];
+  }, [activeTab, currentScores, targetDateIdx, weatherData]);
 
   const downloadFile = (content, filename, mimeType) => {
     const blob = new Blob([content], { type: mimeType });
@@ -372,9 +555,7 @@ export default function AIPage() {
           title: 'รายงานสภาพอากาศ',
           text: text,
         });
-      } catch {
-        // user cancelled or share failed
-      }
+      } catch { }
     } else {
       navigator.clipboard.writeText(text);
       alert("คัดลอกข้อความแล้ว");
@@ -416,6 +597,7 @@ export default function AIPage() {
           .no-print { display: none !important; }
           body { background: white !important; color: black !important; }
         }
+        .recharts-tooltip-wrapper { outline: none !important; }
       `}} />
 
       <div style={{ width: '100%', maxWidth: '900px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px', padding: isMobile ? '15px' : '30px', paddingBottom: '120px', boxSizing: 'border-box' }}>
@@ -427,15 +609,18 @@ export default function AIPage() {
                     <h1 style={{ margin: 0, fontSize: '1.4rem', color: textColor, display: 'flex', alignItems: 'center', gap: '8px' }}>
                         ✨ ระบบประเมินสภาพอากาศ
                     </h1>
-                    <div style={{ fontSize: '0.85rem', color: subTextColor, marginTop: '2px' }}>พื้นที่การวิเคราะห์: <span style={{color: '#0ea5e9', fontWeight: 'bold'}}>{locationName}</span></div>
+                    <div style={{ fontSize: '0.85rem', color: subTextColor, marginTop: '2px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        พื้นที่การวิเคราะห์: <span style={{color: '#0ea5e9', fontWeight: 'bold'}}>{locationName}</span> 
+                        <button onClick={handleCurrentLocation} title="ใช้ตำแหน่งปัจจุบัน" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 5px', filter: 'grayscale(0.2)' }}>🎯</button>
+                    </div>
                 </div>
 
                 <div style={{ display: 'flex', gap: '10px', width: isMobile ? '100%' : 'auto' }}>
                     {isMobile && (
                         <select value={targetDateIdx} onChange={(e) => setTargetDateIdx(parseInt(e.target.value))} style={{ flex: 1, minWidth: 0, padding: '8px 12px', borderRadius: '12px', background: 'var(--bg-secondary)', color: textColor, border: `1px solid ${borderColor}`, fontFamily: 'Kanit', outline: 'none' }}>
-                            {[0,1,2,3,4,5,6].map(idx => {
-                                const date = new Date(weatherData?.daily?.time?.[idx] || Date.now());
-                                const dateStr = idx === 0 ? 'วันนี้' : idx === 1 ? 'พรุ่งนี้' : date.toLocaleDateString('th-TH', {weekday:'short', day:'numeric'});
+                            {[-1,0,1,2,3,4,5,6].map(idx => {
+                                const date = new Date(weatherData?.daily?.time?.[idx === -1 ? 0 : idx] || Date.now());
+                                const dateStr = idx === -1 ? 'ขณะนี้ (Current)' : idx === 0 ? 'วันนี้ (ภาพรวมตลอดวัน)' : idx === 1 ? 'พรุ่งนี้' : date.toLocaleDateString('th-TH', {weekday:'short', day:'numeric'});
                                 return <option key={idx} value={idx}>{dateStr}</option>;
                             })}
                         </select>
@@ -455,19 +640,23 @@ export default function AIPage() {
             </div>
 
             {!isMobile && (
-                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: '20px' }}>
-                    {[0,1,2,3,4,5,6].map(idx => {
-                        const date = new Date(weatherData?.daily?.time?.[idx] || Date.now());
-                        const dateStr = idx === 0 ? 'วันนี้' : idx === 1 ? 'พรุ่งนี้' : date.toLocaleDateString('th-TH', {weekday:'short', day:'numeric'});
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(70px, 1fr))', gap: '8px', marginTop: '20px' }}>
+                    {[-1,0,1,2,3,4,5,6].map(idx => {
+                        const date = new Date(weatherData?.daily?.time?.[idx === -1 ? 0 : idx] || Date.now());
+                        let dateStr = idx === -1 ? 'ขณะนี้' : (idx === 0 ? 'วันนี้' : idx === 1 ? 'พรุ่งนี้' : date.toLocaleDateString('th-TH', {weekday:'short', day:'numeric'}));
+                        let subStr = idx === -1 ? new Date().toLocaleTimeString('th-TH', {hour:'2-digit', minute:'2-digit'}) + 'น.' : (idx === 0 ? 'พยากรณ์รายวัน' : '');
+                        
                         return (
                             <button key={idx} onClick={() => setTargetDateIdx(idx)} style={{ 
-                                padding: '8px 15px', borderRadius: '14px', 
+                                padding: '6px 5px', borderRadius: '14px', 
                                 border: `1px solid ${targetDateIdx === idx ? activeColor : borderColor}`, 
                                 background: targetDateIdx === idx ? activeColor : 'transparent', 
                                 color: targetDateIdx === idx ? '#fff' : textColor, 
-                                fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer', transition: '0.2s' 
+                                cursor: 'pointer', transition: '0.2s', width: '100%',
+                                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '2px'
                             }}>
-                                {dateStr}
+                                <span style={{ fontWeight: 'bold', fontSize: '0.85rem' }}>{dateStr}</span>
+                                {subStr && <span style={{ fontSize: '0.65rem', opacity: 0.8, fontWeight: 'normal' }}>{subStr}</span>}
                             </button>
                         );
                     })}
@@ -475,43 +664,46 @@ export default function AIPage() {
             )}
         </div>
 
-        {/* ⚡ TL;DR Quick Summary Cards */}
-        {aiReport && (
-            <div className="fade-in" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '10px' }}>
-                {aiReport.quickAnswers.map((item, idx) => (
-                    <div key={idx} style={{ background: cardBg, border: `1px solid ${item.color}50`, borderRadius: '20px', padding: '15px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', boxShadow: '0 4px 10px rgba(0,0,0,0.02)' }}>
-                        <div style={{ fontSize: '2rem', marginBottom: '5px' }}>{item.icon}</div>
-                        <div style={{ fontSize: '0.8rem', color: subTextColor, fontWeight: 'bold' }}>{item.title}</div>
-                        <div style={{ fontSize: '0.95rem', color: item.color, fontWeight: '900', marginTop: '2px', lineHeight: 1.3 }}>{item.text}</div>
-                    </div>
-                ))}
-            </div>
-        )}
-
-        {/* 📑 หมวดหมู่ไลฟ์สไตล์ */}
-        <div className="no-print hide-scrollbar" style={{ 
-            display: 'flex', gap: isMobile ? '12px' : '10px', width: '100%', 
-            overflowX: 'auto', paddingBottom: '10px', WebkitOverflowScrolling: 'touch',
-            flexWrap: isMobile ? 'nowrap' : 'wrap', scrollSnapType: isMobile ? 'x mandatory' : 'none'
+        {/* 📑 หมวดหมู่ไลฟ์สไตล์ Cards WITH SCORES */}
+        <div className="no-print" style={{ 
+            display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '12px', width: '100%', marginBottom: '10px'
         }}>
-            {tabConfigs.map(tab => {
+            {tabConfigs.filter(t => t.id !== 'summary').map(tab => {
                 const isActive = activeTab === tab.id;
+                const isRain = tab.id === 'rain_risk';
+                const score = currentScores[tab.id];
+                
+                let scColor = score >= 8 ? '#10b981' : score >= 5 ? '#f59e0b' : '#ef4444';
+                let displayTopScore = `${score}/10`;
+                
+                if (isRain) {
+                    const rFactors = getWeatherFactorsForDay(targetDateIdx);
+                    const rainP = rFactors ? rFactors.rain : 0;
+                    displayTopScore = `${rainP}%`;
+                    scColor = rainP <= 20 ? '#10b981' : rainP <= 50 ? '#f59e0b' : '#ef4444';
+                }
+                
                 return (
-                    <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
-                        display: 'flex', alignItems: 'center', gap: '8px', 
-                        padding: isActive ? '10px 20px' : '10px 16px', 
-                        borderRadius: '50px', scrollSnapAlign: 'start',
-                        background: isActive ? (darkMode ? `${tab.color}30` : tab.color) : cardBg,
-                        color: isActive ? (darkMode ? tab.color : '#fff') : subTextColor,
-                        border: `1px solid ${isActive ? (darkMode ? tab.color : 'transparent') : borderColor}`,
-                        fontWeight: isActive ? 'bold' : 'normal', 
+                    <button key={tab.id} onClick={() => setActiveTab(isActive ? 'summary' : tab.id)} style={{
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                        padding: '16px 12px', 
+                        borderRadius: '20px',
+                        background: isActive ? (darkMode ? `${tab.color}15` : `${tab.color}10`) : cardBg,
+                        color: textColor,
+                        border: `2px solid ${isActive ? tab.color : borderColor}`,
                         cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                        whiteSpace: 'nowrap', flexShrink: 0,
-                        boxShadow: isActive ? `0 4px 15px ${tab.color}40` : 'none',
-                        transform: isActive ? 'scale(1.02)' : 'scale(1)'
+                        boxShadow: isActive ? `0 4px 15px ${tab.color}30` : '0 2px 8px rgba(0,0,0,0.02)',
+                        transform: isActive ? 'scale(1.02)' : 'scale(1)',
+                        position: 'relative'
                     }}>
-                        <span style={{ fontSize: isActive ? '1.25rem' : '1.1rem', transition: 'all 0.3s' }}>{tab.icon}</span> 
-                        <span style={{ fontSize: '0.95rem' }}>{tab.label}</span>
+                        {score !== undefined && (
+                        <div style={{ position: 'absolute', top: '8px', right: '10px', fontSize: '0.85rem', fontWeight: 'bold', color: scColor, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <div style={{width: '6px', height: '6px', borderRadius: '50%', background: scColor}}></div>
+                            {displayTopScore}
+                        </div>
+                        )}
+                        <div style={{ fontSize: '2rem', marginBottom: '2px', filter: isActive ? `drop-shadow(0 4px 8px ${tab.color}50)` : 'none' }}>{tab.icon}</div> 
+                        <div style={{ fontSize: '1rem', fontWeight: isActive ? 'bold' : '600', color: isActive ? tab.color : textColor }}>{tab.label}</div>
                     </button>
                 );
             })}
@@ -525,7 +717,7 @@ export default function AIPage() {
                 border: `1px solid ${activeColor}30`, 
                 boxShadow: `0 15px 40px ${activeColor}15`, position: 'relative', overflow: 'hidden'
             }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '25px', flexWrap: 'wrap', gap: '15px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px', flexWrap: 'wrap', gap: '15px' }}>
                     <div>
                         <h2 style={{ margin: 0, fontSize: '1.4rem', color: textColor, display: 'flex', alignItems: 'center', gap: '10px', fontWeight: '800' }}>
                             <span style={{ fontSize: '1.8rem' }}>{tabConfigs.find(t=>t.id===activeTab)?.icon}</span>
@@ -536,6 +728,11 @@ export default function AIPage() {
                         </div>
                     </div>
                     <div style={{ display: 'flex', gap: '12px', alignItems: 'stretch', flexWrap: 'wrap' }}>
+                        {activeTab !== 'summary' && (
+                            <button onClick={() => setActiveTab('summary')} style={{ background: darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)', color: textColor, border: `1px solid ${borderColor}`, padding: '8px 12px', borderRadius: '12px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                🔙 กลับหน้าภาพรวม
+                            </button>
+                        )}
                         <div className="no-print" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                             <button onClick={exportToCSV} title="Export to CSV" style={{ background: darkMode ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.5)', color: textColor, border: `1px solid ${borderColor}`, padding: '8px 12px', borderRadius: '12px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold', backdropFilter: 'blur(5px)' }}>CSV</button>
                             <button onClick={exportToJSON} title="Export to JSON" style={{ background: darkMode ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.5)', color: textColor, border: `1px solid ${borderColor}`, padding: '8px 12px', borderRadius: '12px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold', backdropFilter: 'blur(5px)' }}>JSON</button>
@@ -543,11 +740,18 @@ export default function AIPage() {
                             <button onClick={handleShare} title="Share" style={{ background: '#10b981', color: '#fff', border: 'none', padding: '8px 15px', borderRadius: '12px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 4px 10px rgba(16,185,129,0.3)' }}><span>📤</span> แชร์</button>
                         </div>
                         {(() => {
-                            const score = aiReport.score;
-                            const sc = score >= 8 ? '#10b981' : score >= 5 ? '#f59e0b' : '#ef4444';
+                            const isRain = activeTab === 'rain_risk';
+                            const fToday = getWeatherFactorsForDay(targetDateIdx);
+                            const rainP = fToday ? fToday.rain : 0;
+                            const score = isRain ? rainP : (currentScores[activeTab] || 0);
+                            
+                            const sc = isRain 
+                                ? (score <= 30 ? '#10b981' : score <= 60 ? '#f59e0b' : '#ef4444')
+                                : (score >= 8 ? '#10b981' : score >= 5 ? '#f59e0b' : '#ef4444');
+                            
                             const radius = 32;
                             const circumference = 2 * Math.PI * radius;
-                            const strokeDashoffset = circumference - (score / 10) * circumference;
+                            const strokeDashoffset = circumference - (score / (isRain ? 100 : 10)) * circumference;
                             return (
                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
                                   <div style={{ position: 'relative', width: '80px', height: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -563,25 +767,58 @@ export default function AIPage() {
                                       </svg>
                                       <div style={{ position: 'absolute', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', marginTop: '2px' }}>
                                           <div style={{ fontSize: '1.4rem', fontWeight: '900', color: sc, lineHeight: 0.9 }}>{score}</div>
-                                          <div style={{ fontSize: '0.65rem', opacity: 0.6, color: textColor, fontWeight: 'bold' }}>/10</div>
+                                          <div style={{ fontSize: '0.65rem', opacity: 0.6, color: textColor, fontWeight: 'bold' }}>{isRain ? '%' : '/10'}</div>
                                       </div>
                                   </div>
-                                  <div style={{ fontSize: '0.7rem', color: sc, fontWeight: 'bold', letterSpacing: '0.5px', marginTop: '5px' }}>ความเหมาะสม</div>
+                                  <div style={{ fontSize: '0.7rem', color: sc, fontWeight: 'bold', letterSpacing: '0.5px', marginTop: '5px' }}>{isRain ? 'โอกาสฝนตก' : 'ความเหมาะสม'}</div>
                                 </div>
                             );
                         })()}
                     </div>
                 </div>
 
+
+
                 <div style={{ padding: '24px', background: 'var(--bg-overlay-heavy)', borderRadius: '20px', border: `1px solid ${activeColor}20`, borderLeft: `6px solid ${activeColor}`, marginBottom: '35px', backdropFilter: 'blur(10px)', boxShadow: '0 4px 20px rgba(0,0,0,0.02)' }}>
                     <p style={{ margin: 0, fontSize: '1.05rem', color: textColor, lineHeight: 1.7, fontWeight: '500' }}>{renderHighlightedText(aiReport.advice, activeColor)}</p>
+                </div>
+
+                {/* Forecast Chart */}
+                <h4 style={{ margin: '0 0 5px 0', color: textColor, display: 'flex', alignItems: 'center', gap: '12px', fontSize: '1.1rem' }}>
+                    <div style={{background: `linear-gradient(135deg, ${activeColor}, ${activeColor}dd)`, color: '#fff', width: '32px', height: '32px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.1rem', boxShadow: `0 4px 10px ${activeColor}40`}}>📈</div> 
+                    <span style={{fontWeight: '800'}}>แนวโน้ม{activeTab === 'rain_risk' ? 'โอกาสฝนตก' : 'คะแนนความเหมาะสม'} 7 วันข้างหน้า</span>
+                </h4>
+                <p style={{ margin: '0 0 15px 45px', fontSize: '0.85rem', color: subTextColor }}>
+                    {activeTab === 'rain_risk' ? 'เปอร์เซ็นต์ความน่าจะเป็นของการเกิดฝน ยิ่งเปอร์เซ็นต์สูงยิ่งต้องระวังและพกร่ม' : 'คะแนนเต็ม 10 คะแนนยิ่งสูงหมายถึงสภาพอากาศยิ่งเหมาะสมและส่งผลดีต่อกิจกรรมของคุณ'}
+                </p>
+                <div style={{ width: '100%', height: 250, marginBottom: '35px', padding: '10px', background: darkMode ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.5)', borderRadius: '16px', border: `1px solid ${borderColor}` }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={forecastChartData} margin={{ top: 20, right: 30, left: -20, bottom: 5 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#333' : '#e5e7eb'} vertical={false} />
+                            <XAxis dataKey="name" stroke={subTextColor} tick={{fontSize: 12, fill: subTextColor}} tickLine={false} axisLine={false} />
+                            <YAxis domain={activeTab === 'rain_risk' ? [0, 100] : [0, 10]} ticks={activeTab === 'rain_risk' ? [0, 50, 100] : [0, 5, 10]} stroke={subTextColor} tick={{fontSize: 12, fill: subTextColor}} tickLine={false} axisLine={false} />
+                            <Tooltip 
+                                contentStyle={{ borderRadius: '12px', border: `1px solid ${borderColor}`, background: cardBg, color: textColor, fontWeight: 'bold' }}
+                                itemStyle={{ color: activeColor }}
+                            />
+                            <Line 
+                                type="monotone" 
+                                dataKey="score" 
+                                name="คะแนน" 
+                                stroke={activeColor} 
+                                strokeWidth={4} 
+                                activeDot={{ r: 8, stroke: cardBg, strokeWidth: 2 }} 
+                                dot={{ r: 4, strokeWidth: 2 }} 
+                            />
+                        </LineChart>
+                    </ResponsiveContainer>
                 </div>
 
                 <h4 style={{ margin: '0 0 20px 0', color: textColor, display: 'flex', alignItems: 'center', gap: '12px', fontSize: '1.1rem' }}>
                     <div style={{background: `linear-gradient(135deg, ${activeColor}, ${activeColor}dd)`, color: '#fff', width: '32px', height: '32px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.1rem', boxShadow: `0 4px 10px ${activeColor}40`}}>🕒</div> 
                     <span style={{fontWeight: '800'}}>ไทม์ไลน์สภาพอากาศแวดล้อม</span>
                 </h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '40px' }}>
                     {aiReport.timeline.map((item, i) => (
                         <div key={i} style={{ display: 'flex', gap: '18px', position: 'relative' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -599,6 +836,63 @@ export default function AIPage() {
                             </div>
                         </div>
                     ))}
+                </div>
+
+                {/* 💬 AI Chat Container */}
+                <h4 style={{ margin: '0 0 15px 0', color: textColor, display: 'flex', alignItems: 'center', gap: '12px', fontSize: '1.1rem' }}>
+                    <div style={{background: `linear-gradient(135deg, ${activeColor}, ${activeColor}dd)`, color: '#fff', width: '32px', height: '32px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.1rem', boxShadow: `0 4px 10px ${activeColor}40`}}>🤖</div> 
+                    <span style={{fontWeight: '800'}}>ถามคำถามเกี่ยวกับสภาพอากาศเพิ่มเติม</span>
+                </h4>
+                <div style={{ background: darkMode ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.8)', borderRadius: '20px', padding: '20px', border: `1px solid ${borderColor}` }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '300px', overflowY: 'auto', marginBottom: '15px', paddingRight: '5px' }}>
+                        {chatLogs.length === 0 && (
+                            <div style={{ textAlign: 'center', padding: '20px 0', color: subTextColor, fontSize: '0.9rem' }}>
+                                ลองพิมพ์คำถาม เช่น "วันนี้ต้องเตรียมตัวยังไงบ้าง" หรือ "มีโอกาสฝนตกไหม"
+                            </div>
+                        )}
+                        {chatLogs.map((log, idx) => (
+                            <div key={idx} style={{ 
+                                display: 'flex', 
+                                justifyContent: log.role === 'user' ? 'flex-end' : 'flex-start' 
+                            }}>
+                                <div style={{
+                                    maxWidth: '85%',
+                                    padding: '12px 16px',
+                                    borderRadius: '16px',
+                                    backgroundColor: log.role === 'user' ? activeColor : (darkMode ? '#1e293b' : '#f1f5f9'),
+                                    color: log.role === 'user' ? '#fff' : textColor,
+                                    borderBottomRightRadius: log.role === 'user' ? '4px' : '16px',
+                                    borderBottomLeftRadius: log.role === 'ai' ? '4px' : '16px',
+                                    fontSize: '0.95rem',
+                                    lineHeight: '1.5'
+                                }}>
+                                    {log.text}
+                                </div>
+                            </div>
+                        ))}
+                        {isChatLoading && (
+                            <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+                                <div style={{ padding: '12px 16px', borderRadius: '16px', backgroundColor: (darkMode ? '#1e293b' : '#f1f5f9'), color: subTextColor, fontSize: '0.85rem' }}>
+                                    กำลังคิดคำตอบ...
+                                </div>
+                            </div>
+                        )}
+                        <div ref={chatEndRef} />
+                    </div>
+                    
+                    <form onSubmit={handleChatSubmit} style={{ display: 'flex', gap: '10px' }}>
+                        <input 
+                            type="text" 
+                            value={chatInput} 
+                            onChange={(e) => setChatInput(e.target.value)} 
+                            placeholder="พิมพ์คำถามของคุณที่นี่..." 
+                            style={{ flex: 1, padding: '12px 16px', borderRadius: '12px', border: `1px solid ${borderColor}`, background: darkMode ? '#0f172a' : '#fff', color: textColor, fontFamily: 'Kanit', outline: 'none' }} 
+                            disabled={isChatLoading}
+                        />
+                        <button type="submit" disabled={isChatLoading || !chatInput.trim()} style={{ background: activeColor, color: '#fff', border: 'none', padding: '0 20px', borderRadius: '12px', cursor: (isChatLoading || !chatInput.trim()) ? 'not-allowed' : 'pointer', fontWeight: 'bold', opacity: (isChatLoading || !chatInput.trim()) ? 0.6 : 1 }}>
+                            ส่ง
+                        </button>
+                    </form>
                 </div>
             </div>
         )}
