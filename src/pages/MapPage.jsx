@@ -148,11 +148,11 @@ export default function MapPage() {
 
   const getBasicColor = useCallback((val, mode) => {
     if (val === null || val === undefined || val === '') return darkMode ? '#334155' : '#cbd5e1';
-    if (mode === 'pm25') return val >= 75 ? '#ef4444' : val >= 37.5 ? '#f97316' : val >= 25 ? '#eab308' : val >= 15 ? '#22c55e' : '#0ea5e9';
-    if (mode === 'temp' || mode === 'heat') return val >= 39 ? '#ef4444' : val >= 35 ? '#f97316' : val >= 29 ? '#eab308' : val >= 23 ? '#22c55e' : '#3b82f6';
-    if (mode === 'rain') return val >= 70 ? '#1e3a8a' : val >= 40 ? '#3b82f6' : val >= 10 ? '#60a5fa' : '#94a3b8';
-    if (mode === 'wind') return val >= 40 ? '#ef4444' : val >= 20 ? '#f97316' : val >= 10 ? '#eab308' : '#22c55e';
-    if (mode === 'uv') return val >= 8 ? '#a855f7' : val >= 6 ? '#ef4444' : val >= 3 ? '#ea580c' : val >= 1 ? '#eab308' : '#22c55e';
+    if (mode === 'pm25') return val > 75 ? '#ef4444' : val >= 37.6 ? '#f97316' : val >= 25.1 ? '#eab308' : val >= 15.1 ? '#22c55e' : '#0ea5e9';
+    if (mode === 'temp' || mode === 'heat') return val > 39 ? '#ef4444' : val >= 35 ? '#f97316' : val >= 29 ? '#eab308' : val >= 23 ? '#22c55e' : '#3b82f6';
+    if (mode === 'rain') return val > 70 ? '#1e3a8a' : val >= 41 ? '#3b82f6' : val >= 11 ? '#60a5fa' : '#94a3b8';
+    if (mode === 'wind') return val > 40 ? '#ef4444' : val >= 21 ? '#f97316' : val >= 11 ? '#eab308' : '#22c55e';
+    if (mode === 'uv') return val > 10 ? '#a855f7' : val >= 8 ? '#ef4444' : val >= 6 ? '#ea580c' : val >= 3 ? '#eab308' : '#22c55e';
     return darkMode ? '#334155' : '#cbd5e1';
   }, [darkMode]);
 
@@ -316,7 +316,7 @@ export default function MapPage() {
         ];
     }
     switch (activeBasicMode) {
-        case 'pm25': return [{ c: '#ef4444', l: 'มีผลกระทบฯ', r: '> 75' }, { c: '#f97316', l: 'เริ่มมีผลกระทบฯ', r: '38-75' }, { c: '#eab308', l: 'ปานกลาง', r: '26-37' }, { c: '#22c55e', l: 'ดี', r: '16-25' }, { c: '#0ea5e9', l: 'ดีมาก', r: '0-15' }];
+        case 'pm25': return [{ c: '#ef4444', l: 'มีผลกระทบฯ', r: '> 75' }, { c: '#f97316', l: 'เริ่มมีผลกระทบฯ', r: '37.6-75.0' }, { c: '#eab308', l: 'ปานกลาง', r: '25.1-37.5' }, { c: '#22c55e', l: 'ดี', r: '15.1-25.0' }, { c: '#0ea5e9', l: 'ดีมาก', r: '0-15.0' }];
         case 'temp':
         case 'heat': return [{ c: '#ef4444', l: 'ร้อนจัด', r: '> 39' }, { c: '#f97316', l: 'ร้อน', r: '35-39' }, { c: '#eab308', l: 'อบอ้าว', r: '29-34' }, { c: '#22c55e', l: 'ปกติ/อบอุ่น', r: '23-28' }, { c: '#3b82f6', l: 'เย็นสบาย', r: '< 23' }];
         case 'rain': return [{ c: '#1e3a8a', l: 'ตกหนัก/พายุ', r: '> 70%' }, { c: '#3b82f6', l: 'โอกาสตกสูง', r: '41-70%' }, { c: '#60a5fa', l: 'โอกาสตกต่ำ', r: '11-40%' }, { c: '#94a3b8', l: 'ไม่มีฝน', r: '0-10%' }];
