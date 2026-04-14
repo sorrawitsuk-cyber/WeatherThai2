@@ -19,8 +19,17 @@ const TrendIndicator = ({ current, prev, hideText = false }) => {
     );
 };
 
+// 🌟 Component แสดงทิศลม
+const WindDirection = ({ deg }) => {
+    if (deg == null) return null;
+    const dirs = ['เหนือ','ตอ.เหนือ','ตะวันออก','ตอ.ใต้','ใต้','ตก.ใต้','ตะวันตก','ตก.เหนือ'];
+    const arrows = ['↑','↗','→','↘','↓','↙','←','↖'];
+    const idx = Math.round(deg / 45) % 8;
+    return <span style={{fontSize:'0.7rem', opacity:0.7, marginLeft:'4px'}} title={`ทิศ${dirs[idx]}`}>{arrows[idx]}</span>;
+};
+
 export default function ClimatePage() {
-  const { stations, stationTemps, loading, darkMode, stationYesterday = {}, stationMaxYesterday = {} } = useContext(WeatherContext);
+  const { stations, stationTemps, loading, darkMode, stationYesterday = {}, stationMaxYesterday = {}, lastUpdated, gistdaSummary } = useContext(WeatherContext);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('heat'); 
@@ -35,8 +44,11 @@ export default function ClimatePage() {
   const [showLocFilter, setShowLocFilter] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
 
-  const yesterdayDate = new Date();
-  yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+  const yesterdayDate = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return d;
+  }, []);
   const yesterdayDateText = yesterdayDate.toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' });
 
   useEffect(() => {
@@ -50,8 +62,6 @@ export default function ClimatePage() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const getSafePrev = useCallback((curr) => curr, []);
-
   const fetchUserLocation = useCallback(() => {
       setIsLocating(true);
       const fallbackToDefault = () => {
@@ -64,13 +74,14 @@ export default function ClimatePage() {
               const curr = stationTemps[closest.stationID] || {};
               const prev = stationYesterday[closest.stationID] || {};
               setUserData({
-                  temp: Math.round(curr.temp || 0), prevTemp: prev.temp !== undefined ? prev.temp : getSafePrev(curr.temp),
-                  pm25: closest.AQILast?.PM25?.value || 0, prevPm25: prev.pm25 !== undefined ? prev.pm25 : getSafePrev(closest.AQILast?.PM25?.value || 0),
-                  rain: curr.rainProb || 0, uv: curr.uv || 0, wind: Math.round(curr.windSpeed || 0)
+                  temp: Math.round(curr.temp || 0), prevTemp: prev.temp !== undefined ? prev.temp : null,
+                  pm25: closest.AQILast?.PM25?.value || 0, prevPm25: prev.pm25 !== undefined ? prev.pm25 : null,
+                  rain: curr.rainProb || 0, uv: curr.uv || 0, wind: Math.round(curr.windSpeed || 0),
+                  windDir: curr.windDir || null
               });
           } else {
               setUserProv('กรุงเทพมหานคร');
-              setUserData({ temp: '-', pm25: '-', rain: '-', uv: '-', wind: '-' });
+              setUserData({ temp: '-', pm25: '-', rain: '-', uv: '-', wind: '-', windDir: null });
           }
           setIsLocating(false);
       };
@@ -81,6 +92,7 @@ export default function ClimatePage() {
             let closest = null; let minDistance = Infinity;
             stations.forEach(st => {
               if(st.lat && st.lon) {
+                  // Euclidean distance ใช้งานได้สำหรับประเทศไทย (lat ~5-20°)
                   const dist = Math.sqrt(Math.pow(st.lat - pos.coords.latitude, 2) + Math.pow(st.lon - pos.coords.longitude, 2));
                   if (dist < minDistance) { minDistance = dist; closest = st; }
               }
@@ -92,34 +104,39 @@ export default function ClimatePage() {
                  const curr = stationTemps[closest.stationID];
                  const prev = stationYesterday[closest.stationID] || {};
                  setUserData({
-                   temp: Math.round(curr.temp || 0), prevTemp: prev.temp !== undefined ? prev.temp : getSafePrev(curr.temp),
-                   pm25: closest.AQILast?.PM25?.value || 0, prevPm25: prev.pm25 !== undefined ? prev.pm25 : getSafePrev(closest.AQILast?.PM25?.value || 0),
-                   rain: curr.rainProb || 0, uv: curr.uv || 0, wind: Math.round(curr.windSpeed || 0)
+                   temp: Math.round(curr.temp || 0), prevTemp: prev.temp !== undefined ? prev.temp : null,
+                   pm25: closest.AQILast?.PM25?.value || 0, prevPm25: prev.pm25 !== undefined ? prev.pm25 : null,
+                   rain: curr.rainProb || 0, uv: curr.uv || 0, wind: Math.round(curr.windSpeed || 0),
+                   windDir: curr.windDir || null
                  });
-              } else setUserData({ temp: '-', pm25: '-', rain: '-', uv: '-', wind: '-' });
+              } else setUserData({ temp: '-', pm25: '-', rain: '-', uv: '-', wind: '-', windDir: null });
             } else fallbackToDefault();
             setIsLocating(false);
           }, 
           () => fallbackToDefault(), { timeout: 5000, maximumAge: 60000 } 
         );
       } else fallbackToDefault();
-  }, [stations, stationTemps, stationYesterday, getSafePrev]);
+  }, [stations, stationTemps, stationYesterday]);
 
   useEffect(() => { if (stations && stations.length > 0) fetchUserLocation(); }, [stations, fetchUserLocation]);
 
+  // 🔴 เกณฑ์เสี่ยงตรงมาตรฐาน: กรมอุตุนิยมวิทยา / กรมควบคุมมลพิษ / WHO
   const isRisky = useCallback((mode, val) => {
-      if(mode === 'heat') return val >= 35;
-      if(mode === 'pm25') return val > 15;
-      if(mode === 'uv') return val >= 3;
-      if(mode === 'rain') return val > 30;
-      if(mode === 'wind') return val > 15;
+      if (val == null) return false;
+      if(mode === 'heat') return val >= 39;     // กรมอุตุฯ "ร้อนจัด"
+      if(mode === 'pm25') return val >= 37.5;   // กรมควบคุมมลพิษ "เริ่มมีผลต่อสุขภาพ"
+      if(mode === 'uv') return val >= 8;        // WHO "Very High"
+      if(mode === 'rain') return val >= 60;     // ฝนตกหนัก
+      if(mode === 'wind') return val >= 50;     // กรมอุตุฯ "ลมแรง"
+      if(mode === 'fire') return val > 0;       // มีจุดความร้อน
+      if(mode === 'flood') return val > 0;      // มีพื้นที่น้ำท่วม
       return false;
   }, []);
 
   const { liveData, yesterdayData, riskyCounts } = useMemo(() => {
-    let lData = { heat: [], pm25: [], uv: [], rain: [], wind: [], fire: [] };
-    let yData = { heat: [], pm25: [], uv: [], rain: [], wind: [], fire: [] };
-    let counts = { heat: {live: 0, yest: 0}, pm25: {live: 0, yest: 0}, uv: {live: 0, yest: 0}, rain: {live: 0, yest: 0}, wind: {live: 0, yest: 0}, fire: {live: 3, yest: 4} };
+    let lData = { heat: [], pm25: [], uv: [], rain: [], wind: [], fire: [], flood: [] };
+    let yData = { heat: [], pm25: [], uv: [], rain: [], wind: [], fire: [], flood: [] };
+    let counts = { heat: {live: 0, yest: 0}, pm25: {live: 0, yest: 0}, uv: {live: 0, yest: 0}, rain: {live: 0, yest: 0}, wind: {live: 0, yest: 0}, fire: {live: 0, yest: 0}, flood: {live: 0, yest: 0} };
     
     if (stations?.length > 0 && stationTemps) {
         stations.forEach(st => {
@@ -129,24 +146,25 @@ export default function ClimatePage() {
           const provName = (st.areaTH || st.nameTH || '').replace('จังหวัด', '');
 
           const currTemp = Math.round(data.temp || 0); 
-          const prevTempSameHour = yObj.temp !== undefined ? yObj.temp : getSafePrev(currTemp);
-          const maxTemp = maxObj.temp !== undefined ? maxObj.temp : getSafePrev(currTemp);
+          const prevTempSameHour = yObj.temp !== undefined ? yObj.temp : null;
+          const maxTemp = maxObj.temp !== undefined ? maxObj.temp : currTemp;
           
           const currPM = st.AQILast?.PM25?.value || 0;
-          const prevPMSameHour = yObj.pm25 !== undefined ? yObj.pm25 : getSafePrev(currPM);
-          const maxPM = maxObj.pm25 !== undefined ? maxObj.pm25 : getSafePrev(currPM);
+          const prevPMSameHour = yObj.pm25 !== undefined ? yObj.pm25 : null;
+          const maxPM = maxObj.pm25 !== undefined ? maxObj.pm25 : currPM;
 
           const currUV = data.uv || 0;
-          const prevUVSameHour = yObj.uv !== undefined ? yObj.uv : currUV;
+          const prevUVSameHour = yObj.uv !== undefined ? yObj.uv : null;
           const maxUV = maxObj.uv !== undefined ? maxObj.uv : currUV;
 
           const currRain = data.rainProb || 0;
-          const prevRainSameHour = yObj.rain !== undefined ? yObj.rain : currRain;
+          const prevRainSameHour = yObj.rain !== undefined ? yObj.rain : null;
           const maxRain = maxObj.rain !== undefined ? maxObj.rain : currRain;
 
           const currWind = Math.round(data.windSpeed || 0);
-          const prevWindSameHour = yObj.wind !== undefined ? yObj.wind : currWind;
+          const prevWindSameHour = yObj.wind !== undefined ? yObj.wind : null;
           const maxWind = maxObj.wind !== undefined ? maxObj.wind : currWind;
+          const windDir = data.windDir || null;
 
           if (isRisky('heat', currTemp)) counts.heat.live++;
           if (isRisky('heat', prevTempSameHour)) counts.heat.yest++;
@@ -159,30 +177,48 @@ export default function ClimatePage() {
           if (isRisky('wind', currWind)) counts.wind.live++;
           if (isRisky('wind', prevWindSameHour)) counts.wind.yest++;
 
-          // โหมด Live: คัดเฉพาะที่เสี่ยง
-          if (currTemp >= 35) lData.heat.push({ prov: provName, val: currTemp, prevVal: prevTempSameHour, unit: '°C' });
-          if (currPM > 15) lData.pm25.push({ prov: provName, val: currPM, prevVal: prevPMSameHour, unit: 'µg/m³' });
-          if (currUV >= 3) lData.uv.push({ prov: provName, val: currUV, prevVal: prevUVSameHour, unit: 'Idx' });
-          if (currRain > 30) lData.rain.push({ prov: provName, val: currRain, prevVal: prevRainSameHour, unit: '%' });
-          if (currWind > 15) lData.wind.push({ prov: provName, val: currWind, prevVal: prevWindSameHour, unit: 'km/h' });
+          // โหมด Live: คัดเฉพาะที่เกินเกณฑ์มาตรฐาน
+          if (currTemp >= 39) lData.heat.push({ prov: provName, val: currTemp, prevVal: prevTempSameHour, unit: '°C' });
+          if (currPM >= 37.5) lData.pm25.push({ prov: provName, val: currPM, prevVal: prevPMSameHour, unit: 'µg/m³' });
+          if (currUV >= 8) lData.uv.push({ prov: provName, val: currUV, prevVal: prevUVSameHour, unit: 'UVI' });
+          if (currRain >= 60) lData.rain.push({ prov: provName, val: currRain, prevVal: prevRainSameHour, unit: '%' });
+          if (currWind >= 50) lData.wind.push({ prov: provName, val: currWind, prevVal: prevWindSameHour, unit: 'km/h', windDir });
 
-          // โหมด Yesterday: เก็บทั้งหมด
+          // โหมด Yesterday: เก็บทุกจังหวัด
           yData.heat.push({ prov: provName, val: maxTemp, currVal: currTemp, unit: '°C' });
           yData.pm25.push({ prov: provName, val: maxPM, currVal: currPM, unit: 'µg/m³' });
-          yData.uv.push({ prov: provName, val: maxUV, currVal: currUV, unit: 'Idx' });
+          yData.uv.push({ prov: provName, val: maxUV, currVal: currUV, unit: 'UVI' });
           yData.rain.push({ prov: provName, val: maxRain, currVal: currRain, unit: '%' });
           yData.wind.push({ prov: provName, val: maxWind, currVal: currWind, unit: 'km/h' });
         });
     }
 
-    const gistdaMock = [{ prov: 'เชียงใหม่', count: 145 }, { prov: 'แม่ฮ่องสอน', count: 122 }, { prov: 'กาญจนบุรี', count: 110 }];
-    lData.fire = gistdaMock.map(p => ({ prov: p.prov, val: p.count, prevVal: p.count + 10, unit: 'จุด' })).sort((a,b) => b.val - a.val);
-    yData.fire = gistdaMock.map(p => ({ prov: p.prov, val: p.count + 10, currVal: p.count, unit: 'จุด' }));
+    // 🔥 ไฟป่า — ข้อมูลดาวเทียม GISTDA (Firebase) แทน Hardcode
+    if (gistdaSummary?.hotspots?.length > 0) {
+        lData.fire = gistdaSummary.hotspots
+            .filter(p => p.value > 0)
+            .map(p => ({ prov: p.province, val: p.value, prevVal: null, unit: 'จุด' }))
+            .sort((a,b) => b.val - a.val);
+        counts.fire.live = lData.fire.length;
+        counts.fire.yest = counts.fire.live; // ข้อมูลดาวเทียม = daily snapshot
+    }
+    yData.fire = lData.fire.map(p => ({ ...p, currVal: p.val }));
 
-    Object.keys(lData).forEach(key => { if(key !== 'fire') lData[key].sort((a, b) => b.val - a.val) });
+    // 🌊 น้ำท่วม — ข้อมูลดาวเทียม GISTDA (Firebase)
+    if (gistdaSummary?.floodArea?.length > 0) {
+        lData.flood = gistdaSummary.floodArea
+            .filter(p => p.value > 0)
+            .map(p => ({ prov: p.province, val: p.value, prevVal: null, unit: 'ไร่' }))
+            .sort((a,b) => b.val - a.val);
+        counts.flood.live = lData.flood.length;
+        counts.flood.yest = counts.flood.live;
+    }
+    yData.flood = lData.flood.map(p => ({ ...p, currVal: p.val }));
+
+    Object.keys(lData).forEach(key => { if(key !== 'fire' && key !== 'flood') lData[key].sort((a, b) => b.val - a.val) });
     
     return { liveData: lData, yesterdayData: yData, riskyCounts: counts };
-  }, [stations, stationTemps, stationYesterday, stationMaxYesterday, getSafePrev, isRisky]);
+  }, [stations, stationTemps, stationYesterday, stationMaxYesterday, gistdaSummary, isRisky]);
 
   const appBg = 'var(--bg-app)'; 
   const cardBg = 'var(--bg-card)';
@@ -190,26 +226,33 @@ export default function ClimatePage() {
   const borderColor = 'var(--border-color)';
   const subTextColor = 'var(--text-sub)'; 
 
-  const modeBriefings = {
-      heat: { level: '🔴 เฝ้าระวังฮีทสโตรก', desc: 'อุณหภูมิทะลุเกณฑ์อันตรายในหลายพื้นที่ ควรงดกิจกรรมกลางแจ้ง และดื่มน้ำให้เพียงพอ', bg: '#fef2f2', border: '#fecaca', color: '#ef4444' },
-      pm25: { level: '🟠 อากาศเริ่มปิด', desc: 'คุณภาพอากาศเริ่มมีผลกระทบต่อสุขภาพ แนะนำสวมหน้ากากอนามัย และเปิดเครื่องฟอกอากาศ', bg: '#fff7ed', border: '#fed7aa', color: '#f97316' },
-      uv: { level: '🟣 รังสี UV รุนแรง', desc: 'ดัชนีรังสี UV อยู่ในเกณฑ์สูงมาก เสี่ยงต่อผิวหนังไหม้แดด ควรกางร่มหรือทาครีมกันแดด', bg: '#faf5ff', border: '#e9d5ff', color: '#a855f7' },
-      rain: { level: '🔵 พายุฤดูร้อน', desc: 'มีโอกาสเกิดฝนฟ้าคะนองและลมกระโชกแรง ระวังอันตรายจากป้ายโฆษณาหรือต้นไม้หักโค่น', bg: '#eff6ff', border: '#bfdbfe', color: '#3b82f6' },
-      wind: { level: '🟡 ระวังลมกระโชกแรง', desc: 'กระแสลมพัดแรงในบางพื้นที่ ระวังอันตรายจากป้ายโฆษณา ต้นไม้ใหญ่ และสิ่งปลูกสร้าง', bg: '#ecfeff', border: '#a5f3fc', color: '#06b6d4' },
-      fire: { level: '🔴 เสี่ยงไฟป่ารุนแรง', desc: 'พบจุดความร้อนกระจายตัวหนาแน่น สภาพอากาศแห้งแล้งเอื้อต่อการลุกลาม ห้ามจุดไฟในที่โล่งเด็ดขาด', bg: '#fef2f2', border: '#fed7aa', color: '#ea580c' }
-  };
+  // 🎯 Dynamic Briefing — แทรกจำนวนจังหวัดจริง (ไม่ใช่ static string)
+  const getModeBriefing = useCallback((mode) => {
+      const count = riskyCounts[mode]?.live || 0;
+      const briefings = {
+          heat: { level: '🔴 เฝ้าระวังฮีทสโตรก', desc: count > 0 ? `พบ ${count} จังหวัดที่อุณหภูมิเกิน 39°C — ควรงดกิจกรรมกลางแจ้ง ดื่มน้ำให้เพียงพอ` : 'ยังไม่พบพื้นที่อุณหภูมิเกินเกณฑ์ในขณะนี้', bg: '#fef2f2', border: '#fecaca', color: '#ef4444' },
+          pm25: { level: '🟠 คุณภาพอากาศ', desc: count > 0 ? `พบ ${count} จังหวัดที่ฝุ่น PM2.5 เกิน 37.5 µg/m³ — แนะนำสวมหน้ากากและเปิดเครื่องฟอกอากาศ` : 'คุณภาพอากาศอยู่ในเกณฑ์ปลอดภัยทุกพื้นที่', bg: '#fff7ed', border: '#fed7aa', color: '#f97316' },
+          uv: { level: '🟣 รังสี UV รุนแรง', desc: count > 0 ? `พบ ${count} จังหวัดที่ UV Index ≥ 8 (สูงมาก) — เสี่ยงต่อผิวหนังไหม้แดด ควรกางร่มหรือทาครีมกันแดด` : 'ดัชนี UV อยู่ในเกณฑ์ปลอดภัยทุกพื้นที่', bg: '#faf5ff', border: '#e9d5ff', color: '#a855f7' },
+          rain: { level: '🔵 ฝนตกหนัก', desc: count > 0 ? `พบ ${count} จังหวัดที่โอกาสฝนเกิน 60% — ระวังน้ำท่วมฉับพลัน ฟ้าผ่า และลมกระโชกแรง` : 'โอกาสฝนตกต่ำในทุกพื้นที่', bg: '#eff6ff', border: '#bfdbfe', color: '#3b82f6' },
+          wind: { level: '🟡 ระวังลมแรง', desc: count > 0 ? `พบ ${count} จังหวัดที่ลมแรงเกิน 50 km/h — ระวังป้ายโฆษณา ต้นไม้ใหญ่ และสิ่งปลูกสร้าง` : 'ความเร็วลมอยู่ในเกณฑ์ปกติทุกพื้นที่', bg: '#fefce8', border: '#fef08a', color: '#eab308' },
+          fire: { level: '🔴 จุดความร้อน (Hotspot)', desc: count > 0 ? `พบ ${count} จังหวัดที่มีจุดความร้อนจากดาวเทียม GISTDA — ห้ามจุดไฟในที่โล่งเด็ดขาด` : 'ไม่พบจุดความร้อนในขณะนี้', bg: '#fef2f2', border: '#fed7aa', color: '#ea580c' },
+          flood: { level: '🔵 พื้นที่น้ำท่วม', desc: count > 0 ? `พบ ${count} จังหวัดที่มีพื้นที่น้ำท่วมจากดาวเทียม GISTDA` : 'ไม่พบพื้นที่น้ำท่วมในขณะนี้', bg: '#eff6ff', border: '#bfdbfe', color: '#0284c7' }
+      };
+      return briefings[mode] || briefings.heat;
+  }, [riskyCounts]);
 
   const tabs = [
       { id: 'heat', label: 'ความร้อน', icon: '🥵', color: '#ef4444', data: timeMode === 'live' ? liveData.heat : yesterdayData.heat },
       { id: 'pm25', label: 'ฝุ่น PM2.5', icon: '😷', color: '#f97316', data: timeMode === 'live' ? liveData.pm25 : yesterdayData.pm25 },
       { id: 'uv', label: 'รังสี UV', icon: '☀️', color: '#a855f7', data: timeMode === 'live' ? liveData.uv : yesterdayData.uv },
-      { id: 'rain', label: 'พายุ/ฝน', icon: '⛈️', color: '#3b82f6', data: timeMode === 'live' ? liveData.rain : yesterdayData.rain },
-      { id: 'wind', label: 'ลมกระโชกแรง', icon: '🌪️', color: '#06b6d4', data: timeMode === 'live' ? liveData.wind : yesterdayData.wind },
-      { id: 'fire', label: 'ไฟป่า', icon: '🔥', color: '#ea580c', data: timeMode === 'live' ? liveData.fire : yesterdayData.fire }
+      { id: 'rain', label: 'ฝน/พายุ', icon: '⛈️', color: '#3b82f6', data: timeMode === 'live' ? liveData.rain : yesterdayData.rain },
+      { id: 'wind', label: 'ลมแรง', icon: '🌪️', color: '#eab308', data: timeMode === 'live' ? liveData.wind : yesterdayData.wind },
+      { id: 'fire', label: 'ไฟป่า', icon: '🔥', color: '#ea580c', data: timeMode === 'live' ? liveData.fire : yesterdayData.fire },
+      { id: 'flood', label: 'น้ำท่วม', icon: '🌊', color: '#0284c7', data: timeMode === 'live' ? liveData.flood : yesterdayData.flood }
   ];
 
   const activeTabData = tabs.find(t => t.id === activeTab);
-  const activeBriefing = modeBriefings[activeTab];
+  const activeBriefing = getModeBriefing(activeTab);
 
   const sortedFilteredData = useMemo(() => {
       let filtered = activeTabData.data.filter(item => item.prov.includes(searchTerm));
@@ -221,15 +264,16 @@ export default function ClimatePage() {
   }, [activeTabData.data, searchTerm, timeMode, sortOrder]);
 
   const getWindyOverlay = (tabId) => {
-      if (tabId === 'rain') return 'rain';
+      if (tabId === 'rain' || tabId === 'flood') return 'rain';
       if (tabId === 'pm25') return 'pm2p5';
       if (tabId === 'uv') return 'uvindex';
       if (tabId === 'wind') return 'wind'; 
-      return 'temp';
+      return 'temp'; // heat, fire
   };
 
   const chartData = useMemo(() => {
     return [...yesterdayData[activeTab]]
+        .filter(item => item.val != null)
         .sort((a,b) => b.val - a.val)
         .slice(0, 10)
         .map(item => ({ name: item.prov, 'เมื่อวาน': item.val, 'วันนี้': item.currVal }));
@@ -237,30 +281,53 @@ export default function ClimatePage() {
 
   const riskyDiff = riskyCounts[activeTab].live - riskyCounts[activeTab].yest;
   let trendSummaryColor = subTextColor;
-  let trendSummaryText = `สถานการณ์คงที่: จำนวนพื้นที่เสี่ยงเท่ากับเมื่อวาน (${riskyCounts[activeTab].live} จังหวัด)`;
+  let trendTitle = '➖ คงที่';
+  let trendDetail = `จำนวนพื้นที่เสี่ยงเท่ากับเมื่อวาน (${riskyCounts[activeTab].live} จังหวัด)`;
   
   if (riskyDiff > 0) {
       trendSummaryColor = '#ef4444'; 
-      trendSummaryText = `สถานการณ์แย่ลง ▲: พบพื้นที่เสี่ยงเพิ่มขึ้น ${Math.abs(riskyDiff)} จังหวัด (วันนี้ ${riskyCounts[activeTab].live} จ. / เมื่อวาน ${riskyCounts[activeTab].yest} จ.)`;
+      trendTitle = '▲ สถานการณ์แย่ลง';
+      trendDetail = `วันนี้ ${riskyCounts[activeTab].live} จ. / เมื่อวาน ${riskyCounts[activeTab].yest} จ. (+${riskyDiff})`;
   } else if (riskyDiff < 0) {
       trendSummaryColor = '#22c55e'; 
-      trendSummaryText = `สถานการณ์ดีขึ้น ▼: พื้นที่เสี่ยงลดลง ${Math.abs(riskyDiff)} จังหวัด (วันนี้ ${riskyCounts[activeTab].live} จ. / เมื่อวาน ${riskyCounts[activeTab].yest} จ.)`;
+      trendTitle = '▼ สถานการณ์ดีขึ้น';
+      trendDetail = `วันนี้ ${riskyCounts[activeTab].live} จ. / เมื่อวาน ${riskyCounts[activeTab].yest} จ. (${riskyDiff})`;
   }
 
   let locSummary = { text: 'สถานการณ์ปกติ', color: '#22c55e', bg: 'var(--bg-success)', icon: '✅', desc: 'ไม่มีการแจ้งเตือนสภาพอากาศรุนแรงในพื้นที่ของคุณ' };
   if (userData && userData.temp !== '-') {
       let criticalThreats = []; let warningThreats = [];
-      if (userData.temp >= 40) criticalThreats.push(`ร้อนจัด`);
-      if (userData.pm25 >= 75) criticalThreats.push(`ฝุ่นอันตราย`);
-      if (userData.rain >= 80) criticalThreats.push(`ฝนตกหนัก`);
-      if (userData.temp >= 36 && userData.temp < 40) warningThreats.push(`อากาศร้อน`);
-      if (userData.pm25 >= 37.5 && userData.pm25 < 75) warningThreats.push(`ฝุ่นเริ่มหนา`);
+      if (userData.temp >= 42) criticalThreats.push('ร้อนจัดอันตราย');
+      if (userData.pm25 >= 75) criticalThreats.push('ฝุ่นอันตราย');
+      if (userData.rain >= 80) criticalThreats.push('ฝนตกหนักมาก');
+      if (userData.temp >= 39 && userData.temp < 42) warningThreats.push('อากาศร้อนจัด');
+      if (userData.pm25 >= 37.5 && userData.pm25 < 75) warningThreats.push('ฝุ่นเริ่มหนา');
+      if (userData.uv >= 8) warningThreats.push('UV สูงมาก');
+      if (userData.wind >= 50) warningThreats.push('ลมแรง');
       
       if (criticalThreats.length > 0) locSummary = { text: 'อันตรายระดับวิกฤต', color: '#ef4444', bg: 'var(--bg-danger)', icon: '🚨', desc: `เฝ้าระวัง: ${criticalThreats.join(', ')}` };
       else if (warningThreats.length > 0) locSummary = { text: 'พื้นที่เฝ้าระวังพิเศษ', color: '#f97316', bg: 'var(--bg-warning)', icon: '⚠️', desc: `เฝ้าระวัง: ${warningThreats.join(', ')}` };
   }
 
-  // 🌟 ใช้ Loading Spinner แบบใหม่ (หมุนๆ)
+  // 🚨 Nowcast Situation Report — สรุปภาพรวมสถานการณ์ทั่วประเทศ
+  const nowcastAlerts = useMemo(() => {
+      const alerts = [];
+      if (riskyCounts.heat.live > 0) alerts.push({ icon: '🥵', text: `${riskyCounts.heat.live} จ. ร้อนจัด`, color: '#ef4444' });
+      if (riskyCounts.pm25.live > 0) alerts.push({ icon: '😷', text: `${riskyCounts.pm25.live} จ. ฝุ่นเกิน`, color: '#f97316' });
+      if (riskyCounts.uv.live > 0) alerts.push({ icon: '☀️', text: `${riskyCounts.uv.live} จ. UV สูง`, color: '#a855f7' });
+      if (riskyCounts.rain.live > 0) alerts.push({ icon: '⛈️', text: `${riskyCounts.rain.live} จ. ฝนหนัก`, color: '#3b82f6' });
+      if (riskyCounts.wind.live > 0) alerts.push({ icon: '🌪️', text: `${riskyCounts.wind.live} จ. ลมแรง`, color: '#eab308' });
+      if (riskyCounts.fire.live > 0) alerts.push({ icon: '🔥', text: `${riskyCounts.fire.live} จ. ไฟป่า`, color: '#ea580c' });
+      if (riskyCounts.flood.live > 0) alerts.push({ icon: '🌊', text: `${riskyCounts.flood.live} จ. น้ำท่วม`, color: '#0284c7' });
+      return alerts;
+  }, [riskyCounts]);
+
+  const nowcastLevel = nowcastAlerts.length >= 3 ? 'วิกฤต' : nowcastAlerts.length > 0 ? 'เฝ้าระวัง' : 'ปกติ';
+  const nowcastColor = nowcastAlerts.length >= 3 ? '#ef4444' : nowcastAlerts.length > 0 ? '#f59e0b' : '#22c55e';
+
+  const lastUpdateText = lastUpdated ? new Date(lastUpdated).toLocaleString('th-TH', { hour: '2-digit', minute: '2-digit' }) : null;
+
+  // 🌟 Loading Spinner
   if (loading || stations.length === 0) return (
     <div className="loading-container" style={{ background: appBg, color: textColor }}>
         <div className="loading-spinner" style={{ borderTopColor: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.15)' }}></div>
@@ -272,10 +339,7 @@ export default function ClimatePage() {
   return (
     <div style={{ height: '100%', width: '100%', background: timeMode === 'yesterday' ? (darkMode ? '#000000' : '#f1f5f9') : appBg, display: 'flex', justifyContent: 'center', overflowY: 'auto', fontFamily: 'Kanit, sans-serif', transition: 'background 0.3s' }} className="custom-scrollbar">
       
-      <style dangerouslySetInlineStyle={{__html: `
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: ${darkMode ? '#334155' : '#cbd5e1'}; border-radius: 10px; }
+      <style dangerouslySetInnerHTML={{__html: `
         @media (max-width: 1024px) {
             .custom-scrollbar::-webkit-scrollbar { display: none; }
             .custom-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
@@ -295,14 +359,41 @@ export default function ClimatePage() {
                     <span style={{ display: 'inline-block', width: '10px', height: '10px', background: timeMode === 'live' ? '#22c55e' : '#8b5cf6', borderRadius: '50%', boxShadow: timeMode === 'live' ? '0 0 8px #22c55e' : '0 0 8px #8b5cf6', animation: timeMode === 'live' ? 'pulse 1.5s infinite' : 'none' }}></span>
                     {timeMode === 'live' ? `LIVE: ${currentTime.toLocaleTimeString('th-TH')}` : `DATA: ${yesterdayDateText}`}
                 </div>
-                <div style={{ display: 'flex', background: cardBg, borderRadius: '50px', border: `1px solid ${borderColor}`, padding: '4px', marginTop: '5px' }}>
+                {/* แสดงเวลาอัปเดตข้อมูลจาก Firebase */}
+                {lastUpdateText && timeMode === 'live' && (
+                    <div style={{ fontSize: '0.7rem', color: subTextColor, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        📡 ข้อมูล: {lastUpdateText} น.
+                    </div>
+                )}
+                <div style={{ display: 'flex', background: cardBg, borderRadius: '50px', border: `1px solid ${borderColor}`, padding: '4px', marginTop: '2px' }}>
                     <button onClick={() => setTimeMode('live')} style={{ background: timeMode === 'live' ? '#22c55e' : 'transparent', color: timeMode === 'live' ? '#fff' : subTextColor, border: 'none', padding: '6px 15px', borderRadius: '50px', fontSize: '0.8rem', fontWeight: 'bold', cursor: 'pointer', transition: '0.2s' }}>🟢 วันนี้ (Live)</button>
                     <button onClick={() => setTimeMode('yesterday')} style={{ background: timeMode === 'yesterday' ? '#8b5cf6' : 'transparent', color: timeMode === 'yesterday' ? '#fff' : subTextColor, border: 'none', padding: '6px 15px', borderRadius: '50px', fontSize: '0.8rem', fontWeight: 'bold', cursor: 'pointer', transition: '0.2s' }}>🟣 สถิติเมื่อวาน</button>
                 </div>
             </div>
         </div>
 
-        {/* ส่วนบน: Area กล่องส่วนตัว + 6 Tabs */}
+        {/* 🚨 Nowcast Situation Report Banner */}
+        {timeMode === 'live' && (
+            <div className="fade-in" style={{ background: `${nowcastColor}12`, border: `1px solid ${nowcastColor}40`, borderRadius: '16px', padding: '12px 20px', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                    <span style={{ display: 'inline-block', width: '10px', height: '10px', background: nowcastColor, borderRadius: '50%', animation: 'pulse 1.5s infinite' }}></span>
+                    <span style={{ fontWeight: '900', color: nowcastColor, fontSize: '0.95rem', whiteSpace: 'nowrap' }}>NOWCAST: สถานการณ์{nowcastLevel}</span>
+                </div>
+                {nowcastAlerts.length > 0 ? (
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                        {nowcastAlerts.map((a, i) => (
+                            <span key={i} style={{ background: `${a.color}15`, color: a.color, padding: '3px 10px', borderRadius: '20px', fontSize: '0.78rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                                {a.icon} {a.text}
+                            </span>
+                        ))}
+                    </div>
+                ) : (
+                    <span style={{ fontSize: '0.85rem', color: subTextColor }}>ไม่มีการแจ้งเตือนสภาพอากาศรุนแรงในขณะนี้</span>
+                )}
+            </div>
+        )}
+
+        {/* ส่วนบน: กล่องส่วนตัว + 7 Tabs */}
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 2fr', gap: '20px', alignItems: 'start' }}>
             <div style={{ background: locSummary.bg, border: `1px solid ${locSummary.color}50`, borderRadius: '24px', padding: '25px', display: 'flex', flexDirection: 'column', position: 'relative', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', transition: '0.3s' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -327,16 +418,17 @@ export default function ClimatePage() {
                                     const curr = stationTemps[closest.stationID] || {};
                                     const prev = stationYesterday[closest.stationID] || {};
                                     setUserData({
-                                        temp: Math.round(curr.temp || 0), prevTemp: prev.temp !== undefined ? prev.temp : getSafePrev(curr.temp),
-                                        pm25: closest.AQILast?.PM25?.value || 0, prevPm25: prev.pm25 !== undefined ? prev.pm25 : getSafePrev(closest.AQILast?.PM25?.value || 0),
-                                        rain: curr.rainProb || 0, uv: curr.uv || 0, wind: Math.round(curr.windSpeed || 0)
+                                        temp: Math.round(curr.temp || 0), prevTemp: prev.temp !== undefined ? prev.temp : null,
+                                        pm25: closest.AQILast?.PM25?.value || 0, prevPm25: prev.pm25 !== undefined ? prev.pm25 : null,
+                                        rain: curr.rainProb || 0, uv: curr.uv || 0, wind: Math.round(curr.windSpeed || 0),
+                                        windDir: curr.windDir || null
                                     });
                                 }
                                 setShowLocFilter(false);
                             }}
                             style={{ flex: 1, padding: '8px 12px', borderRadius: '12px', border: `1px solid ${borderColor}`, background: darkMode ? '#1e293b' : '#fff', color: textColor, fontFamily: 'Kanit', outline: 'none' }}
                         >
-                            <option value="">-- พิมพ์ชื่อจังหวัดเพื่อค้นหา... --</option>
+                            <option value="">-- เลือกจังหวัดเพื่อค้นหา --</option>
                             {[...stations].sort((a,b)=>a.areaTH.localeCompare(b.areaTH,'th')).map(st => (
                                 <option key={st.stationID} value={st.areaTH}>{st.areaTH}</option>
                             ))}
@@ -350,14 +442,25 @@ export default function ClimatePage() {
                         <div style={{ fontSize: '3rem', animation: locSummary.icon === '🚨' ? 'pulse 1.5s infinite' : 'none' }}>{locSummary.icon}</div>
                         <div style={{ fontSize: '1.3rem', fontWeight: '900', color: locSummary.color, textAlign: 'center', lineHeight: '1.2' }}>{locSummary.text}</div>
                         <div style={{ fontSize: '0.85rem', color: textColor, textAlign: 'center', opacity: 0.8, padding: '0 10px', marginBottom: '10px' }}>{locSummary.desc}</div>
-                        <div style={{ display: 'flex', gap: '8px', width: '100%', flexWrap: 'wrap', justifyContent: 'center' }}>
-                            <div style={{ background: 'var(--bg-overlay-heavy)', border: `1px solid ${borderColor}`, padding: '8px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 'bold', color: textColor, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                🌡️ <span style={{color: userData.temp >= 38 ? '#ef4444' : textColor}}>{userData.temp}°C</span>
+                        {/* แสดงข้อมูลครบ 5 ค่า + ทิศลม */}
+                        <div style={{ display: 'flex', gap: '6px', width: '100%', flexWrap: 'wrap', justifyContent: 'center' }}>
+                            <div style={{ background: 'var(--bg-overlay-heavy)', border: `1px solid ${borderColor}`, padding: '6px 10px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 'bold', color: textColor, display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                🌡️ <span style={{color: userData.temp >= 39 ? '#ef4444' : textColor}}>{userData.temp}°C</span>
                                 {timeMode === 'live' && <TrendIndicator current={userData.temp} prev={userData.prevTemp} />}
                             </div>
-                            <div style={{ background: 'var(--bg-overlay-heavy)', border: `1px solid ${borderColor}`, padding: '8px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 'bold', color: textColor, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                😷 <span style={{color: userData.pm25 >= 37.5 ? '#f97316' : textColor}}>{userData.pm25} µg</span>
+                            <div style={{ background: 'var(--bg-overlay-heavy)', border: `1px solid ${borderColor}`, padding: '6px 10px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 'bold', color: textColor, display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                😷 <span style={{color: userData.pm25 >= 37.5 ? '#f97316' : textColor}}>{userData.pm25} µg/m³</span>
                                 {timeMode === 'live' && <TrendIndicator current={userData.pm25} prev={userData.prevPm25} />}
+                            </div>
+                            <div style={{ background: 'var(--bg-overlay-heavy)', border: `1px solid ${borderColor}`, padding: '6px 10px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 'bold', color: textColor, display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                ☂️ <span style={{color: userData.rain >= 60 ? '#3b82f6' : textColor}}>{userData.rain}%</span>
+                            </div>
+                            <div style={{ background: 'var(--bg-overlay-heavy)', border: `1px solid ${borderColor}`, padding: '6px 10px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 'bold', color: textColor, display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                ☀️ <span style={{color: userData.uv >= 8 ? '#a855f7' : textColor}}>UV {userData.uv}</span>
+                            </div>
+                            <div style={{ background: 'var(--bg-overlay-heavy)', border: `1px solid ${borderColor}`, padding: '6px 10px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 'bold', color: textColor, display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                💨 <span style={{color: userData.wind >= 50 ? '#eab308' : textColor}}>{userData.wind} km/h</span>
+                                {userData.windDir != null && <WindDirection deg={userData.windDir} />}
                             </div>
                         </div>
                     </div>
@@ -365,18 +468,15 @@ export default function ClimatePage() {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <div style={{ fontSize: '0.85rem', color: subTextColor, fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '5px', paddingLeft: '5px' }}>
-                    👆 แผงควบคุม <span style={{fontWeight: 'normal', opacity: 0.8}}>(สลับโหมดข้อมูล)</span>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', flex: 1 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(4, 1fr)' : 'repeat(4, 1fr)', gap: isMobile ? '8px' : '12px', flex: 1 }}>
                     {tabs.map((tab, idx) => {
                         const count = timeMode === 'live' ? riskyCounts[tab.id].live : riskyCounts[tab.id].yest;
                         return (
-                            <div key={idx} onClick={() => setActiveTab(tab.id)} style={{ background: cardBg, padding: '12px 5px', borderRadius: '20px', border: `2px solid ${activeTab === tab.id ? tab.color : borderColor}`, cursor: 'pointer', transition: 'all 0.2s', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '5px', boxShadow: activeTab === tab.id ? `0 10px 20px ${tab.color}15` : 'none', transform: activeTab === tab.id ? 'translateY(-3px)' : 'none', opacity: timeMode === 'yesterday' && activeTab !== tab.id ? 0.5 : 1 }}>
-                                <span style={{ fontSize: '1.6rem' }}>{tab.icon}</span>
-                                <span style={{ fontSize: '0.7rem', color: subTextColor, fontWeight: 'bold', whiteSpace: 'nowrap' }}>{tab.label}</span>
+                            <div key={idx} onClick={() => setActiveTab(tab.id)} style={{ background: cardBg, padding: isMobile ? '10px 4px' : '12px 5px', borderRadius: '20px', border: `2px solid ${activeTab === tab.id ? tab.color : borderColor}`, cursor: 'pointer', transition: 'all 0.2s', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px', boxShadow: activeTab === tab.id ? `0 10px 20px ${tab.color}15` : 'none', transform: activeTab === tab.id ? 'translateY(-3px)' : 'none' }}>
+                                <span style={{ fontSize: isMobile ? '1.3rem' : '1.6rem' }}>{tab.icon}</span>
+                                <span style={{ fontSize: isMobile ? '0.6rem' : '0.7rem', color: subTextColor, fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{tab.label}</span>
                                 <div style={{ display: 'flex', alignItems: 'baseline', gap: '3px' }}>
-                                    <span style={{ fontSize: '1.2rem', fontWeight: '900', color: tab.color }}>{count}</span>
+                                    <span style={{ fontSize: isMobile ? '1rem' : '1.2rem', fontWeight: '900', color: tab.color }}>{count}</span>
                                     <span style={{ fontSize: '0.65rem', fontWeight: 'bold', color: tab.color }}>จ.</span>
                                 </div>
                             </div>
@@ -433,10 +533,23 @@ export default function ClimatePage() {
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                         <TrendIndicator current={item.val} prev={item.prevVal} />
-                                        <span style={{ color: activeTabData.color, fontWeight: '900', fontSize: '1rem', width: '60px', textAlign: 'right' }}>{item.val} <small style={{fontSize: '0.6rem'}}>{item.unit}</small></span>
+                                        <span style={{ color: activeTabData.color, fontWeight: '900', fontSize: '1rem', width: '80px', textAlign: 'right' }}>
+                                            {typeof item.val === 'number' ? item.val.toLocaleString() : item.val} <small style={{fontSize: '0.6rem'}}>{item.unit}</small>
+                                        </span>
+                                        {activeTab === 'wind' && item.windDir != null && <WindDirection deg={item.windDir} />}
                                     </div>
                                 </div>
-                            )) : ( <div style={{ textAlign: 'center', padding: '50px 0', color: subTextColor }}>✅ สถานการณ์ปกติ</div> )}
+                            )) : (
+                                // Empty state ที่แตกต่างสำหรับข้อมูล GISTDA vs ข้อมูลสถานี
+                                (activeTab === 'fire' || activeTab === 'flood') && !gistdaSummary ? (
+                                    <div style={{ textAlign: 'center', padding: '50px 0', color: subTextColor }}>
+                                        <div style={{ fontSize: '2rem', marginBottom: '10px' }}>📡</div>
+                                        กำลังดึงข้อมูลดาวเทียม GISTDA...
+                                    </div>
+                                ) : (
+                                    <div style={{ textAlign: 'center', padding: '50px 0', color: subTextColor }}>✅ ไม่พบพื้นที่เสี่ยงในขณะนี้</div>
+                                )
+                            )}
                         </div>
                     </div>
                 </div>
@@ -463,7 +576,8 @@ export default function ClimatePage() {
                         </ResponsiveContainer>
                     </div>
                     <div style={{ marginTop: '15px', padding: '12px', background: 'var(--bg-secondary)', borderRadius: '12px', textAlign: 'center', border: `1px dashed ${trendSummaryColor}50` }}>
-                        <span style={{ fontSize: '0.9rem', fontWeight: 'bold', color: trendSummaryColor }}>{trendSummaryText}</span>
+                        <div style={{ fontWeight: '900', fontSize: '0.95rem', color: trendSummaryColor }}>{trendTitle}</div>
+                        <div style={{ fontSize: '0.8rem', color: subTextColor, marginTop: '2px' }}>{trendDetail}</div>
                     </div>
                 </div>
 
@@ -496,7 +610,7 @@ export default function ClimatePage() {
                                 </div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                     <span style={{ color: activeTabData.color, fontWeight: '900', fontSize: '1.2rem', minWidth: '60px', textAlign: 'right' }}>
-                                        {item.val} <small style={{fontSize: '0.7rem', color: subTextColor}}>{item.unit}</small>
+                                        {item.val != null ? item.val.toLocaleString() : '-'} <small style={{fontSize: '0.7rem', color: subTextColor}}>{item.unit}</small>
                                     </span>
                                 </div>
                             </div>
@@ -510,6 +624,13 @@ export default function ClimatePage() {
                 </div>
             </div>
         )}
+
+        {/* Source Attribution Footer */}
+        <div style={{ textAlign: 'center', padding: '15px 0', borderTop: `1px solid ${borderColor}`, opacity: 0.7, marginTop: '10px' }}>
+            <div style={{ fontSize: '0.75rem', color: subTextColor }}>ข้อมูลจาก: กรมอุตุนิยมวิทยา • กรมควบคุมมลพิษ • GISTDA</div>
+            {lastUpdated && <div style={{ fontSize: '0.7rem', color: subTextColor, marginTop: '3px' }}>อัปเดตระบบล่าสุด: {new Date(lastUpdated).toLocaleString('th-TH')}</div>}
+        </div>
+
       </div>
     </div>
   );
