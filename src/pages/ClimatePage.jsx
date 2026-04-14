@@ -29,7 +29,7 @@ const WindDirection = ({ deg }) => {
 };
 
 export default function ClimatePage() {
-  const { stations, stationTemps, loading, darkMode, stationYesterday = {}, stationMaxYesterday = {}, lastUpdated, gistdaSummary } = useContext(WeatherContext);
+  const { stations, stationTemps, loading, darkMode, stationYesterday = {}, stationMaxYesterday = {}, lastUpdated, gistdaSummary, amphoeData, tmdAvailable } = useContext(WeatherContext);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('heat'); 
@@ -39,6 +39,8 @@ export default function ClimatePage() {
   const [isMapInteractive, setIsMapInteractive] = useState(false);
 
   const [userProv, setUserProv] = useState('');
+  const [userAmphoe, setUserAmphoe] = useState('');
+  const [userAmphoeData, setUserAmphoeData] = useState(null);
   const [userData, setUserData] = useState(null);
   const [isLocating, setIsLocating] = useState(true);
   const [showLocFilter, setShowLocFilter] = useState(false);
@@ -398,42 +400,77 @@ export default function ClimatePage() {
             <div style={{ background: locSummary.bg, border: `1px solid ${locSummary.color}50`, borderRadius: '24px', padding: '25px', display: 'flex', flexDirection: 'column', position: 'relative', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', transition: '0.3s' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
-                        <div style={{ fontSize: '1.3rem', fontWeight: '900', color: textColor }}>{isLocating ? 'กำลังประมวลผล...' : (userProv === 'กรุงเทพมหานคร' ? userProv : `จ.${userProv}`)}</div>
-                        <div style={{ fontSize: '0.8rem', color: subTextColor, marginTop: '2px' }}>📍 พื้นที่เฝ้าระวังของคุณ</div>
+                        <div style={{ fontSize: '1.3rem', fontWeight: '900', color: textColor }}>
+                            {isLocating ? 'กำลังประมวลผล...' : (userProv === 'กรุงเทพมหานคร' ? userProv : `จ.${userProv}`)}
+                            {userAmphoe && <span style={{ fontSize: '0.85rem', fontWeight: 'bold', opacity: 0.8 }}> • อ.{userAmphoe}</span>}
+                        </div>
+                        <div style={{ fontSize: '0.8rem', color: subTextColor, marginTop: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            📍 พื้นที่เฝ้าระวังของคุณ
+                            {tmdAvailable && <span style={{ background: '#0ea5e915', color: '#0ea5e9', padding: '1px 6px', borderRadius: '6px', fontSize: '0.6rem', fontWeight: 'bold', border: '1px solid #0ea5e930' }}>📡 TMD</span>}
+                        </div>
                     </div>
                     <button onClick={() => setShowLocFilter(!showLocFilter)} style={{ background: 'transparent', border: 'none', color: locSummary.color, cursor: 'pointer', fontSize: '1.2rem', transition: '0.2s' }} title="ระบุตำแหน่ง">🔍</button>
                 </div>
 
                 {showLocFilter && (
-                    <div className="fade-in" style={{ marginTop: '15px', display: 'flex', gap: '8px', zIndex: 10, position: 'relative' }}>
-                        <select
-                            value={userProv}
-                            onChange={(e) => {
-                                const pName = e.target.value;
-                                if(!pName) return;
-                                const closest = stations.find(st => st.areaTH === pName);
-                                if(closest) {
-                                    const prov = closest.areaTH.replace('จังหวัด', '');
-                                    setUserProv(prov);
-                                    const curr = stationTemps[closest.stationID] || {};
-                                    const prev = stationYesterday[closest.stationID] || {};
-                                    setUserData({
-                                        temp: Math.round(curr.temp || 0), prevTemp: prev.temp !== undefined ? prev.temp : null,
-                                        pm25: closest.AQILast?.PM25?.value || 0, prevPm25: prev.pm25 !== undefined ? prev.pm25 : null,
-                                        rain: curr.rainProb || 0, uv: curr.uv || 0, wind: Math.round(curr.windSpeed || 0),
-                                        windDir: curr.windDir || null
-                                    });
-                                }
-                                setShowLocFilter(false);
-                            }}
-                            style={{ flex: 1, padding: '8px 12px', borderRadius: '12px', border: `1px solid ${borderColor}`, background: darkMode ? '#1e293b' : '#fff', color: textColor, fontFamily: 'Kanit', outline: 'none' }}
-                        >
-                            <option value="">-- เลือกจังหวัดเพื่อค้นหา --</option>
-                            {[...stations].sort((a,b)=>a.areaTH.localeCompare(b.areaTH,'th')).map(st => (
-                                <option key={st.stationID} value={st.areaTH}>{st.areaTH}</option>
-                            ))}
-                        </select>
-                        <button onClick={() => { setShowLocFilter(false); fetchUserLocation(); }} style={{ background: '#0ea5e9', color: '#fff', border: 'none', borderRadius: '12px', padding: '0 15px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.8rem' }} title="อัปเดตตำแหน่งของฉัน">📍 อัปเดต</button>
+                    <div className="fade-in" style={{ marginTop: '15px', display: 'flex', flexDirection: 'column', gap: '8px', zIndex: 10, position: 'relative' }}>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                            <select
+                                value={userProv}
+                                onChange={(e) => {
+                                    const pName = e.target.value;
+                                    if(!pName) return;
+                                    setUserAmphoe(''); setUserAmphoeData(null);
+                                    const closest = stations.find(st => st.areaTH === pName);
+                                    if(closest) {
+                                        const prov = closest.areaTH.replace('จังหวัด', '');
+                                        setUserProv(prov);
+                                        const curr = stationTemps[closest.stationID] || {};
+                                        const prev = stationYesterday[closest.stationID] || {};
+                                        setUserData({
+                                            temp: Math.round(curr.temp || 0), prevTemp: prev.temp !== undefined ? prev.temp : null,
+                                            pm25: closest.AQILast?.PM25?.value || 0, prevPm25: prev.pm25 !== undefined ? prev.pm25 : null,
+                                            rain: curr.rainProb || 0, uv: curr.uv || 0, wind: Math.round(curr.windSpeed || 0),
+                                            windDir: curr.windDir || null
+                                        });
+                                    }
+                                }}
+                                style={{ flex: 1, padding: '8px 12px', borderRadius: '12px', border: `1px solid ${borderColor}`, background: darkMode ? '#1e293b' : '#fff', color: textColor, fontFamily: 'Kanit', outline: 'none' }}
+                            >
+                                <option value="">-- เลือกจังหวัด --</option>
+                                {[...stations].sort((a,b)=>a.areaTH.localeCompare(b.areaTH,'th')).map(st => (
+                                    <option key={st.stationID} value={st.areaTH}>{st.areaTH}</option>
+                                ))}
+                            </select>
+                            <button onClick={() => { setShowLocFilter(false); fetchUserLocation(); }} style={{ background: '#0ea5e9', color: '#fff', border: 'none', borderRadius: '12px', padding: '0 15px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.8rem', flexShrink: 0 }} title="อัปเดตตำแหน่งของฉัน">📍</button>
+                        </div>
+                        {/* 🆕 Dropdown อำเภอ — ข้อมูลจาก TMD API ผ่าน Firebase */}
+                        {amphoeData?.provinces && userProv && (() => {
+                            const provAmphoes = amphoeData.provinces[userProv]?.amphoes || amphoeData.provinces[`จังหวัด${userProv}`]?.amphoes || [];
+                            return provAmphoes.length > 0 ? (
+                                <select
+                                    value={userAmphoe}
+                                    onChange={(e) => {
+                                        const aName = e.target.value;
+                                        setUserAmphoe(aName);
+                                        if (aName) {
+                                            const aData = provAmphoes.find(a => a.n === aName);
+                                            if (aData) {
+                                                setUserAmphoeData(aData);
+                                            }
+                                        } else {
+                                            setUserAmphoeData(null);
+                                        }
+                                    }}
+                                    style={{ padding: '8px 12px', borderRadius: '12px', border: `1px solid ${borderColor}`, background: darkMode ? '#1e293b' : '#fff', color: textColor, fontFamily: 'Kanit', outline: 'none' }}
+                                >
+                                    <option value="">-- เลือกอำเภอ ({provAmphoes.length} อำเภอ) --</option>
+                                    {[...provAmphoes].sort((a,b) => a.n.localeCompare(b.n, 'th')).map((a, i) => (
+                                        <option key={i} value={a.n}>{a.n}</option>
+                                    ))}
+                                </select>
+                            ) : null;
+                        })()}
                     </div>
                 )}
 
@@ -442,6 +479,22 @@ export default function ClimatePage() {
                         <div style={{ fontSize: '3rem', animation: locSummary.icon === '🚨' ? 'pulse 1.5s infinite' : 'none' }}>{locSummary.icon}</div>
                         <div style={{ fontSize: '1.3rem', fontWeight: '900', color: locSummary.color, textAlign: 'center', lineHeight: '1.2' }}>{locSummary.text}</div>
                         <div style={{ fontSize: '0.85rem', color: textColor, textAlign: 'center', opacity: 0.8, padding: '0 10px', marginBottom: '10px' }}>{locSummary.desc}</div>
+                        
+                        {/* 🆕 แสดงข้อมูลอำเภอจาก TMD ถ้ามี */}
+                        {userAmphoeData && (
+                            <div className="fade-in" style={{ width: '100%', background: 'var(--bg-overlay-heavy)', borderRadius: '14px', padding: '10px 14px', border: `1px solid #0ea5e930`, marginBottom: '8px' }}>
+                                <div style={{ fontSize: '0.7rem', color: '#0ea5e9', fontWeight: 'bold', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    📡 ข้อมูลอำเภอ {userAmphoeData.n} • กรมอุตุนิยมวิทยา
+                                </div>
+                                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                                    {userAmphoeData.tc != null && <span style={{ background: 'var(--bg-secondary)', padding: '3px 8px', borderRadius: '8px', fontSize: '0.72rem', fontWeight: 'bold', color: userAmphoeData.tc >= 39 ? '#ef4444' : textColor }}>🌡️ {userAmphoeData.tc}°C</span>}
+                                    {userAmphoeData.rh != null && <span style={{ background: 'var(--bg-secondary)', padding: '3px 8px', borderRadius: '8px', fontSize: '0.72rem', fontWeight: 'bold', color: textColor }}>💧 {userAmphoeData.rh}%</span>}
+                                    {userAmphoeData.rain != null && <span style={{ background: 'var(--bg-secondary)', padding: '3px 8px', borderRadius: '8px', fontSize: '0.72rem', fontWeight: 'bold', color: userAmphoeData.rain > 0 ? '#3b82f6' : textColor }}>🌧️ {userAmphoeData.rain} mm</span>}
+                                    {userAmphoeData.ws != null && <span style={{ background: 'var(--bg-secondary)', padding: '3px 8px', borderRadius: '8px', fontSize: '0.72rem', fontWeight: 'bold', color: textColor }}>💨 {userAmphoeData.ws} m/s</span>}
+                                </div>
+                            </div>
+                        )}
+                        
                         {/* แสดงข้อมูลครบ 5 ค่า + ทิศลม */}
                         <div style={{ display: 'flex', gap: '6px', width: '100%', flexWrap: 'wrap', justifyContent: 'center' }}>
                             <div style={{ background: 'var(--bg-overlay-heavy)', border: `1px solid ${borderColor}`, padding: '6px 10px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 'bold', color: textColor, display: 'flex', alignItems: 'center', gap: '3px' }}>

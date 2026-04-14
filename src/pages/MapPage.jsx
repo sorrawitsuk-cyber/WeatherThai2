@@ -87,7 +87,7 @@ const getActionableAdvice = (pm25, temp, rain, uv, wind) => {
 };
 
 export default function MapPage() {
-  const { stations, stationTemps, stationDaily, darkMode, gistdaSummary, lastUpdated } = useContext(WeatherContext);
+  const { stations, stationTemps, stationDaily, darkMode, gistdaSummary, lastUpdated, amphoeData, tmdAvailable } = useContext(WeatherContext);
   
   const [geoData, setGeoData] = useState(null);
   const [geoError, setGeoError] = useState(false);
@@ -587,7 +587,7 @@ export default function MapPage() {
                               <h2 style={{ margin: 0, color: textColor, fontSize: '1.5rem', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>🗺️ แผนที่เฝ้าระวังภัย</h2>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
                                   <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#22c55e', display: 'inline-block', boxShadow: '0 0 8px #22c55e', animation: 'pulse 2s infinite' }}></span>
-                                  <span style={{ fontSize: '0.75rem', color: subTextColor, fontWeight: 'bold' }}>ข้อมูลตามเวลาจริง • อัปเดตล่าสุด: {getLastUpdatedText()}</span>
+                                  <span style={{ fontSize: '0.75rem', color: subTextColor, fontWeight: 'bold' }}>ข้อมูลตามเวลาจริง {tmdAvailable && '• 📡 TMD'} • อัปเดตล่าสุด: {getLastUpdatedText()}</span>
                               </div>
                           </div>
                           <div style={{ display: 'flex', background: cardBg, borderRadius: '50px', border: `1px solid ${borderColor}`, padding: '4px' }}>
@@ -688,6 +688,38 @@ export default function MapPage() {
                         if (!isVisible) return null;
                         return <Marker key={st.stationID} position={[st.lat, st.long]} icon={createMapIcon(st.areaTH.replace('จังหวัด',''), st.displayVal, st.color)} interactive={false} />;
                     })}
+                    
+                    {/* 🆕 Amphoe markers — แสดงเมื่อซูมเข้าไประดับอำเภอ (zoom >= 9) */}
+                    {mapZoom >= 9 && mapCategory === 'basic' && amphoeData?.provinces && (() => {
+                        const amphoeMarkers = [];
+                        Object.entries(amphoeData.provinces).forEach(([provName, provData]) => {
+                            (provData.amphoes || []).forEach((a, i) => {
+                                if (!a.lat || !a.lon) return;
+                                let val = 0, color = '#94a3b8';
+                                if (activeBasicMode === 'temp' && a.tc != null) {
+                                    val = Math.round(a.tc);
+                                    color = getBasicColor(val, 'temp');
+                                } else if (activeBasicMode === 'rain' && a.rain != null) {
+                                    val = Math.round(a.rain);
+                                    color = a.rain > 5 ? '#1e3a8a' : a.rain > 1 ? '#3b82f6' : a.rain > 0 ? '#60a5fa' : '#94a3b8';
+                                } else if (activeBasicMode === 'wind' && a.ws != null) {
+                                    val = Math.round(a.ws);
+                                    color = getBasicColor(val, 'wind');
+                                } else {
+                                    return; // ไม่แสดงอำเภอในโหมดที่ TMD ไม่มีข้อมูล
+                                }
+                                const label = a.n || 'อำเภอ';
+                                amphoeMarkers.push(
+                                    <Marker key={`amp-${provName}-${i}`} position={[a.lat, a.lon]} icon={L.divIcon({
+                                        className: 'custom-amphoe-icon',
+                                        html: `<div style="background: ${color}cc; color: ${color === '#eab308' || color === '#cbd5e1' ? '#0f172a' : '#fff'}; font-weight: 700; font-size: 8px; padding: 2px 5px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.4); box-shadow: 0 2px 6px rgba(0,0,0,0.2); display: flex; flex-direction: column; align-items: center; line-height: 1.1; white-space: nowrap;"><span style='font-size:6px;opacity:0.85'>${label}</span><span>${val}</span></div>`,
+                                        iconSize: [44, 24], iconAnchor: [22, 12]
+                                    })} interactive={false} />
+                                );
+                            });
+                        });
+                        return amphoeMarkers;
+                    })()}
                 </MapContainer>
 
                 <div style={{ position: 'absolute', bottom: '15px', left: '15px', zIndex: 1000, background: cardBg, padding: '10px', borderRadius: '12px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', gap: '6px', maxWidth: isMobile ? 'calc(100% - 30px)' : 'auto' }}>

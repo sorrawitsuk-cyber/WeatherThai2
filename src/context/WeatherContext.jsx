@@ -11,6 +11,8 @@ export const WeatherProvider = ({ children }) => {
   const [stationMaxYesterday, setStationMaxYesterday] = useState({}); 
   const [stationDaily, setStationDaily] = useState({}); 
   const [gistdaSummary, setGistdaSummary] = useState(null);
+  const [amphoeData, setAmphoeData] = useState(null); // 🆕 ข้อมูลระดับอำเภอจาก TMD
+  const [tmdAvailable, setTmdAvailable] = useState(false); // 🆕 TMD API status
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState(null);
 
@@ -31,8 +33,8 @@ export const WeatherProvider = ({ children }) => {
   }, [darkMode]);
 
   useEffect(() => {
+    // ===== 1. Weather Data (Province level — เดิม) =====
     const weatherRef = ref(db, 'weather_data');
-
     const unsubscribe = onValue(weatherRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
@@ -42,6 +44,7 @@ export const WeatherProvider = ({ children }) => {
         setStationMaxYesterday(data.stationMaxYesterday || {}); 
         setStationDaily(data.stationDaily || {});
         setLastUpdated(data.lastUpdated || null);
+        setTmdAvailable(data.tmdAvailable || false);
       } else {
         setStations([]);
         setStationTemps({});
@@ -55,6 +58,7 @@ export const WeatherProvider = ({ children }) => {
       setLoading(false);
     });
 
+    // ===== 2. GISTDA Disaster Data (เดิม) =====
     const gistdaRef = ref(db, 'gistda_disaster');
     const unsubscribeGistda = onValue(gistdaRef, (snapshot) => {
       const data = snapshot.val();
@@ -63,15 +67,27 @@ export const WeatherProvider = ({ children }) => {
       }
     });
 
+    // ===== 3. Amphoe Data (ใหม่ — ข้อมูลระดับอำเภอจาก TMD) =====
+    const amphoeRef = ref(db, 'weather_data_amphoe');
+    const unsubscribeAmphoe = onValue(amphoeRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        setAmphoeData(data);
+      }
+    });
+
     return () => {
       unsubscribe();
       unsubscribeGistda();
+      unsubscribeAmphoe();
     };
   }, []);
 
   return (
     <WeatherContext.Provider value={{ 
-      stations, stationTemps, stationYesterday, stationMaxYesterday, stationDaily, gistdaSummary, loading, lastUpdated, 
+      stations, stationTemps, stationYesterday, stationMaxYesterday, stationDaily, 
+      gistdaSummary, amphoeData, tmdAvailable,
+      loading, lastUpdated, 
       darkMode, setDarkMode 
     }}>
       {children}

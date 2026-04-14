@@ -14,7 +14,7 @@ import WeatherRadar from '../components/Dashboard/WeatherRadar';
 import DisasterSummary from '../components/Dashboard/DisasterSummary';
 
 export default function Dashboard() {
-  const { stations, stationTemps, darkMode, lastUpdated } = useContext(WeatherContext);
+  const { stations, stationTemps, darkMode, lastUpdated, amphoeData, tmdAvailable } = useContext(WeatherContext);
   
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
   const [locationName, setLocationName] = useState('กำลังระบุตำแหน่ง...');
@@ -64,8 +64,28 @@ export default function Dashboard() {
     return [...(stations || [])].sort((a, b) => a.areaTH.localeCompare(b.areaTH, 'th'));
   }, [stations]);
 
+  // 🆕 ใช้ข้อมูลอำเภอจาก TMD API (ผ่าน Firebase) แทน thai_geo.json
   const currentAmphoes = useMemo(() => {
-    if (!geoData || geoData.length === 0 || !selectedProv) return [];
+    if (!selectedProv) return [];
+    // เข้า amphoeData จาก Firebase (ข้อมูล TMD)
+    if (amphoeData?.provinces) {
+      const cleanProv = selectedProv.replace('จังหวัด', '').trim();
+      const provData = amphoeData.provinces[cleanProv] || amphoeData.provinces[selectedProv];
+      if (provData?.amphoes) {
+        return provData.amphoes.map((a, i) => ({
+          id: i,
+          name: String(a.n || '').trim(),
+          lat: a.lat,
+          lon: a.lon,
+          tc: a.tc,
+          rh: a.rh,
+          ws: a.ws,
+          rain: a.rain
+        })).filter(a => a.name !== '').sort((a, b) => a.name.localeCompare(b.name, 'th'));
+      }
+    }
+    // Fallback: thai_geo.json (เดิม)
+    if (!geoData || geoData.length === 0) return [];
     const cleanProv = selectedProv.replace('จังหวัด', '').trim();
     const pObj = geoData.find(p => {
       const pName = String(p.name_th || p.nameTh || p.name || '').replace('จังหวัด', '').trim();
@@ -80,7 +100,7 @@ export default function Dashboard() {
       })).filter(a => a.name !== "").sort((a, b) => a.name.localeCompare(b.name, 'th'));
     }
     return [];
-  }, [geoData, selectedProv]);
+  }, [amphoeData, geoData, selectedProv]);
 
   // --- 🇹🇭 ระบบคำนวณ Top 5 จาก Firebase (Today) ---
   const { top5Heat, top5Cool, top5PM25, top5Rain } = useMemo(() => {
@@ -179,6 +199,14 @@ export default function Dashboard() {
     setSelectedDist(dName);
     if (!dName) return;
     setLocationName(`${dName}, ${selectedProv}`);
+    
+    // 🆕 ถ้าอำเภอมาจาก TMD — ใช้พิกัดตรงจาก TMD ไม่ต้อง geocode
+    const amphoe = currentAmphoes.find(a => a.name === dName);
+    if (amphoe?.lat && amphoe?.lon) {
+      fetchWeatherByCoords(amphoe.lat, amphoe.lon);
+      return;
+    }
+    // Fallback: Nominatim
     try {
       const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(dName + ' ' + selectedProv)}&limit=1`);
       const data = await res.json();
@@ -540,7 +568,7 @@ export default function Dashboard() {
 
         {/* === Footer === */}
         <div style={{ textAlign: 'center', marginTop: '10px', padding: '20px 0', borderTop: `1px solid ${borderColor}`, opacity: 0.7, flexShrink: 0 }}>
-           <div style={{ fontSize: '0.85rem', color: subTextColor, fontWeight: 'bold' }}>อุตุนิยมวิทยาโดย Open-Meteo API • พิกัดโดย OpenStreetMap</div>
+           <div style={{ fontSize: '0.85rem', color: subTextColor, fontWeight: 'bold' }}>อุตุนิยมวิทยาโดย {tmdAvailable ? 'กรมอุตุนิยมวิทยา (TMD)' : 'Open-Meteo API'} • พิกัดโดย OpenStreetMap</div>
            <div style={{ fontSize: '0.75rem', color: subTextColor, marginTop: '5px' }}>อัปเดตข้อมูลระบบล่าสุด: {lastUpdateText}</div>
         </div>
 
