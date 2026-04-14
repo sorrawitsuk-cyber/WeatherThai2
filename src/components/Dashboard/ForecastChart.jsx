@@ -7,9 +7,10 @@ const CustomXAxisTick = ({ x, y, payload, chartData, subTextColor }) => {
   const pmColor = item.pm25 > 75 ? '#ef4444' : item.pm25 > 37.5 ? '#f97316' : item.pm25 > 25 ? '#eab308' : item.pm25 > 15 ? '#22c55e' : '#0ea5e9';
   return (
     <g transform={`translate(${x},${y})`}>
-      <foreignObject x={-40} y={10} width={80} height={90}>
+      <foreignObject x={-40} y={10} width={80} height={110}>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', fontSize: '0.75rem', fontWeight: 'bold', fontFamily: 'Kanit', textAlign: 'center', lineHeight: 1.2 }}>
           <span style={{ color: subTextColor }}>{item.time}</span>
+          <span style={{ color: '#f97316', fontSize: '0.7rem', marginTop: '2px' }}>🥵 {item.feelsLike}°</span>
           <span style={{ color: '#3b82f6', marginTop: '4px' }}>☔ {item.rain}%<br/>{item.rainAmount > 0 ? `(${item.rainAmount}mm)` : ''}</span>
           <span style={{ color: pmColor, marginTop: '2px' }}>😷 {item.pm25}</span>
         </div>
@@ -28,9 +29,9 @@ export default function ForecastChart({ chartData, isMobile, cardBg, borderColor
          style={{ overflowX: 'auto', overflowY: 'hidden', paddingBottom: '5px', cursor: isDragging ? 'grabbing' : 'grab', userSelect: 'none' }} 
          className="hide-scrollbar"
        >
-         <div style={{ width: '1400px', height: '200px' }}>
+         <div style={{ width: '1400px', height: '220px' }}>
            <ResponsiveContainer width="100%" height="100%">
-             <AreaChart data={chartData} margin={{ top: 20, right: 15, left: 15, bottom: 60 }}>
+             <AreaChart data={chartData} margin={{ top: 20, right: 15, left: 15, bottom: 85 }}>
                <defs>
                  <linearGradient id="colorTemp" x1="0" y1="0" x2="0" y2="1">
                    <stop offset="0%" stopColor="#ef4444" stopOpacity={0.8}/>

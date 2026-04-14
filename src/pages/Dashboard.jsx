@@ -183,6 +183,7 @@ export default function Dashboard() {
     return {
       time: new Date(t).getHours().toString().padStart(2, '0') + ':00',
       temp: Math.round(hourly?.temperature_2m?.[rIdx] || 0),
+      feelsLike: Math.round(hourly?.apparent_temperature?.[rIdx] || 0),
       rain: hourly?.precipitation_probability?.[rIdx] || 0,
       rainAmount: hourly?.precipitation?.[rIdx] || 0,
       pm25: Math.round(hourly?.pm25?.[rIdx] || 0)
@@ -190,6 +191,7 @@ export default function Dashboard() {
   });
 
   const maxTemp = Math.round(daily?.temperature_2m_max?.[0] || 0);
+  const minTemp = Math.round(daily?.temperature_2m_min?.[0] || 0);
   const dailyRainProb = daily?.precipitation_probability_max?.[0] || 0;
   const briefingText = getBriefingText(weatherText, maxTemp, dailyRainProb, current?.pm25);
 
@@ -224,7 +226,7 @@ export default function Dashboard() {
           
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: isMobile ? '12px' : '20px', minWidth: 0 }}>
             
-            {/* Weather Hero Card */}
+            {/* Weather Hero Card (Reverted to original) */}
             <div style={{ background: bgGradient, borderRadius: isMobile ? '24px' : '30px', padding: isMobile ? '20px' : '30px 20px', color: '#fff', boxShadow: '0 20px 40px rgba(0,0,0,0.2)', display: 'flex', flexDirection: 'column', transition: 'background 0.5s ease', position: 'relative', flexShrink: 0 }}>
                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%', marginBottom: '15px' }}>
                   <div>
@@ -289,13 +291,16 @@ export default function Dashboard() {
             </div>
         </div>
 
-        {/* UV & PM2.5 Summary Cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '15px', flexShrink: 0, marginBottom: '15px' }}>
-            <div style={{ background: cardBg, borderRadius: isMobile ? '20px' : '25px', padding: '20px', border: `1px solid ${borderColor}` }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: subTextColor, fontWeight: 'bold', fontSize: '0.9rem' }}>
-                    <span style={{ fontSize: '1.2rem' }}>☀️</span> รังสีอัลตราไวโอเลต (UV)
+
+
+        {/* Bento Grid layout for metrics */}
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: '15px', flexShrink: 0, marginBottom: '25px' }}>
+            {/* UV Index */}
+            <div style={{ background: cardBg, borderRadius: isMobile ? '20px' : '25px', padding: '20px', border: `1px solid ${borderColor}`, gridColumn: isMobile ? 'span 2' : 'span 2' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: subTextColor, fontWeight: 'bold', fontSize: '0.95rem' }}>
+                    <span style={{ fontSize: '1.2rem' }}>☀️</span> รังสี UV
                 </div>
-                <div style={{ fontSize: '2rem', fontWeight: '900', color: textColor, marginTop: '5px' }}>
+                <div style={{ fontSize: '2.5rem', fontWeight: '900', color: textColor, marginTop: '5px' }}>
                     {current?.uv || 0} <span style={{ fontSize: '1rem', color: subTextColor, fontWeight: 'normal' }}>
                         {current?.uv > 8 ? 'สูงมาก' : current?.uv > 5 ? 'สูง' : current?.uv > 2 ? 'ปานกลาง' : 'ต่ำ'}
                     </span>
@@ -305,17 +310,78 @@ export default function Dashboard() {
                 </div>
             </div>
 
-            <div style={{ background: cardBg, borderRadius: isMobile ? '20px' : '25px', padding: '20px', border: `1px solid ${borderColor}` }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: subTextColor, fontWeight: 'bold', fontSize: '0.9rem' }}>
-                    <span style={{ fontSize: '1.2rem' }}>😷</span> คุณภาพอากาศ (PM2.5)
+            {/* PM2.5 Gauge */}
+            <div style={{ background: cardBg, borderRadius: isMobile ? '20px' : '25px', padding: '20px', border: `1px solid ${borderColor}`, gridColumn: isMobile ? 'span 2' : 'span 2' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: subTextColor, fontWeight: 'bold', fontSize: '0.95rem' }}>
+                    <span style={{ fontSize: '1.2rem' }}>🌫️</span> ระดับความรุนแรงฝุ่น
                 </div>
-                <div style={{ fontSize: '2rem', fontWeight: '900', color: textColor, marginTop: '5px' }}>
-                    {current?.pm25 || 0} <span style={{ fontSize: '1rem', color: subTextColor, fontWeight: 'normal' }}>
-                        {aqiTheme.text}
-                    </span>
+                <div style={{ fontSize: '2.5rem', fontWeight: '900', color: textColor, marginTop: '5px' }}>
+                    {current?.pm25 || 0} <span style={{ fontSize: '1rem', color: subTextColor, fontWeight: 'normal' }}>µg/m³</span>
                 </div>
-                <div style={{ width: '100%', height: '8px', background: 'linear-gradient(to right, #0ea5e9, #22c55e, #eab308, #f97316, #ef4444)', borderRadius: '10px', marginTop: '15px', position: 'relative' }}>
-                    <div style={{ position: 'absolute', top: '-4px', left: `${Math.min(((current?.pm25 || 0) / 100) * 100, 100)}%`, width: '16px', height: '16px', background: '#fff', border: '3px solid #0f172a', borderRadius: '50%', transform: 'translateX(-50%)', boxShadow: '0 2px 5px rgba(0,0,0,0.3)' }}></div>
+                <div style={{ width: '100%', height: '8px', background: 'linear-gradient(to right, #0ea5e9 0%, #22c55e 15%, #eab308 30%, #f97316 50%, #ef4444 75%, #7f1d1d 100%)', borderRadius: '10px', marginTop: '15px', position: 'relative' }}>
+                    <div style={{ position: 'absolute', top: '-4px', left: `${Math.min(((current?.pm25 || 0) / 250) * 100, 100)}%`, width: '16px', height: '16px', background: '#fff', border: '3px solid #0f172a', borderRadius: '50%', transform: 'translateX(-50%)', boxShadow: '0 2px 5px rgba(0,0,0,0.3)' }}></div>
+                </div>
+            </div>
+
+            {/* Other Metrics Bento */}
+            <div style={{ background: cardBg, borderRadius: '20px', padding: '15px', border: `1px solid ${borderColor}` }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: subTextColor, fontSize: '0.85rem', fontWeight: 'bold' }}>
+                    <span style={{ fontSize: '1.2rem' }}>💨</span> ลม
+                </div>
+                <div style={{ fontSize: '1.6rem', fontWeight: 'bold', color: textColor, marginTop: '8px' }}>
+                    {current?.windSpeed || 0} <span style={{ fontSize: '0.9rem', fontWeight: 'normal' }}>กม./ชม.</span>
+                </div>
+            </div>
+
+            <div style={{ background: cardBg, borderRadius: '20px', padding: '15px', border: `1px solid ${borderColor}` }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: subTextColor, fontSize: '0.85rem', fontWeight: 'bold' }}>
+                    <span style={{ fontSize: '1.2rem' }}>💧</span> ความชื้น
+                </div>
+                <div style={{ fontSize: '1.6rem', fontWeight: 'bold', color: textColor, marginTop: '8px' }}>
+                    {current?.humidity || 0}%
+                </div>
+            </div>
+
+            <div style={{ background: cardBg, borderRadius: '20px', padding: '15px', border: `1px solid ${borderColor}` }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: subTextColor, fontSize: '0.85rem', fontWeight: 'bold' }}>
+                    <span style={{ fontSize: '1.2rem' }}>👁️</span> ทัศนวิสัย
+                </div>
+                <div style={{ fontSize: '1.6rem', fontWeight: 'bold', color: textColor, marginTop: '8px' }}>
+                    {current?.visibility ? (current.visibility / 1000).toFixed(1) : 0} <span style={{ fontSize: '0.9rem', fontWeight: 'normal' }}>กม.</span>
+                </div>
+            </div>
+            
+            <div style={{ background: cardBg, borderRadius: '20px', padding: '15px', border: `1px solid ${borderColor}` }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: subTextColor, fontSize: '0.85rem', fontWeight: 'bold' }}>
+                    <span style={{ fontSize: '1.2rem' }}>🌡️</span> ความกดอากาศ
+                </div>
+                <div style={{ fontSize: '1.6rem', fontWeight: 'bold', color: textColor, marginTop: '8px' }}>
+                    {current?.pressure ? Math.round(current.pressure) : 0} <span style={{ fontSize: '0.9rem', fontWeight: 'normal' }}>hPa</span>
+                </div>
+            </div>
+
+            <div style={{ background: cardBg, borderRadius: '20px', padding: '15px', border: `1px solid ${borderColor}`, gridColumn: isMobile ? 'span 2' : 'span 2' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: subTextColor, fontSize: '0.85rem', fontWeight: 'bold' }}>
+                    <span style={{ fontSize: '1.2rem' }}>🌅</span> พระอาทิตย์ขึ้น / ตก
+                </div>
+                <div style={{ fontSize: '1.1rem', fontWeight: 'bold', color: textColor, marginTop: '8px', display: 'flex', justifyContent: 'space-around' }}>
+                    <div>
+                        <span style={{ color: subTextColor, marginRight: '5px' }}>ขึ้น:</span> 
+                        {current?.sunrise ? new Date(current.sunrise).toLocaleTimeString('th-TH', {hour: '2-digit', minute:'2-digit'}) : '-'}
+                    </div>
+                    <div>
+                        <span style={{ color: subTextColor, marginRight: '5px' }}>ตก:</span> 
+                        {current?.sunset ? new Date(current.sunset).toLocaleTimeString('th-TH', {hour: '2-digit', minute:'2-digit'}) : '-'}
+                    </div>
+                </div>
+            </div>
+            
+            <div style={{ background: cardBg, borderRadius: '20px', padding: '15px', border: `1px solid ${borderColor}`, gridColumn: isMobile ? 'span 2' : 'span 2' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: subTextColor, fontSize: '0.85rem', fontWeight: 'bold' }}>
+                    <span style={{ fontSize: '1.2rem' }}>☔</span> โอกาสฝนตกวันนี้
+                </div>
+                <div style={{ fontSize: '2rem', fontWeight: 'bold', color: textColor, marginTop: '8px', display: 'flex', alignItems: 'flex-end', gap: '5px' }}>
+                    {current?.rainProb || 0}% <span style={{ fontSize: '1rem', fontWeight: 'normal', color: subTextColor, marginBottom: '5px' }}>โอกาสเกิดฝน</span>
                 </div>
             </div>
         </div>
