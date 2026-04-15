@@ -448,50 +448,53 @@ export default function ClimatePage() {
   return (
     <div style={{ height: '100%', width: '100%', background: timeMode === 'yesterday' ? (darkMode ? '#000000' : '#f1f5f9') : appBg, display: 'flex', justifyContent: 'center', overflowY: 'auto', fontFamily: 'Sarabun, Kanit, sans-serif', transition: 'background 0.3s' }} className="climate-scroll custom-scrollbar">
 
-      <div style={{ width: '100%', maxWidth: '1400px', display: 'flex', flexDirection: 'column', gap: '20px', padding: isMobile ? '15px' : '30px', paddingBottom: '100px' }}>
+      <div style={{ width: '100%', maxWidth: '1400px', display: 'flex', flexDirection: 'column', gap: isMobile ? '12px' : '20px', padding: isMobile ? '12px' : '30px', paddingBottom: isMobile ? '110px' : '100px', boxSizing: 'border-box' }}>
         
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '10px' }}>
+        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'flex-end', gap: '10px' }}>
             <div>
-                <h1 style={{ margin: 0, color: textColor, fontSize: isMobile ? '1.4rem' : '1.8rem', fontWeight: '900', display: 'flex', alignItems: 'center', gap: '10px' }}>🚨 ศูนย์เฝ้าระวังสภาพอากาศ</h1>
-                <p style={{ margin: '5px 0 0 0', color: subTextColor, fontSize: '0.9rem' }}>ระบบติดตามและวิเคราะห์ความเสี่ยงสภาพอากาศ</p>
+                <h1 style={{ margin: 0, color: textColor, fontSize: isMobile ? '1.2rem' : '1.8rem', fontWeight: '900', display: 'flex', alignItems: 'center', gap: '8px' }}>🚨 ศูนย์เฝ้าระวังสภาพอากาศ</h1>
+                {!isMobile && <p style={{ margin: '5px 0 0 0', color: subTextColor, fontSize: '0.9rem' }}>ระบบติดตามและวิเคราะห์ความเสี่ยงสภาพอากาศ</p>}
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '5px' }}>
-                <div style={{ background: 'var(--bg-secondary)', padding: '8px 16px', borderRadius: '50px', border: `1px solid ${borderColor}`, fontSize: '0.9rem', color: textColor, display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>
-                    <span style={{ display: 'inline-block', width: '10px', height: '10px', background: timeMode === 'live' ? '#22c55e' : '#8b5cf6', borderRadius: '50%', boxShadow: timeMode === 'live' ? '0 0 8px #22c55e' : '0 0 8px #8b5cf6', animation: timeMode === 'live' ? 'pulse 1.5s infinite' : 'none' }}></span>
-                    {timeMode === 'live' ? `LIVE: ${currentTime.toLocaleTimeString('th-TH')}` : `📊 ข้อมูลเมื่อวาน: ${yesterdayDateText}`}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: isMobile ? 'stretch' : 'flex-end', gap: '6px' }}>
+                {/* Live/Yesterday Toggle + Clock */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: isMobile ? 'space-between' : 'flex-end', gap: '8px', flexWrap: 'wrap' }}>
+                    <div style={{ background: 'var(--bg-secondary)', padding: '6px 12px', borderRadius: '50px', border: `1px solid ${borderColor}`, fontSize: isMobile ? '0.78rem' : '0.9rem', color: textColor, display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 'bold', flexShrink: 0 }}>
+                        <span style={{ display: 'inline-block', width: '8px', height: '8px', background: timeMode === 'live' ? '#22c55e' : '#8b5cf6', borderRadius: '50%', boxShadow: timeMode === 'live' ? '0 0 8px #22c55e' : '0 0 8px #8b5cf6', animation: timeMode === 'live' ? 'pulse 1.5s infinite' : 'none', flexShrink: 0 }}></span>
+                        {timeMode === 'live' ? `LIVE: ${currentTime.toLocaleTimeString('th-TH')}` : `📊 เมื่อวาน`}
+                    </div>
+                    <div style={{ display: 'flex', background: cardBg, borderRadius: '50px', border: `1px solid ${borderColor}`, padding: '3px', flexShrink: 0 }}>
+                        <button onClick={() => setTimeMode('live')} style={{ background: timeMode === 'live' ? '#22c55e' : 'transparent', color: timeMode === 'live' ? '#fff' : subTextColor, border: 'none', padding: isMobile ? '5px 10px' : '6px 15px', borderRadius: '50px', fontSize: isMobile ? '0.72rem' : '0.8rem', fontWeight: 'bold', cursor: 'pointer', transition: '0.2s', whiteSpace: 'nowrap' }}>🟢 Live</button>
+                        <button onClick={() => setTimeMode('yesterday')} style={{ background: timeMode === 'yesterday' ? '#8b5cf6' : 'transparent', color: timeMode === 'yesterday' ? '#fff' : subTextColor, border: 'none', padding: isMobile ? '5px 10px' : '6px 15px', borderRadius: '50px', fontSize: isMobile ? '0.72rem' : '0.8rem', fontWeight: 'bold', cursor: 'pointer', transition: '0.2s', whiteSpace: 'nowrap' }}>🟣 เมื่อวาน</button>
+                    </div>
                 </div>
                 {/* แสดงเวลาอัปเดตข้อมูล + Stale warning */}
                 {timeMode === 'live' && (
-                    <div style={{ fontSize: '0.7rem', color: isStale ? '#f59e0b' : subTextColor, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <div style={{ fontSize: '0.68rem', color: isStale ? '#f59e0b' : subTextColor, display: 'flex', alignItems: 'center', gap: '4px', justifyContent: isMobile ? 'center' : 'flex-end' }}>
                         {isStale ? '⚠️' : '📡'} ข้อมูล: {lastUpdateText ? `${lastUpdateText} น.` : 'ไม่ทราบ'}
                         {isStale && <span style={{ color: '#f59e0b', fontWeight: 'bold' }}> — อาจไม่เป็นปัจจุบัน</span>}
                     </div>
                 )}
-                <div style={{ display: 'flex', background: cardBg, borderRadius: '50px', border: `1px solid ${borderColor}`, padding: '4px', marginTop: '2px' }}>
-                    <button onClick={() => setTimeMode('live')} style={{ background: timeMode === 'live' ? '#22c55e' : 'transparent', color: timeMode === 'live' ? '#fff' : subTextColor, border: 'none', padding: '6px 15px', borderRadius: '50px', fontSize: '0.8rem', fontWeight: 'bold', cursor: 'pointer', transition: '0.2s' }}>🟢 วันนี้ (Live)</button>
-                    <button onClick={() => setTimeMode('yesterday')} style={{ background: timeMode === 'yesterday' ? '#8b5cf6' : 'transparent', color: timeMode === 'yesterday' ? '#fff' : subTextColor, border: 'none', padding: '6px 15px', borderRadius: '50px', fontSize: '0.8rem', fontWeight: 'bold', cursor: 'pointer', transition: '0.2s' }}>🟣 สถิติเมื่อวาน</button>
-                </div>
             </div>
         </div>
 
         {/* 🚨 Nowcast Situation Report Banner */}
         {timeMode === 'live' && (
-            <div className="fade-in" style={{ background: `${nowcastColor}12`, border: `1px solid ${nowcastColor}40`, borderRadius: '16px', padding: '12px 20px', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                    <span style={{ display: 'inline-block', width: '10px', height: '10px', background: nowcastColor, borderRadius: '50%', animation: 'pulse 1.5s infinite' }}></span>
-                    <span style={{ fontWeight: '900', color: nowcastColor, fontSize: '0.95rem', whiteSpace: 'nowrap' }}>🚨 สถานการณ์ขณะนี้: {nowcastLevel}</span>
+            <div className="fade-in" style={{ background: `${nowcastColor}12`, border: `1px solid ${nowcastColor}40`, borderRadius: '16px', padding: isMobile ? '10px 12px' : '12px 20px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ display: 'inline-block', width: '8px', height: '8px', background: nowcastColor, borderRadius: '50%', animation: 'pulse 1.5s infinite', flexShrink: 0 }}></span>
+                    <span style={{ fontWeight: '900', color: nowcastColor, fontSize: isMobile ? '0.85rem' : '0.95rem' }}>🚨 สถานการณ์ขณะนี้: {nowcastLevel}</span>
                 </div>
                 {nowcastAlerts.length > 0 ? (
-                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
                         {nowcastAlerts.map((a, i) => (
-                            <span key={i} style={{ background: `${a.color}15`, color: a.color, padding: '3px 10px', borderRadius: '20px', fontSize: '0.78rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                            <span key={i} style={{ background: `${a.color}15`, color: a.color, padding: '3px 8px', borderRadius: '20px', fontSize: isMobile ? '0.72rem' : '0.78rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
                                 {a.icon} {a.text}
                             </span>
                         ))}
                     </div>
                 ) : (
-                    <span style={{ fontSize: '0.85rem', color: subTextColor }}>ไม่มีการแจ้งเตือนสภาพอากาศรุนแรงในขณะนี้</span>
+                    <span style={{ fontSize: '0.82rem', color: subTextColor }}>ไม่มีการแจ้งเตือนสภาพอากาศรุนแรงในขณะนี้</span>
                 )}
             </div>
         )}
@@ -499,7 +502,7 @@ export default function ClimatePage() {
         {/* ส่วนบน: One-Glance Card + 7 Tabs */}
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 2fr', gap: '20px', alignItems: 'start' }}>
             {/* 📍 One-Glance Safety Card */}
-            <div style={{ background: cardBg, border: `1px solid ${borderColor}`, borderRadius: '24px', padding: '25px', display: 'flex', flexDirection: 'column', position: 'relative', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', transition: '0.3s' }}>
+            <div style={{ background: cardBg, border: `1px solid ${borderColor}`, borderRadius: '20px', padding: isMobile ? '16px 14px' : '25px', display: 'flex', flexDirection: 'column', position: 'relative', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', transition: '0.3s' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
                         <div style={{ fontSize: '1.3rem', fontWeight: '900', color: textColor }}>
@@ -637,12 +640,14 @@ export default function ClimatePage() {
                     {tabs.map((tab, idx) => {
                         const count = timeMode === 'live' ? riskyCounts[tab.id].live : riskyCounts[tab.id].yest;
                         return (
-                            <div key={idx} onClick={() => setActiveTab(tab.id)} style={{ background: cardBg, padding: isMobile ? '10px 14px' : '12px 5px', borderRadius: '20px', border: `2px solid ${activeTab === tab.id ? tab.color : borderColor}`, cursor: 'pointer', transition: 'all 0.2s', display: 'flex', flexDirection: isMobile ? 'row' : 'column', alignItems: 'center', justifyContent: 'center', gap: isMobile ? '8px' : '4px', boxShadow: activeTab === tab.id ? `0 10px 20px ${tab.color}15` : 'none', transform: activeTab === tab.id ? 'translateY(-3px)' : 'none', flexShrink: 0, scrollSnapAlign: 'start', minWidth: isMobile ? 'auto' : undefined }}>
-                                <span style={{ fontSize: isMobile ? '1.3rem' : '1.6rem' }}>{tab.icon}</span>
-                                <span style={{ fontSize: isMobile ? '0.72rem' : '0.7rem', color: subTextColor, fontWeight: 'bold', whiteSpace: 'nowrap' }}>{tab.label}</span>
-                                <div style={{ display: 'flex', alignItems: 'baseline', gap: '3px' }}>
-                                    <span style={{ fontSize: isMobile ? '1rem' : '1.2rem', fontWeight: '900', color: tab.color }}>{count}</span>
-                                    <span style={{ fontSize: '0.65rem', fontWeight: 'bold', color: tab.color }}>{isMobile ? 'จ.' : 'จังหวัด'}</span>
+                            <div key={idx} onClick={() => setActiveTab(tab.id)} style={{ background: cardBg, padding: isMobile ? '8px 10px' : '12px 5px', borderRadius: '16px', border: `2px solid ${activeTab === tab.id ? tab.color : borderColor}`, cursor: 'pointer', transition: 'all 0.2s', display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: isMobile ? 'flex-start' : 'center', gap: '6px', boxShadow: activeTab === tab.id ? `0 6px 16px ${tab.color}20` : 'none', transform: activeTab === tab.id ? 'translateY(-2px)' : 'none', flexShrink: 0, scrollSnapAlign: 'start', minWidth: isMobile ? '110px' : undefined }}>
+                                <span style={{ fontSize: '1.2rem', flexShrink: 0 }}>{tab.icon}</span>
+                                <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                                    <span style={{ fontSize: '0.68rem', color: subTextColor, fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tab.label}</span>
+                                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '2px' }}>
+                                        <span style={{ fontSize: '0.95rem', fontWeight: '900', color: tab.color }}>{count}</span>
+                                        <span style={{ fontSize: '0.6rem', fontWeight: 'bold', color: tab.color }}>จ.</span>
+                                    </div>
                                 </div>
                             </div>
                         );
