@@ -172,7 +172,7 @@ export default async function handler(req, res) {
       const lons = chunk.map(p => p.lon).join(',');
 
       const wUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,wind_speed_10m,wind_direction_10m&hourly=temperature_2m,apparent_temperature,precipitation_probability,wind_speed_10m,uv_index&daily=temperature_2m_max,apparent_temperature_max,precipitation_probability_max,uv_index_max,wind_speed_10m_max&timezone=Asia%2FBangkok&past_days=7&forecast_days=8&_t=${timestamp}`;
-      const aUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lats}&longitude=${lons}&current=pm2_5&hourly=pm2_5&timezone=Asia%2FBangkok&past_days=7&forecast_days=8&_t=${timestamp}`;
+      const aUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lats}&longitude=${lons}&current=pm2_5&hourly=pm2_5&timezone=Asia%2FBangkok&past_days=7&forecast_days=7&_t=${timestamp}`;
 
       const [wRes, aRes] = await Promise.all([fetch(wUrl), fetch(aUrl)]);
 
@@ -261,11 +261,18 @@ export default async function handler(req, res) {
       // Daily arrays for Map Slider
       const dailyDates = w.daily?.time || [];
       const dailyPm25Values = [];
-      if (a.hourly?.pm2_5 && a.hourly.pm2_5.length >= dailyDates.length * 24) {
+      if (a.hourly?.pm2_5 && a.hourly.pm2_5.length > 0) {
           for (let d = 0; d < dailyDates.length; d++) {
-             const slice = a.hourly.pm2_5.slice(d * 24, (d + 1) * 24);
-             const valid = slice.filter(v => v !== null);
-             dailyPm25Values.push(valid.length > 0 ? Math.round(Math.max(...valid)) : 0);
+             const startIdx = d * 24;
+             const endIdx = (d + 1) * 24;
+             if (startIdx >= a.hourly.pm2_5.length && dailyPm25Values.length > 0) {
+                 // For missing days beyond the 7-day limit of Air Quality API, duplicate the last available forecast day
+                 dailyPm25Values.push(dailyPm25Values[dailyPm25Values.length - 1]);
+             } else {
+                 const slice = a.hourly.pm2_5.slice(startIdx, endIdx);
+                 const valid = slice.filter(v => v !== null);
+                 dailyPm25Values.push(valid.length > 0 ? Math.round(Math.max(...valid)) : Math.round(a.current?.pm2_5 || 0));
+             }
           }
       } else {
           for (let d = 0; d < dailyDates.length; d++) {
