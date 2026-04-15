@@ -180,7 +180,17 @@ export default function Dashboard() {
     try {
       const res = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=th`);
       const data = await res.json();
-      setLocationName(data?.locality || data?.city || 'ตำแหน่งปัจจุบัน');
+      
+      const admin = data?.localityInfo?.administrative || [];
+      const prov = admin.find(a => a.adminLevel === 4 && a.isoCode)?.name || data?.principalSubdivision;
+      const dist = admin.find(a => a.adminLevel === 6 && (a.name.includes('อำเภอ') || a.name.includes('เขต')) )?.name;
+      
+      if (dist && prov) {
+        const cleanProv = prov.startsWith('จังหวัด') ? prov : (prov === 'กรุงเทพมหานคร' ? prov : `จังหวัด${prov}`);
+        setLocationName(`${dist} ${cleanProv}`);
+      } else {
+        setLocationName(data?.locality || data?.city || 'ตำแหน่งปัจจุบัน');
+      }
     } catch (e) { setLocationName('ตำแหน่งปัจจุบัน'); }
   };
 
