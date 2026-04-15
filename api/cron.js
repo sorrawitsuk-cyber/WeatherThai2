@@ -295,7 +295,7 @@ export default async function handler(req, res) {
     // STEP 4: Save Province-level to Firebase (weather_data — compatible path)
     // ========================================
     const payload = {
-        lastUpdated: bangkokTime.toISOString(),
+        lastUpdated: new Date(timestamp).toISOString(),
         tmdAvailable: tmdSuccess,
         stations: newStations,
         stationTemps: newTemps,
@@ -314,7 +314,7 @@ export default async function handler(req, res) {
         console.log("Cron: กำลังบันทึกข้อมูลระดับอำเภอ...");
 
         const amphoePayload = {
-            lastUpdated: bangkokTime.toISOString(),
+            lastUpdated: new Date(timestamp).toISOString(),
             provinces: {}
         };
 
@@ -399,7 +399,7 @@ export default async function handler(req, res) {
     } catch(e) { console.error("Cron GISTDA Burn Error:", e); }
 
     const gistdaPayload = {
-        lastUpdated: bangkokTime.toISOString(),
+        lastUpdated: new Date(timestamp).toISOString(),
         hotspots: hotspotsTop5.length > 0 ? hotspotsTop5 : [
             { province: 'แม่ฮ่องสอน', value: 4124 }, { province: 'กาญจนบุรี', value: 2849 }, { province: 'น่าน', value: 1742 }, { province: 'เชียงใหม่', value: 1507 }, { province: 'ชัยภูมิ', value: 1403 }
         ],

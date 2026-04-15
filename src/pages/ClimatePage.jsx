@@ -28,6 +28,42 @@ const WindDirection = ({ deg }) => {
     return <span style={{fontSize:'0.7rem', opacity:0.7, marginLeft:'4px'}} title={`ทิศ${dirs[idx]}`}>{arrows[idx]}</span>;
 };
 
+// 🌟 Safety Score Gauge Component
+const SafetyGauge = ({ score, size = 'normal' }) => {
+    const getScoreInfo = (s) => {
+        if (s >= 80) return { label: 'ปลอดภัย', color: '#22c55e', bg: '#052e16', icon: '✅' };
+        if (s >= 50) return { label: 'ควรระวัง', color: '#f59e0b', bg: '#451a03', icon: '⚠️' };
+        if (s >= 20) return { label: 'อันตราย', color: '#ef4444', bg: '#450a0a', icon: '🚨' };
+        return { label: 'วิกฤต', color: '#dc2626', bg: '#450a0a', icon: '☠️' };
+    };
+    const info = getScoreInfo(score);
+    const isCompact = size === 'compact';
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: isCompact ? '4px' : '8px' }}>
+            <div style={{ fontSize: isCompact ? '2rem' : '2.5rem', animation: score < 50 ? 'pulse 1.5s infinite' : 'none' }}>{info.icon}</div>
+            <div style={{ fontSize: isCompact ? '1.1rem' : '1.4rem', fontWeight: '900', color: info.color }}>{info.label}</div>
+            <div style={{ width: '100%', maxWidth: '200px', height: '8px', background: 'var(--bg-overlay-heavy)', borderRadius: '10px', overflow: 'hidden' }}>
+                <div style={{ width: `${score}%`, height: '100%', background: `linear-gradient(90deg, ${info.color}, ${score >= 80 ? '#10b981' : score >= 50 ? '#eab308' : '#ef4444'})`, borderRadius: '10px', animation: 'gaugeGrow 1s ease-out', transition: 'width 0.5s ease' }}></div>
+            </div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-sub)', fontWeight: 'bold' }}>คะแนนความปลอดภัย: {score}/100</div>
+        </div>
+    );
+};
+
+// 🌟 Action Card Component — คำแนะนำเชิงปฏิบัติ
+const ActionCards = ({ actions }) => {
+    if (!actions || actions.length === 0) return null;
+    return (
+        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', justifyContent: 'center', marginTop: '8px' }}>
+            {actions.map((a, i) => (
+                <span key={i} style={{ background: `${a.color}15`, color: a.color, padding: '4px 10px', borderRadius: '20px', fontSize: '0.72rem', fontWeight: 'bold', whiteSpace: 'nowrap', border: `1px solid ${a.color}30` }}>
+                    {a.icon} {a.text}
+                </span>
+            ))}
+        </div>
+    );
+};
+
 export default function ClimatePage() {
   const { stations, stationTemps, loading, darkMode, stationYesterday = {}, stationMaxYesterday = {}, lastUpdated, gistdaSummary, amphoeData, tmdAvailable } = useContext(WeatherContext);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
@@ -43,6 +79,7 @@ export default function ClimatePage() {
   const [userAmphoeData, setUserAmphoeData] = useState(null);
   const [userData, setUserData] = useState(null);
   const [isLocating, setIsLocating] = useState(true);
+  const [gpsStatus, setGpsStatus] = useState('locating'); // 'locating' | 'success' | 'denied' | 'default'
   const [showLocFilter, setShowLocFilter] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -106,9 +143,34 @@ export default function ClimatePage() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // 🔢 คำนวณ Composite Safety Score (0-100, ยิ่งสูงยิ่งปลอดภัย)
+  const computeSafetyScore = useCallback((temp, pm25, uv, rain, wind) => {
+      if (temp === '-' || pm25 === '-') return 80; // default safe
+      const nTemp = Math.min(Math.max((temp - 25) / 20, 0), 1) * 100;  // 25°C=0, 45°C=100
+      const nPm25 = Math.min(pm25 / 150, 1) * 100;                     // 0=0, 150=100
+      const nUv = Math.min(uv / 11, 1) * 100;                          // 0=0, 11=100
+      const nRain = Math.min(rain / 100, 1) * 100;                     // 0=0, 100%=100
+      const nWind = Math.min(wind / 80, 1) * 100;                      // 0=0, 80km/h=100
+      const riskScore = (nTemp * 0.25) + (nPm25 * 0.25) + (nUv * 0.20) + (nRain * 0.15) + (nWind * 0.15);
+      return Math.max(0, Math.round(100 - riskScore));
+  }, []);
+
+  // 🎯 คำแนะนำเชิงปฏิบัติ (Action Cards)
+  const getActionCards = useCallback((temp, pm25, uv, rain, wind) => {
+      const actions = [];
+      if (temp >= 35) actions.push({ icon: '🥤', text: 'ดื่มน้ำบ่อยๆ', color: '#ef4444' });
+      if (uv >= 6) actions.push({ icon: '🧴', text: 'ทาครีมกันแดด', color: '#a855f7' });
+      if (rain >= 40) actions.push({ icon: '☂️', text: 'พกร่ม', color: '#3b82f6' });
+      if (pm25 >= 37.5) actions.push({ icon: '😷', text: 'สวมหน้ากาก', color: '#f97316' });
+      if (wind >= 40) actions.push({ icon: '💨', text: 'ระวังสิ่งปลิว', color: '#eab308' });
+      if (actions.length === 0) actions.push({ icon: '🏃', text: 'ทำกิจกรรมกลางแจ้งได้', color: '#22c55e' });
+      return actions;
+  }, []);
+
   const fetchUserLocation = useCallback(() => {
       setIsLocating(true);
-      const fallbackToDefault = () => {
+      setGpsStatus('locating');
+      const fallbackToDefault = (reason) => {
           let closest = stations.find(st => st.areaTH && st.areaTH.includes('กรุงเทพ') && stationTemps && stationTemps[st.stationID]);
           if (!closest && stations.length > 0) closest = stations.find(st => stationTemps && stationTemps[st.stationID]);
 
@@ -121,12 +183,13 @@ export default function ClimatePage() {
                   temp: Math.round(curr.temp || 0), prevTemp: prev.temp !== undefined ? prev.temp : null,
                   pm25: closest.AQILast?.PM25?.value || 0, prevPm25: prev.pm25 !== undefined ? prev.pm25 : null,
                   rain: curr.rainProb || 0, uv: curr.uv || 0, wind: Math.round(curr.windSpeed || 0),
-                  windDir: curr.windDir || null
+                  windDir: curr.windDir || null, humidity: curr.humidity || null
               });
           } else {
               setUserProv('กรุงเทพมหานคร');
-              setUserData({ temp: '-', pm25: '-', rain: '-', uv: '-', wind: '-', windDir: null });
+              setUserData({ temp: '-', pm25: '-', rain: '-', uv: '-', wind: '-', windDir: null, humidity: null });
           }
+          setGpsStatus(reason === 'denied' ? 'denied' : 'default');
           setIsLocating(false);
       };
 
@@ -136,7 +199,6 @@ export default function ClimatePage() {
             let closest = null; let minDistance = Infinity;
             stations.forEach(st => {
               if(st.lat && st.lon) {
-                  // Euclidean distance ใช้งานได้สำหรับประเทศไทย (lat ~5-20°)
                   const dist = Math.sqrt(Math.pow(st.lat - pos.coords.latitude, 2) + Math.pow(st.lon - pos.coords.longitude, 2));
                   if (dist < minDistance) { minDistance = dist; closest = st; }
               }
@@ -151,27 +213,28 @@ export default function ClimatePage() {
                    temp: Math.round(curr.temp || 0), prevTemp: prev.temp !== undefined ? prev.temp : null,
                    pm25: closest.AQILast?.PM25?.value || 0, prevPm25: prev.pm25 !== undefined ? prev.pm25 : null,
                    rain: curr.rainProb || 0, uv: curr.uv || 0, wind: Math.round(curr.windSpeed || 0),
-                   windDir: curr.windDir || null
+                   windDir: curr.windDir || null, humidity: curr.humidity || null
                  });
-              } else setUserData({ temp: '-', pm25: '-', rain: '-', uv: '-', wind: '-', windDir: null });
-            } else fallbackToDefault();
+              } else setUserData({ temp: '-', pm25: '-', rain: '-', uv: '-', wind: '-', windDir: null, humidity: null });
+              setGpsStatus('success');
+            } else fallbackToDefault('default');
             setIsLocating(false);
           }, 
-          () => fallbackToDefault(), { timeout: 5000, maximumAge: 60000 } 
+          () => fallbackToDefault('denied'), { timeout: 5000, maximumAge: 60000 } 
         );
-      } else fallbackToDefault();
+      } else fallbackToDefault('default');
   }, [stations, stationTemps, stationYesterday]);
 
   useEffect(() => { if (stations && stations.length > 0) fetchUserLocation(); }, [stations, fetchUserLocation]);
 
-  // 🔴 เกณฑ์เสี่ยงตรงมาตรฐาน: กรมอุตุนิยมวิทยา / กรมควบคุมมลพิษ / WHO
+  // 🔴 เกณฑ์เสี่ยงตรงมาตรฐาน: กรมอุตุนิยมวิทยา / กรมควบคุมมลพิษ / WHO / Beaufort Scale
   const isRisky = useCallback((mode, val) => {
       if (val == null) return false;
       if(mode === 'heat') return val >= 39;     // กรมอุตุฯ "ร้อนจัด"
       if(mode === 'pm25') return val >= 37.5;   // กรมควบคุมมลพิษ "เริ่มมีผลต่อสุขภาพ"
       if(mode === 'uv') return val >= 8;        // WHO "Very High"
-      if(mode === 'rain') return val >= 60;     // ฝนตกหนัก
-      if(mode === 'wind') return val >= 50;     // กรมอุตุฯ "ลมแรง"
+      if(mode === 'rain') return val >= 60;     // โอกาสฝนตกสูง (probability)
+      if(mode === 'wind') return val >= 40;     // Beaufort Scale 6 "ลมแรง"
       if(mode === 'fire') return val > 0;       // มีจุดความร้อน
       if(mode === 'flood') return val > 0;      // มีพื้นที่น้ำท่วม
       return false;
@@ -224,27 +287,27 @@ export default function ClimatePage() {
           // โหมด Live: คัดเฉพาะที่เกินเกณฑ์มาตรฐาน
           if (currTemp >= 39) lData.heat.push({ prov: provName, val: currTemp, prevVal: prevTempSameHour, unit: '°C' });
           if (currPM >= 37.5) lData.pm25.push({ prov: provName, val: currPM, prevVal: prevPMSameHour, unit: 'µg/m³' });
-          if (currUV >= 8) lData.uv.push({ prov: provName, val: currUV, prevVal: prevUVSameHour, unit: 'UVI' });
+          if (currUV >= 8) lData.uv.push({ prov: provName, val: currUV, prevVal: prevUVSameHour, unit: 'UV' });
           if (currRain >= 60) lData.rain.push({ prov: provName, val: currRain, prevVal: prevRainSameHour, unit: '%' });
-          if (currWind >= 50) lData.wind.push({ prov: provName, val: currWind, prevVal: prevWindSameHour, unit: 'km/h', windDir });
+          if (currWind >= 40) lData.wind.push({ prov: provName, val: currWind, prevVal: prevWindSameHour, unit: 'km/h', windDir });
 
           // โหมด Yesterday: เก็บทุกจังหวัด
           yData.heat.push({ prov: provName, val: maxTemp, currVal: currTemp, unit: '°C' });
           yData.pm25.push({ prov: provName, val: maxPM, currVal: currPM, unit: 'µg/m³' });
-          yData.uv.push({ prov: provName, val: maxUV, currVal: currUV, unit: 'UVI' });
+          yData.uv.push({ prov: provName, val: maxUV, currVal: currUV, unit: 'UV' });
           yData.rain.push({ prov: provName, val: maxRain, currVal: currRain, unit: '%' });
           yData.wind.push({ prov: provName, val: maxWind, currVal: currWind, unit: 'km/h' });
         });
     }
 
-    // 🔥 ไฟป่า — ข้อมูลดาวเทียม GISTDA (Firebase) แทน Hardcode
+    // 🔥 ไฟป่า — ข้อมูลดาวเทียม GISTDA (Firebase)
     if (gistdaSummary?.hotspots?.length > 0) {
         lData.fire = gistdaSummary.hotspots
             .filter(p => p.value > 0)
             .map(p => ({ prov: p.province, val: p.value, prevVal: null, unit: 'จุด' }))
             .sort((a,b) => b.val - a.val);
         counts.fire.live = lData.fire.length;
-        counts.fire.yest = counts.fire.live; // ข้อมูลดาวเทียม = daily snapshot
+        counts.fire.yest = counts.fire.live;
     }
     yData.fire = lData.fire.map(p => ({ ...p, currVal: p.val }));
 
@@ -270,17 +333,17 @@ export default function ClimatePage() {
   const borderColor = 'var(--border-color)';
   const subTextColor = 'var(--text-sub)'; 
 
-  // 🎯 Dynamic Briefing — แทรกจำนวนจังหวัดจริง (ไม่ใช่ static string)
+  // 🎯 Dynamic Briefing — แทรกจำนวนจังหวัดจริง + ปรับภาษาให้ถูกต้อง
   const getModeBriefing = useCallback((mode) => {
       const count = riskyCounts[mode]?.live || 0;
       const briefings = {
-          heat: { level: '🔴 เฝ้าระวังฮีทสโตรก', desc: count > 0 ? `พบ ${count} จังหวัดที่อุณหภูมิเกิน 39°C — ควรงดกิจกรรมกลางแจ้ง ดื่มน้ำให้เพียงพอ` : 'ยังไม่พบพื้นที่อุณหภูมิเกินเกณฑ์ในขณะนี้', bg: '#fef2f2', border: '#fecaca', color: '#ef4444' },
-          pm25: { level: '🟠 คุณภาพอากาศ', desc: count > 0 ? `พบ ${count} จังหวัดที่ฝุ่น PM2.5 เกิน 37.5 µg/m³ — แนะนำสวมหน้ากากและเปิดเครื่องฟอกอากาศ` : 'คุณภาพอากาศอยู่ในเกณฑ์ปลอดภัยทุกพื้นที่', bg: '#fff7ed', border: '#fed7aa', color: '#f97316' },
-          uv: { level: '🟣 รังสี UV รุนแรง', desc: count > 0 ? `พบ ${count} จังหวัดที่ UV Index ≥ 8 (สูงมาก) — เสี่ยงต่อผิวหนังไหม้แดด ควรกางร่มหรือทาครีมกันแดด` : 'ดัชนี UV อยู่ในเกณฑ์ปลอดภัยทุกพื้นที่', bg: '#faf5ff', border: '#e9d5ff', color: '#a855f7' },
-          rain: { level: '🔵 ฝนตกหนัก', desc: count > 0 ? `พบ ${count} จังหวัดที่โอกาสฝนเกิน 60% — ระวังน้ำท่วมฉับพลัน ฟ้าผ่า และลมกระโชกแรง` : 'โอกาสฝนตกต่ำในทุกพื้นที่', bg: '#eff6ff', border: '#bfdbfe', color: '#3b82f6' },
-          wind: { level: '🟡 ระวังลมแรง', desc: count > 0 ? `พบ ${count} จังหวัดที่ลมแรงเกิน 50 km/h — ระวังป้ายโฆษณา ต้นไม้ใหญ่ และสิ่งปลูกสร้าง` : 'ความเร็วลมอยู่ในเกณฑ์ปกติทุกพื้นที่', bg: '#fefce8', border: '#fef08a', color: '#eab308' },
-          fire: { level: '🔴 จุดความร้อน (Hotspot)', desc: count > 0 ? `พบ ${count} จังหวัดที่มีจุดความร้อนจากดาวเทียม GISTDA — ห้ามจุดไฟในที่โล่งเด็ดขาด` : 'ไม่พบจุดความร้อนในขณะนี้', bg: '#fef2f2', border: '#fed7aa', color: '#ea580c' },
-          flood: { level: '🔵 พื้นที่น้ำท่วม', desc: count > 0 ? `พบ ${count} จังหวัดที่มีพื้นที่น้ำท่วมจากดาวเทียม GISTDA` : 'ไม่พบพื้นที่น้ำท่วมในขณะนี้', bg: '#eff6ff', border: '#bfdbfe', color: '#0284c7' }
+          heat: { level: '🔴 เฝ้าระวังโรคลมแดด (Heat Stroke)', desc: count > 0 ? `พบ ${count} จังหวัดที่อุณหภูมิเกิน 39°C — ควรงดกิจกรรมกลางแจ้ง ดื่มน้ำให้เพียงพอ` : 'ยังไม่พบพื้นที่อุณหภูมิเกินเกณฑ์ในขณะนี้', bg: '#fef2f2', border: '#fecaca', color: '#ef4444' },
+          pm25: { level: '🟠 คุณภาพอากาศ (PM2.5)', desc: count > 0 ? `พบ ${count} จังหวัดที่ฝุ่น PM2.5 เกิน 37.5 µg/m³ — แนะนำสวมหน้ากากและเปิดเครื่องฟอกอากาศ` : 'คุณภาพอากาศอยู่ในเกณฑ์ปลอดภัยทุกพื้นที่', bg: '#fff7ed', border: '#fed7aa', color: '#f97316' },
+          uv: { level: '🟣 รังสี UV รุนแรง', desc: count > 0 ? `พบ ${count} จังหวัดที่ UV ≥ 8 (สูงมาก) — เสี่ยงต่อผิวหนังไหม้แดด ควรกางร่มหรือทาครีมกันแดด` : 'ดัชนี UV อยู่ในเกณฑ์ปลอดภัยทุกพื้นที่', bg: '#faf5ff', border: '#e9d5ff', color: '#a855f7' },
+          rain: { level: '🔵 โอกาสฝนตกสูง', desc: count > 0 ? `พบ ${count} จังหวัดที่โอกาสฝนเกิน 60% — พกร่ม ระวังฟ้าผ่าและลมกระโชกแรง` : 'โอกาสฝนตกต่ำในทุกพื้นที่', bg: '#eff6ff', border: '#bfdbfe', color: '#3b82f6' },
+          wind: { level: '🟡 ลมแรง (Beaufort 6+)', desc: count > 0 ? `พบ ${count} จังหวัดที่ลมแรงเกิน 40 km/h — ระวังป้ายโฆษณา ต้นไม้ใหญ่ และสิ่งปลูกสร้าง` : 'ความเร็วลมอยู่ในเกณฑ์ปกติทุกพื้นที่', bg: '#fefce8', border: '#fef08a', color: '#eab308' },
+          fire: { level: '🔴 จุดความร้อนจากดาวเทียม', desc: count > 0 ? `พบ ${count} จังหวัดที่มีจุดความร้อนจากดาวเทียม GISTDA — ห้ามจุดไฟในที่โล่งเด็ดขาด` : 'ไม่พบจุดความร้อนในขณะนี้', bg: '#fef2f2', border: '#fed7aa', color: '#ea580c' },
+          flood: { level: '🔵 พื้นที่น้ำท่วมจากดาวเทียม', desc: count > 0 ? `พบ ${count} จังหวัดที่มีพื้นที่น้ำท่วมจากดาวเทียม GISTDA` : 'ไม่พบพื้นที่น้ำท่วมในขณะนี้', bg: '#eff6ff', border: '#bfdbfe', color: '#0284c7' }
       };
       return briefings[mode] || briefings.heat;
   }, [riskyCounts]);
@@ -289,9 +352,9 @@ export default function ClimatePage() {
       { id: 'heat', label: 'ความร้อน', icon: '🥵', color: '#ef4444', data: timeMode === 'live' ? liveData.heat : yesterdayData.heat },
       { id: 'pm25', label: 'ฝุ่น PM2.5', icon: '😷', color: '#f97316', data: timeMode === 'live' ? liveData.pm25 : yesterdayData.pm25 },
       { id: 'uv', label: 'รังสี UV', icon: '☀️', color: '#a855f7', data: timeMode === 'live' ? liveData.uv : yesterdayData.uv },
-      { id: 'rain', label: 'ฝน/พายุ', icon: '⛈️', color: '#3b82f6', data: timeMode === 'live' ? liveData.rain : yesterdayData.rain },
+      { id: 'rain', label: 'โอกาสฝน', icon: '⛈️', color: '#3b82f6', data: timeMode === 'live' ? liveData.rain : yesterdayData.rain },
       { id: 'wind', label: 'ลมแรง', icon: '🌪️', color: '#eab308', data: timeMode === 'live' ? liveData.wind : yesterdayData.wind },
-      { id: 'fire', label: 'ไฟป่า', icon: '🔥', color: '#ea580c', data: timeMode === 'live' ? liveData.fire : yesterdayData.fire },
+      { id: 'fire', label: 'จุดความร้อน', icon: '🔥', color: '#ea580c', data: timeMode === 'live' ? liveData.fire : yesterdayData.fire },
       { id: 'flood', label: 'น้ำท่วม', icon: '🌊', color: '#0284c7', data: timeMode === 'live' ? liveData.flood : yesterdayData.flood }
   ];
 
@@ -307,12 +370,14 @@ export default function ClimatePage() {
       return filtered;
   }, [activeTabData.data, searchTerm, timeMode, sortOrder]);
 
+  // 📌 Windy map overlay — ไม่แสดงสำหรับ fire/flood (ไม่มี overlay ที่ตรง)
+  const hasWindyOverlay = activeTab !== 'fire' && activeTab !== 'flood';
   const getWindyOverlay = (tabId) => {
-      if (tabId === 'rain' || tabId === 'flood') return 'rain';
+      if (tabId === 'rain') return 'rain';
       if (tabId === 'pm25') return 'pm2p5';
       if (tabId === 'uv') return 'uvindex';
       if (tabId === 'wind') return 'wind'; 
-      return 'temp'; // heat, fire
+      return 'temp'; // heat
   };
 
   const chartData = useMemo(() => {
@@ -331,38 +396,34 @@ export default function ClimatePage() {
   if (riskyDiff > 0) {
       trendSummaryColor = '#ef4444'; 
       trendTitle = '▲ สถานการณ์แย่ลง';
-      trendDetail = `วันนี้ ${riskyCounts[activeTab].live} จ. / เมื่อวาน ${riskyCounts[activeTab].yest} จ. (+${riskyDiff})`;
+      trendDetail = `วันนี้ ${riskyCounts[activeTab].live} จังหวัด / เมื่อวาน ${riskyCounts[activeTab].yest} จังหวัด (+${riskyDiff})`;
   } else if (riskyDiff < 0) {
       trendSummaryColor = '#22c55e'; 
       trendTitle = '▼ สถานการณ์ดีขึ้น';
-      trendDetail = `วันนี้ ${riskyCounts[activeTab].live} จ. / เมื่อวาน ${riskyCounts[activeTab].yest} จ. (${riskyDiff})`;
+      trendDetail = `วันนี้ ${riskyCounts[activeTab].live} จังหวัด / เมื่อวาน ${riskyCounts[activeTab].yest} จังหวัด (${riskyDiff})`;
   }
 
-  let locSummary = { text: 'สถานการณ์ปกติ', color: '#22c55e', bg: 'var(--bg-success)', icon: '✅', desc: 'ไม่มีการแจ้งเตือนสภาพอากาศรุนแรงในพื้นที่ของคุณ' };
-  if (userData && userData.temp !== '-') {
-      let criticalThreats = []; let warningThreats = [];
-      if (userData.temp >= 42) criticalThreats.push('ร้อนจัดอันตราย');
-      if (userData.pm25 >= 75) criticalThreats.push('ฝุ่นอันตราย');
-      if (userData.rain >= 80) criticalThreats.push('ฝนตกหนักมาก');
-      if (userData.temp >= 39 && userData.temp < 42) warningThreats.push('อากาศร้อนจัด');
-      if (userData.pm25 >= 37.5 && userData.pm25 < 75) warningThreats.push('ฝุ่นเริ่มหนา');
-      if (userData.uv >= 8) warningThreats.push('UV สูงมาก');
-      if (userData.wind >= 50) warningThreats.push('ลมแรง');
-      
-      if (criticalThreats.length > 0) locSummary = { text: 'อันตรายระดับวิกฤต', color: '#ef4444', bg: 'var(--bg-danger)', icon: '🚨', desc: `เฝ้าระวัง: ${criticalThreats.join(', ')}` };
-      else if (warningThreats.length > 0) locSummary = { text: 'พื้นที่เฝ้าระวังพิเศษ', color: '#f97316', bg: 'var(--bg-warning)', icon: '⚠️', desc: `เฝ้าระวัง: ${warningThreats.join(', ')}` };
-  }
+  // 🎯 Composite Safety Score + Action Cards
+  const safetyScore = useMemo(() => {
+      if (!userData || userData.temp === '-') return 80;
+      return computeSafetyScore(userData.temp, userData.pm25, userData.uv, userData.rain, userData.wind);
+  }, [userData, computeSafetyScore]);
+
+  const actionCards = useMemo(() => {
+      if (!userData || userData.temp === '-') return [];
+      return getActionCards(userData.temp, userData.pm25, userData.uv, userData.rain, userData.wind);
+  }, [userData, getActionCards]);
 
   // 🚨 Nowcast Situation Report — สรุปภาพรวมสถานการณ์ทั่วประเทศ
   const nowcastAlerts = useMemo(() => {
       const alerts = [];
-      if (riskyCounts.heat.live > 0) alerts.push({ icon: '🥵', text: `${riskyCounts.heat.live} จ. ร้อนจัด`, color: '#ef4444' });
-      if (riskyCounts.pm25.live > 0) alerts.push({ icon: '😷', text: `${riskyCounts.pm25.live} จ. ฝุ่นเกิน`, color: '#f97316' });
-      if (riskyCounts.uv.live > 0) alerts.push({ icon: '☀️', text: `${riskyCounts.uv.live} จ. UV สูง`, color: '#a855f7' });
-      if (riskyCounts.rain.live > 0) alerts.push({ icon: '⛈️', text: `${riskyCounts.rain.live} จ. ฝนหนัก`, color: '#3b82f6' });
-      if (riskyCounts.wind.live > 0) alerts.push({ icon: '🌪️', text: `${riskyCounts.wind.live} จ. ลมแรง`, color: '#eab308' });
-      if (riskyCounts.fire.live > 0) alerts.push({ icon: '🔥', text: `${riskyCounts.fire.live} จ. ไฟป่า`, color: '#ea580c' });
-      if (riskyCounts.flood.live > 0) alerts.push({ icon: '🌊', text: `${riskyCounts.flood.live} จ. น้ำท่วม`, color: '#0284c7' });
+      if (riskyCounts.heat.live > 0) alerts.push({ icon: '🥵', text: `${riskyCounts.heat.live} จังหวัด ร้อนจัด`, color: '#ef4444' });
+      if (riskyCounts.pm25.live > 0) alerts.push({ icon: '😷', text: `${riskyCounts.pm25.live} จังหวัด ฝุ่นเกิน`, color: '#f97316' });
+      if (riskyCounts.uv.live > 0) alerts.push({ icon: '☀️', text: `${riskyCounts.uv.live} จังหวัด UV สูง`, color: '#a855f7' });
+      if (riskyCounts.rain.live > 0) alerts.push({ icon: '⛈️', text: `${riskyCounts.rain.live} จังหวัด ฝนตก`, color: '#3b82f6' });
+      if (riskyCounts.wind.live > 0) alerts.push({ icon: '🌪️', text: `${riskyCounts.wind.live} จังหวัด ลมแรง`, color: '#eab308' });
+      if (riskyCounts.fire.live > 0) alerts.push({ icon: '🔥', text: `${riskyCounts.fire.live} จังหวัด จุดความร้อน`, color: '#ea580c' });
+      if (riskyCounts.flood.live > 0) alerts.push({ icon: '🌊', text: `${riskyCounts.flood.live} จังหวัด น้ำท่วม`, color: '#0284c7' });
       return alerts;
   }, [riskyCounts]);
 
@@ -370,43 +431,41 @@ export default function ClimatePage() {
   const nowcastColor = nowcastAlerts.length >= 3 ? '#ef4444' : nowcastAlerts.length > 0 ? '#f59e0b' : '#22c55e';
 
   const lastUpdateText = lastUpdated ? new Date(lastUpdated).toLocaleString('th-TH', { hour: '2-digit', minute: '2-digit' }) : null;
+  
+  // ⏱️ Stale data detection (>30 นาที)
+  const minutesSinceUpdate = lastUpdated ? Math.round((Date.now() - new Date(lastUpdated).getTime()) / 60000) : null;
+  const isStale = minutesSinceUpdate !== null && minutesSinceUpdate > 30;
 
   // 🌟 Loading Spinner
   if (loading || stations.length === 0) return (
     <div className="loading-container" style={{ background: appBg, color: textColor }}>
         <div className="loading-spinner" style={{ borderTopColor: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.15)' }}></div>
-        <div style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>กำลังเตรียมศูนย์ปฏิบัติการ...</div>
+        <div style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>กำลังเตรียมศูนย์เฝ้าระวัง...</div>
         <div style={{ fontSize: '0.85rem', color: subTextColor, marginTop: '5px' }}>วิเคราะห์พื้นที่เสี่ยงทั่วประเทศ</div>
     </div>
   );
 
   return (
-    <div style={{ height: '100%', width: '100%', background: timeMode === 'yesterday' ? (darkMode ? '#000000' : '#f1f5f9') : appBg, display: 'flex', justifyContent: 'center', overflowY: 'auto', fontFamily: 'Kanit, sans-serif', transition: 'background 0.3s' }} className="custom-scrollbar">
-      
-      <style dangerouslySetInnerHTML={{__html: `
-        @media (max-width: 1024px) {
-            .custom-scrollbar::-webkit-scrollbar { display: none; }
-            .custom-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        }
-      `}} />
+    <div style={{ height: '100%', width: '100%', background: timeMode === 'yesterday' ? (darkMode ? '#000000' : '#f1f5f9') : appBg, display: 'flex', justifyContent: 'center', overflowY: 'auto', fontFamily: 'Sarabun, Kanit, sans-serif', transition: 'background 0.3s' }} className="climate-scroll custom-scrollbar">
 
       <div style={{ width: '100%', maxWidth: '1400px', display: 'flex', flexDirection: 'column', gap: '20px', padding: isMobile ? '15px' : '30px', paddingBottom: '100px' }}>
         
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '10px' }}>
             <div>
-                <h1 style={{ margin: 0, color: textColor, fontSize: '1.8rem', fontWeight: '900', display: 'flex', alignItems: 'center', gap: '10px' }}>🚨 ศูนย์ปฏิบัติการเฝ้าระวัง</h1>
+                <h1 style={{ margin: 0, color: textColor, fontSize: isMobile ? '1.4rem' : '1.8rem', fontWeight: '900', display: 'flex', alignItems: 'center', gap: '10px' }}>🚨 ศูนย์เฝ้าระวังสภาพอากาศ</h1>
                 <p style={{ margin: '5px 0 0 0', color: subTextColor, fontSize: '0.9rem' }}>ระบบติดตามและวิเคราะห์ความเสี่ยงสภาพอากาศ</p>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '5px' }}>
                 <div style={{ background: 'var(--bg-secondary)', padding: '8px 16px', borderRadius: '50px', border: `1px solid ${borderColor}`, fontSize: '0.9rem', color: textColor, display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>
                     <span style={{ display: 'inline-block', width: '10px', height: '10px', background: timeMode === 'live' ? '#22c55e' : '#8b5cf6', borderRadius: '50%', boxShadow: timeMode === 'live' ? '0 0 8px #22c55e' : '0 0 8px #8b5cf6', animation: timeMode === 'live' ? 'pulse 1.5s infinite' : 'none' }}></span>
-                    {timeMode === 'live' ? `LIVE: ${currentTime.toLocaleTimeString('th-TH')}` : `DATA: ${yesterdayDateText}`}
+                    {timeMode === 'live' ? `LIVE: ${currentTime.toLocaleTimeString('th-TH')}` : `📊 ข้อมูลเมื่อวาน: ${yesterdayDateText}`}
                 </div>
-                {/* แสดงเวลาอัปเดตข้อมูลจาก Firebase */}
-                {lastUpdateText && timeMode === 'live' && (
-                    <div style={{ fontSize: '0.7rem', color: subTextColor, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        📡 ข้อมูล: {lastUpdateText} น.
+                {/* แสดงเวลาอัปเดตข้อมูล + Stale warning */}
+                {timeMode === 'live' && (
+                    <div style={{ fontSize: '0.7rem', color: isStale ? '#f59e0b' : subTextColor, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        {isStale ? '⚠️' : '📡'} ข้อมูล: {lastUpdateText ? `${lastUpdateText} น.` : 'ไม่ทราบ'}
+                        {isStale && <span style={{ color: '#f59e0b', fontWeight: 'bold' }}> — อาจไม่เป็นปัจจุบัน</span>}
                     </div>
                 )}
                 <div style={{ display: 'flex', background: cardBg, borderRadius: '50px', border: `1px solid ${borderColor}`, padding: '4px', marginTop: '2px' }}>
@@ -421,7 +480,7 @@ export default function ClimatePage() {
             <div className="fade-in" style={{ background: `${nowcastColor}12`, border: `1px solid ${nowcastColor}40`, borderRadius: '16px', padding: '12px 20px', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
                     <span style={{ display: 'inline-block', width: '10px', height: '10px', background: nowcastColor, borderRadius: '50%', animation: 'pulse 1.5s infinite' }}></span>
-                    <span style={{ fontWeight: '900', color: nowcastColor, fontSize: '0.95rem', whiteSpace: 'nowrap' }}>NOWCAST: สถานการณ์{nowcastLevel}</span>
+                    <span style={{ fontWeight: '900', color: nowcastColor, fontSize: '0.95rem', whiteSpace: 'nowrap' }}>🚨 สถานการณ์ขณะนี้: {nowcastLevel}</span>
                 </div>
                 {nowcastAlerts.length > 0 ? (
                     <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
@@ -437,9 +496,10 @@ export default function ClimatePage() {
             </div>
         )}
 
-        {/* ส่วนบน: กล่องส่วนตัว + 7 Tabs */}
+        {/* ส่วนบน: One-Glance Card + 7 Tabs */}
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 2fr', gap: '20px', alignItems: 'start' }}>
-            <div style={{ background: locSummary.bg, border: `1px solid ${locSummary.color}50`, borderRadius: '24px', padding: '25px', display: 'flex', flexDirection: 'column', position: 'relative', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', transition: '0.3s' }}>
+            {/* 📍 One-Glance Safety Card */}
+            <div style={{ background: cardBg, border: `1px solid ${borderColor}`, borderRadius: '24px', padding: '25px', display: 'flex', flexDirection: 'column', position: 'relative', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', transition: '0.3s' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
                         <div style={{ fontSize: '1.3rem', fontWeight: '900', color: textColor }}>
@@ -448,10 +508,16 @@ export default function ClimatePage() {
                         </div>
                         <div style={{ fontSize: '0.8rem', color: subTextColor, marginTop: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                             📍 พื้นที่เฝ้าระวังของคุณ
-                            {tmdAvailable && <span style={{ background: '#0ea5e915', color: '#0ea5e9', padding: '1px 6px', borderRadius: '6px', fontSize: '0.6rem', fontWeight: 'bold', border: '1px solid #0ea5e930' }}>📡 TMD</span>}
+                            {tmdAvailable && <span style={{ background: '#0ea5e915', color: '#0ea5e9', padding: '1px 6px', borderRadius: '6px', fontSize: '0.6rem', fontWeight: 'bold', border: '1px solid #0ea5e930' }}>📡 กรมอุตุฯ</span>}
                         </div>
+                        {/* 📌 GPS Status Banner */}
+                        {gpsStatus === 'denied' && (
+                            <div style={{ fontSize: '0.68rem', color: '#f59e0b', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                ⚠️ ใช้ตำแหน่งเริ่มต้น (GPS ถูกปิดกั้น)
+                            </div>
+                        )}
                     </div>
-                    <button onClick={() => setShowLocFilter(!showLocFilter)} style={{ background: 'transparent', border: 'none', color: locSummary.color, cursor: 'pointer', fontSize: '1.2rem', transition: '0.2s' }} title="ระบุตำแหน่ง">🔍</button>
+                    <button onClick={() => setShowLocFilter(!showLocFilter)} style={{ background: 'transparent', border: 'none', color: textColor, cursor: 'pointer', fontSize: '1.2rem', transition: '0.2s' }} title="ระบุตำแหน่ง">🔍</button>
                 </div>
 
                 {showLocFilter && (
@@ -473,11 +539,11 @@ export default function ClimatePage() {
                                             temp: Math.round(curr.temp || 0), prevTemp: prev.temp !== undefined ? prev.temp : null,
                                             pm25: closest.AQILast?.PM25?.value || 0, prevPm25: prev.pm25 !== undefined ? prev.pm25 : null,
                                             rain: curr.rainProb || 0, uv: curr.uv || 0, wind: Math.round(curr.windSpeed || 0),
-                                            windDir: curr.windDir || null
+                                            windDir: curr.windDir || null, humidity: curr.humidity || null
                                         });
                                     }
                                 }}
-                                style={{ flex: 1, padding: '8px 12px', borderRadius: '12px', border: `1px solid ${borderColor}`, background: darkMode ? '#1e293b' : '#fff', color: textColor, fontFamily: 'Kanit', outline: 'none' }}
+                                style={{ flex: 1, padding: '8px 12px', borderRadius: '12px', border: `1px solid ${borderColor}`, background: darkMode ? '#1e293b' : '#fff', color: textColor, fontFamily: 'inherit', outline: 'none' }}
                             >
                                 <option value="">-- เลือกจังหวัด --</option>
                                 {[...stations].sort((a,b)=>a.areaTH.localeCompare(b.areaTH,'th')).map(st => (
@@ -486,7 +552,6 @@ export default function ClimatePage() {
                             </select>
                             <button onClick={() => { setShowLocFilter(false); fetchUserLocation(); }} style={{ background: '#0ea5e9', color: '#fff', border: 'none', borderRadius: '12px', padding: '0 15px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.8rem', flexShrink: 0 }} title="อัปเดตตำแหน่งของฉัน">📍</button>
                         </div>
-                        {/* 🆕 Dropdown อำเภอ — ข้อมูลจาก TMD API หรือ Geo Fallback */}
                         {userProv ? (
                             <select
                                 value={userAmphoe}
@@ -495,17 +560,12 @@ export default function ClimatePage() {
                                     setUserAmphoe(aName);
                                     if (aName) {
                                         const aData = currentAmphoes.find(a => a.name === aName);
-                                        if (aData && aData.rawData) {
-                                            setUserAmphoeData(aData.rawData);
-                                        } else {
-                                            setUserAmphoeData(null);
-                                        }
-                                    } else {
-                                        setUserAmphoeData(null);
-                                    }
+                                        if (aData && aData.rawData) setUserAmphoeData(aData.rawData);
+                                        else setUserAmphoeData(null);
+                                    } else setUserAmphoeData(null);
                                 }}
                                 disabled={currentAmphoes.length === 0}
-                                style={{ padding: '8px 12px', borderRadius: '12px', border: `1px solid ${borderColor}`, background: darkMode ? '#1e293b' : '#fff', color: textColor, fontFamily: 'Kanit', outline: 'none' }}
+                                style={{ padding: '8px 12px', borderRadius: '12px', border: `1px solid ${borderColor}`, background: darkMode ? '#1e293b' : '#fff', color: textColor, fontFamily: 'inherit', outline: 'none' }}
                             >
                                 <option value="">-- เลือกอำเภอ {currentAmphoes.length > 0 ? `(${currentAmphoes.length} อำเภอ)` : ''} --</option>
                                 {currentAmphoes.map((a, i) => (
@@ -517,14 +577,16 @@ export default function ClimatePage() {
                 )}
 
                 {!isLocating && userData ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, marginTop: '20px', gap: '5px' }}>
-                        <div style={{ fontSize: '3rem', animation: locSummary.icon === '🚨' ? 'pulse 1.5s infinite' : 'none' }}>{locSummary.icon}</div>
-                        <div style={{ fontSize: '1.3rem', fontWeight: '900', color: locSummary.color, textAlign: 'center', lineHeight: '1.2' }}>{locSummary.text}</div>
-                        <div style={{ fontSize: '0.85rem', color: textColor, textAlign: 'center', opacity: 0.8, padding: '0 10px', marginBottom: '10px' }}>{locSummary.desc}</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, marginTop: '15px', gap: '8px' }}>
+                        {/* 🎯 One-Glance Safety Score */}
+                        <SafetyGauge score={safetyScore} size={isMobile ? 'compact' : 'normal'} />
                         
-                        {/* 🆕 แสดงข้อมูลอำเภอจาก TMD ถ้ามี */}
+                        {/* 🎯 Action Cards — คำแนะนำเชิงปฏิบัติ */}
+                        <ActionCards actions={actionCards} />
+                        
+                        {/* 🆕 แสดงข้อมูลอำเภอจาก กรมอุตุฯ ถ้ามี */}
                         {userAmphoeData && (
-                            <div className="fade-in" style={{ width: '100%', background: 'var(--bg-overlay-heavy)', borderRadius: '14px', padding: '10px 14px', border: `1px solid #0ea5e930`, marginBottom: '8px' }}>
+                            <div className="fade-in" style={{ width: '100%', background: 'var(--bg-overlay-heavy)', borderRadius: '14px', padding: '10px 14px', border: `1px solid #0ea5e930`, marginTop: '4px' }}>
                                 <div style={{ fontSize: '0.7rem', color: '#0ea5e9', fontWeight: 'bold', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                                     📡 ข้อมูลอำเภอ {userAmphoeData.n} • กรมอุตุนิยมวิทยา
                                 </div>
@@ -537,8 +599,8 @@ export default function ClimatePage() {
                             </div>
                         )}
                         
-                        {/* แสดงข้อมูลครบ 5 ค่า + ทิศลม */}
-                        <div style={{ display: 'flex', gap: '6px', width: '100%', flexWrap: 'wrap', justifyContent: 'center' }}>
+                        {/* แสดงข้อมูลครบ 5 ค่า + ความชื้น + ทิศลม */}
+                        <div style={{ display: 'flex', gap: '6px', width: '100%', flexWrap: 'wrap', justifyContent: 'center', marginTop: '4px' }}>
                             <div style={{ background: 'var(--bg-overlay-heavy)', border: `1px solid ${borderColor}`, padding: '6px 10px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 'bold', color: textColor, display: 'flex', alignItems: 'center', gap: '3px' }}>
                                 🌡️ <span style={{color: userData.temp >= 39 ? '#ef4444' : textColor}}>{userData.temp}°C</span>
                                 {timeMode === 'live' && <TrendIndicator current={userData.temp} prev={userData.prevTemp} />}
@@ -549,30 +611,38 @@ export default function ClimatePage() {
                             </div>
                             <div style={{ background: 'var(--bg-overlay-heavy)', border: `1px solid ${borderColor}`, padding: '6px 10px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 'bold', color: textColor, display: 'flex', alignItems: 'center', gap: '3px' }}>
                                 ☂️ <span style={{color: userData.rain >= 60 ? '#3b82f6' : textColor}}>{userData.rain}%</span>
+                                <span style={{fontSize:'0.55rem', opacity:0.6, marginLeft:'2px'}}>โอกาสฝน</span>
                             </div>
                             <div style={{ background: 'var(--bg-overlay-heavy)', border: `1px solid ${borderColor}`, padding: '6px 10px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 'bold', color: textColor, display: 'flex', alignItems: 'center', gap: '3px' }}>
                                 ☀️ <span style={{color: userData.uv >= 8 ? '#a855f7' : textColor}}>UV {userData.uv}</span>
                             </div>
                             <div style={{ background: 'var(--bg-overlay-heavy)', border: `1px solid ${borderColor}`, padding: '6px 10px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 'bold', color: textColor, display: 'flex', alignItems: 'center', gap: '3px' }}>
-                                💨 <span style={{color: userData.wind >= 50 ? '#eab308' : textColor}}>{userData.wind} km/h</span>
+                                💨 <span style={{color: userData.wind >= 40 ? '#eab308' : textColor}}>{userData.wind} km/h</span>
                                 {userData.windDir != null && <WindDirection deg={userData.windDir} />}
                             </div>
+                            {userData.humidity != null && (
+                                <div style={{ background: 'var(--bg-overlay-heavy)', border: `1px solid ${borderColor}`, padding: '6px 10px', borderRadius: '12px', fontSize: '0.78rem', fontWeight: 'bold', color: textColor, display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                    💧 <span>{Math.round(userData.humidity)}%</span>
+                                    <span style={{fontSize:'0.55rem', opacity:0.6, marginLeft:'2px'}}>ความชื้น</span>
+                                </div>
+                            )}
                         </div>
                     </div>
                 ) : ( <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: subTextColor, marginTop: '20px' }}>กำลังประมวลผลข้อมูล...</div> )}
             </div>
 
+            {/* 7 Tabs — Horizontal Scroll บน Mobile */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(4, 1fr)' : 'repeat(4, 1fr)', gap: isMobile ? '8px' : '12px', flex: 1 }}>
+                <div className={isMobile ? 'climate-tabs-scroll' : ''} style={isMobile ? {} : { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
                     {tabs.map((tab, idx) => {
                         const count = timeMode === 'live' ? riskyCounts[tab.id].live : riskyCounts[tab.id].yest;
                         return (
-                            <div key={idx} onClick={() => setActiveTab(tab.id)} style={{ background: cardBg, padding: isMobile ? '10px 4px' : '12px 5px', borderRadius: '20px', border: `2px solid ${activeTab === tab.id ? tab.color : borderColor}`, cursor: 'pointer', transition: 'all 0.2s', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px', boxShadow: activeTab === tab.id ? `0 10px 20px ${tab.color}15` : 'none', transform: activeTab === tab.id ? 'translateY(-3px)' : 'none' }}>
+                            <div key={idx} onClick={() => setActiveTab(tab.id)} style={{ background: cardBg, padding: isMobile ? '10px 14px' : '12px 5px', borderRadius: '20px', border: `2px solid ${activeTab === tab.id ? tab.color : borderColor}`, cursor: 'pointer', transition: 'all 0.2s', display: 'flex', flexDirection: isMobile ? 'row' : 'column', alignItems: 'center', justifyContent: 'center', gap: isMobile ? '8px' : '4px', boxShadow: activeTab === tab.id ? `0 10px 20px ${tab.color}15` : 'none', transform: activeTab === tab.id ? 'translateY(-3px)' : 'none', flexShrink: 0, scrollSnapAlign: 'start', minWidth: isMobile ? 'auto' : undefined }}>
                                 <span style={{ fontSize: isMobile ? '1.3rem' : '1.6rem' }}>{tab.icon}</span>
-                                <span style={{ fontSize: isMobile ? '0.6rem' : '0.7rem', color: subTextColor, fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{tab.label}</span>
+                                <span style={{ fontSize: isMobile ? '0.72rem' : '0.7rem', color: subTextColor, fontWeight: 'bold', whiteSpace: 'nowrap' }}>{tab.label}</span>
                                 <div style={{ display: 'flex', alignItems: 'baseline', gap: '3px' }}>
                                     <span style={{ fontSize: isMobile ? '1rem' : '1.2rem', fontWeight: '900', color: tab.color }}>{count}</span>
-                                    <span style={{ fontSize: '0.65rem', fontWeight: 'bold', color: tab.color }}>จ.</span>
+                                    <span style={{ fontSize: '0.65rem', fontWeight: 'bold', color: tab.color }}>{isMobile ? 'จ.' : 'จังหวัด'}</span>
                                 </div>
                             </div>
                         );
@@ -584,27 +654,54 @@ export default function ClimatePage() {
         {/* ส่วนล่าง */}
         {timeMode === 'live' ? (
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1.5fr 1fr', gap: '20px', marginTop: '20px' }}>
+                {/* แผนที่ / GISTDA placeholder */}
                 <div style={{ background: cardBg, padding: '20px', borderRadius: '24px', border: `1px solid ${borderColor}`, display: 'flex', flexDirection: 'column' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                        <h2 style={{ margin: '0 0 10px 0', color: textColor, fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>{activeTabData.icon} แผนที่ Nowcast: {activeTabData.label}</h2>
+                        <h2 style={{ margin: '0 0 10px 0', color: textColor, fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>{activeTabData.icon} {hasWindyOverlay ? `แผนที่สภาพอากาศ: ${activeTabData.label}` : `ข้อมูลดาวเทียม: ${activeTabData.label}`}</h2>
                     </div>
-                    <div style={{ flex: 1, minHeight: isMobile ? '350px' : '550px', borderRadius: '16px', overflow: 'hidden', background: '#000', position: 'relative' }}>
-                        {isMobile && !isMapInteractive && (
-                            <div onClick={() => setIsMapInteractive(true)} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.4)', zIndex: 10, display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: 'pointer', backdropFilter: 'blur(2px)' }}>
-                                <div style={{ background: '#0ea5e9', color: '#fff', padding: '10px 20px', borderRadius: '50px', fontWeight: 'bold', boxShadow: '0 4px 15px rgba(0,0,0,0.3)' }}>👆 แตะเพื่อเลื่อนแผนที่</div>
+                    
+                    {hasWindyOverlay ? (
+                        <div style={{ flex: 1, minHeight: isMobile ? '350px' : '550px', borderRadius: '16px', overflow: 'hidden', background: '#000', position: 'relative' }}>
+                            {isMobile && !isMapInteractive && (
+                                <div onClick={() => setIsMapInteractive(true)} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.4)', zIndex: 10, display: 'flex', justifyContent: 'center', alignItems: 'center', cursor: 'pointer', backdropFilter: 'blur(2px)' }}>
+                                    <div style={{ background: '#0ea5e9', color: '#fff', padding: '10px 20px', borderRadius: '50px', fontWeight: 'bold', boxShadow: '0 4px 15px rgba(0,0,0,0.3)' }}>👆 แตะเพื่อเลื่อนแผนที่</div>
+                                </div>
+                            )}
+                            {isMobile && isMapInteractive && (
+                                <button onClick={() => setIsMapInteractive(false)} style={{ position: 'absolute', top: '10px', right: '10px', background: '#ef4444', color: '#fff', padding: '5px 15px', borderRadius: '50px', border: 'none', zIndex: 10, fontWeight: 'bold', boxShadow: '0 2px 10px rgba(0,0,0,0.2)' }}>🔒 ล็อคแผนที่</button>
+                            )}
+                            <iframe width="100%" height="100%" src={`https://embed.windy.com/embed2.html?lat=13.75&lon=100.5&zoom=5&level=surface&overlay=${getWindyOverlay(activeTab)}&product=ecmwf`} style={{ border: 'none', pointerEvents: (isMobile && !isMapInteractive) ? 'none' : 'auto' }}></iframe>
+                        </div>
+                    ) : (
+                        /* 🔥🌊 ข้อมูลดาวเทียม — ไม่ใช้ Windy เพราะไม่มี fire/flood overlay */
+                        <div style={{ flex: 1, minHeight: isMobile ? '250px' : '400px', borderRadius: '16px', background: darkMode ? '#0f172a' : '#f8fafc', border: `2px dashed ${borderColor}`, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '15px', padding: '30px' }}>
+                            <div style={{ fontSize: '3rem' }}>{activeTab === 'fire' ? '🛰️🔥' : '🛰️🌊'}</div>
+                            <div style={{ fontSize: '1.1rem', fontWeight: '900', color: textColor, textAlign: 'center' }}>
+                                ข้อมูลจากดาวเทียม GISTDA
                             </div>
-                        )}
-                        {isMobile && isMapInteractive && (
-                            <button onClick={() => setIsMapInteractive(false)} style={{ position: 'absolute', top: '10px', right: '10px', background: '#ef4444', color: '#fff', padding: '5px 15px', borderRadius: '50px', border: 'none', zIndex: 10, fontWeight: 'bold', boxShadow: '0 2px 10px rgba(0,0,0,0.2)' }}>🔒 ล็อคแผนที่</button>
-                        )}
-                        <iframe width="100%" height="100%" src={`https://embed.windy.com/embed2.html?lat=13.75&lon=100.5&zoom=5&level=surface&overlay=${getWindyOverlay(activeTab)}&product=ecmwf`} style={{ border: 'none', pointerEvents: (isMobile && !isMapInteractive) ? 'none' : 'auto' }}></iframe>
-                    </div>
+                            <div style={{ fontSize: '0.85rem', color: subTextColor, textAlign: 'center', lineHeight: 1.6 }}>
+                                {activeTab === 'fire'
+                                    ? 'แสดงจุดความร้อน (hotspot) สะสม 7 วัน จากดาวเทียม — ดูรายละเอียดที่ตารางด้านขวา'
+                                    : 'แสดงพื้นที่น้ำท่วมจากดาวเทียม — ดูรายละเอียดที่ตารางด้านขวา'
+                                }
+                            </div>
+                            <a href="https://disaster.gistda.or.th" target="_blank" rel="noopener noreferrer" style={{ background: activeTabData.color, color: '#fff', padding: '8px 20px', borderRadius: '50px', fontSize: '0.85rem', fontWeight: 'bold', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                🌐 เปิดเว็บ GISTDA Disaster
+                            </a>
+                        </div>
+                    )}
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                     <div style={{ background: darkMode ? `${activeBriefing.bg}15` : activeBriefing.bg, padding: '20px', borderRadius: '24px', border: `1px solid ${activeBriefing.border}`, display: 'flex', flexDirection: 'column', gap: '10px' }}>
                         <div style={{ color: activeBriefing.color, fontWeight: '900', fontSize: '1rem' }}>{activeBriefing.level}</div>
                         <p style={{ margin: 0, fontSize: '0.85rem', color: darkMode ? '#cbd5e1' : '#334155', lineHeight: '1.5' }}>{activeBriefing.desc}</p>
+                        {/* หมายเหตุสำหรับ Tab ฝน — แจ้งว่าเป็น probability ไม่ใช่ปริมาณ */}
+                        {activeTab === 'rain' && (
+                            <div style={{ fontSize: '0.7rem', color: subTextColor, fontStyle: 'italic', borderTop: `1px solid ${borderColor}`, paddingTop: '8px', marginTop: '4px' }}>
+                                💡 หมายเหตุ: ค่าที่แสดงคือ "โอกาสฝนตก (%)" ไม่ใช่ปริมาณน้ำฝน (mm) — ยิ่ง % สูง ยิ่งมีโอกาสฝนตกมาก
+                            </div>
+                        )}
                     </div>
 
                     <div style={{ background: cardBg, borderRadius: '24px', border: `1px solid ${borderColor}`, flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -617,7 +714,7 @@ export default function ClimatePage() {
                                 <span style={{ display: 'inline-block', width: '6px', height: '6px', background: '#0ea5e9', borderRadius: '50%' }}></span>
                                 ข้อมูลสถานการณ์เรียลไทม์
                             </div>
-                            <input type="text" placeholder={`พิมพ์ชื่อจังหวัดเพื่อค้นหา...`} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '12px', border: `1px solid ${borderColor}`, background: cardBg, color: textColor, outline: 'none', fontFamily: 'Kanit' }} />
+                            <input type="text" placeholder={`พิมพ์ชื่อจังหวัดเพื่อค้นหา...`} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '12px', border: `1px solid ${borderColor}`, background: cardBg, color: textColor, outline: 'none', fontFamily: 'inherit' }} />
                         </div>
                         <div style={{ padding: '5px 15px', overflowY: 'auto', maxHeight: isMobile ? '300px' : '450px' }} className="custom-scrollbar">
                             {sortedFilteredData.length > 0 ? sortedFilteredData.map((item, i) => (
@@ -635,14 +732,17 @@ export default function ClimatePage() {
                                     </div>
                                 </div>
                             )) : (
-                                // Empty state ที่แตกต่างสำหรับข้อมูล GISTDA vs ข้อมูลสถานี
+                                // Empty state
                                 (activeTab === 'fire' || activeTab === 'flood') && !gistdaSummary ? (
                                     <div style={{ textAlign: 'center', padding: '50px 0', color: subTextColor }}>
                                         <div style={{ fontSize: '2rem', marginBottom: '10px' }}>📡</div>
                                         กำลังดึงข้อมูลดาวเทียม GISTDA...
                                     </div>
                                 ) : (
-                                    <div style={{ textAlign: 'center', padding: '50px 0', color: subTextColor }}>✅ ไม่พบพื้นที่เสี่ยงในขณะนี้</div>
+                                    <div style={{ textAlign: 'center', padding: '50px 0', color: subTextColor }}>
+                                        <div style={{ fontSize: '2rem', marginBottom: '10px' }}>✅</div>
+                                        ไม่พบพื้นที่เสี่ยงในขณะนี้
+                                    </div>
                                 )
                             )}
                         </div>
@@ -657,14 +757,14 @@ export default function ClimatePage() {
                     </h2>
                     <p style={{ margin: '0 0 15px 0', color: subTextColor, fontSize: '0.85rem' }}>หมวดหมู่: {activeTabData.label}</p>
                     
-                    <div style={{ width: '100%', height: '250px' }}>
+                    <div style={{ width: '100%', height: isMobile ? '250px' : '300px' }}>
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={chartData} margin={{ top: 20, right: 0, left: -20, bottom: 5 }}>
                                 <CartesianGrid strokeDasharray="3 3" stroke={borderColor} vertical={false} />
-                                <XAxis dataKey="name" stroke={subTextColor} tick={{fontSize: 10, fill: subTextColor, fontFamily: 'Kanit'}} axisLine={false} tickLine={false} interval={0} />
+                                <XAxis dataKey="name" stroke={subTextColor} tick={{fontSize: 10, fill: subTextColor}} axisLine={false} tickLine={false} interval={0} />
                                 <YAxis stroke={subTextColor} tick={{fontSize: 10, fill: subTextColor}} axisLine={false} tickLine={false} />
-                                <Tooltip cursor={{fill: 'var(--bg-secondary)'}} contentStyle={{background: cardBg, borderRadius: '12px', border: `1px solid ${borderColor}`, color: textColor, fontFamily: 'Kanit'}} />
-                                <Legend wrapperStyle={{fontFamily: 'Kanit', fontSize: '0.85rem'}} />
+                                <Tooltip cursor={{fill: 'var(--bg-secondary)'}} contentStyle={{background: cardBg, borderRadius: '12px', border: `1px solid ${borderColor}`, color: textColor}} />
+                                <Legend wrapperStyle={{fontSize: '0.85rem'}} />
                                 <Bar dataKey="เมื่อวาน" fill="#8b5cf6" radius={[4, 4, 0, 0]} maxBarSize={30} />
                                 <Bar dataKey="วันนี้" fill={activeTabData.color} radius={[4, 4, 0, 0]} maxBarSize={30} />
                             </BarChart>
@@ -688,11 +788,11 @@ export default function ClimatePage() {
                             </div>
                         </div>
                         <div style={{ display: 'flex', gap: '10px', alignItems: 'center', width: isMobile ? '100%' : 'auto' }}>
-                            <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} style={{ padding: '10px 15px', borderRadius: '12px', border: `1px solid ${borderColor}`, background: cardBg, color: textColor, outline: 'none', fontFamily: 'Kanit', cursor: 'pointer' }}>
+                            <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} style={{ padding: '10px 15px', borderRadius: '12px', border: `1px solid ${borderColor}`, background: cardBg, color: textColor, outline: 'none', fontFamily: 'inherit', cursor: 'pointer' }}>
                                 <option value="alpha">🔤 เรียงตามชื่อ (ก-ฮ)</option>
                                 <option value="desc">🔥 เรียงตามความรุนแรง</option>
                             </select>
-                            <input type="text" placeholder={`พิมพ์ชื่อจังหวัด...`} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={{ flex: 1, padding: '10px 15px', borderRadius: '12px', border: `1px solid ${borderColor}`, background: cardBg, color: textColor, outline: 'none', fontFamily: 'Kanit' }} />
+                            <input type="text" placeholder={`พิมพ์ชื่อจังหวัด...`} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={{ flex: 1, padding: '10px 15px', borderRadius: '12px', border: `1px solid ${borderColor}`, background: cardBg, color: textColor, outline: 'none', fontFamily: 'inherit' }} />
                         </div>
                     </div>
                     

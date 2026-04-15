@@ -226,3 +226,32 @@ body {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.4; }
 }
+
+/* =========================================
+   🚨 ClimatePage: Mobile Scrollbar Hide
+   ========================================= */
+@media (max-width: 1024px) {
+  .climate-scroll::-webkit-scrollbar { display: none; }
+  .climate-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+}
+
+/* =========================================
+   🚨 ClimatePage: Horizontal Scroll Tabs
+   ========================================= */
+.climate-tabs-scroll {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+.climate-tabs-scroll::-webkit-scrollbar { display: none; }
+.climate-tabs-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* =========================================
+   🚨 ClimatePage: Safety Gauge Animation
+   ========================================= */
+@keyframes gaugeGrow {
+  from { width: 0; }
+}
