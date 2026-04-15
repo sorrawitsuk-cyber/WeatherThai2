@@ -93,7 +93,7 @@ export default function Dashboard() {
     });
 
     if (pObj) {
-      const distArray = pObj.amphure || pObj.amphures || pObj.district || [];
+      const distArray = pObj.amphure || pObj.amphures || pObj.district || pObj.districts || [];
       return [...distArray].map(a => ({
         id: a.id || Math.random(), 
         name: String(a.name_th || a.nameTh || a.name || '').trim()

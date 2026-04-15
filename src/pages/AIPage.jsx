@@ -13,12 +13,20 @@ export default function AIPage() {
   const [targetDateIdx, setTargetDateIdx] = useState(-1); 
   const [activeTab, setActiveTab] = useState('summary'); 
   
+  const [geoData, setGeoData] = useState([]);
+  useEffect(() => {
+    fetch('/thai_geo.json')
+      .then(res => res.json())
+      .then(data => setGeoData(Array.isArray(data) ? data : (data.data || [])))
+      .catch(e => console.log(e));
+  }, []);
+
   const currentAmphoes = useMemo(() => {
     if (!selectedProv) return [];
     if (amphoeData?.provinces) {
       const cleanProv = selectedProv.replace('จังหวัด', '').trim();
       const provData = amphoeData.provinces[cleanProv] || amphoeData.provinces[selectedProv];
-      if (provData?.amphoes) {
+      if (provData?.amphoes && provData.amphoes.length > 0) {
         return provData.amphoes.map((a, i) => ({
           id: i,
           name: String(a.n || '').trim(),
@@ -27,8 +35,23 @@ export default function AIPage() {
         })).filter(a => a.name !== '').sort((a, b) => a.name.localeCompare(b.name, 'th'));
       }
     }
+    // Fallback
+    if (!geoData || geoData.length === 0) return [];
+    const cleanProv = selectedProv.replace('จังหวัด', '').trim();
+    const pObj = geoData.find(p => {
+      const pName = String(p.name_th || p.nameTh || p.name || '').replace('จังหวัด', '').trim();
+      return pName === cleanProv || pName.includes(cleanProv);
+    });
+
+    if (pObj) {
+      const distArray = pObj.amphure || pObj.amphures || pObj.district || pObj.districts || [];
+      return [...distArray].map(a => ({
+        id: a.id || Math.random(), 
+        name: String(a.name_th || a.nameTh || a.name || '').trim()
+      })).filter(a => a.name !== "").sort((a, b) => a.name.localeCompare(b.name, 'th'));
+    }
     return [];
-  }, [amphoeData, selectedProv]);
+  }, [amphoeData, geoData, selectedProv]);
   
   const [weatherData, setWeatherData] = useState(null);
   const [loadingWeather, setLoadingWeather] = useState(true);

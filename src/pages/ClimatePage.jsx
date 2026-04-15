@@ -46,6 +46,48 @@ export default function ClimatePage() {
   const [showLocFilter, setShowLocFilter] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
 
+  const [geoData, setGeoData] = useState([]);
+  useEffect(() => {
+    fetch('/thai_geo.json')
+      .then(res => res.json())
+      .then(data => setGeoData(Array.isArray(data) ? data : (data.data || [])))
+      .catch(e => console.log(e));
+  }, []);
+
+  const currentAmphoes = useMemo(() => {
+    if (!userProv) return [];
+    if (amphoeData?.provinces) {
+      const cleanProv = userProv.replace('จังหวัด', '').trim();
+      const provData = amphoeData.provinces[cleanProv] || amphoeData.provinces[`จังหวัด${cleanProv}`];
+      if (provData?.amphoes && provData.amphoes.length > 0) {
+        return provData.amphoes.map((a, i) => ({
+          id: i,
+          name: String(a.n || '').trim(),
+          lat: a.lat,
+          lon: a.lon,
+          rawData: a
+        })).filter(a => a.name !== '').sort((a, b) => a.name.localeCompare(b.name, 'th'));
+      }
+    }
+    // Fallback
+    if (!geoData || geoData.length === 0) return [];
+    const cleanProv = userProv.replace('จังหวัด', '').trim();
+    const pObj = geoData.find(p => {
+      const pName = String(p.name_th || p.nameTh || p.name || '').replace('จังหวัด', '').trim();
+      return pName === cleanProv || pName.includes(cleanProv);
+    });
+
+    if (pObj) {
+      const distArray = pObj.amphure || pObj.amphures || pObj.district || pObj.districts || [];
+      return [...distArray].map(a => ({
+        id: a.id || Math.random(), 
+        name: String(a.name_th || a.nameTh || a.name || '').trim(),
+        rawData: null
+      })).filter(a => a.name !== "").sort((a, b) => a.name.localeCompare(b.name, 'th'));
+    }
+    return [];
+  }, [amphoeData, geoData, userProv]);
+
   const yesterdayDate = useMemo(() => {
     const d = new Date();
     d.setDate(d.getDate() - 1);
@@ -444,33 +486,33 @@ export default function ClimatePage() {
                             </select>
                             <button onClick={() => { setShowLocFilter(false); fetchUserLocation(); }} style={{ background: '#0ea5e9', color: '#fff', border: 'none', borderRadius: '12px', padding: '0 15px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.8rem', flexShrink: 0 }} title="อัปเดตตำแหน่งของฉัน">📍</button>
                         </div>
-                        {/* 🆕 Dropdown อำเภอ — ข้อมูลจาก TMD API ผ่าน Firebase */}
-                        {amphoeData?.provinces && userProv && (() => {
-                            const provAmphoes = amphoeData.provinces[userProv]?.amphoes || amphoeData.provinces[`จังหวัด${userProv}`]?.amphoes || [];
-                            return provAmphoes.length > 0 ? (
-                                <select
-                                    value={userAmphoe}
-                                    onChange={(e) => {
-                                        const aName = e.target.value;
-                                        setUserAmphoe(aName);
-                                        if (aName) {
-                                            const aData = provAmphoes.find(a => a.n === aName);
-                                            if (aData) {
-                                                setUserAmphoeData(aData);
-                                            }
+                        {/* 🆕 Dropdown อำเภอ — ข้อมูลจาก TMD API หรือ Geo Fallback */}
+                        {userProv ? (
+                            <select
+                                value={userAmphoe}
+                                onChange={(e) => {
+                                    const aName = e.target.value;
+                                    setUserAmphoe(aName);
+                                    if (aName) {
+                                        const aData = currentAmphoes.find(a => a.name === aName);
+                                        if (aData && aData.rawData) {
+                                            setUserAmphoeData(aData.rawData);
                                         } else {
                                             setUserAmphoeData(null);
                                         }
-                                    }}
-                                    style={{ padding: '8px 12px', borderRadius: '12px', border: `1px solid ${borderColor}`, background: darkMode ? '#1e293b' : '#fff', color: textColor, fontFamily: 'Kanit', outline: 'none' }}
-                                >
-                                    <option value="">-- เลือกอำเภอ ({provAmphoes.length} อำเภอ) --</option>
-                                    {[...provAmphoes].sort((a,b) => a.n.localeCompare(b.n, 'th')).map((a, i) => (
-                                        <option key={i} value={a.n}>{a.n}</option>
-                                    ))}
-                                </select>
-                            ) : null;
-                        })()}
+                                    } else {
+                                        setUserAmphoeData(null);
+                                    }
+                                }}
+                                disabled={currentAmphoes.length === 0}
+                                style={{ padding: '8px 12px', borderRadius: '12px', border: `1px solid ${borderColor}`, background: darkMode ? '#1e293b' : '#fff', color: textColor, fontFamily: 'Kanit', outline: 'none' }}
+                            >
+                                <option value="">-- เลือกอำเภอ {currentAmphoes.length > 0 ? `(${currentAmphoes.length} อำเภอ)` : ''} --</option>
+                                {currentAmphoes.map((a, i) => (
+                                    <option key={i} value={a.name}>{a.name}</option>
+                                ))}
+                            </select>
+                        ) : null}
                     </div>
                 )}
 
