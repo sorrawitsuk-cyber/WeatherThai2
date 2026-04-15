@@ -109,6 +109,10 @@ export default function MapPage() {
   const [flyToPos, setFlyToPos] = useState(null);
   const [showControls, setShowControls] = useState(window.innerWidth >= 1024);
   const [isLocating, setIsLocating] = useState(false);
+  const [showLegend, setShowLegend] = useState(false);
+  const [showLayerPanel, setShowLayerPanel] = useState(false);
+  const [showTimePanel, setShowTimePanel] = useState(false);
+  const [showRankPanel, setShowRankPanel] = useState(false);
 
   const [flashProv, setFlashProv] = useState(null);
   const hasAutoLocated = useRef(false);
@@ -543,43 +547,12 @@ export default function MapPage() {
   );
 
   return (
-    <div style={{ height: '100%', width: '100%', background: appBg, display: 'flex', flexDirection: 'column', fontFamily: 'Kanit, sans-serif', padding: isMobile ? '10px' : '20px', boxSizing: 'border-box' }}>
+    <div style={{ height: '100%', width: '100%', background: appBg, display: 'flex', flexDirection: 'column', fontFamily: 'Kanit, sans-serif', padding: isMobile ? '0' : '20px', boxSizing: 'border-box' }}>
       
-      {/* CSS ย้ายไปไว้ที่ index.css แล้ว — ไม่ใช้ dangerouslySetInnerHTML อีกต่อไป */}
-
-      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '15px', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'space-between', marginBottom: '15px', flexShrink: 0 }}>
-          {isMobile ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <h2 style={{ margin: 0, color: textColor, fontSize: '1.2rem', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>🗺️ แผนที่เฝ้าระวังภัย</h2>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          {mapCategory === 'risk' && (
-                              <button onClick={() => setShowReferenceModal(true)} style={{ background: 'var(--bg-secondary)', color: '#8b5cf6', border: `1px solid #8b5cf6`, padding: '4px 10px', borderRadius: '50px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                  📚
-                              </button>
-                          )}
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'var(--bg-secondary)', padding: '4px 10px', borderRadius: '50px', border: `1px solid ${borderColor}` }}>
-                              <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#22c55e', display: 'inline-block', boxShadow: '0 0 6px #22c55e' }}></span>
-                              <span style={{ fontSize: '0.65rem', color: subTextColor, fontWeight: 'bold' }}>อัปเดต {getLastUpdatedText()}</span>
-                          </div>
-                      </div>
-                  </div>
-                  <div style={{ display: 'flex', background: cardBg, borderRadius: '50px', border: `1px solid ${borderColor}`, padding: '4px' }}>
-                      <button onClick={() => setMapCategory('basic')} style={{ flex: 1, background: mapCategory === 'basic' ? '#0ea5e9' : 'transparent', color: mapCategory === 'basic' ? '#fff' : subTextColor, border: 'none', padding: '4px', borderRadius: '50px', fontSize: '0.7rem', fontWeight: 'bold', cursor: 'pointer', transition: '0.2s', fontFamily: 'Kanit' }}>📊 ทั่วไป</button>
-                      <button onClick={() => setMapCategory('risk')} style={{ flex: 1, background: mapCategory === 'risk' ? '#8b5cf6' : 'transparent', color: mapCategory === 'risk' ? '#fff' : subTextColor, border: 'none', padding: '4px', borderRadius: '50px', fontSize: '0.7rem', fontWeight: 'bold', cursor: 'pointer', transition: '0.2s', fontFamily: 'Kanit' }}>🧠 ความเสี่ยง</button>
-                      <button onClick={() => setMapCategory('gistda')} style={{ flex: 1, background: mapCategory === 'gistda' ? '#ef4444' : 'transparent', color: mapCategory === 'gistda' ? '#fff' : subTextColor, border: 'none', padding: '4px', borderRadius: '50px', fontSize: '0.7rem', fontWeight: 'bold', cursor: 'pointer', transition: '0.2s', fontFamily: 'Kanit' }}>🛰️ พิบัติภัย</button>
-                  </div>
-                  <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '5px' }} className="custom-scrollbar">
-                    {mapCategory === 'basic' ? basicModes.map(m => (
-                        <button key={m.id} onClick={() => setActiveBasicMode(m.id)} style={{ flexShrink: 0, padding: '6px 12px', borderRadius: '12px', border: `1px solid ${activeBasicMode === m.id ? m.color : borderColor}`, background: activeBasicMode === m.id ? (darkMode ? `${m.color}20` : `${m.color}15`) : cardBg, color: activeBasicMode === m.id ? m.color : textColor, fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'Kanit', fontSize: '0.75rem' }}>{m.name}</button>
-                    )) : mapCategory === 'risk' ? riskModes.map(m => (
-                        <button key={m.id} onClick={() => setActiveRiskMode(m.id)} style={{ flexShrink: 0, padding: '6px 12px', borderRadius: '12px', border: `1px solid ${activeRiskMode === m.id ? m.color : borderColor}`, background: activeRiskMode === m.id ? (darkMode ? `${m.color}20` : `${m.color}15`) : cardBg, color: activeRiskMode === m.id ? m.color : textColor, fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'Kanit', fontSize: '0.75rem' }}>{m.name}</button>
-                    )) : gistdaModes.map(m => (
-                        <button key={m.id} onClick={() => setActiveGistdaMode(m.id)} style={{ flexShrink: 0, padding: '6px 12px', borderRadius: '12px', border: `1px solid ${activeGistdaMode === m.id ? m.color : borderColor}`, background: activeGistdaMode === m.id ? (darkMode ? `${m.color}20` : `${m.color}15`) : cardBg, color: activeGistdaMode === m.id ? m.color : textColor, fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'Kanit', fontSize: '0.75rem' }}>{m.name}</button>
-                    ))}
-                  </div>
-              </div>
-          ) : (
+      {/* === DESKTOP HEADER (ซ่อนบนมือถือ) === */}
+      {!isMobile && (
+        <>
+          <div style={{ display: 'flex', flexDirection: 'row', gap: '15px', alignItems: 'center', justifyContent: 'space-between', marginBottom: '15px', flexShrink: 0 }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
@@ -612,52 +585,42 @@ export default function MapPage() {
                     ))}
                   </div>
               </div>
-          )}
-      </div>
+          </div>
 
-      {mapCategory !== 'gistda' ? (
-          <div style={{ background: cardBg, padding: '10px 15px', borderRadius: '12px', border: `1px solid ${borderColor}`, display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '15px', flexShrink: 0, boxShadow: '0 4px 10px rgba(0,0,0,0.05)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.75rem', color: subTextColor, fontWeight: 'bold', cursor: 'pointer' }} onClick={()=>setDayOffset(-7)}>◀ {getDateLabel(-7)}</span>
-                  <span style={{ fontSize: '0.85rem', color: dayOffset === 0 ? textColor : dayOffset < 0 ? '#60a5fa' : '#c084fc', fontWeight: 'bold', background: 'var(--bg-secondary)', padding: '4px 15px', borderRadius: '50px', border: `1px solid ${borderColor}`, display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: dayOffset !== 0 ? 'pointer' : 'default' }} onClick={() => setDayOffset(0)}>
-                  {dayOffset === 0 ? `📅 วันนี้ ${getDateLabel(0)} • ข้อมูลสด` : dayOffset < 0 ? `🕒 ${getDateLabel(dayOffset)}` : `🔮 ${getDateLabel(dayOffset)}`}
-                  </span>
-                  <span style={{ fontSize: '0.75rem', color: subTextColor, fontWeight: 'bold', cursor: 'pointer' }} onClick={()=>setDayOffset(7)}>{getDateLabel(7)} ▶</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <input 
-                      type="range" 
-                      min="-7" max="7" step="1" 
-                      value={dayOffset} 
-                      onChange={(e) => setDayOffset(parseInt(e.target.value))}
-                      aria-label="เลือกวันที่ดูข้อมูล"
-                      style={{ flex: 1, accentColor: activeModeObj?.color || '#0ea5e9', cursor: 'pointer', height: '6px' }}
-                  />
-                  {dayOffset !== 0 && (
-                      <button onClick={() => setDayOffset(0)} style={{ background: 'var(--bg-secondary)', color: activeModeObj?.color || '#0ea5e9', border: `1px solid ${borderColor}`, padding: '3px 10px', borderRadius: '50px', fontSize: '0.7rem', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit', whiteSpace: 'nowrap', transition: 'all 0.2s' }}>⏱ วันนี้</button>
+          {mapCategory !== 'gistda' ? (
+              <div style={{ background: cardBg, padding: '10px 15px', borderRadius: '12px', border: `1px solid ${borderColor}`, display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '15px', flexShrink: 0, boxShadow: '0 4px 10px rgba(0,0,0,0.05)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.75rem', color: subTextColor, fontWeight: 'bold', cursor: 'pointer' }} onClick={()=>setDayOffset(-7)}>◀ {getDateLabel(-7)}</span>
+                      <span style={{ fontSize: '0.85rem', color: dayOffset === 0 ? textColor : dayOffset < 0 ? '#60a5fa' : '#c084fc', fontWeight: 'bold', background: 'var(--bg-secondary)', padding: '4px 15px', borderRadius: '50px', border: `1px solid ${borderColor}`, display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: dayOffset !== 0 ? 'pointer' : 'default' }} onClick={() => setDayOffset(0)}>
+                      {dayOffset === 0 ? `📅 วันนี้ ${getDateLabel(0)} • ข้อมูลสด` : dayOffset < 0 ? `🕒 ${getDateLabel(dayOffset)}` : `🔮 ${getDateLabel(dayOffset)}`}
+                      </span>
+                      <span style={{ fontSize: '0.75rem', color: subTextColor, fontWeight: 'bold', cursor: 'pointer' }} onClick={()=>setDayOffset(7)}>{getDateLabel(7)} ▶</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <input type="range" min="-7" max="7" step="1" value={dayOffset} onChange={(e) => setDayOffset(parseInt(e.target.value))} aria-label="เลือกวันที่ดูข้อมูล" style={{ flex: 1, accentColor: activeModeObj?.color || '#0ea5e9', cursor: 'pointer', height: '6px' }} />
+                      {dayOffset !== 0 && (
+                          <button onClick={() => setDayOffset(0)} style={{ background: 'var(--bg-secondary)', color: activeModeObj?.color || '#0ea5e9', border: `1px solid ${borderColor}`, padding: '3px 10px', borderRadius: '50px', fontSize: '0.7rem', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit', whiteSpace: 'nowrap', transition: 'all 0.2s' }}>⏱ วันนี้</button>
+                      )}
+                  </div>
+                  {Math.abs(dayOffset) >= 4 && (
+                      <div style={{ fontSize: '0.7rem', color: '#f59e0b', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>⚠️ ข้อมูล{dayOffset > 0 ? 'พยากรณ์ระยะไกล' : 'ย้อนหลังระยะไกล'} — ความแม่นยำอาจลดลงอย่างมีนัยสำคัญ</div>
+                  )}
+                  {dayOffset !== 0 && mapCategory === 'risk' && (
+                      <div style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>⚠ หมายเหตุ: ค่าความชื้นใช้ค่าประมาณจากข้อมูลล่าสุด เนื่องจากไม่มีข้อมูลพยากรณ์ความชื้น</div>
                   )}
               </div>
-              {Math.abs(dayOffset) >= 4 && (
-                  <div style={{ fontSize: '0.7rem', color: '#f59e0b', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      ⚠️ ข้อมูล{dayOffset > 0 ? 'พยากรณ์ระยะไกล' : 'ย้อนหลังระยะไกล'} — ความแม่นยำอาจลดลงอย่างมีนัยสำคัญ
-                  </div>
-              )}
-              {dayOffset !== 0 && mapCategory === 'risk' && (
-                  <div style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      ⚠ หมายเหตุ: ค่าความชื้นใช้ค่าประมาณจากข้อมูลล่าสุด เนื่องจากไม่มีข้อมูลพยากรณ์ความชื้น
-                  </div>
-              )}
-          </div>
-      ) : (
-          <div style={{ background: cardBg, padding: '8px 15px', borderRadius: '12px', border: `1px solid ${borderColor}`, marginBottom: '15px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', color: subTextColor, fontWeight: 'bold' }}>
-              ℹ️ ข้อมูลจากดาวเทียม GISTDA แสดงค่าสะสมล่าสุดเท่านั้น — ไม่สามารถเลือกดูย้อนหลังหรือพยากรณ์ได้
-          </div>
+          ) : (
+              <div style={{ background: cardBg, padding: '8px 15px', borderRadius: '12px', border: `1px solid ${borderColor}`, marginBottom: '15px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', color: subTextColor, fontWeight: 'bold' }}>
+                  ℹ️ ข้อมูลจากดาวเทียม GISTDA แสดงค่าสะสมล่าสุดเท่านั้น — ไม่สามารถเลือกดูย้อนหลังหรือพยากรณ์ได้
+              </div>
+          )}
+        </>
       )}
 
-      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', flex: 1, gap: '15px', overflow: 'hidden' }}>
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', flex: 1, gap: isMobile ? '0' : '15px', overflow: 'hidden' }}>
           
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: isMobile ? '10px' : '15px' }}>
-              <div style={{ flex: 1, borderRadius: isMobile ? '16px' : '20px', overflow: 'hidden', border: `1px solid ${borderColor}`, position: 'relative', minHeight: isMobile ? '400px' : 'auto', background: cardBg }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: isMobile ? '0' : '15px' }}>
+              <div style={{ flex: 1, borderRadius: isMobile ? '0' : '20px', overflow: 'hidden', border: isMobile ? 'none' : `1px solid ${borderColor}`, position: 'relative', minHeight: isMobile ? 'calc(100vh - 120px)' : 'auto', background: cardBg }}>
                 
                 <MapContainer center={[13.5, 100.5]} zoom={isMobile ? 5 : 6} style={{ height: '100%', width: '100%', background: appBg }} zoomControl={false}>
                     <TileLayer url={basemapUrls[basemapStyle]} />
@@ -722,122 +685,289 @@ export default function MapPage() {
                     })()}
                 </MapContainer>
 
-                <div style={{ position: 'absolute', bottom: isMobile ? '85px' : '15px', left: '15px', zIndex: 1000, background: cardBg, padding: '10px', borderRadius: '12px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', gap: '6px', maxWidth: isMobile ? 'calc(100% - 30px)' : 'auto' }}>
-                    <div style={{ fontSize: '0.7rem', fontWeight: 'bold', color: subTextColor }}>
-                        เกณฑ์ระดับ {activeModeObj?.name}
-                    </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 15px' }}>
-                        {getDynamicLegendContent().map((item, idx) => (
-                            <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: textColor }}>
-                                <span style={{display:'inline-block', width:'10px', height:'10px', background: item.c, borderRadius:'50%', border: `1px solid ${'var(--border-color)'}`}}></span>
-                                <span style={{fontWeight: 'bold'}}>{item.r}</span> <span style={{opacity: 0.8}}>({item.l})</span>
+                {/* === LEGEND: เล็กลงบนมือถือ / collapsible === */}
+                {isMobile ? (
+                  <>
+                    {/* Legend toggle chip */}
+                    <button
+                      onClick={() => setShowLegend(v => !v)}
+                      style={{ position: 'absolute', bottom: '16px', left: '12px', zIndex: 1001, background: cardBg, border: `1px solid ${borderColor}`, borderRadius: '20px', padding: '5px 10px', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 2px 10px rgba(0,0,0,0.25)', cursor: 'pointer', fontFamily: 'Kanit', fontSize: '0.7rem', color: textColor, fontWeight: 'bold' }}
+                      aria-label="แสดง/ซ่อนสัญลักษณ์แผนที่"
+                    >
+                      <span style={{ width: '8px', height: '8px', borderRadius: '2px', background: activeModeObj?.color || '#0ea5e9', display: 'inline-block', flexShrink: 0 }}></span>
+                      {showLegend ? '✕' : '📋 สัญลักษณ์'}
+                    </button>
+                    {showLegend && (
+                      <div className="fade-in" style={{ position: 'absolute', bottom: '48px', left: '12px', zIndex: 1001, background: cardBg, padding: '10px 12px', borderRadius: '12px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.2)', maxWidth: 'calc(100vw - 80px)' }}>
+                        <div style={{ fontSize: '0.65rem', fontWeight: 'bold', color: subTextColor, marginBottom: '6px' }}>เกณฑ์ระดับ {activeModeObj?.name}</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          {getDynamicLegendContent().map((item, idx) => (
+                            <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.7rem', color: textColor }}>
+                              <span style={{ display: 'inline-block', width: '9px', height: '9px', background: item.c, borderRadius: '50%', flexShrink: 0 }}></span>
+                              <span style={{ fontWeight: 'bold' }}>{item.r}</span>
+                              <span style={{ opacity: 0.75 }}>({item.l})</span>
                             </div>
-                        ))}
-                    </div>
-                </div>
-
-                <div style={{ position: 'absolute', top: '15px', right: '15px', zIndex: 1000, display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'flex-end' }}>
-                    {isMobile && (
-                        <button onClick={() => setShowControls(!showControls)} style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#1e293b', color: '#fff', border: `1px solid ${borderColor}`, fontSize: '1.1rem', boxShadow: '0 4px 15px rgba(0,0,0,0.3)' }}>{showControls ? '✕' : '⚙️'}</button>
-                    )}
-
-                    {(showControls || !isMobile) && (
-                        <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'flex-end' }}>
-                            <button aria-label="ค้นหาตำแหน่งของฉัน" onClick={() => { 
-                                if(navigator.geolocation) {
-                                    setIsLocating(true);
-                                    navigator.geolocation.getCurrentPosition(p => {
-                                        const closest = findClosestStation(p.coords.latitude, p.coords.longitude, stations);
-                                        if(closest) {
-                                            setFlyToPos({ pos: [closest.lat, closest.long], zoom: 8 });
-                                            setFlashProv(closest.areaTH.replace('จังหวัด', '').trim());
-                                            setTimeout(() => setFlashProv(null), 3000);
-                                        } else {
-                                            setFlyToPos({ pos: [p.coords.latitude, p.coords.longitude], zoom: 8 });
-                                        }
-                                        setIsLocating(false);
-                                    }, () => { setIsLocating(false); });
-                                }
-                            }} style={{ background: cardBg, color: textColor, border: `1px solid ${borderColor}`, padding: '8px 12px', borderRadius: '12px', fontWeight: 'bold', fontSize: '0.85rem', cursor: isLocating ? 'wait' : 'pointer', boxShadow: '0 4px 10px rgba(0,0,0,0.1)', fontFamily: 'Kanit', opacity: isLocating ? 0.7 : 1, transition: 'all 0.2s' }}>{isLocating ? '⏳ กำลังหา...' : '📍 พิกัดของฉัน'}</button>
-                            
-                            <div style={{ background: 'var(--bg-nav-blur)', backdropFilter: 'blur(10px)', padding: '12px', borderRadius: '16px', border: `1px solid ${borderColor}`, width: '140px', boxShadow: '0 4px 20px rgba(0,0,0,0.15)' }}>
-                                <div style={{ fontSize: '0.7rem', fontWeight: 'bold', color: textColor, marginBottom: '8px' }}>รูปแบบแผนที่</div>
-                                <select value={basemapStyle} onChange={(e) => setBasemapStyle(e.target.value)} style={{ width: '100%', background: 'var(--bg-secondary)', color: textColor, border: 'none', padding: '6px', borderRadius: '8px', fontSize: '0.75rem', outline: 'none', fontFamily: 'Kanit' }}>
-                                    <option value="dark">สีเข้ม (Dark)</option><option value="light">สีสว่าง (Light)</option><option value="osm">ถนน (Street)</option><option value="satellite">ดาวเทียม</option>
-                                </select>
-                                <div style={{ fontSize: '0.7rem', fontWeight: 'bold', color: textColor, marginTop: '12px', marginBottom: '8px' }}>ความทึบเลเยอร์</div>
-                                <input type="range" min="0.1" max="1" step="0.1" value={polyOpacity} onChange={(e) => setPolyOpacity(parseFloat(e.target.value))} style={{ width: '100%', accentColor: activeModeObj?.color }} />
-                            </div>
+                          ))}
                         </div>
+                      </div>
                     )}
+                  </>
+                ) : (
+                  <div style={{ position: 'absolute', bottom: '15px', left: '15px', zIndex: 1000, background: cardBg, padding: '10px', borderRadius: '12px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <div style={{ fontSize: '0.7rem', fontWeight: 'bold', color: subTextColor }}>เกณฑ์ระดับ {activeModeObj?.name}</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 15px' }}>
+                      {getDynamicLegendContent().map((item, idx) => (
+                        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: textColor }}>
+                          <span style={{ display: 'inline-block', width: '10px', height: '10px', background: item.c, borderRadius: '50%', border: `1px solid var(--border-color)` }}></span>
+                          <span style={{ fontWeight: 'bold' }}>{item.r}</span> <span style={{ opacity: 0.8 }}>({item.l})</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* === FLOATING MAP CONTROLS (top-right) === */}
+                <div style={{ position: 'absolute', top: '12px', right: '12px', zIndex: 1000, display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-end' }}>
+
+                  {isMobile ? (
+                    /* ---- MOBILE floating icon row ---- */
+                    <>
+                      {/* Row of quick icon buttons */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+
+                        {/* 📍 Locate me */}
+                        <button
+                          aria-label="พิกัดของฉัน"
+                          onClick={() => {
+                            if (navigator.geolocation) {
+                              setIsLocating(true);
+                              navigator.geolocation.getCurrentPosition(p => {
+                                const closest = findClosestStation(p.coords.latitude, p.coords.longitude, stations);
+                                if (closest) {
+                                  setFlyToPos({ pos: [closest.lat, closest.long], zoom: 8 });
+                                  setFlashProv(closest.areaTH.replace('จังหวัด', '').trim());
+                                  setTimeout(() => setFlashProv(null), 3000);
+                                } else {
+                                  setFlyToPos({ pos: [p.coords.latitude, p.coords.longitude], zoom: 8 });
+                                }
+                                setIsLocating(false);
+                              }, () => { setIsLocating(false); });
+                            }
+                          }}
+                          style={{ width: '40px', height: '40px', borderRadius: '50%', background: cardBg, border: `1px solid ${borderColor}`, fontSize: '1.1rem', boxShadow: '0 2px 10px rgba(0,0,0,0.3)', cursor: isLocating ? 'wait' : 'pointer', opacity: isLocating ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        >{isLocating ? '⏳' : '📍'}</button>
+
+                        {/* 🗂️ Layer panel toggle */}
+                        <button
+                          aria-label="เลือกเลเยอร์แผนที่"
+                          onClick={() => { setShowLayerPanel(v => !v); setShowTimePanel(false); setShowRankPanel(false); }}
+                          style={{ width: '40px', height: '40px', borderRadius: '50%', background: showLayerPanel ? '#0ea5e9' : cardBg, border: `1px solid ${showLayerPanel ? '#0ea5e9' : borderColor}`, fontSize: '1.1rem', boxShadow: '0 2px 10px rgba(0,0,0,0.3)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        >🗂️</button>
+
+                        {/* ⏱️ Time panel toggle */}
+                        {mapCategory !== 'gistda' && (
+                          <button
+                            aria-label="เลือกช่วงเวลา"
+                            onClick={() => { setShowTimePanel(v => !v); setShowLayerPanel(false); setShowRankPanel(false); }}
+                            style={{ width: '40px', height: '40px', borderRadius: '50%', background: showTimePanel ? (dayOffset !== 0 ? (dayOffset < 0 ? '#3b82f6' : '#a855f7') : cardBg) : cardBg, border: `1px solid ${showTimePanel || dayOffset !== 0 ? (dayOffset < 0 ? '#3b82f6' : dayOffset > 0 ? '#a855f7' : borderColor) : borderColor}`, fontSize: '1.1rem', boxShadow: '0 2px 10px rgba(0,0,0,0.3)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}
+                          >
+                            {dayOffset !== 0 && <span style={{ position: 'absolute', top: '-3px', right: '-3px', width: '10px', height: '10px', borderRadius: '50%', background: dayOffset < 0 ? '#3b82f6' : '#a855f7', border: `2px solid ${cardBg}` }}></span>}
+                            📅
+                          </button>
+                        )}
+
+                        {/* 📊 Rank panel toggle */}
+                        <button
+                          aria-label="อันดับจังหวัด"
+                          onClick={() => { setShowRankPanel(v => !v); setShowLayerPanel(false); setShowTimePanel(false); }}
+                          style={{ width: '40px', height: '40px', borderRadius: '50%', background: showRankPanel ? '#f97316' : cardBg, border: `1px solid ${showRankPanel ? '#f97316' : borderColor}`, fontSize: '1.1rem', boxShadow: '0 2px 10px rgba(0,0,0,0.3)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        >📊</button>
+
+                        {/* 📚 Reference (risk mode only) */}
+                        {mapCategory === 'risk' && (
+                          <button
+                            aria-label="แหล่งอ้างอิง"
+                            onClick={() => setShowReferenceModal(true)}
+                            style={{ width: '40px', height: '40px', borderRadius: '50%', background: cardBg, border: `1px solid #8b5cf6`, fontSize: '1.1rem', boxShadow: '0 2px 10px rgba(0,0,0,0.3)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                          >📚</button>
+                        )}
+                      </div>
+
+                      {/* === LAYER PANEL dropdown === */}
+                      {showLayerPanel && (
+                        <div className="fade-in" style={{ position: 'absolute', top: '0', right: '52px', background: 'var(--bg-nav-blur)', backdropFilter: 'blur(12px)', padding: '12px', borderRadius: '16px', border: `1px solid ${borderColor}`, width: '220px', boxShadow: '0 4px 20px rgba(0,0,0,0.25)', zIndex: 1002 }}>
+                          <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: textColor, marginBottom: '10px' }}>🗺️ ประเภทแผนที่</div>
+                          <div style={{ display: 'flex', background: 'var(--bg-secondary)', borderRadius: '12px', padding: '3px', marginBottom: '10px' }}>
+                            <button onClick={() => { setMapCategory('basic'); setShowLayerPanel(false); }} style={{ flex: 1, background: mapCategory === 'basic' ? '#0ea5e9' : 'transparent', color: mapCategory === 'basic' ? '#fff' : subTextColor, border: 'none', padding: '5px 2px', borderRadius: '10px', fontSize: '0.65rem', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit' }}>📊<br/>ทั่วไป</button>
+                            <button onClick={() => { setMapCategory('risk'); setShowLayerPanel(false); }} style={{ flex: 1, background: mapCategory === 'risk' ? '#8b5cf6' : 'transparent', color: mapCategory === 'risk' ? '#fff' : subTextColor, border: 'none', padding: '5px 2px', borderRadius: '10px', fontSize: '0.65rem', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit' }}>🧠<br/>ความเสี่ยง</button>
+                            <button onClick={() => { setMapCategory('gistda'); setShowLayerPanel(false); }} style={{ flex: 1, background: mapCategory === 'gistda' ? '#ef4444' : 'transparent', color: mapCategory === 'gistda' ? '#fff' : subTextColor, border: 'none', padding: '5px 2px', borderRadius: '10px', fontSize: '0.65rem', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit' }}>🛰️<br/>พิบัติภัย</button>
+                          </div>
+                          <div style={{ fontSize: '0.7rem', fontWeight: 'bold', color: subTextColor, marginBottom: '6px' }}>ชั้นข้อมูล</div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', maxHeight: '200px', overflowY: 'auto' }} className="custom-scrollbar">
+                            {mapCategory === 'basic' ? basicModes.map(m => (
+                              <button key={m.id} onClick={() => { setActiveBasicMode(m.id); setShowLayerPanel(false); }} style={{ padding: '6px 10px', borderRadius: '10px', border: `1px solid ${activeBasicMode === m.id ? m.color : borderColor}`, background: activeBasicMode === m.id ? (darkMode ? `${m.color}25` : `${m.color}18`) : 'var(--bg-secondary)', color: activeBasicMode === m.id ? m.color : textColor, fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit', fontSize: '0.75rem', textAlign: 'left' }}>{m.name}</button>
+                            )) : mapCategory === 'risk' ? riskModes.map(m => (
+                              <button key={m.id} onClick={() => { setActiveRiskMode(m.id); setShowLayerPanel(false); }} style={{ padding: '6px 10px', borderRadius: '10px', border: `1px solid ${activeRiskMode === m.id ? m.color : borderColor}`, background: activeRiskMode === m.id ? (darkMode ? `${m.color}25` : `${m.color}18`) : 'var(--bg-secondary)', color: activeRiskMode === m.id ? m.color : textColor, fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit', fontSize: '0.75rem', textAlign: 'left' }}>{m.name}</button>
+                            )) : gistdaModes.map(m => (
+                              <button key={m.id} onClick={() => { setActiveGistdaMode(m.id); setShowLayerPanel(false); }} style={{ padding: '6px 10px', borderRadius: '10px', border: `1px solid ${activeGistdaMode === m.id ? m.color : borderColor}`, background: activeGistdaMode === m.id ? (darkMode ? `${m.color}25` : `${m.color}18`) : 'var(--bg-secondary)', color: activeGistdaMode === m.id ? m.color : textColor, fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit', fontSize: '0.75rem', textAlign: 'left' }}>{m.name}</button>
+                            ))}
+                          </div>
+                          <div style={{ borderTop: `1px solid ${borderColor}`, marginTop: '10px', paddingTop: '10px' }}>
+                            <div style={{ fontSize: '0.7rem', fontWeight: 'bold', color: textColor, marginBottom: '6px' }}>รูปแบบแผนที่</div>
+                            <select value={basemapStyle} onChange={(e) => setBasemapStyle(e.target.value)} style={{ width: '100%', background: 'var(--bg-secondary)', color: textColor, border: `1px solid ${borderColor}`, padding: '6px', borderRadius: '8px', fontSize: '0.75rem', outline: 'none', fontFamily: 'Kanit' }}>
+                              <option value="dark">สีเข้ม (Dark)</option><option value="light">สีสว่าง (Light)</option><option value="osm">ถนน (Street)</option><option value="satellite">ดาวเทียม</option>
+                            </select>
+                            <div style={{ fontSize: '0.7rem', fontWeight: 'bold', color: textColor, marginTop: '8px', marginBottom: '4px' }}>ความทึบ</div>
+                            <input type="range" min="0.1" max="1" step="0.1" value={polyOpacity} onChange={(e) => setPolyOpacity(parseFloat(e.target.value))} style={{ width: '100%', accentColor: activeModeObj?.color }} />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* === TIME PANEL dropdown === */}
+                      {showTimePanel && mapCategory !== 'gistda' && (
+                        <div className="fade-in" style={{ position: 'absolute', top: '96px', right: '52px', background: 'var(--bg-nav-blur)', backdropFilter: 'blur(12px)', padding: '12px', borderRadius: '16px', border: `1px solid ${borderColor}`, width: '240px', boxShadow: '0 4px 20px rgba(0,0,0,0.25)', zIndex: 1002 }}>
+                          <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: textColor, marginBottom: '8px' }}>📅 เลือกช่วงเวลา</div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                            <span style={{ fontSize: '0.65rem', color: subTextColor, cursor: 'pointer' }} onClick={() => setDayOffset(-7)}>◀ {getDateLabel(-7)}</span>
+                            <span style={{ fontSize: '0.75rem', color: dayOffset === 0 ? textColor : dayOffset < 0 ? '#60a5fa' : '#c084fc', fontWeight: 'bold', background: 'var(--bg-secondary)', padding: '3px 10px', borderRadius: '20px', border: `1px solid ${borderColor}`, cursor: dayOffset !== 0 ? 'pointer' : 'default' }} onClick={() => setDayOffset(0)}>
+                              {dayOffset === 0 ? '📅 วันนี้' : dayOffset < 0 ? `🕒 ${getDateLabel(dayOffset)}` : `🔮 ${getDateLabel(dayOffset)}`}
+                            </span>
+                            <span style={{ fontSize: '0.65rem', color: subTextColor, cursor: 'pointer' }} onClick={() => setDayOffset(7)}>{getDateLabel(7)} ▶</span>
+                          </div>
+                          <input type="range" min="-7" max="7" step="1" value={dayOffset} onChange={(e) => setDayOffset(parseInt(e.target.value))} aria-label="เลือกวันที่" style={{ width: '100%', accentColor: activeModeObj?.color || '#0ea5e9', cursor: 'pointer' }} />
+                          {Math.abs(dayOffset) >= 4 && (
+                            <div style={{ fontSize: '0.65rem', color: '#f59e0b', fontWeight: 'bold', marginTop: '6px' }}>⚠️ ความแม่นยำน้อยลง</div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* === RANK PANEL (slide up from bottom on mobile) === */}
+                      {showRankPanel && (
+                        <div className="fade-in" style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 2000, background: cardBg, borderRadius: '20px 20px 0 0', border: `1px solid ${borderColor}`, boxShadow: '0 -4px 30px rgba(0,0,0,0.3)', maxHeight: '65vh', display: 'flex', flexDirection: 'column', padding: '16px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                            <h3 style={{ margin: 0, fontSize: '1rem', color: textColor }}>📍 {mapCategory === 'risk' ? 'พื้นที่เสี่ยงสูงสุด' : mapCategory === 'gistda' ? 'พื้นที่วิกฤต' : 'อันดับสูงสุด'}</h3>
+                            <button onClick={() => setShowRankPanel(false)} style={{ background: 'var(--bg-secondary)', border: 'none', borderRadius: '50%', width: '28px', height: '28px', color: textColor, cursor: 'pointer', fontWeight: 'bold', fontSize: '0.9rem' }}>✕</button>
+                          </div>
+                          <p style={{ margin: '0 0 8px 0', fontSize: '0.7rem', color: activeModeObj?.color, fontWeight: 'bold' }}>{activeModeObj?.desc}</p>
+                          <input type="text" placeholder="🔍 ค้นหาจังหวัด..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} style={{ width: '100%', padding: '8px 12px', borderRadius: '10px', border: `1px solid ${borderColor}`, background: 'var(--bg-secondary)', color: textColor, fontSize: '0.85rem', fontFamily: 'Kanit', outline: 'none', marginBottom: '10px', boxSizing: 'border-box' }} />
+                          <div style={{ flex: 1, overflowY: 'auto' }} className="custom-scrollbar">
+                            {mapCategory === 'gistda' && activeModeObj?.noApi && (
+                              <div style={{ textAlign: 'center', padding: '20px', color: subTextColor }}>
+                                <div style={{ fontSize: '2rem', marginBottom: '8px' }}>🛰️</div>
+                                <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#f59e0b' }}>ยังไม่มีข้อมูลจาก API</div>
+                              </div>
+                            )}
+                            {mapCategory === 'gistda' && !activeModeObj?.noApi && rankedSidebarData.length === 0 && !searchQuery.trim() && (
+                              <div style={{ textAlign: 'center', padding: '20px', color: subTextColor }}>
+                                <div style={{ fontSize: '2rem', marginBottom: '8px' }}>📡</div>
+                                <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#f59e0b' }}>ไม่พบข้อมูลจาก GISTDA</div>
+                              </div>
+                            )}
+                            {!(mapCategory === 'gistda' && activeModeObj?.noApi) && rankedSidebarData.filter(st => {
+                              if (!searchQuery.trim()) return true;
+                              return st.areaTH.replace('จังหวัด', '').trim().includes(searchQuery.trim());
+                            }).map((st, idx) => (
+                              <div key={st.stationID} onClick={() => { handleRegionClick(st); setShowRankPanel(false); }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: 'var(--bg-tertiary)', borderRadius: '12px', marginBottom: '8px', borderLeft: `5px solid ${st.color}`, cursor: 'pointer', border: `1px solid ${borderColor}` }}>
+                                <div>
+                                  <div style={{ fontSize: '0.9rem', fontWeight: 'bold', color: textColor }}>{idx+1}. จ.{st.areaTH.replace('จังหวัด', '')}</div>
+                                  {mapCategory === 'risk' && <div style={{ fontSize: '0.65rem', color: subTextColor, marginTop: '2px' }}>สถานะ: {getRiskLabel(st.displayVal)}</div>}
+                                </div>
+                                <div style={{ background: cardBg, padding: '4px 10px', borderRadius: '10px', textAlign: 'center', border: `1px solid ${borderColor}` }}>
+                                  <div style={{ fontSize: '1rem', fontWeight: '900', color: st.color }}>{st.displayVal} <span style={{ fontSize: '0.6rem', color: subTextColor, fontWeight: 'normal' }}>{mapCategory === 'basic' ? activeModeObj?.unit : ''}</span></div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    /* ---- DESKTOP controls (original style) ---- */
+                    <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'flex-end' }}>
+                      <button aria-label="ค้นหาตำแหน่งของฉัน" onClick={() => { 
+                          if(navigator.geolocation) {
+                              setIsLocating(true);
+                              navigator.geolocation.getCurrentPosition(p => {
+                                  const closest = findClosestStation(p.coords.latitude, p.coords.longitude, stations);
+                                  if(closest) {
+                                      setFlyToPos({ pos: [closest.lat, closest.long], zoom: 8 });
+                                      setFlashProv(closest.areaTH.replace('จังหวัด', '').trim());
+                                      setTimeout(() => setFlashProv(null), 3000);
+                                  } else {
+                                      setFlyToPos({ pos: [p.coords.latitude, p.coords.longitude], zoom: 8 });
+                                  }
+                                  setIsLocating(false);
+                              }, () => { setIsLocating(false); });
+                          }
+                      }} style={{ background: cardBg, color: textColor, border: `1px solid ${borderColor}`, padding: '8px 12px', borderRadius: '12px', fontWeight: 'bold', fontSize: '0.85rem', cursor: isLocating ? 'wait' : 'pointer', boxShadow: '0 4px 10px rgba(0,0,0,0.1)', fontFamily: 'Kanit', opacity: isLocating ? 0.7 : 1, transition: 'all 0.2s' }}>{isLocating ? '⏳ กำลังหา...' : '📍 พิกัดของฉัน'}</button>
+                      
+                      <div style={{ background: 'var(--bg-nav-blur)', backdropFilter: 'blur(10px)', padding: '12px', borderRadius: '16px', border: `1px solid ${borderColor}`, width: '140px', boxShadow: '0 4px 20px rgba(0,0,0,0.15)' }}>
+                          <div style={{ fontSize: '0.7rem', fontWeight: 'bold', color: textColor, marginBottom: '8px' }}>รูปแบบแผนที่</div>
+                          <select value={basemapStyle} onChange={(e) => setBasemapStyle(e.target.value)} style={{ width: '100%', background: 'var(--bg-secondary)', color: textColor, border: 'none', padding: '6px', borderRadius: '8px', fontSize: '0.75rem', outline: 'none', fontFamily: 'Kanit' }}>
+                              <option value="dark">สีเข้ม (Dark)</option><option value="light">สีสว่าง (Light)</option><option value="osm">ถนน (Street)</option><option value="satellite">ดาวเทียม</option>
+                          </select>
+                          <div style={{ fontSize: '0.7rem', fontWeight: 'bold', color: textColor, marginTop: '12px', marginBottom: '8px' }}>ความทึบเลเยอร์</div>
+                          <input type="range" min="0.1" max="1" step="0.1" value={polyOpacity} onChange={(e) => setPolyOpacity(parseFloat(e.target.value))} style={{ width: '100%', accentColor: activeModeObj?.color }} />
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
           </div>
 
-          <div style={{ width: isMobile ? '100%' : '320px', background: cardBg, borderRadius: isMobile ? '16px' : '20px', padding: '15px', border: `1px solid ${borderColor}`, display: 'flex', flexDirection: 'column', zIndex: 10, flexShrink: 0 }}>
-             <h3 style={{ margin: '0 0 5px 0', fontSize: '1rem', color: textColor }}>
-                📍 {mapCategory === 'risk' ? 'พื้นที่เสี่ยงสูงสุด (Top 15)' : mapCategory === 'gistda' ? 'พื้นที่วิกฤต (Top 5)' : 'จัดอันดับค่าสูงสุด (Top 15)'}
-             </h3>
-             <p style={{ margin: '0 0 10px 0', fontSize: '0.75rem', color: activeModeObj?.color, fontWeight: 'bold' }}>{activeModeObj?.desc}</p>
-             <input 
-                 type="text" 
-                 placeholder="🔍 ค้นหาจังหวัด..." 
-                 value={searchQuery} 
-                 onChange={(e) => setSearchQuery(e.target.value)} 
-                 style={{ width: '100%', padding: '8px 12px', borderRadius: '10px', border: `1px solid ${borderColor}`, background: 'var(--bg-secondary)', color: textColor, fontSize: '0.85rem', fontFamily: 'Kanit', outline: 'none', marginBottom: '10px', boxSizing: 'border-box' }} 
-             />
-             
-             <div style={{ flex: 1, overflowY: 'auto', paddingRight: '5px' }} className="custom-scrollbar">
-                {/* แสดงข้อความเมื่อ GISTDA mode ยังไม่มี API */}
-                {mapCategory === 'gistda' && activeModeObj?.noApi && (
-                    <div style={{ textAlign: 'center', padding: '30px 15px', color: subTextColor }}>
-                        <div style={{ fontSize: '2.5rem', marginBottom: '10px' }}>🛰️</div>
-                        <div style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#f59e0b' }}>ยังไม่มีข้อมูลจาก API</div>
-                        <div style={{ fontSize: '0.75rem', marginTop: '8px', lineHeight: 1.6 }}>ข้อมูล{activeModeObj.name.replace(/[^\u0E00-\u0E7F\s]/g, '').trim()} ยังไม่มี Public API จาก GISTDA<br/>ระบบกำลังหาช่องทางเชื่อมต่อข้อมูลดาวเทียม</div>
-                        <div style={{ fontSize: '0.65rem', marginTop: '12px', color: '#94a3b8', background: 'var(--bg-secondary)', padding: '8px 12px', borderRadius: '8px', border: `1px solid ${borderColor}` }}>💡 ข้อมูลจุดความร้อนและพื้นที่เผาไหม้ใช้งานได้ปกติ</div>
-                    </div>
-                )}
-                {/* แสดงข้อความเมื่อ GISTDA data เป็น empty array (API ล่ม/ไม่มีข้อมูล) */}
-                {mapCategory === 'gistda' && !activeModeObj?.noApi && rankedSidebarData.length === 0 && !searchQuery.trim() && (
-                    <div style={{ textAlign: 'center', padding: '30px 15px', color: subTextColor }}>
-                        <div style={{ fontSize: '2.5rem', marginBottom: '10px' }}>📡</div>
-                        <div style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#f59e0b' }}>ไม่พบข้อมูลจาก GISTDA</div>
-                        <div style={{ fontSize: '0.75rem', marginTop: '8px', lineHeight: 1.6 }}>API GISTDA อาจกำลังปิดปรับปรุง<br/>หรือไม่มีข้อมูลในช่วงเวลานี้</div>
-                    </div>
-                )}
-                {!(mapCategory === 'gistda' && activeModeObj?.noApi) && rankedSidebarData.filter(st => {
-                    if (!searchQuery.trim()) return true;
-                    const name = st.areaTH.replace('จังหวัด', '').trim();
-                    return name.includes(searchQuery.trim());
-                }).map((st, idx) => (
-                   <div 
-                       key={st.stationID} 
-                       onClick={() => handleRegionClick(st)} 
-                       style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: 'var(--bg-tertiary)', borderRadius: '12px', marginBottom: '8px', borderLeft: `5px solid ${st.color}`, cursor: 'pointer', transition: 'all 0.1s', border: `1px solid ${borderColor}` }}
-                       onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 10px rgba(0,0,0,0.1)'; }}
-                       onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
-                   >
-                      <div>
-                          <div style={{ fontSize: '0.9rem', fontWeight: 'bold', color: textColor }}>{idx+1}. จ.{st.areaTH.replace('จังหวัด', '')}</div>
-                          {mapCategory === 'risk' && <div style={{ fontSize: '0.65rem', color: subTextColor, marginTop: '2px' }}>สถานะ: {getRiskLabel(st.displayVal)}</div>}
+          {/* === DESKTOP SIDEBAR (ซ่อนบนมือถือ — ใช้ Bottom Sheet แทน) === */}
+          {!isMobile && (
+            <div style={{ width: '320px', background: cardBg, borderRadius: '20px', padding: '15px', border: `1px solid ${borderColor}`, display: 'flex', flexDirection: 'column', zIndex: 10, flexShrink: 0 }}>
+               <h3 style={{ margin: '0 0 5px 0', fontSize: '1rem', color: textColor }}>
+                  📍 {mapCategory === 'risk' ? 'พื้นที่เสี่ยงสูงสุด (Top 15)' : mapCategory === 'gistda' ? 'พื้นที่วิกฤต (Top 5)' : 'จัดอันดับค่าสูงสุด (Top 15)'}
+               </h3>
+               <p style={{ margin: '0 0 10px 0', fontSize: '0.75rem', color: activeModeObj?.color, fontWeight: 'bold' }}>{activeModeObj?.desc}</p>
+               <input type="text" placeholder="🔍 ค้นหาจังหวัด..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} style={{ width: '100%', padding: '8px 12px', borderRadius: '10px', border: `1px solid ${borderColor}`, background: 'var(--bg-secondary)', color: textColor, fontSize: '0.85rem', fontFamily: 'Kanit', outline: 'none', marginBottom: '10px', boxSizing: 'border-box' }} />
+               
+               <div style={{ flex: 1, overflowY: 'auto', paddingRight: '5px' }} className="custom-scrollbar">
+                  {mapCategory === 'gistda' && activeModeObj?.noApi && (
+                      <div style={{ textAlign: 'center', padding: '30px 15px', color: subTextColor }}>
+                          <div style={{ fontSize: '2.5rem', marginBottom: '10px' }}>🛰️</div>
+                          <div style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#f59e0b' }}>ยังไม่มีข้อมูลจาก API</div>
+                          <div style={{ fontSize: '0.75rem', marginTop: '8px', lineHeight: 1.6 }}>ข้อมูล{activeModeObj.name.replace(/[^\u0E00-\u0E7F\s]/g, '').trim()} ยังไม่มี Public API จาก GISTDA<br/>ระบบกำลังหาช่องทางเชื่อมต่อข้อมูลดาวเทียม</div>
+                          <div style={{ fontSize: '0.65rem', marginTop: '12px', color: '#94a3b8', background: 'var(--bg-secondary)', padding: '8px 12px', borderRadius: '8px', border: `1px solid ${borderColor}` }}>💡 ข้อมูลจุดความร้อนและพื้นที่เผาไหม้ใช้งานได้ปกติ</div>
                       </div>
-                      <div style={{ background: cardBg, padding: '4px 10px', borderRadius: '10px', textAlign: 'center', border: `1px solid ${borderColor}` }}>
-                          <div style={{ fontSize: '1rem', fontWeight: '900', color: st.color }}>{st.displayVal} <span style={{fontSize:'0.6rem', color: subTextColor, fontWeight:'normal'}}>{mapCategory==='basic' ? activeModeObj?.unit : ''}</span></div>
+                  )}
+                  {mapCategory === 'gistda' && !activeModeObj?.noApi && rankedSidebarData.length === 0 && !searchQuery.trim() && (
+                      <div style={{ textAlign: 'center', padding: '30px 15px', color: subTextColor }}>
+                          <div style={{ fontSize: '2.5rem', marginBottom: '10px' }}>📡</div>
+                          <div style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#f59e0b' }}>ไม่พบข้อมูลจาก GISTDA</div>
+                          <div style={{ fontSize: '0.75rem', marginTop: '8px', lineHeight: 1.6 }}>API GISTDA อาจกำลังปิดปรับปรุง<br/>หรือไม่มีข้อมูลในช่วงเวลานี้</div>
                       </div>
-                   </div>
-                ))}
-                {searchQuery.trim() && rankedSidebarData.filter(st => {
-                    const name = st.areaTH.replace('จังหวัด', '').trim();
-                    return name.includes(searchQuery.trim());
-                }).length === 0 && (
-                    <div style={{ textAlign: 'center', padding: '30px 15px', color: subTextColor }}>
-                        <div style={{ fontSize: '2rem', marginBottom: '10px' }}>🔍</div>
-                        <div style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>ไม่พบจังหวัด "{searchQuery}"</div>
-                        <div style={{ fontSize: '0.75rem', marginTop: '5px' }}>ลองค้นหาด้วยชื่อจังหวัดภาษาไทย</div>
-                    </div>
-                )}
-             </div>
-          </div>
+                  )}
+                  {!(mapCategory === 'gistda' && activeModeObj?.noApi) && rankedSidebarData.filter(st => {
+                      if (!searchQuery.trim()) return true;
+                      const name = st.areaTH.replace('จังหวัด', '').trim();
+                      return name.includes(searchQuery.trim());
+                  }).map((st, idx) => (
+                     <div key={st.stationID} onClick={() => handleRegionClick(st)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: 'var(--bg-tertiary)', borderRadius: '12px', marginBottom: '8px', borderLeft: `5px solid ${st.color}`, cursor: 'pointer', transition: 'all 0.1s', border: `1px solid ${borderColor}` }} onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 10px rgba(0,0,0,0.1)'; }} onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}>
+                        <div>
+                            <div style={{ fontSize: '0.9rem', fontWeight: 'bold', color: textColor }}>{idx+1}. จ.{st.areaTH.replace('จังหวัด', '')}</div>
+                            {mapCategory === 'risk' && <div style={{ fontSize: '0.65rem', color: subTextColor, marginTop: '2px' }}>สถานะ: {getRiskLabel(st.displayVal)}</div>}
+                        </div>
+                        <div style={{ background: cardBg, padding: '4px 10px', borderRadius: '10px', textAlign: 'center', border: `1px solid ${borderColor}` }}>
+                            <div style={{ fontSize: '1rem', fontWeight: '900', color: st.color }}>{st.displayVal} <span style={{fontSize:'0.6rem', color: subTextColor, fontWeight:'normal'}}>{mapCategory==='basic' ? activeModeObj?.unit : ''}</span></div>
+                        </div>
+                     </div>
+                  ))}
+                  {searchQuery.trim() && rankedSidebarData.filter(st => {
+                      const name = st.areaTH.replace('จังหวัด', '').trim();
+                      return name.includes(searchQuery.trim());
+                  }).length === 0 && (
+                      <div style={{ textAlign: 'center', padding: '30px 15px', color: subTextColor }}>
+                          <div style={{ fontSize: '2rem', marginBottom: '10px' }}>🔍</div>
+                          <div style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>ไม่พบจังหวัด "{searchQuery}"</div>
+                          <div style={{ fontSize: '0.75rem', marginTop: '5px' }}>ลองค้นหาด้วยชื่อจังหวัดภาษาไทย</div>
+                      </div>
+                  )}
+               </div>
+            </div>
+          )}
       </div>
 
       {/* POPUP 1: DIAGNOSTIC MODAL */}
