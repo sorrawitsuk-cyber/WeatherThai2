@@ -43,12 +43,24 @@ body.dark-theme {
   --bg-nav-blur: rgba(15, 23, 42, 0.9);
 }
 
+html {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
 body {
   margin: 0;
   overflow-x: hidden;
+  max-width: 100vw;
   transition: background-color 0.3s ease, color 0.3s ease;
   background-color: var(--bg-app);
   color: var(--text-main);
+}
+
+/* ล็อคไม่ให้ element ใด overflow ออกจากหน้าจอ (mobile safe) */
+*, *::before, *::after {
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 /* คลาสซ่อน Scrollbar */
