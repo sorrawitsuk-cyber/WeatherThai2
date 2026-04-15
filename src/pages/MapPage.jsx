@@ -722,7 +722,7 @@ export default function MapPage() {
                     })()}
                 </MapContainer>
 
-                <div style={{ position: 'absolute', bottom: '15px', left: '15px', zIndex: 1000, background: cardBg, padding: '10px', borderRadius: '12px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', gap: '6px', maxWidth: isMobile ? 'calc(100% - 30px)' : 'auto' }}>
+                <div style={{ position: 'absolute', bottom: isMobile ? '85px' : '15px', left: '15px', zIndex: 1000, background: cardBg, padding: '10px', borderRadius: '12px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', gap: '6px', maxWidth: isMobile ? 'calc(100% - 30px)' : 'auto' }}>
                     <div style={{ fontSize: '0.7rem', fontWeight: 'bold', color: subTextColor }}>
                         เกณฑ์ระดับ {activeModeObj?.name}
                     </div>
