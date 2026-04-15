@@ -25,14 +25,11 @@ async function fetchTmdRegions(token) {
     const regions = ['N', 'NE', 'C', 'E', 'S', 'W'];
     let allForecasts = [];
 
-    // ใส่วันที่+เวลา ปัจจุบันตาม format ของ TMD (YYYY-MM-DD และนำหน้าชั่วโมง)
-    const bangkokTime = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Bangkok" }));
-    const dateStr = bangkokTime.getFullYear() + '-' + String(bangkokTime.getMonth() + 1).padStart(2, '0') + '-' + String(bangkokTime.getDate()).padStart(2, '0');
-    const hourStr = bangkokTime.getHours();
-
     for (const region of regions) {
         try {
-            const url = `${TMD_BASE}/hourly/region?region=${region}&fields=${TMD_FIELDS}&date=${dateStr}&hour=${hourStr}&duration=1`;
+            // ไม่ใส่ date/hour — ให้ TMD คืนข้อมูลพยากรณ์ล่าสุดอัตโนมัติ
+            const url = `${TMD_BASE}/hourly/region?region=${region}&fields=${TMD_FIELDS}&duration=1`;
+            console.log(`TMD fetching: ${url}`);
             const res = await fetch(url, {
                 headers: {
                     'accept': 'application/json',
@@ -50,7 +47,8 @@ async function fetchTmdRegions(token) {
                     console.log(`TMD Region ${region}: ${forecasts.length} locations`);
                 }
             } else {
-                console.warn(`TMD Region ${region} failed: ${res.status}`);
+                const errBody = await res.text().catch(() => '');
+                console.warn(`TMD Region ${region} failed: ${res.status} — ${errBody.substring(0, 200)}`);
             }
         } catch (e) {
             console.error(`TMD Region ${region} error:`, e.message);
