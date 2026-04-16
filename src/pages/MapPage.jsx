@@ -109,13 +109,12 @@ export default function MapPage() {
   const [flyToPos, setFlyToPos] = useState(null);
   const [showControls, setShowControls] = useState(window.innerWidth >= 1024);
   const [isLocating, setIsLocating] = useState(false);
-  const [showLegend, setShowLegend] = useState(false);
-  const [showLayerPanel, setShowLayerPanel] = useState(false);
-  const [showTimePanel, setShowTimePanel] = useState(false);
-  const [showRankPanel, setShowRankPanel] = useState(false);
+  const [activePanel, setActivePanel] = useState(null); // 'legend' | 'layer' | 'time' | 'rank'
 
   const [flashProv, setFlashProv] = useState(null);
   const hasAutoLocated = useRef(false);
+  const flashTimeoutRef = useRef(null);
+  const geoJsonRef = useRef(null);
 
   const basemapUrls = {
     dark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
@@ -125,6 +124,52 @@ export default function MapPage() {
   };
 
   useEffect(() => { setBasemapStyle(darkMode ? 'dark' : 'light'); }, [darkMode]);
+
+  // ✅ setFlash: ตั้ง flash province พร้อม auto-clear และ cleanup ป้องกัน memory leak
+  const setFlash = useCallback((provName) => {
+    if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current);
+    setFlashProv(provName);
+    if (provName) {
+      flashTimeoutRef.current = setTimeout(() => setFlashProv(null), 3000);
+    }
+  }, []);
+
+  useEffect(() => () => { if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current); }, []);
+
+  // ✅ handleLocateMe: รวม geolocation logic ที่ซ้ำกันใน mobile/desktop ไว้ที่เดียว
+  const handleLocateMe = useCallback(() => {
+    if (!navigator.geolocation) return;
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (p) => {
+        const closest = findClosestStation(p.coords.latitude, p.coords.longitude, stations);
+        if (closest) {
+          setFlyToPos({ pos: [closest.lat, closest.long], zoom: 8 });
+          setFlash(closest.areaTH.replace('จังหวัด', '').trim());
+        } else {
+          setFlyToPos({ pos: [p.coords.latitude, p.coords.longitude], zoom: 8 });
+        }
+        setIsLocating(false);
+      },
+      () => { setIsLocating(false); }
+    );
+  }, [stations, setFlash]);
+
+  // ✅ handleFocusTrap: ดัก Tab/Shift+Tab ไม่ให้หลุดออกจาก modal
+  const handleFocusTrap = useCallback((e) => {
+    if (e.key !== 'Tab') return;
+    const focusable = Array.from(e.currentTarget.querySelectorAll(
+      'button, input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    )).filter(el => !el.disabled);
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault(); last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault(); first.focus();
+    }
+  }, []);
 
   // 🔑 ESC key ปิด Modal ทุกตัว
   useEffect(() => {
@@ -163,16 +208,14 @@ export default function MapPage() {
                     const closest = findClosestStation(p.coords.latitude, p.coords.longitude, stations);
                     if (closest) {
                         setFlyToPos({ pos: [closest.lat, closest.long], zoom: 8 });
-                        const cleanName = closest.areaTH.replace('จังหวัด', '').trim();
-                        setFlashProv(cleanName);
-                        setTimeout(() => setFlashProv(null), 3000);
+                        setFlash(closest.areaTH.replace('จังหวัด', '').trim());
                     }
-                }, 
+                },
                 () => { console.log('Geolocation denied by user'); }
             );
         }
     }
-  }, [stations, isMobile]);
+  }, [stations, isMobile, setFlash]);
 
   useEffect(() => { 
       setSelectedHotspot(null); 
@@ -432,9 +475,7 @@ export default function MapPage() {
       }
       
       setFlyToPos({ pos: [station.lat, station.long], zoom: 8 });
-      const cleanName = station.areaTH.replace('จังหวัด', '').trim();
-      setFlashProv(cleanName);
-      setTimeout(() => setFlashProv(null), 3000);
+      setFlash(station.areaTH.replace('จังหวัด', '').trim());
   };
 
   const onEachFeature = (feature, layer) => {
@@ -448,6 +489,22 @@ export default function MapPage() {
         }
     });
   };
+
+  // ✅ อัป style flash โดยตรงบน layer ที่มีอยู่ — ไม่ต้อง remount GeoJSON ทั้งหมด
+  useEffect(() => {
+    if (!geoJsonRef.current) return;
+    geoJsonRef.current.eachLayer(layer => {
+      const props = Object.values(layer.feature?.properties || {}).map(v => String(v).trim());
+      let thaiName = '';
+      for (const p of props) if (provMap[p]) { thaiName = provMap[p]; break; }
+      const cleanName = thaiName.replace('จังหวัด', '').trim();
+      const isFlashed = !!flashProv && cleanName === flashProv;
+      layer.setStyle({
+        weight: isFlashed ? 3 : 1,
+        color: isFlashed ? '#0ea5e9' : (darkMode ? '#0f172a' : '#ffffff'),
+      });
+    });
+  }, [flashProv, darkMode]);
 
   const createMapIcon = (stationName, val, color) => {
     return L.divIcon({
@@ -627,7 +684,7 @@ export default function MapPage() {
                     <MapZoomListener setMapZoom={setMapZoom} />
                     <MapChangeView center={flyToPos} />
                     
-                    {geoData && <GeoJSON key={`${mapCategory}-${activeRiskMode}-${activeBasicMode}-${activeGistdaMode}-${dayOffset}-${polyOpacity}-${basemapStyle}-${flashProv}`} data={geoData} style={styleGeoJSON} onEachFeature={onEachFeature} />}
+                    {geoData && <GeoJSON ref={geoJsonRef} key={`${mapCategory}-${activeRiskMode}-${activeBasicMode}-${activeGistdaMode}-${dayOffset}-${polyOpacity}-${basemapStyle}`} data={geoData} style={styleGeoJSON} onEachFeature={onEachFeature} />}
                     
                     {allMapData.map(st => {
                         let isVisible = false;
@@ -690,14 +747,14 @@ export default function MapPage() {
                   <>
                     {/* Legend toggle chip */}
                     <button
-                      onClick={() => setShowLegend(v => !v)}
+                      onClick={() => setActivePanel(p => p === 'legend' ? null : 'legend')}
                       style={{ position: 'absolute', bottom: '16px', left: '12px', zIndex: 1001, background: cardBg, border: `1px solid ${borderColor}`, borderRadius: '20px', padding: '5px 10px', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 2px 10px rgba(0,0,0,0.25)', cursor: 'pointer', fontFamily: 'Kanit', fontSize: '0.7rem', color: textColor, fontWeight: 'bold' }}
                       aria-label="แสดง/ซ่อนสัญลักษณ์แผนที่"
                     >
                       <span style={{ width: '8px', height: '8px', borderRadius: '2px', background: activeModeObj?.color || '#0ea5e9', display: 'inline-block', flexShrink: 0 }}></span>
-                      {showLegend ? '✕' : '📋 สัญลักษณ์'}
+                      {activePanel === 'legend' ? '✕' : '📋 สัญลักษณ์'}
                     </button>
-                    {showLegend && (
+                    {activePanel === 'legend' && (
                       <div className="fade-in" style={{ position: 'absolute', bottom: '48px', left: '12px', zIndex: 1001, background: cardBg, padding: '10px 12px', borderRadius: '12px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.2)', maxWidth: 'calc(100vw - 80px)' }}>
                         <div style={{ fontSize: '0.65rem', fontWeight: 'bold', color: subTextColor, marginBottom: '6px' }}>เกณฑ์ระดับ {activeModeObj?.name}</div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -738,38 +795,23 @@ export default function MapPage() {
                         {/* 📍 Locate me */}
                         <button
                           aria-label="พิกัดของฉัน"
-                          onClick={() => {
-                            if (navigator.geolocation) {
-                              setIsLocating(true);
-                              navigator.geolocation.getCurrentPosition(p => {
-                                const closest = findClosestStation(p.coords.latitude, p.coords.longitude, stations);
-                                if (closest) {
-                                  setFlyToPos({ pos: [closest.lat, closest.long], zoom: 8 });
-                                  setFlashProv(closest.areaTH.replace('จังหวัด', '').trim());
-                                  setTimeout(() => setFlashProv(null), 3000);
-                                } else {
-                                  setFlyToPos({ pos: [p.coords.latitude, p.coords.longitude], zoom: 8 });
-                                }
-                                setIsLocating(false);
-                              }, () => { setIsLocating(false); });
-                            }
-                          }}
+                          onClick={handleLocateMe}
                           style={{ width: '40px', height: '40px', borderRadius: '50%', background: cardBg, border: `1px solid ${borderColor}`, fontSize: '1.1rem', boxShadow: '0 2px 10px rgba(0,0,0,0.3)', cursor: isLocating ? 'wait' : 'pointer', opacity: isLocating ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                         >{isLocating ? '⏳' : '📍'}</button>
 
                         {/* 🗂️ Layer panel toggle */}
                         <button
                           aria-label="เลือกเลเยอร์แผนที่"
-                          onClick={() => { setShowLayerPanel(v => !v); setShowTimePanel(false); setShowRankPanel(false); }}
-                          style={{ width: '40px', height: '40px', borderRadius: '50%', background: showLayerPanel ? '#0ea5e9' : cardBg, border: `1px solid ${showLayerPanel ? '#0ea5e9' : borderColor}`, fontSize: '1.1rem', boxShadow: '0 2px 10px rgba(0,0,0,0.3)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                          onClick={() => setActivePanel(p => p === 'layer' ? null : 'layer')}
+                          style={{ width: '40px', height: '40px', borderRadius: '50%', background: activePanel === 'layer' ? '#0ea5e9' : cardBg, border: `1px solid ${activePanel === 'layer' ? '#0ea5e9' : borderColor}`, fontSize: '1.1rem', boxShadow: '0 2px 10px rgba(0,0,0,0.3)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                         >🗂️</button>
 
                         {/* ⏱️ Time panel toggle */}
                         {mapCategory !== 'gistda' && (
                           <button
                             aria-label="เลือกช่วงเวลา"
-                            onClick={() => { setShowTimePanel(v => !v); setShowLayerPanel(false); setShowRankPanel(false); }}
-                            style={{ width: '40px', height: '40px', borderRadius: '50%', background: showTimePanel ? (dayOffset !== 0 ? (dayOffset < 0 ? '#3b82f6' : '#a855f7') : cardBg) : cardBg, border: `1px solid ${showTimePanel || dayOffset !== 0 ? (dayOffset < 0 ? '#3b82f6' : dayOffset > 0 ? '#a855f7' : borderColor) : borderColor}`, fontSize: '1.1rem', boxShadow: '0 2px 10px rgba(0,0,0,0.3)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}
+                            onClick={() => setActivePanel(p => p === 'time' ? null : 'time')}
+                            style={{ width: '40px', height: '40px', borderRadius: '50%', background: activePanel === 'time' ? (dayOffset !== 0 ? (dayOffset < 0 ? '#3b82f6' : '#a855f7') : cardBg) : cardBg, border: `1px solid ${activePanel === 'time' || dayOffset !== 0 ? (dayOffset < 0 ? '#3b82f6' : dayOffset > 0 ? '#a855f7' : borderColor) : borderColor}`, fontSize: '1.1rem', boxShadow: '0 2px 10px rgba(0,0,0,0.3)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}
                           >
                             {dayOffset !== 0 && <span style={{ position: 'absolute', top: '-3px', right: '-3px', width: '10px', height: '10px', borderRadius: '50%', background: dayOffset < 0 ? '#3b82f6' : '#a855f7', border: `2px solid ${cardBg}` }}></span>}
                             📅
@@ -779,8 +821,8 @@ export default function MapPage() {
                         {/* 📊 Rank panel toggle */}
                         <button
                           aria-label="อันดับจังหวัด"
-                          onClick={() => { setShowRankPanel(v => !v); setShowLayerPanel(false); setShowTimePanel(false); }}
-                          style={{ width: '40px', height: '40px', borderRadius: '50%', background: showRankPanel ? '#f97316' : cardBg, border: `1px solid ${showRankPanel ? '#f97316' : borderColor}`, fontSize: '1.1rem', boxShadow: '0 2px 10px rgba(0,0,0,0.3)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                          onClick={() => setActivePanel(p => p === 'rank' ? null : 'rank')}
+                          style={{ width: '40px', height: '40px', borderRadius: '50%', background: activePanel === 'rank' ? '#f97316' : cardBg, border: `1px solid ${activePanel === 'rank' ? '#f97316' : borderColor}`, fontSize: '1.1rem', boxShadow: '0 2px 10px rgba(0,0,0,0.3)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                         >📊</button>
 
                         {/* 📚 Reference (risk mode only) */}
@@ -794,22 +836,22 @@ export default function MapPage() {
                       </div>
 
                       {/* === LAYER PANEL dropdown === */}
-                      {showLayerPanel && (
+                      {activePanel === 'layer' && (
                         <div className="fade-in" style={{ position: 'absolute', top: '0', right: '52px', background: 'var(--bg-nav-blur)', backdropFilter: 'blur(12px)', padding: '12px', borderRadius: '16px', border: `1px solid ${borderColor}`, width: '220px', boxShadow: '0 4px 20px rgba(0,0,0,0.25)', zIndex: 1002 }}>
                           <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: textColor, marginBottom: '10px' }}>🗺️ ประเภทแผนที่</div>
                           <div style={{ display: 'flex', background: 'var(--bg-secondary)', borderRadius: '12px', padding: '3px', marginBottom: '10px' }}>
-                            <button onClick={() => { setMapCategory('basic'); setShowLayerPanel(false); }} style={{ flex: 1, background: mapCategory === 'basic' ? '#0ea5e9' : 'transparent', color: mapCategory === 'basic' ? '#fff' : subTextColor, border: 'none', padding: '5px 2px', borderRadius: '10px', fontSize: '0.65rem', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit' }}>📊<br/>ทั่วไป</button>
-                            <button onClick={() => { setMapCategory('risk'); setShowLayerPanel(false); }} style={{ flex: 1, background: mapCategory === 'risk' ? '#8b5cf6' : 'transparent', color: mapCategory === 'risk' ? '#fff' : subTextColor, border: 'none', padding: '5px 2px', borderRadius: '10px', fontSize: '0.65rem', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit' }}>🧠<br/>ความเสี่ยง</button>
-                            <button onClick={() => { setMapCategory('gistda'); setShowLayerPanel(false); }} style={{ flex: 1, background: mapCategory === 'gistda' ? '#ef4444' : 'transparent', color: mapCategory === 'gistda' ? '#fff' : subTextColor, border: 'none', padding: '5px 2px', borderRadius: '10px', fontSize: '0.65rem', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit' }}>🛰️<br/>พิบัติภัย</button>
+                            <button onClick={() => { setMapCategory('basic'); setActivePanel(null); }} style={{ flex: 1, background: mapCategory === 'basic' ? '#0ea5e9' : 'transparent', color: mapCategory === 'basic' ? '#fff' : subTextColor, border: 'none', padding: '5px 2px', borderRadius: '10px', fontSize: '0.65rem', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit' }}>📊<br/>ทั่วไป</button>
+                            <button onClick={() => { setMapCategory('risk'); setActivePanel(null); }} style={{ flex: 1, background: mapCategory === 'risk' ? '#8b5cf6' : 'transparent', color: mapCategory === 'risk' ? '#fff' : subTextColor, border: 'none', padding: '5px 2px', borderRadius: '10px', fontSize: '0.65rem', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit' }}>🧠<br/>ความเสี่ยง</button>
+                            <button onClick={() => { setMapCategory('gistda'); setActivePanel(null); }} style={{ flex: 1, background: mapCategory === 'gistda' ? '#ef4444' : 'transparent', color: mapCategory === 'gistda' ? '#fff' : subTextColor, border: 'none', padding: '5px 2px', borderRadius: '10px', fontSize: '0.65rem', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit' }}>🛰️<br/>พิบัติภัย</button>
                           </div>
                           <div style={{ fontSize: '0.7rem', fontWeight: 'bold', color: subTextColor, marginBottom: '6px' }}>ชั้นข้อมูล</div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', maxHeight: '200px', overflowY: 'auto' }} className="custom-scrollbar">
                             {mapCategory === 'basic' ? basicModes.map(m => (
-                              <button key={m.id} onClick={() => { setActiveBasicMode(m.id); setShowLayerPanel(false); }} style={{ padding: '6px 10px', borderRadius: '10px', border: `1px solid ${activeBasicMode === m.id ? m.color : borderColor}`, background: activeBasicMode === m.id ? (darkMode ? `${m.color}25` : `${m.color}18`) : 'var(--bg-secondary)', color: activeBasicMode === m.id ? m.color : textColor, fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit', fontSize: '0.75rem', textAlign: 'left' }}>{m.name}</button>
+                              <button key={m.id} onClick={() => { setActiveBasicMode(m.id); setActivePanel(null); }} style={{ padding: '6px 10px', borderRadius: '10px', border: `1px solid ${activeBasicMode === m.id ? m.color : borderColor}`, background: activeBasicMode === m.id ? (darkMode ? `${m.color}25` : `${m.color}18`) : 'var(--bg-secondary)', color: activeBasicMode === m.id ? m.color : textColor, fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit', fontSize: '0.75rem', textAlign: 'left' }}>{m.name}</button>
                             )) : mapCategory === 'risk' ? riskModes.map(m => (
-                              <button key={m.id} onClick={() => { setActiveRiskMode(m.id); setShowLayerPanel(false); }} style={{ padding: '6px 10px', borderRadius: '10px', border: `1px solid ${activeRiskMode === m.id ? m.color : borderColor}`, background: activeRiskMode === m.id ? (darkMode ? `${m.color}25` : `${m.color}18`) : 'var(--bg-secondary)', color: activeRiskMode === m.id ? m.color : textColor, fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit', fontSize: '0.75rem', textAlign: 'left' }}>{m.name}</button>
+                              <button key={m.id} onClick={() => { setActiveRiskMode(m.id); setActivePanel(null); }} style={{ padding: '6px 10px', borderRadius: '10px', border: `1px solid ${activeRiskMode === m.id ? m.color : borderColor}`, background: activeRiskMode === m.id ? (darkMode ? `${m.color}25` : `${m.color}18`) : 'var(--bg-secondary)', color: activeRiskMode === m.id ? m.color : textColor, fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit', fontSize: '0.75rem', textAlign: 'left' }}>{m.name}</button>
                             )) : gistdaModes.map(m => (
-                              <button key={m.id} onClick={() => { setActiveGistdaMode(m.id); setShowLayerPanel(false); }} style={{ padding: '6px 10px', borderRadius: '10px', border: `1px solid ${activeGistdaMode === m.id ? m.color : borderColor}`, background: activeGistdaMode === m.id ? (darkMode ? `${m.color}25` : `${m.color}18`) : 'var(--bg-secondary)', color: activeGistdaMode === m.id ? m.color : textColor, fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit', fontSize: '0.75rem', textAlign: 'left' }}>{m.name}</button>
+                              <button key={m.id} onClick={() => { setActiveGistdaMode(m.id); setActivePanel(null); }} style={{ padding: '6px 10px', borderRadius: '10px', border: `1px solid ${activeGistdaMode === m.id ? m.color : borderColor}`, background: activeGistdaMode === m.id ? (darkMode ? `${m.color}25` : `${m.color}18`) : 'var(--bg-secondary)', color: activeGistdaMode === m.id ? m.color : textColor, fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit', fontSize: '0.75rem', textAlign: 'left' }}>{m.name}</button>
                             ))}
                           </div>
                           <div style={{ borderTop: `1px solid ${borderColor}`, marginTop: '10px', paddingTop: '10px' }}>
@@ -824,7 +866,7 @@ export default function MapPage() {
                       )}
 
                       {/* === TIME PANEL dropdown === */}
-                      {showTimePanel && mapCategory !== 'gistda' && (
+                      {activePanel === 'time' && mapCategory !== 'gistda' && (
                         <div className="fade-in" style={{ position: 'absolute', top: '96px', right: '52px', background: 'var(--bg-nav-blur)', backdropFilter: 'blur(12px)', padding: '12px', borderRadius: '16px', border: `1px solid ${borderColor}`, width: '240px', boxShadow: '0 4px 20px rgba(0,0,0,0.25)', zIndex: 1002 }}>
                           <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: textColor, marginBottom: '8px' }}>📅 เลือกช่วงเวลา</div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
@@ -842,11 +884,11 @@ export default function MapPage() {
                       )}
 
                       {/* === RANK PANEL (slide up from bottom on mobile) === */}
-                      {showRankPanel && (
+                      {activePanel === 'rank' && (
                         <div className="fade-in" style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 2000, background: cardBg, borderRadius: '20px 20px 0 0', border: `1px solid ${borderColor}`, boxShadow: '0 -4px 30px rgba(0,0,0,0.3)', maxHeight: '65vh', display: 'flex', flexDirection: 'column', padding: '16px' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                             <h3 style={{ margin: 0, fontSize: '1rem', color: textColor }}>📍 {mapCategory === 'risk' ? 'พื้นที่เสี่ยงสูงสุด' : mapCategory === 'gistda' ? 'พื้นที่วิกฤต' : 'อันดับสูงสุด'}</h3>
-                            <button onClick={() => setShowRankPanel(false)} style={{ background: 'var(--bg-secondary)', border: 'none', borderRadius: '50%', width: '28px', height: '28px', color: textColor, cursor: 'pointer', fontWeight: 'bold', fontSize: '0.9rem' }}>✕</button>
+                            <button onClick={() => setActivePanel(null)} style={{ background: 'var(--bg-secondary)', border: 'none', borderRadius: '50%', width: '28px', height: '28px', color: textColor, cursor: 'pointer', fontWeight: 'bold', fontSize: '0.9rem' }}>✕</button>
                           </div>
                           <p style={{ margin: '0 0 8px 0', fontSize: '0.7rem', color: activeModeObj?.color, fontWeight: 'bold' }}>{activeModeObj?.desc}</p>
                           <input type="text" placeholder="🔍 ค้นหาจังหวัด..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} style={{ width: '100%', padding: '8px 12px', borderRadius: '10px', border: `1px solid ${borderColor}`, background: 'var(--bg-secondary)', color: textColor, fontSize: '0.85rem', fontFamily: 'Kanit', outline: 'none', marginBottom: '10px', boxSizing: 'border-box' }} />
@@ -867,7 +909,7 @@ export default function MapPage() {
                               if (!searchQuery.trim()) return true;
                               return st.areaTH.replace('จังหวัด', '').trim().includes(searchQuery.trim());
                             }).map((st, idx) => (
-                              <div key={st.stationID} onClick={() => { handleRegionClick(st); setShowRankPanel(false); }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: 'var(--bg-tertiary)', borderRadius: '12px', marginBottom: '8px', borderLeft: `5px solid ${st.color}`, cursor: 'pointer', border: `1px solid ${borderColor}` }}>
+                              <div key={st.stationID} onClick={() => { handleRegionClick(st); setActivePanel(null); }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: 'var(--bg-tertiary)', borderRadius: '12px', marginBottom: '8px', borderLeft: `5px solid ${st.color}`, cursor: 'pointer', border: `1px solid ${borderColor}` }}>
                                 <div>
                                   <div style={{ fontSize: '0.9rem', fontWeight: 'bold', color: textColor }}>{idx+1}. จ.{st.areaTH.replace('จังหวัด', '')}</div>
                                   {mapCategory === 'risk' && <div style={{ fontSize: '0.65rem', color: subTextColor, marginTop: '2px' }}>สถานะ: {getRiskLabel(st.displayVal)}</div>}
@@ -884,22 +926,7 @@ export default function MapPage() {
                   ) : (
                     /* ---- DESKTOP controls (original style) ---- */
                     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'flex-end' }}>
-                      <button aria-label="ค้นหาตำแหน่งของฉัน" onClick={() => { 
-                          if(navigator.geolocation) {
-                              setIsLocating(true);
-                              navigator.geolocation.getCurrentPosition(p => {
-                                  const closest = findClosestStation(p.coords.latitude, p.coords.longitude, stations);
-                                  if(closest) {
-                                      setFlyToPos({ pos: [closest.lat, closest.long], zoom: 8 });
-                                      setFlashProv(closest.areaTH.replace('จังหวัด', '').trim());
-                                      setTimeout(() => setFlashProv(null), 3000);
-                                  } else {
-                                      setFlyToPos({ pos: [p.coords.latitude, p.coords.longitude], zoom: 8 });
-                                  }
-                                  setIsLocating(false);
-                              }, () => { setIsLocating(false); });
-                          }
-                      }} style={{ background: cardBg, color: textColor, border: `1px solid ${borderColor}`, padding: '8px 12px', borderRadius: '12px', fontWeight: 'bold', fontSize: '0.85rem', cursor: isLocating ? 'wait' : 'pointer', boxShadow: '0 4px 10px rgba(0,0,0,0.1)', fontFamily: 'Kanit', opacity: isLocating ? 0.7 : 1, transition: 'all 0.2s' }}>{isLocating ? '⏳ กำลังหา...' : '📍 พิกัดของฉัน'}</button>
+                      <button aria-label="ค้นหาตำแหน่งของฉัน" onClick={handleLocateMe} style={{ background: cardBg, color: textColor, border: `1px solid ${borderColor}`, padding: '8px 12px', borderRadius: '12px', fontWeight: 'bold', fontSize: '0.85rem', cursor: isLocating ? 'wait' : 'pointer', boxShadow: '0 4px 10px rgba(0,0,0,0.1)', fontFamily: 'Kanit', opacity: isLocating ? 0.7 : 1, transition: 'all 0.2s' }}>{isLocating ? '⏳ กำลังหา...' : '📍 พิกัดของฉัน'}</button>
                       
                       <div style={{ background: 'var(--bg-nav-blur)', backdropFilter: 'blur(10px)', padding: '12px', borderRadius: '16px', border: `1px solid ${borderColor}`, width: '140px', boxShadow: '0 4px 20px rgba(0,0,0,0.15)' }}>
                           <div style={{ fontSize: '0.7rem', fontWeight: 'bold', color: textColor, marginBottom: '8px' }}>รูปแบบแผนที่</div>
@@ -972,9 +999,9 @@ export default function MapPage() {
 
       {/* POPUP 1: DIAGNOSTIC MODAL */}
       {selectedHotspot && selectedHotspot.type === 'risk' && (
-        <div role="dialog" aria-label="วิเคราะห์ความเสี่ยงรายจังหวัด" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10000, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(5px)', display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }} onClick={() => setSelectedHotspot(null)}>
-            <div className="fade-in" style={{ background: cardBg, padding: '25px', borderRadius: '20px', width: '100%', maxWidth: '420px', border: `1px solid ${borderColor}`, boxShadow: '0 20px 50px rgba(0,0,0,0.5)', position: 'relative' }} onClick={e => e.stopPropagation()}>
-                <button aria-label="ปิด" onClick={() => setSelectedHotspot(null)} style={{ position: 'absolute', top: '15px', right: '15px', background: 'var(--bg-secondary)', border: 'none', width: '30px', height: '30px', borderRadius: '50%', color: textColor, cursor: 'pointer', fontWeight: 'bold' }}>✕</button>
+        <div role="dialog" aria-modal="true" aria-label="วิเคราะห์ความเสี่ยงรายจังหวัด" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10000, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(5px)', display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }} onClick={() => setSelectedHotspot(null)}>
+            <div className="fade-in" onKeyDown={handleFocusTrap} tabIndex="-1" style={{ background: cardBg, padding: '25px', borderRadius: '20px', width: '100%', maxWidth: '420px', border: `1px solid ${borderColor}`, boxShadow: '0 20px 50px rgba(0,0,0,0.5)', position: 'relative', outline: 'none' }} onClick={e => e.stopPropagation()}>
+                <button autoFocus aria-label="ปิด" onClick={() => setSelectedHotspot(null)} style={{ position: 'absolute', top: '15px', right: '15px', background: 'var(--bg-secondary)', border: 'none', width: '30px', height: '30px', borderRadius: '50%', color: textColor, cursor: 'pointer', fontWeight: 'bold' }}>✕</button>
                 
                 <div style={{ marginBottom: '15px', paddingBottom: '15px', borderBottom: `1px solid ${borderColor}` }}>
                     <div style={{ fontSize: '0.8rem', color: subTextColor, fontWeight: 'bold', marginBottom: '5px' }}>ข้อมูลวิเคราะห์ความเสี่ยงรายพื้นที่</div>
@@ -1018,9 +1045,9 @@ export default function MapPage() {
 
       {/* POPUP 1.5: GISTDA DASHBOARD MODAL */}
       {selectedHotspot && selectedHotspot.type === 'gistda' && (
-        <div role="dialog" aria-label="รายงาน GISTDA รายจังหวัด" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10000, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(5px)', display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }} onClick={() => setSelectedHotspot(null)}>
-            <div className="fade-in" style={{ background: cardBg, padding: '25px', borderRadius: '20px', width: '100%', maxWidth: '420px', border: `1px solid ${borderColor}`, boxShadow: '0 20px 50px rgba(0,0,0,0.5)', position: 'relative' }} onClick={e => e.stopPropagation()}>
-                <button aria-label="ปิด" onClick={() => setSelectedHotspot(null)} style={{ position: 'absolute', top: '15px', right: '15px', background: 'var(--bg-secondary)', border: 'none', width: '30px', height: '30px', borderRadius: '50%', color: textColor, cursor: 'pointer', fontWeight: 'bold' }}>✕</button>
+        <div role="dialog" aria-modal="true" aria-label="รายงาน GISTDA รายจังหวัด" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10000, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(5px)', display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }} onClick={() => setSelectedHotspot(null)}>
+            <div className="fade-in" onKeyDown={handleFocusTrap} tabIndex="-1" style={{ background: cardBg, padding: '25px', borderRadius: '20px', width: '100%', maxWidth: '420px', border: `1px solid ${borderColor}`, boxShadow: '0 20px 50px rgba(0,0,0,0.5)', position: 'relative', outline: 'none' }} onClick={e => e.stopPropagation()}>
+                <button autoFocus aria-label="ปิด" onClick={() => setSelectedHotspot(null)} style={{ position: 'absolute', top: '15px', right: '15px', background: 'var(--bg-secondary)', border: 'none', width: '30px', height: '30px', borderRadius: '50%', color: textColor, cursor: 'pointer', fontWeight: 'bold' }}>✕</button>
                 
                 <div style={{ marginBottom: '15px', paddingBottom: '15px', borderBottom: `1px solid ${borderColor}` }}>
                     <div style={{ fontSize: '0.8rem', color: subTextColor, fontWeight: 'bold', marginBottom: '5px' }}>รายงานสถานการณ์ภัยพิบัติ GISTDA</div>
@@ -1053,9 +1080,9 @@ export default function MapPage() {
 
       {/* POPUP 2: WEATHER DASHBOARD MODAL */}
       {selectedHotspot && selectedHotspot.type === 'basic' && (
-        <div role="dialog" aria-label="ข้อมูลสภาพอากาศรายจังหวัด" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10000, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(5px)', display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }} onClick={() => setSelectedHotspot(null)}>
-          <div className="fade-in" style={{ background: cardBg, padding: '25px', borderRadius: '20px', width: '100%', maxWidth: '420px', border: `1px solid ${borderColor}`, boxShadow: '0 20px 50px rgba(0,0,0,0.5)', position: 'relative' }} onClick={e => e.stopPropagation()}>
-              <button aria-label="ปิด" onClick={() => setSelectedHotspot(null)} style={{ position: 'absolute', top: '15px', right: '15px', background: 'var(--bg-secondary)', border: 'none', width: '30px', height: '30px', borderRadius: '50%', color: textColor, cursor: 'pointer', fontWeight: 'bold' }}>✕</button>
+        <div role="dialog" aria-modal="true" aria-label="ข้อมูลสภาพอากาศรายจังหวัด" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10000, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(5px)', display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }} onClick={() => setSelectedHotspot(null)}>
+          <div className="fade-in" onKeyDown={handleFocusTrap} tabIndex="-1" style={{ background: cardBg, padding: '25px', borderRadius: '20px', width: '100%', maxWidth: '420px', border: `1px solid ${borderColor}`, boxShadow: '0 20px 50px rgba(0,0,0,0.5)', position: 'relative', outline: 'none' }} onClick={e => e.stopPropagation()}>
+              <button autoFocus aria-label="ปิด" onClick={() => setSelectedHotspot(null)} style={{ position: 'absolute', top: '15px', right: '15px', background: 'var(--bg-secondary)', border: 'none', width: '30px', height: '30px', borderRadius: '50%', color: textColor, cursor: 'pointer', fontWeight: 'bold' }}>✕</button>
               
               <div style={{ marginBottom: '15px', paddingBottom: '15px', borderBottom: `1px solid ${borderColor}` }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -1134,9 +1161,9 @@ export default function MapPage() {
 
       {/* POPUP 3: แหล่งอ้างอิงทางวิชาการ */}
       {showReferenceModal && (
-        <div role="dialog" aria-label="แหล่งอ้างอิงทางวิชาการ" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10000, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(5px)', display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }} onClick={() => setShowReferenceModal(false)}>
-            <div className="fade-in custom-scrollbar" style={{ background: cardBg, padding: '25px', borderRadius: '20px', width: '100%', maxWidth: '550px', maxHeight: '85vh', overflowY: 'auto', border: `1px solid ${borderColor}`, boxShadow: '0 20px 50px rgba(0,0,0,0.5)', position: 'relative' }} onClick={e => e.stopPropagation()}>
-                <button aria-label="ปิด" onClick={() => setShowReferenceModal(false)} style={{ position: 'absolute', top: '15px', right: '15px', background: 'var(--bg-secondary)', border: 'none', width: '30px', height: '30px', borderRadius: '50%', color: textColor, cursor: 'pointer', fontWeight: 'bold' }}>✕</button>
+        <div role="dialog" aria-modal="true" aria-label="แหล่งอ้างอิงทางวิชาการ" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10000, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(5px)', display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '20px' }} onClick={() => setShowReferenceModal(false)}>
+            <div className="fade-in custom-scrollbar" onKeyDown={handleFocusTrap} tabIndex="-1" style={{ background: cardBg, padding: '25px', borderRadius: '20px', width: '100%', maxWidth: '550px', maxHeight: '85vh', overflowY: 'auto', border: `1px solid ${borderColor}`, boxShadow: '0 20px 50px rgba(0,0,0,0.5)', position: 'relative', outline: 'none' }} onClick={e => e.stopPropagation()}>
+                <button autoFocus aria-label="ปิด" onClick={() => setShowReferenceModal(false)} style={{ position: 'absolute', top: '15px', right: '15px', background: 'var(--bg-secondary)', border: 'none', width: '30px', height: '30px', borderRadius: '50%', color: textColor, cursor: 'pointer', fontWeight: 'bold' }}>✕</button>
                 
                 <h2 style={{ margin: '0 0 5px 0', color: textColor, fontSize: '1.3rem', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>📚 หลักการและทฤษฎีอ้างอิง</h2>
                 <p style={{ color: subTextColor, fontSize: '0.85rem', marginBottom: '20px', lineHeight: 1.5 }}>การประเมินดัชนีความเสี่ยงในระบบ อ้างอิงจากแบบจำลองและมาตรฐานทางวิทยาศาสตร์ระดับสากล เพื่อความแม่นยำในการเตือนภัย</p>
