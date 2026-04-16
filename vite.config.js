@@ -10,6 +10,7 @@ export default defineConfig({
       registerType: 'prompt',
       injectRegister: 'auto',
       workbox: {
+        clientsClaim: true,
         // Cache static assets: JS, CSS, fonts, icons
         globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff,woff2}'],
         // Skip large GeoJSON files from precache (too heavy)

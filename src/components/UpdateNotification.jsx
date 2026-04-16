@@ -66,7 +66,13 @@ export default function UpdateNotification() {
         </div>
       </div>
       <button
-        onClick={() => updateServiceWorker(true)}
+        onClick={() => {
+          // รอให้ SW ใหม่ take control ก่อน แล้วค่อย reload
+          navigator.serviceWorker.addEventListener('controllerchange', () => {
+            window.location.reload();
+          });
+          updateServiceWorker(false);
+        }}
         style={{
           background: 'linear-gradient(135deg, #0ea5e9, #0284c7)',
           border: 'none', borderRadius: '10px',
