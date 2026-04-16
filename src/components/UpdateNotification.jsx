@@ -11,7 +11,22 @@ export default function UpdateNotification() {
     updateServiceWorker,
   } = useRegisterSW({
     onRegistered(r) {
-      console.log('[PWA] SW registered:', r);
+      if (!r) return;
+
+      // ตรวจสอบทุก 60 วินาทีขณะแอพเปิดอยู่
+      const interval = setInterval(() => r.update(), 60 * 1000);
+
+      // ตรวจสอบทันทีเมื่อ user กลับมาใช้แอพ (จาก background)
+      const onVisible = () => {
+        if (document.visibilityState === 'visible') r.update();
+      };
+      document.addEventListener('visibilitychange', onVisible);
+
+      // Cleanup เมื่อ component unmount
+      return () => {
+        clearInterval(interval);
+        document.removeEventListener('visibilitychange', onVisible);
+      };
     },
     onRegisterError(error) {
       console.log('[PWA] SW registration error:', error);
