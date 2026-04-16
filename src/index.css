@@ -29,20 +29,20 @@
 }
 
 body.dark-theme {
-  /* 🌙 Dark: midnight blue — กราฟสีโดดเด่น */
-  --bg-app: #050d1a;
-  --bg-card: #0b1629;
-  --text-main: #e2f0fb;
-  --text-sub: #7eb8d4;
-  --border-color: #1a3050;
+  /* 🌙 Dark: vivid midnight blue — ฟ้อนสว่าง กราฟสดใส */
+  --bg-app: #060f1e;
+  --bg-card: #0d1c38;
+  --text-main: #f0f9ff;
+  --text-sub: #60caf2;
+  --border-color: #1e3e6f;
   --bg-secondary: #0f1e36;
   --bg-tertiary: #132745;
-  --bg-overlay: rgba(5, 13, 26, 0.4);
-  --bg-overlay-heavy: rgba(5, 13, 26, 0.65);
+  --bg-overlay: rgba(6, 15, 30, 0.4);
+  --bg-overlay-heavy: rgba(6, 15, 30, 0.65);
   --bg-success: #042a16;
   --bg-danger: #3d0808;
   --bg-warning: #3a1005;
-  --bg-nav-blur: rgba(11, 22, 41, 0.95);
+  --bg-nav-blur: rgba(13, 28, 56, 0.95);
 }
 
 html {

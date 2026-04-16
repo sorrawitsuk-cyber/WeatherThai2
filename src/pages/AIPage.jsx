@@ -859,24 +859,24 @@ export default function AIPage() {
                 <p style={{ margin: '0 0 15px 45px', fontSize: '0.85rem', color: subTextColor }}>
                     {activeTab === 'rain_risk' ? 'เปอร์เซ็นต์ความน่าจะเป็นของการเกิดฝน ยิ่งเปอร์เซ็นต์สูงยิ่งต้องระวังและพกร่ม' : 'คะแนนเต็ม 10 คะแนนยิ่งสูงหมายถึงสภาพอากาศยิ่งเหมาะสมและส่งผลดีต่อกิจกรรมของคุณ'}
                 </p>
-                <div style={{ width: '100%', height: 250, marginBottom: '35px', padding: '10px', background: darkMode ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.5)', borderRadius: '16px', border: `1px solid ${borderColor}` }}>
+                <div style={{ width: '100%', height: 250, marginBottom: '35px', padding: '10px', background: darkMode ? 'rgba(14,165,233,0.06)' : 'rgba(255,255,255,0.7)', borderRadius: '16px', border: `1px solid ${borderColor}` }}>
                     <ResponsiveContainer width="100%" height="100%">
                         <LineChart data={forecastChartData} margin={{ top: 20, right: 30, left: -20, bottom: 5 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#333' : '#e5e7eb'} vertical={false} />
-                            <XAxis dataKey="name" stroke={subTextColor} tick={{fontSize: 12, fill: subTextColor}} tickLine={false} axisLine={false} />
-                            <YAxis domain={activeTab === 'rain_risk' ? [0, 100] : [0, 10]} ticks={activeTab === 'rain_risk' ? [0, 50, 100] : [0, 5, 10]} stroke={subTextColor} tick={{fontSize: 12, fill: subTextColor}} tickLine={false} axisLine={false} />
-                            <Tooltip 
+                            <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? 'rgba(96,202,242,0.18)' : '#e5e7eb'} vertical={false} />
+                            <XAxis dataKey="name" stroke={subTextColor} tick={{fontSize: 12, fill: subTextColor, fontWeight: darkMode ? '600' : '400'}} tickLine={false} axisLine={false} />
+                            <YAxis domain={activeTab === 'rain_risk' ? [0, 100] : [0, 10]} ticks={activeTab === 'rain_risk' ? [0, 50, 100] : [0, 5, 10]} stroke={subTextColor} tick={{fontSize: 12, fill: subTextColor, fontWeight: darkMode ? '600' : '400'}} tickLine={false} axisLine={false} />
+                            <Tooltip
                                 contentStyle={{ borderRadius: '12px', border: `1px solid ${borderColor}`, background: cardBg, color: textColor, fontWeight: 'bold' }}
                                 itemStyle={{ color: activeColor }}
                             />
-                            <Line 
-                                type="monotone" 
-                                dataKey="score" 
-                                name="คะแนน" 
-                                stroke={activeColor} 
-                                strokeWidth={4} 
-                                activeDot={{ r: 8, stroke: cardBg, strokeWidth: 2 }} 
-                                dot={{ r: 4, strokeWidth: 2 }} 
+                            <Line
+                                type="monotone"
+                                dataKey="score"
+                                name="คะแนน"
+                                stroke={activeColor}
+                                strokeWidth={darkMode ? 5 : 4}
+                                activeDot={{ r: 8, stroke: cardBg, strokeWidth: 2, fill: activeColor }}
+                                dot={{ r: darkMode ? 5 : 4, strokeWidth: 2, fill: darkMode ? activeColor : cardBg, stroke: activeColor }}
                             />
                         </LineChart>
                     </ResponsiveContainer>
@@ -898,7 +898,7 @@ export default function AIPage() {
                                     <span style={{ fontSize: '1.3rem', background: darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)', padding: '5px', borderRadius: '10px' }}>{item.icon}</span>
                                     <span style={{ fontWeight: '800', color: textColor, fontSize: '1rem' }}>{item.time}</span>
                                 </div>
-                                <div style={{ fontSize: '0.95rem', color: darkMode ? '#cbd5e1' : '#475569', lineHeight: 1.6, background: darkMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', padding: '15px 18px', borderRadius: '16px', border: `1px solid ${borderColor}` }}>
+                                <div style={{ fontSize: '0.95rem', color: darkMode ? '#d8eeff' : '#475569', lineHeight: 1.6, background: darkMode ? 'rgba(96,202,242,0.05)' : 'rgba(0,0,0,0.02)', padding: '15px 18px', borderRadius: '16px', border: `1px solid ${borderColor}` }}>
                                     {renderHighlightedText(item.text, activeColor)}
                                 </div>
                             </div>
