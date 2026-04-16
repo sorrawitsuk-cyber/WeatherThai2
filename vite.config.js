@@ -7,14 +7,13 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'prompt',
+      registerType: 'autoUpdate',
       injectRegister: 'auto',
       workbox: {
         clientsClaim: true,
-        // Cache static assets: JS, CSS, fonts, icons
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff,woff2}'],
-        // Skip large GeoJSON files from precache (too heavy)
-        globIgnores: ['**/thai_geo.json', '**/thailand.json'],
+        skipWaiting: true,
+        // ไม่ precache app shell — browser โหลดใหม่จาก network ทุกครั้ง
+        globPatterns: [],
         runtimeCaching: [
           // GeoJSON: Cache First (rarely changes)
           {
@@ -64,14 +63,6 @@ export default defineConfig({
           },
         ],
       },
-      includeAssets: [
-        'favicon.svg',
-        'apple-touch-icon.png',
-        'icon-152x152.png',
-        'icon-192x192.png',
-        'maskable-icon-512x512.png',
-        'icon-512x512.png',
-      ],
       manifest: {
         name: 'AirQuality ไทย — ตรวจสอบคุณภาพอากาศ',
         short_name: 'AirQuality Thai',
