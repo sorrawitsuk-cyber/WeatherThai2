@@ -12,20 +12,20 @@
 
 /* ตั้งค่า CSS Variables (Custom Properties) สำหรับการจัดการ Theme อย่างสะอาด */
 :root {
-  /* ☀️ Light: blue-white pastel vivid */
-  --bg-app: #d6eeff;
+  /* ☀️ Light: vivid sky-blue pastel */
+  --bg-app: #b8dcff;
   --bg-card: #ffffff;
   --text-main: #0c1f3d;
-  --text-sub: #2d6486;
-  --border-color: #7dd3fc;
-  --bg-secondary: #f0f9ff;
-  --bg-tertiary: #d6eeff;
-  --bg-overlay: #e8f5ff;
-  --bg-overlay-heavy: rgba(255, 255, 255, 0.88);
+  --text-sub: #1a5c8a;
+  --border-color: #60c4f8;
+  --bg-secondary: #ddf0ff;
+  --bg-tertiary: #b8dcff;
+  --bg-overlay: #d4ebff;
+  --bg-overlay-heavy: rgba(255, 255, 255, 0.90);
   --bg-success: #dcfce7;
   --bg-danger: #fee2e2;
   --bg-warning: #ffedd5;
-  --bg-nav-blur: rgba(214, 238, 255, 0.97);
+  --bg-nav-blur: rgba(184, 220, 255, 0.97);
 }
 
 body.dark-theme {

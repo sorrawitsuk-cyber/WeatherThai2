@@ -31,10 +31,10 @@ export const getAlertBanner = (current) => {
 };
 
 export const getWeatherBackground = (isNight, isRaining, isHot) => {
-    if (isRaining) return 'linear-gradient(135deg, #334155, #0f172a)';
-    if (isNight) return 'linear-gradient(135deg, #1e1b4b, #0f172a)';
-    if (isHot) return 'linear-gradient(135deg, #ea580c, #9a3412)';
-    return 'linear-gradient(135deg, #0ea5e9, #38bdf8)';
+    if (isRaining) return 'linear-gradient(145deg, #2d4a6b, #1a2f4a, #0f172a)';
+    if (isNight) return 'linear-gradient(145deg, #1e40af, #2d2070, #1e1b4b)';
+    if (isHot) return 'linear-gradient(145deg, #f97316, #ea580c, #c2410c)';
+    return 'linear-gradient(145deg, #38bdf8, #60d0ff, #bae6fd)';
 };
 
 export const getBriefingText = (weatherText, currentTemp, feelsLike, maxTemp, dailyRainProb, pm25, currentHour, tomorrowMaxTemp, tomorrowRainProb) => {
