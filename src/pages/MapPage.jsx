@@ -857,7 +857,7 @@ export default function MapPage() {
                     else setActiveGistdaMode(id);
                   };
                   return (
-                    <div style={{ position: 'absolute', bottom: '55px', left: 0, right: 0, zIndex: 1000, display: 'flex', gap: '6px', padding: '7px 10px', background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(8px)', overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                    <div style={{ position: 'absolute', bottom: '0', left: 0, right: 0, zIndex: 1000, display: 'flex', gap: '6px', padding: '7px 10px', background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(8px)', overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
                       {modeList.map(m => (
                         <button
                           key={m.id}
@@ -940,14 +940,14 @@ export default function MapPage() {
                     {/* Legend toggle chip */}
                     <button
                       onClick={() => setActivePanel(p => p === 'legend' ? null : 'legend')}
-                      style={{ position: 'absolute', bottom: '16px', left: '12px', zIndex: 1001, background: cardBg, border: `1px solid ${borderColor}`, borderRadius: '20px', padding: '5px 10px', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 2px 10px rgba(0,0,0,0.25)', cursor: 'pointer', fontFamily: 'Kanit', fontSize: '0.7rem', color: textColor, fontWeight: 'bold' }}
+                      style={{ position: 'absolute', bottom: '50px', left: '12px', zIndex: 1001, background: cardBg, border: `1px solid ${borderColor}`, borderRadius: '20px', padding: '5px 10px', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 2px 10px rgba(0,0,0,0.25)', cursor: 'pointer', fontFamily: 'Kanit', fontSize: '0.7rem', color: textColor, fontWeight: 'bold' }}
                       aria-label="แสดง/ซ่อนสัญลักษณ์แผนที่"
                     >
                       <span style={{ width: '8px', height: '8px', borderRadius: '2px', background: activeModeObj?.color || '#0ea5e9', display: 'inline-block', flexShrink: 0 }}></span>
                       {activePanel === 'legend' ? '✕' : '📋 สัญลักษณ์'}
                     </button>
                     {activePanel === 'legend' && (
-                      <div className="fade-in" style={{ position: 'absolute', bottom: '48px', left: '12px', zIndex: 1001, background: cardBg, padding: '10px 12px', borderRadius: '12px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.2)', maxWidth: 'calc(100vw - 80px)' }}>
+                      <div className="fade-in" style={{ position: 'absolute', bottom: '82px', left: '12px', zIndex: 1001, background: cardBg, padding: '10px 12px', borderRadius: '12px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 15px rgba(0,0,0,0.2)', maxWidth: 'calc(100vw - 80px)' }}>
                         <div style={{ fontSize: '0.65rem', fontWeight: 'bold', color: subTextColor, marginBottom: '6px' }}>เกณฑ์ระดับ {activeModeObj?.name}</div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                           {getDynamicLegendContent().map((item, idx) => (
