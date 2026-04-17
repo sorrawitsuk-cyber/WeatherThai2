@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(start http://localhost:5173/map)",
+      "Bash(git push *)",
+      "Bash(start http://localhost:5174)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "WebFetch(domain:www.tmd.go.th)",
+      "WebFetch(domain:www.disaster.go.th)",
+      "WebFetch(domain:www.gdacs.org)",
+      "WebFetch(domain:fire.gistda.or.th)"
+    ]
+  }
+}
