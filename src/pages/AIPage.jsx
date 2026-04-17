@@ -201,12 +201,14 @@ export default function AIPage() {
     if (!weatherData || !weatherData.daily) return null;
     if (dayIdx === -1) {
         return {
-            tMax: Math.round(weatherData.current?.temp ?? 0),
-            tMin: Math.round(weatherData.current?.temp ?? 0),
-            rain: weatherData.current?.rainProb ?? 0,
+            tMax: Math.round(weatherData.daily.temperature_2m_max?.[0] ?? weatherData.current?.temp ?? 0),
+            tMin: Math.round(weatherData.daily.temperature_2m_min?.[0] ?? weatherData.current?.temp ?? 0),
+            rain: weatherData.daily.precipitation_probability_max?.[0] ?? weatherData.current?.rainProb ?? 0,
             uvMax: weatherData.daily.uv_index_max?.[0] ?? 0,
-            windMax: Math.round(weatherData.current?.windSpeed ?? 0),
-            pm25: Math.round(weatherData.current?.pm25 ?? 0)
+            windMax: Math.round(weatherData.daily.wind_speed_10m_max?.[0] ?? weatherData.current?.windSpeed ?? 0),
+            pm25: Math.round(weatherData.current?.pm25 ?? 0),
+            feelsLike: Math.round(weatherData.current?.feelsLike ?? weatherData.current?.temp ?? 0),
+            heatMax: Math.round(weatherData.daily.apparent_temperature_max?.[0] ?? weatherData.current?.feelsLike ?? 0),
         };
     }
     const d = weatherData.daily;
@@ -214,55 +216,56 @@ export default function AIPage() {
     const tMin = Math.round(d.temperature_2m_min?.[dayIdx] ?? 0);
     const rain = d.precipitation_probability_max?.[dayIdx] ?? 0;
     const uvMax = d.uv_index_max?.[dayIdx] ?? 0;
-    const windMax = Math.round(d.wind_speed_10m_max?.[dayIdx] ?? 0); 
+    const windMax = Math.round(d.wind_speed_10m_max?.[dayIdx] ?? 0);
     const pm25 = d.pm25_max?.[dayIdx] !== undefined ? Math.round(d.pm25_max[dayIdx]) : Math.round(weatherData.current?.pm25 ?? 0);
-    return { tMax, tMin, rain, uvMax, windMax, pm25 };
+    const heatMax = Math.round(d.apparent_temperature_max?.[dayIdx] ?? tMax);
+    return { tMax, tMin, rain, uvMax, windMax, pm25, heatMax };
   };
 
   const calcScore = (tabId, dayIdx) => {
     const factors = getWeatherFactorsForDay(dayIdx);
     if (!factors) return 0;
-    const { rain, tMax, uvMax, windMax, pm25, tMin } = factors;
+    const { rain, tMax, uvMax, windMax, pm25, tMin, heatMax } = factors;
     let baseScore = 10;
     switch (tabId) {
-      case 'laundry': 
+      case 'laundry':
         if (rain > 30) baseScore -= 5;
         if (rain > 60) baseScore -= 3;
-        if (windMax >= 10 && windMax <= 25 && rain < 20) baseScore += 1; 
+        if (windMax >= 10 && windMax <= 25 && rain < 20) baseScore += 1;
         if (windMax > 35) baseScore -= 3;
         break;
-      case 'exercise': 
+      case 'exercise':
         if (pm25 > 37.5) baseScore -= 5;
-        if (tMax > 36) baseScore -= 3;
+        if (heatMax > 38 || tMax > 36) baseScore -= 3;
         if (rain > 50) baseScore -= 2;
-        if (uvMax > 8) baseScore -= 1; 
+        if (uvMax > 8) baseScore -= 1;
         break;
-      case 'outdoor': 
+      case 'outdoor':
         if (rain > 40) baseScore -= 4;
-        if (tMax > 37) baseScore -= 3;
+        if (heatMax > 40 || tMax > 37) baseScore -= 3;
         if (uvMax > 8) baseScore -= 2;
-        if (windMax > 30) baseScore -= 2; 
+        if (windMax > 30) baseScore -= 2;
         break;
-      case 'travel': 
+      case 'travel':
         if (rain > 50) baseScore -= 4;
-        if (tMax > 38) baseScore -= 3;
+        if (heatMax > 42 || tMax > 38) baseScore -= 3;
         if (uvMax > 10) baseScore -= 2;
         break;
-      case 'farming': 
+      case 'farming':
         if (rain > 70) baseScore -= 4;
-        if (tMax > 38) baseScore -= 3;
-        if (windMax > 15) baseScore -= 3; 
+        if (heatMax > 40 || tMax > 38) baseScore -= 3;
+        if (windMax > 15) baseScore -= 3;
         break;
-      case 'pets': 
-        if (tMax > 35) baseScore -= 4;
+      case 'pets':
+        if (heatMax > 38 || tMax > 35) baseScore -= 4;
         if (rain > 40) baseScore -= 3;
-        if (uvMax > 8) baseScore -= 1; 
+        if (uvMax > 8) baseScore -= 1;
         break;
-      case 'construction': 
+      case 'construction':
         if (rain > 50) baseScore -= 5;
         if (rain > 30) baseScore -= 2;
         if (windMax > 20) baseScore -= 3;
-        if (tMax > 36) baseScore -= 2;
+        if (heatMax > 40 || tMax > 36) baseScore -= 2;
         break;
       case 'rain_risk':
         baseScore -= Math.round(rain / 10);
@@ -270,7 +273,7 @@ export default function AIPage() {
       case 'health':
         if (pm25 > 37.5) baseScore -= 4;
         if (pm25 > 50) baseScore -= 3;
-        if (tMax > 35) baseScore -= 2;
+        if (heatMax > 40 || tMax > 35) baseScore -= 2;
         break;
       case 'photography':
         if (rain > 40) baseScore -= 4;
@@ -278,7 +281,7 @@ export default function AIPage() {
         break;
       case 'vending':
         if (rain > 40) baseScore -= 4;
-        if (tMax > 38) baseScore -= 3;
+        if (heatMax > 42 || tMax > 38) baseScore -= 3;
         if (windMax > 25) baseScore -= 2;
         break;
       case 'solar':
@@ -286,9 +289,9 @@ export default function AIPage() {
         if (uvMax < 5) baseScore -= 2;
         if (rain > 60) baseScore -= 3;
         break;
-      default: 
+      default:
         if (rain > 50) baseScore -= 2;
-        if (tMax > 37) baseScore -= 2;
+        if (heatMax > 42 || tMax > 37) baseScore -= 2;
         if (pm25 > 50) baseScore -= 2;
     }
     return Math.max(1, Math.min(10, baseScore)); 
@@ -366,8 +369,8 @@ export default function AIPage() {
         const factors = getWeatherFactorsForDay(targetDateIdx);
         const modeLabel = tabConfigs.find(t=>t.id===activeTab)?.label || "ทั่วไป";
         
-        const context = `คุณคือ AI ผู้เชี่ยวชาญการพยากรณ์อากาศของ Thai Weather. ตอบคำถามผู้ใช้อย่างเป็นมิตร กระชับ เข้าใจง่าย 
-ข้อมูลอุตุนิยมวิทยาวันนี้: โหมด ${modeLabel}, อุณหภูมิ ${factors.tMin}-${factors.tMax}°C, ขับลูมUV ${factors.uvMax}, โอกาสฝน ${factors.rain}%, ความเร็วลม ${factors.windMax}กม/ชม, ฝุ่น PM2.5: ${factors.pm25} µg/m³.
+        const context = `คุณคือ AI ผู้เชี่ยวชาญการพยากรณ์อากาศของ Thai Weather. ตอบคำถามผู้ใช้อย่างเป็นมิตร กระชับ เข้าใจง่าย
+ข้อมูลอุตุนิยมวิทยาวันนี้: โหมด ${modeLabel}, อุณหภูมิ ${factors.tMin}-${factors.tMax}°C, ดัชนีความร้อน (รู้สึกเหมือน) ${factors.heatMax}°C, ดัชนี UV ${factors.uvMax}, โอกาสฝน ${factors.rain}%, ความเร็วลม ${factors.windMax}กม/ชม, ฝุ่น PM2.5: ${factors.pm25} µg/m³.
 ประวัติแชท: ${newLogs.map(l => l.role + ': ' + l.text).join(' | ')}.
 ตอบคำถามล่าสุดได้เลย:`;
 
@@ -386,7 +389,7 @@ export default function AIPage() {
     if (!weatherData || !activeTab) return null;
     const factors = getWeatherFactorsForDay(targetDateIdx);
     if (!factors) return null;
-    const { tMax, tMin, rain, uvMax, windMax, pm25 } = factors;
+    const { tMax, tMin, rain, uvMax, windMax, pm25, heatMax } = factors;
     const finalScore = currentScores[activeTab];
 
     const getMainAdvice = () => {
@@ -398,7 +401,7 @@ export default function AIPage() {
       }
       if (activeTab === 'exercise') {
           if (pm25 > 37.5) return `ประเมินความเสี่ยง: คุณภาพอากาศ**ไม่อยู่ในเกณฑ์มาตรฐาน** (PM2.5: **${pm25} µg/m³**) **ควรงดการวิ่งหรือออกกำลังกายหนักภายนอกอาคาร** เปลี่ยนเป็นการคาร์ดิโอในร่มแทน`;
-          if (tMax > 36 || uvMax > 8) return `ประเมินความเสี่ยง: ดัชนีรังสี UV (**${uvMax}**) และอุณหภูมิอยู่ใน**ระดับอันตราย** **ระวังภาวะฮีทสโตรกและผิวหนังไหม้แดด** **ควรเลี่ยงการออกกำลังกายในช่วงบ่ายเด็ดขาด**`;
+          if (heatMax > 38 || tMax > 36 || uvMax > 8) return `ประเมินความเสี่ยง: ดัชนีรังสี UV (**${uvMax}**) และดัชนีความร้อน **${heatMax}°C** อยู่ใน**ระดับอันตราย** **ระวังภาวะฮีทสโตรกและผิวหนังไหม้แดด** **ควรเลี่ยงการออกกำลังกายในช่วงบ่ายเด็ดขาด**`;
           return `ประเมินความเสี่ยง: **สภาพแวดล้อมเหมาะสม**สำหรับการออกกำลังกายกลางแจ้ง สามารถดำเนินกิจกรรมตามตารางฝึกซ้อมได้ตามปกติ`;
       }
       if (activeTab === 'outdoor') {
@@ -426,7 +429,7 @@ export default function AIPage() {
       if (activeTab === 'construction') {
           if (rain > 50) return `ประเมินความเสี่ยง: ความน่าจะเป็นของการเกิดฝนสูงถึง **${rain}%** **แนะนำให้หลีกเลี่ยงการก่อสร้างภายนอกอาคาร การเทปูน และงานที่เกี่ยวกับระบบไฟฟ้าเด็ดขาด**`;
           if (windMax > 20) return `ประเมินความเสี่ยง: **กระแสลมค่อนข้างแรง** **ควรตรวจสอบและเพิ่มความรัดกุมของนั่งร้านหรือจุดติดตั้งบนที่สูง** เพื่อความปลอดภัยของคนงาน`;
-          if (tMax > 36) return `ประเมินความเสี่ยง: ความร้อนและอุณหภูมิอยู่ใน**ระดับสูงมาก** **ผู้คุมงานควรสลับช่วงเวลาพักให้บ่อยขึ้นและเตรียมน้ำดื่มให้เพียงพอ เพื่อป้องกันภาวะฮีทสโตรก**`;
+          if (heatMax > 40 || tMax > 36) return `ประเมินความเสี่ยง: ดัชนีความร้อน **${heatMax}°C** อยู่ใน**ระดับสูงมาก** **ผู้คุมงานควรสลับช่วงเวลาพักให้บ่อยขึ้นและเตรียมน้ำดื่มให้เพียงพอ เพื่อป้องกันภาวะฮีทสโตรก**`;
           return `ประเมินความเสี่ยง: สภาพอากาศโดยรวมปลอดโปร่ง เอื้ออำนวยให้**สามารถดำเนินงานก่อสร้างหรือเทคอนกรีตภายนอกอาคารได้ตามปกติ**`;
       }
       if (activeTab === 'rain_risk') {
@@ -436,7 +439,7 @@ export default function AIPage() {
       }
       if (activeTab === 'health') {
           if (pm25 > 50) return `ประเมินความเสี่ยง: สภาพแวดล้อมและฝุ่นอยู่ในระดับ **อันตรายอย่างยิ่งต่อสุขภาพ (${pm25} µg/m³)** ผู้สูงอายุและผู้ป่วยควรหลีกเลี่ยงควันฝุ่นเด็ดขาด`;
-          if (tMax > 37) return `ประเมินความเสี่ยง: อุณหภูมิพุ่งสูง **${tMax}°C** ซึ่งอันตรายต่อภาวะฮีทสโตรก **ดื่มน้ำสม่ำเสมอและอย่าอยู่กับแสงแดดนานเกินไป**`;
+          if (heatMax > 42 || tMax > 37) return `ประเมินความเสี่ยง: ดัชนีความร้อน **${heatMax}°C** สูงวิกฤต ซึ่งอันตรายต่อภาวะฮีทสโตรก **ดื่มน้ำสม่ำเสมอและอย่าอยู่กับแสงแดดนานเกินไป**`;
           return `ประเมินความเสี่ยง: สภาพอากาศเป็นใจ ไม่มีปัญหาเกี่ยวกับมลพิษทางอากาศหรือความร้อนรุนแรงที่กระทบสุขภาพ`;
       }
       if (activeTab === 'photography') {
@@ -461,12 +464,12 @@ export default function AIPage() {
 
     const getTimeline = () => {
       const isRainy = rain > 40;
-      const isHot = tMax > 35;
+      const isHot = heatMax > 38 || tMax > 35;
       
       const lines = {
         summary: [
-          { time: 'ช่วงเช้า (06:00 - 12:00)', icon: '🌅', text: `อุณหภูมิเริ่มต้นที่ **${tMin}°C** สภาพอากาศ**เหมาะสมสำหรับการเริ่มต้นวัน**` },
-          { time: 'ช่วงบ่าย (12:00 - 18:00)', icon: '☀️', text: isHot ? `อุณหภูมิสูงสุดแตะระดับ **${tMax}°C** **ควรหลีกเลี่ยงแสงแดดจัด**` : `อุณหภูมิสูงสุด **${tMax}°C** สภาพอากาศโดยรวมทรงตัว` },
+          { time: 'ช่วงเช้า (06:00 - 12:00)', icon: '🌅', text: `อุณหภูมิต่ำสุด **${tMin}°C** สภาพอากาศ**เหมาะสมสำหรับการเริ่มต้นวัน**` },
+          { time: 'ช่วงบ่าย (12:00 - 18:00)', icon: '☀️', text: isHot ? `อุณหภูมิสูงสุด **${tMax}°C** (รู้สึกเหมือน **${heatMax}°C**) **ควรหลีกเลี่ยงแสงแดดจัดและดื่มน้ำบ่อยๆ**` : `อุณหภูมิสูงสุด **${tMax}°C** (รู้สึกเหมือน ${heatMax}°C) สภาพอากาศโดยรวมทรงตัว` },
           { time: 'ช่วงค่ำ (18:00 เป็นต้นไป)', icon: '🌙', text: isRainy ? `**มีความเสี่ยงฝนฟ้าคะนอง** ควรเตรียมอุปกรณ์กันฝน` : `อุณหภูมิลดลง สภาพอากาศโปร่งสบาย เหมาะแก่การพักผ่อน` }
         ],
         laundry: [
