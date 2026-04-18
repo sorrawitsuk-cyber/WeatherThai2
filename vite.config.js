@@ -1,72 +1,24 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import { VitePWA } from 'vite-plugin-pwa'
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import { VitePWA } from 'vite-plugin-pwa';
 
-// https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
     react(),
     VitePWA({
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.js',
       registerType: 'autoUpdate',
       injectRegister: 'auto',
-      workbox: {
-        clientsClaim: true,
-        skipWaiting: true,
-        // ไม่ precache app shell — browser โหลดใหม่จาก network ทุกครั้ง
-        globPatterns: [],
-        runtimeCaching: [
-          // GeoJSON: Cache First (rarely changes)
-          {
-            urlPattern: /\/(thai_geo|thailand)\.json$/,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'geojson-cache',
-              expiration: { maxEntries: 5, maxAgeSeconds: 60 * 60 * 24 * 7 },
-            },
-          },
-          // Firebase Realtime DB: Network First
-          {
-            urlPattern: /firebaseio\.com/,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'firebase-cache',
-              expiration: { maxEntries: 50, maxAgeSeconds: 60 * 5 },
-              networkTimeoutSeconds: 5,
-            },
-          },
-          // Air4Thai API: StaleWhileRevalidate
-          {
-            urlPattern: /air4thai\.pcd\.go\.th/,
-            handler: 'StaleWhileRevalidate',
-            options: {
-              cacheName: 'air4thai-cache',
-              expiration: { maxEntries: 20, maxAgeSeconds: 60 * 10 },
-            },
-          },
-          // Open-Meteo API: StaleWhileRevalidate
-          {
-            urlPattern: /open-meteo\.com/,
-            handler: 'StaleWhileRevalidate',
-            options: {
-              cacheName: 'weather-api-cache',
-              expiration: { maxEntries: 20, maxAgeSeconds: 60 * 10 },
-            },
-          },
-          // Google Fonts: Cache First
-          {
-            urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com/,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'google-fonts-cache',
-              expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 },
-            },
-          },
-        ],
+      injectManifest: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,webmanifest}'],
       },
       manifest: {
         name: 'AirQuality ไทย — ตรวจสอบคุณภาพอากาศ',
         short_name: 'AirQuality Thai',
-        description: 'ตรวจสอบคุณภาพอากาศ ฝุ่น PM2.5 สภาพอากาศ และเตือนภัยล่วงหน้าของประเทศไทยแบบเรียลไทม์',
+        description:
+          'ตรวจสอบคุณภาพอากาศ ฝุ่น PM2.5 สภาพอากาศ และเตือนภัยล่วงหน้าของประเทศไทยแบบเรียลไทม์',
         lang: 'th',
         theme_color: '#0ea5e9',
         background_color: '#0f172a',
@@ -135,8 +87,8 @@ export default defineConfig({
       '/api-air': {
         target: 'http://air4thai.pcd.go.th',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api-air/, '')
-      }
-    }
-  }
-})
+        rewrite: (path) => path.replace(/^\/api-air/, ''),
+      },
+    },
+  },
+});

@@ -1,35 +1,47 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout';
-
-// 🌟 สิ่งที่หายไป! ต้องดึง WeatherProvider มาครอบแอปทั้งหมด
 import { WeatherProvider } from './context/WeatherContext';
 
-// นำเข้าไฟล์หน้าต่างๆ
-import Dashboard from './pages/Dashboard';
-import MapPage from './pages/MapPage';
-import AIPage from './pages/AIPage'; // 🌟 เปลี่ยนชื่อ Import ตรงนี้
-import NewsPage from './pages/NewsPage';
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const MapPage = lazy(() => import('./pages/MapPage'));
+const AIPage = lazy(() => import('./pages/AIPage'));
+const NewsPage = lazy(() => import('./pages/NewsPage'));
+
+function RouteFallback() {
+  return (
+    <div
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'var(--bg-app)',
+        color: 'var(--text-main)',
+        fontFamily: 'Kanit, sans-serif',
+      }}
+    >
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ fontSize: '2rem', marginBottom: '12px' }}>Loading...</div>
+        <div style={{ color: 'var(--text-sub)' }}>Preparing the latest air quality data.</div>
+      </div>
+    </div>
+  );
+}
 
 function App() {
   return (
-    // 🌟 เอา WeatherProvider มาครอบ Routes ไว้ ข้อมูลจะได้ส่งถึงทุกหน้า
     <WeatherProvider>
-      <Routes>
-        <Route path="/" element={<Layout />}>
-          {/* หน้าหลัก ภาพรวม */}
-          <Route index element={<Dashboard />} />
-          
-          {/* หน้าแผนที่ */}
-          <Route path="map" element={<MapPage />} />
-          
-          {/* หน้า วิเคราะห์ */}
-          <Route path="ai" element={<AIPage />} /> {/* 🌟 เปลี่ยน path และ element ตรงนี้ */}
-          
-          {/* หน้าข่าวสาร */}
-          <Route path="news" element={<NewsPage />} />
-        </Route>
-      </Routes>
+      <Suspense fallback={<RouteFallback />}>
+        <Routes>
+          <Route path="/" element={<Layout />}>
+            <Route index element={<Dashboard />} />
+            <Route path="map" element={<MapPage />} />
+            <Route path="ai" element={<AIPage />} />
+            <Route path="news" element={<NewsPage />} />
+          </Route>
+        </Routes>
+      </Suspense>
     </WeatherProvider>
   );
 }
