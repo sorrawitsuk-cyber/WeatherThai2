@@ -69,51 +69,6 @@ function CardTitle({ title, desc, action }) {
   );
 }
 
-function StatusPill({ status, count }) {
-  const ok = status === 'ok';
-  return (
-    <span
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '6px',
-        padding: '6px 10px',
-        borderRadius: '999px',
-        fontSize: '0.72rem',
-        fontWeight: 700,
-        color: ok ? '#166534' : '#b91c1c',
-        background: ok ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)',
-        border: `1px solid ${ok ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)'}`,
-      }}
-    >
-      <span>{ok ? 'พร้อมใช้' : 'มีปัญหา'}</span>
-      <span>{count}</span>
-    </span>
-  );
-}
-
-function SummaryModePill({ mode }) {
-  const isAi = mode === 'ai';
-  return (
-    <span
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '6px',
-        padding: '6px 10px',
-        borderRadius: '999px',
-        fontSize: '0.72rem',
-        fontWeight: 800,
-        color: isAi ? '#083344' : '#78350f',
-        background: isAi ? 'rgba(125,211,252,0.9)' : 'rgba(253,224,71,0.9)',
-        border: `1px solid ${isAi ? 'rgba(8,51,68,0.15)' : 'rgba(120,53,15,0.15)'}`,
-      }}
-    >
-      <span>{isAi ? 'AI summary' : 'Rule-based summary'}</span>
-    </span>
-  );
-}
-
 function MetricCard({ label, value, tone = '#0ea5e9' }) {
   return (
     <div
@@ -270,12 +225,12 @@ export default function NewsPage() {
     try {
       const response = await fetch('/api/news', { cache: 'no-store' });
       if (!response.ok) {
-        throw new Error('โหลดข้อมูลข่าวไม่สำเร็จ');
+        throw new Error('ยังไม่สามารถโหลดข่าวได้ในขณะนี้');
       }
       const payload = await response.json();
       setData(payload);
     } catch (fetchError) {
-      setError(fetchError.message || 'เกิดข้อผิดพลาดในการโหลดข่าว');
+      setError(fetchError.message || 'ขออภัย ขณะนี้ยังไม่สามารถแสดงข่าวได้');
     } finally {
       setLoading(false);
     }
@@ -357,7 +312,6 @@ export default function NewsPage() {
                   <div style={{ fontSize: '0.72rem', fontWeight: 800, opacity: 0.82 }}>
                     สรุปล่าสุด {data.labels?.generatedAt || ''}
                   </div>
-                  <SummaryModePill mode={data.digest.mode} />
                 </div>
                 <div style={{ fontSize: isMobile ? '0.96rem' : '1.08rem', fontWeight: 800, lineHeight: 1.6 }}>{data.digest.headline}</div>
                 {!!data.digest.bullets?.length && (
@@ -415,7 +369,7 @@ export default function NewsPage() {
 
         {loading ? (
           <SectionCard>
-            <div style={{ textAlign: 'center', padding: '28px 12px', color: 'var(--text-sub)' }}>กำลังรวบรวมข่าวล่าสุด...</div>
+            <div style={{ textAlign: 'center', padding: '28px 12px', color: 'var(--text-sub)' }}>กำลังอัปเดตข่าวล่าสุด...</div>
           </SectionCard>
         ) : null}
 
@@ -430,7 +384,7 @@ export default function NewsPage() {
             <SectionCard>
               <CardTitle
                 title="ภาพรวมสถานการณ์"
-                desc={`ระบบสรุปแบบ ${data.digest?.mode === 'ai' ? 'AI' : 'rule-based'} จากหลายแหล่ง และอัปเดตอัตโนมัติทุก 10 นาที`}
+                desc="สรุปประเด็นสำคัญจากข่าวอากาศและภัยพิบัติที่ควรรู้ในช่วงนี้"
               />
               <div
                 style={{
@@ -448,35 +402,12 @@ export default function NewsPage() {
             </SectionCard>
 
             <SectionCard>
-              <CardTitle title="สภาพแหล่งข้อมูล" desc="ตรวจว่าต้นทางไหนพร้อมใช้งาน และระบบดึงมาได้กี่รายการ" />
-              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, minmax(0, 1fr))', gap: '10px' }}>
-                {data.sourceStatus.map((source) => (
-                  <div
-                    key={source.label}
-                    style={{
-                      background: 'var(--bg-secondary)',
-                      borderRadius: '16px',
-                      border: '1px solid var(--border-color)',
-                      padding: '14px',
-                      display: 'grid',
-                      gap: '8px',
-                    }}
-                  >
-                    <div style={{ color: 'var(--text-main)', fontWeight: 800 }}>{source.label}</div>
-                    <StatusPill status={source.status} count={source.count} />
-                    {source.error ? <div style={{ color: '#b91c1c', fontSize: '0.75rem', lineHeight: 1.6 }}>{source.error}</div> : null}
-                  </div>
-                ))}
-              </div>
-            </SectionCard>
-
-            <SectionCard>
               <CardTitle
                 title="อากาศกรุงเทพฯ 7 วัน"
-                desc={data.weather?.summary || 'ข้อมูลพยากรณ์อากาศกรุงเทพฯ จาก Open-Meteo'}
+                desc={data.weather?.summary || 'ดูแนวโน้มอากาศกรุงเทพฯ สำหรับสัปดาห์นี้'}
               />
               {!weatherDays.length ? (
-                <EmptyState title="ยังไม่มีพยากรณ์อากาศ" desc="Open-Meteo อาจตอบกลับช้า หรือมีปัญหาชั่วคราว" />
+                <EmptyState title="ยังไม่มีพยากรณ์อากาศ" desc="โปรดลองใหม่อีกครั้งในอีกสักครู่" />
               ) : (
                 <div
                   style={{
@@ -548,7 +479,7 @@ export default function NewsPage() {
               desc="รวมประกาศเตือน พายุ แผ่นดินไหว และเหตุจาก ReliefWeb ที่เกี่ยวข้องกับประเทศไทย"
             />
             {!thaiItems.length ? (
-              <EmptyState title="ยังไม่พบข่าวในหมวดประเทศไทย" desc="ระบบจะเติมข้อมูลทันทีเมื่อแหล่งข่าวตอบกลับ" />
+              <EmptyState title="ยังไม่พบข่าวในหมวดประเทศไทย" desc="ตอนนี้ยังไม่มีประเด็นใหม่ในหมวดนี้" />
             ) : (
               <div style={{ display: 'grid', gap: '12px' }}>
                 {thaiItems.map((item, index) => (
@@ -566,7 +497,7 @@ export default function NewsPage() {
               desc="รวม alert จาก GDACS เหตุแผ่นดินไหวจาก USGS และรายงานภัยพิบัติจาก ReliefWeb"
             />
             {!globalItems.length ? (
-              <EmptyState title="ยังไม่พบข่าวต่างประเทศ" desc="ถ้าแหล่งข้อมูลตอบกลับช้า ลองกดรีเฟรชอีกครั้ง" />
+              <EmptyState title="ยังไม่พบข่าวต่างประเทศ" desc="ตอนนี้ยังไม่มีประเด็นใหม่ในหมวดนี้" />
             ) : (
               <div style={{ display: 'grid', gap: '12px' }}>
                 {globalItems.map((item, index) => (
