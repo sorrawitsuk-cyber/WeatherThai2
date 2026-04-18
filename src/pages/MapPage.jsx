@@ -721,17 +721,17 @@ export default function MapPage() {
     </div>
   );
 
-  const mobileCategoryOptions = [
-    { id: 'basic', label: 'ทั่วไป', icon: '📊', color: '#0ea5e9' },
-    { id: 'risk', label: 'ความเสี่ยง', icon: '🧠', color: '#8b5cf6' },
-    { id: 'yesterday', label: 'เมื่อวาน', icon: '📋', color: '#f59e0b' },
-    { id: 'gistda', label: 'พิบัติภัย', icon: '🛰️', color: '#ef4444' }
+  const mapCategoryOptions = [
+    { id: 'basic', label: 'สภาพอากาศ', shortLabel: 'อากาศ', icon: '🌤️', color: '#0ea5e9', desc: 'ดูค่าปัจจุบันและพยากรณ์ เช่น PM2.5 ฝน ลม UV' },
+    { id: 'risk', label: 'แผนที่ความเสี่ยง', shortLabel: 'เสี่ยง', icon: '⚠️', color: '#8b5cf6', desc: 'ดูพื้นที่เสี่ยงต่อสุขภาพ กลางแจ้ง ไฟป่า และลมแดด' },
+    { id: 'yesterday', label: 'สถิติย้อนหลัง 1 วัน', shortLabel: 'ย้อนหลัง', icon: '🕘', color: '#f59e0b', desc: 'ดูค่าสูงสุดและค่าที่เกิดขึ้นจริงของเมื่อวาน' },
+    { id: 'gistda', label: 'ข้อมูลดาวเทียมภัยพิบัติ', shortLabel: 'ดาวเทียม', icon: '🛰️', color: '#ef4444', desc: 'ดู hotspot และข้อมูลภัยพิบัติจาก GISTDA ล่าสุด' }
   ];
 
   const mobileTimeOptions = [
-    { id: 'today', label: `📅 วันนี้ ${getDateLabel(0)}`, sub: 'ข้อมูลสด', color: '#22c55e' },
+    { id: 'today', label: `📍 ตอนนี้ ${getDateLabel(0)}`, sub: 'ข้อมูลล่าสุด', color: '#22c55e' },
     { id: 'tomorrow', label: `🔮 พรุ่งนี้ ${getDateLabel(1)}`, sub: 'พยากรณ์', color: '#a855f7' },
-    { id: 'avg7', label: '📊 เฉลี่ย 7 วัน', sub: 'มองภาพรวม', color: '#0ea5e9' },
+    { id: 'avg7', label: '📊 7 วันข้างหน้า', sub: 'มองภาพรวมล่วงหน้า', color: '#0ea5e9' },
   ];
 
   const activeModeList = mapCategory === 'basic' ? basicModes :
@@ -751,7 +751,54 @@ export default function MapPage() {
     else setActiveGistdaMode(id);
   };
 
-  const activeCategoryOption = mobileCategoryOptions.find(opt => opt.id === mapCategory);
+  const activeCategoryOption = mapCategoryOptions.find(opt => opt.id === mapCategory);
+  const activeDataSourceMeta = mapCategory === 'basic'
+    ? (timeMode === 'today'
+        ? { label: 'สด', icon: '🟢', color: '#22c55e', detail: 'AIR4Thai + TMD อัปเดตล่าสุด' }
+        : timeMode === 'tomorrow'
+          ? { label: 'พยากรณ์', icon: '🔮', color: '#a855f7', detail: 'TMD คาดการณ์รายวัน' }
+          : { label: 'ล่วงหน้า', icon: '📊', color: '#0ea5e9', detail: 'แนวโน้ม 7 วันข้างหน้า' })
+    : mapCategory === 'risk'
+      ? (timeMode === 'today'
+          ? { label: 'วิเคราะห์สด', icon: '⚠️', color: '#8b5cf6', detail: 'คำนวณจากข้อมูลล่าสุด' }
+          : timeMode === 'tomorrow'
+            ? { label: 'วิเคราะห์พรุ่งนี้', icon: '🔮', color: '#a855f7', detail: 'คำนวณจากค่าพยากรณ์' }
+            : { label: 'วิเคราะห์ล่วงหน้า', icon: '📊', color: '#0ea5e9', detail: 'แนวโน้มความเสี่ยง 7 วัน' })
+      : mapCategory === 'yesterday'
+        ? { label: 'ย้อนหลัง', icon: '🕘', color: '#f59e0b', detail: 'ค่าที่เกิดขึ้นจริงของเมื่อวาน' }
+        : { label: 'ดาวเทียม', icon: '🛰️', color: '#ef4444', detail: 'ข้อมูล GISTDA ล่าสุด' };
+
+  const timeHelperText = mapCategory === 'basic' || mapCategory === 'risk'
+    ? (timeMode === 'today'
+        ? 'ตอนนี้ = ใช้ค่าล่าสุดที่ระบบมีอยู่ในขณะนี้'
+        : timeMode === 'tomorrow'
+          ? 'พรุ่งนี้ = ค่าพยากรณ์รายวันของวันถัดไป'
+          : '7 วันข้างหน้า = ฝนเป็นค่าสะสม ส่วนค่าอื่นเป็นค่าเฉลี่ยแนวโน้มล่วงหน้า')
+    : '';
+
+  const quickPresetOptions = [
+    {
+      id: 'pm-now',
+      label: 'ดูฝุ่นตอนนี้',
+      icon: '😷',
+      color: '#f97316',
+      onClick: () => { setMapCategory('basic'); setActiveBasicMode('pm25'); setTimeMode('today'); }
+    },
+    {
+      id: 'rain-tomorrow',
+      label: 'ดูฝนพรุ่งนี้',
+      icon: '🌧️',
+      color: '#3b82f6',
+      onClick: () => { setMapCategory('basic'); setActiveBasicMode('rain'); setTimeMode('tomorrow'); }
+    },
+    {
+      id: 'risk-health',
+      label: 'ดูเสี่ยงสุขภาพ',
+      icon: '⚠️',
+      color: '#8b5cf6',
+      onClick: () => { setMapCategory('risk'); setActiveRiskMode('respiratory'); setTimeMode('today'); }
+    }
+  ];
 
   return (
     <div style={{ height: '100%', width: '100%', background: appBg, display: 'flex', flexDirection: 'column', fontFamily: 'Kanit, sans-serif', padding: isMobile ? '0' : '20px', boxSizing: 'border-box' }}>
@@ -769,12 +816,42 @@ export default function MapPage() {
                                   <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#22c55e', display: 'inline-block', boxShadow: '0 0 8px #22c55e', animation: 'pulse 2s infinite' }}></span>
                                   <span style={{ fontSize: '0.75rem', color: subTextColor, fontWeight: 'bold' }}>ข้อมูลตามเวลาจริง {tmdAvailable && '• 📡 TMD'} • อัปเดตล่าสุด: {getLastUpdatedText()}</span>
                               </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px', flexWrap: 'wrap' }}>
+                                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: darkMode ? `${activeDataSourceMeta.color}22` : `${activeDataSourceMeta.color}14`, color: activeDataSourceMeta.color, border: `1px solid ${darkMode ? `${activeDataSourceMeta.color}55` : `${activeDataSourceMeta.color}35`}`, borderRadius: '999px', padding: '4px 10px', fontSize: '0.72rem', fontWeight: 'bold' }}>
+                                    <span>{activeDataSourceMeta.icon}</span>
+                                    <span>{activeDataSourceMeta.label}</span>
+                                  </span>
+                                  <span style={{ fontSize: '0.72rem', color: subTextColor }}>{activeDataSourceMeta.detail}</span>
+                              </div>
                           </div>
-                          <div style={{ display: 'flex', background: cardBg, borderRadius: '50px', border: `1px solid ${borderColor}`, padding: '4px' }}>
-                              <button onClick={() => setMapCategory('basic')} style={{ background: mapCategory === 'basic' ? '#0ea5e9' : 'transparent', color: mapCategory === 'basic' ? '#fff' : subTextColor, border: 'none', padding: '6px 16px', borderRadius: '50px', fontSize: '0.85rem', fontWeight: 'bold', cursor: 'pointer', transition: '0.2s', fontFamily: 'Kanit' }}>📊 ข้อมูลทั่วไป</button>
-                              <button onClick={() => setMapCategory('risk')} style={{ background: mapCategory === 'risk' ? '#8b5cf6' : 'transparent', color: mapCategory === 'risk' ? '#fff' : subTextColor, border: 'none', padding: '6px 16px', borderRadius: '50px', fontSize: '0.85rem', fontWeight: 'bold', cursor: 'pointer', transition: '0.2s', fontFamily: 'Kanit' }}>🧠 วิเคราะห์ความเสี่ยง</button>
-                              <button onClick={() => setMapCategory('yesterday')} style={{ background: mapCategory === 'yesterday' ? '#f59e0b' : 'transparent', color: mapCategory === 'yesterday' ? '#fff' : subTextColor, border: 'none', padding: '6px 16px', borderRadius: '50px', fontSize: '0.85rem', fontWeight: 'bold', cursor: 'pointer', transition: '0.2s', fontFamily: 'Kanit' }}>📋 สถิติเมื่อวาน</button>
-                              <button onClick={() => setMapCategory('gistda')} style={{ background: mapCategory === 'gistda' ? '#ef4444' : 'transparent', color: mapCategory === 'gistda' ? '#fff' : subTextColor, border: 'none', padding: '6px 16px', borderRadius: '50px', fontSize: '0.85rem', fontWeight: 'bold', cursor: 'pointer', transition: '0.2s', fontFamily: 'Kanit' }}>🛰️ พิบัติภัย</button>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '8px', background: cardBg, borderRadius: '18px', border: `1px solid ${borderColor}`, padding: '8px', minWidth: '720px' }}>
+                              {mapCategoryOptions.map(opt => (
+                                <button
+                                  key={opt.id}
+                                  onClick={() => setMapCategory(opt.id)}
+                                  style={{
+                                    background: mapCategory === opt.id ? (darkMode ? `${opt.color}28` : `${opt.color}18`) : 'transparent',
+                                    color: mapCategory === opt.id ? opt.color : textColor,
+                                    border: `1px solid ${mapCategory === opt.id ? opt.color : 'transparent'}`,
+                                    padding: '10px 12px',
+                                    borderRadius: '14px',
+                                    fontSize: '0.8rem',
+                                    fontWeight: 'bold',
+                                    cursor: 'pointer',
+                                    transition: '0.2s',
+                                    fontFamily: 'Kanit',
+                                    textAlign: 'left',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '3px',
+                                    minHeight: '74px',
+                                    justifyContent: 'center'
+                                  }}
+                                >
+                                  <span style={{ fontSize: '0.88rem', lineHeight: 1.1 }}>{opt.icon} {opt.label}</span>
+                                  <span style={{ fontSize: '0.68rem', color: mapCategory === opt.id ? opt.color : subTextColor, fontWeight: mapCategory === opt.id ? 'bold' : 'normal', lineHeight: 1.3 }}>{opt.desc}</span>
+                                </button>
+                              ))}
                           </div>
                       </div>
                       {mapCategory === 'risk' && (
@@ -794,16 +871,27 @@ export default function MapPage() {
                         <button key={m.id} onClick={() => setActiveGistdaMode(m.id)} style={{ padding: '7px 14px', borderRadius: '12px', border: `1px solid ${activeGistdaMode === m.id ? m.color : borderColor}`, background: activeGistdaMode === m.id ? (darkMode ? `${m.color}20` : `${m.color}15`) : cardBg, color: activeGistdaMode === m.id ? m.color : textColor, fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'Kanit', fontSize: '0.85rem' }}>{m.name}</button>
                     ))}
                   </div>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    {quickPresetOptions.map(opt => (
+                      <button
+                        key={opt.id}
+                        onClick={opt.onClick}
+                        style={{ padding: '6px 12px', borderRadius: '999px', border: `1px solid ${darkMode ? `${opt.color}55` : `${opt.color}35`}`, background: darkMode ? `${opt.color}18` : `${opt.color}10`, color: opt.color, fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit', fontSize: '0.78rem' }}
+                      >
+                        {opt.icon} {opt.label}
+                      </button>
+                    ))}
+                  </div>
               </div>
           </div>
 
           {mapCategory === 'basic' || mapCategory === 'risk' ? (
-              <div style={{ background: cardBg, padding: '10px 15px', borderRadius: '12px', border: `1px solid ${borderColor}`, display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px', flexShrink: 0, boxShadow: '0 4px 10px rgba(0,0,0,0.05)' }}>
+              <div style={{ background: cardBg, padding: '10px 15px', borderRadius: '12px', border: `1px solid ${borderColor}`, display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px', flexShrink: 0, boxShadow: '0 4px 10px rgba(0,0,0,0.05)', flexWrap: 'wrap' }}>
                   <span style={{ fontSize: '0.8rem', color: subTextColor, fontWeight: 'bold', whiteSpace: 'nowrap' }}>📅 ช่วงเวลา:</span>
                   {[
-                      { id: 'today', label: `📅 วันนี้ ${getDateLabel(0)}`, sub: 'ข้อมูลสด', color: '#22c55e' },
+                      { id: 'today', label: `📍 ตอนนี้ ${getDateLabel(0)}`, sub: 'ข้อมูลล่าสุด', color: '#22c55e' },
                       { id: 'tomorrow', label: `🔮 พรุ่งนี้ ${getDateLabel(1)}`, sub: 'พยากรณ์', color: '#a855f7' },
-                      { id: 'avg7', label: '📊 เฉลี่ย 7 วัน', sub: 'พยากรณ์ล่วงหน้า', color: '#0ea5e9' },
+                      { id: 'avg7', label: '📊 7 วันข้างหน้า', sub: 'พยากรณ์ล่วงหน้า', color: '#0ea5e9' },
                   ].map(opt => (
                       <button key={opt.id} onClick={() => setTimeMode(opt.id)} style={{ padding: '6px 16px', borderRadius: '20px', border: `1px solid ${timeMode === opt.id ? opt.color : borderColor}`, background: timeMode === opt.id ? (darkMode ? `${opt.color}25` : `${opt.color}18`) : 'var(--bg-secondary)', color: timeMode === opt.id ? opt.color : subTextColor, fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit', fontSize: '0.82rem', transition: 'all 0.2s', display: 'flex', flexDirection: 'column', alignItems: 'center', lineHeight: 1.2 }}>
                           <span>{opt.label}</span>
@@ -811,11 +899,18 @@ export default function MapPage() {
                       </button>
                   ))}
                   {timeMode === 'avg7' && mapCategory === 'basic' && (
-                      <span style={{ fontSize: '0.7rem', color: '#0ea5e9', fontWeight: 'bold', background: '#0ea5e910', padding: '4px 10px', borderRadius: '10px', border: '1px solid #0ea5e940' }}>☔ ฝน = สะสม 7 วัน | ค่าอื่น = เฉลี่ย 7 วัน</span>
+                      <span style={{ fontSize: '0.7rem', color: '#0ea5e9', fontWeight: 'bold', background: '#0ea5e910', padding: '4px 10px', borderRadius: '10px', border: '1px solid #0ea5e940' }}>☔ ฝน = สะสม 7 วันข้างหน้า | ค่าอื่น = เฉลี่ย 7 วันข้างหน้า</span>
                   )}
                   {(timeMode === 'tomorrow' || timeMode === 'avg7') && mapCategory === 'risk' && (
                       <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontWeight: 'bold' }}>⚠ ความชื้นใช้ค่าประมาณ</span>
                   )}
+                  <div style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: darkMode ? `${activeDataSourceMeta.color}22` : `${activeDataSourceMeta.color}14`, color: activeDataSourceMeta.color, border: `1px solid ${darkMode ? `${activeDataSourceMeta.color}55` : `${activeDataSourceMeta.color}35`}`, borderRadius: '999px', padding: '4px 10px', fontSize: '0.7rem', fontWeight: 'bold' }}>
+                      <span>{activeDataSourceMeta.icon}</span>
+                      <span>{activeDataSourceMeta.label}</span>
+                    </span>
+                    <span style={{ fontSize: '0.72rem', color: subTextColor }}>{timeHelperText}</span>
+                  </div>
               </div>
           ) : (
               <div style={{ background: cardBg, padding: '8px 15px', borderRadius: '12px', border: `1px solid ${borderColor}`, marginBottom: '15px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', color: subTextColor, fontWeight: 'bold' }}>
@@ -835,8 +930,20 @@ export default function MapPage() {
                     <span>{activeModeObj?.name || '📊 ข้อมูลทั่วไป'}</span>
                     {(mapCategory === 'basic' || mapCategory === 'risk') && (
                       <span style={{ opacity: 0.8, fontSize: '0.65rem' }}>
-                        {timeMode === 'today' ? '• วันนี้' : timeMode === 'tomorrow' ? '• พรุ่งนี้' : '• เฉลี่ย 7 วัน'}
+                        {timeMode === 'today' ? '• ตอนนี้' : timeMode === 'tomorrow' ? '• พรุ่งนี้' : '• 7 วันข้างหน้า'}
                       </span>
+                    )}
+                  </div>
+                )}
+
+                {isMobile && (
+                  <div style={{ position: 'absolute', top: '38px', left: '12px', zIndex: 1000, display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', maxWidth: 'calc(100vw - 88px)' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: darkMode ? `${activeDataSourceMeta.color}22` : `${activeDataSourceMeta.color}16`, color: activeDataSourceMeta.color, border: `1px solid ${darkMode ? `${activeDataSourceMeta.color}55` : `${activeDataSourceMeta.color}35`}`, backdropFilter: 'blur(8px)', borderRadius: '999px', padding: '3px 8px', fontSize: '0.64rem', fontWeight: 'bold' }}>
+                      <span>{activeDataSourceMeta.icon}</span>
+                      <span>{activeDataSourceMeta.label}</span>
+                    </span>
+                    {(mapCategory === 'basic' || mapCategory === 'risk') && (
+                      <span style={{ fontSize: '0.62rem', color: '#fff', opacity: 0.9, textShadow: '0 1px 3px rgba(0,0,0,0.45)' }}>{timeHelperText}</span>
                     )}
                   </div>
                 )}
@@ -845,10 +952,10 @@ export default function MapPage() {
                   <div style={{ position: 'absolute', top: '56px', left: '12px', right: '60px', zIndex: 1000, display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '2px', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
                     {[
                       { id: 'filter', label: '🎛️ ตัวกรอง', value: basemapStyle === 'satellite' ? '🛰️ ดาวเทียม' : basemapStyle === 'osm' ? '🛣️ ถนน' : basemapStyle === 'dark' ? '🌙 สีเข้ม' : '☀️ สีสว่าง', color: '#14b8a6', accentBg: 'linear-gradient(135deg, rgba(20,184,166,0.95), rgba(13,148,136,0.92))' },
-                      { id: 'category', label: '🗺️ ประเภท', value: `${activeCategoryOption?.icon || '📊'} ${activeCategoryOption?.label || 'ทั่วไป'}`, color: activeCategoryOption?.color || '#0ea5e9' },
+                      { id: 'category', label: '🗺️ ประเภท', value: `${activeCategoryOption?.icon || '🌤️'} ${activeCategoryOption?.shortLabel || 'อากาศ'}`, color: activeCategoryOption?.color || '#0ea5e9' },
                       { id: 'layer', label: '🧩 ชั้นข้อมูล', value: activeModeObj?.name || '-', color: activeModeObj?.color || '#0ea5e9' },
                       ...(mapCategory === 'basic' || mapCategory === 'risk'
-                        ? [{ id: 'time', label: '📅 วันที่', value: timeMode === 'today' ? '📍 วันนี้' : timeMode === 'tomorrow' ? '🔮 พรุ่งนี้' : '📊 7 วัน', color: timeMode === 'tomorrow' ? '#a855f7' : timeMode === 'avg7' ? '#0ea5e9' : '#22c55e' }]
+                        ? [{ id: 'time', label: '📅 วันที่', value: timeMode === 'today' ? '📍 ตอนนี้' : timeMode === 'tomorrow' ? '🔮 พรุ่งนี้' : '📊 7 วันข้างหน้า', color: timeMode === 'tomorrow' ? '#a855f7' : timeMode === 'avg7' ? '#0ea5e9' : '#22c55e' }]
                         : [])
                     ].map(item => (
                       <button
@@ -1036,15 +1143,17 @@ export default function MapPage() {
                       {/* === CATEGORY PANEL dropdown === */}
                       {activePanel === 'category' && (
                         <div className="fade-in" style={{ position: 'absolute', top: '0', right: '52px', background: 'var(--bg-nav-blur)', backdropFilter: 'blur(12px)', padding: '12px', borderRadius: '16px', border: `1px solid ${borderColor}`, width: '220px', boxShadow: '0 4px 20px rgba(0,0,0,0.25)', zIndex: 1002 }}>
-                          <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: textColor, marginBottom: '10px' }}>🗺️ ประเภทแผนที่</div>
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                            {mobileCategoryOptions.map(opt => (
+                          <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: textColor, marginBottom: '6px' }}>🗺️ ประเภทแผนที่</div>
+                          <div style={{ fontSize: '0.66rem', color: subTextColor, marginBottom: '10px', lineHeight: 1.45 }}>เลือกตามสิ่งที่อยากดู: สภาพอากาศปัจจุบัน, พื้นที่เสี่ยง, ข้อมูลเมื่อวาน หรือข้อมูลดาวเทียม</div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            {mapCategoryOptions.map(opt => (
                               <button
                                 key={opt.id}
                                 onClick={() => { setMapCategory(opt.id); setActivePanel(null); }}
-                                style={{ padding: '10px 8px', borderRadius: '12px', border: `1px solid ${mapCategory === opt.id ? opt.color : borderColor}`, background: mapCategory === opt.id ? (darkMode ? `${opt.color}28` : `${opt.color}18`) : 'var(--bg-secondary)', color: mapCategory === opt.id ? opt.color : textColor, fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit', fontSize: '0.72rem', lineHeight: 1.2 }}
+                                style={{ padding: '10px 10px', borderRadius: '12px', border: `1px solid ${mapCategory === opt.id ? opt.color : borderColor}`, background: mapCategory === opt.id ? (darkMode ? `${opt.color}28` : `${opt.color}18`) : 'var(--bg-secondary)', color: mapCategory === opt.id ? opt.color : textColor, fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit', fontSize: '0.72rem', lineHeight: 1.2, textAlign: 'left' }}
                               >
-                                {opt.icon} {opt.label}
+                                <div style={{ fontSize: '0.78rem', fontWeight: 'bold', marginBottom: '3px' }}>{opt.icon} {opt.label}</div>
+                                <div style={{ fontSize: '0.65rem', color: mapCategory === opt.id ? opt.color : subTextColor, fontWeight: 'normal', lineHeight: 1.35 }}>{opt.desc}</div>
                               </button>
                             ))}
                           </div>
@@ -1294,7 +1403,7 @@ export default function MapPage() {
 
               <div style={{ marginBottom: '12px', paddingBottom: '12px', borderBottom: `1px solid ${borderColor}` }}>
                   <div style={{ fontSize: '0.72rem', color: timeMode === 'today' ? '#22c55e' : timeMode === 'tomorrow' ? '#a855f7' : '#0ea5e9', fontWeight: 'bold', marginBottom: '3px' }}>
-                      {timeMode === 'today' ? `● ข้อมูลสด • ${getLastUpdatedText()}` : timeMode === 'tomorrow' ? `🔮 พยากรณ์พรุ่งนี้ ${getDateLabel(1)}` : `📊 ค่าเฉลี่ยพยากรณ์ 7 วันข้างหน้า`}
+                      {timeMode === 'today' ? `● ข้อมูลตอนนี้ • ${getLastUpdatedText()}` : timeMode === 'tomorrow' ? `🔮 พยากรณ์พรุ่งนี้ ${getDateLabel(1)}` : `📊 ภาพรวมพยากรณ์ 7 วันข้างหน้า`}
                   </div>
                   <h2 style={{ margin: 0, color: textColor, fontSize: isMobile ? '1.1rem' : '1.3rem', fontWeight: 'bold' }}>📍 จ.{selectedHotspot.station.areaTH.replace('จังหวัด','')}</h2>
               </div>
@@ -1350,7 +1459,7 @@ export default function MapPage() {
                         { label: 'ตอนนี้', val: pCur ? Math.round(pCur) : null },
                         { label: 'เมื่อวาน ต่ำ', val: yMin ? Math.round(yMin) : null },
                         { label: 'เมื่อวาน สูง', val: yMax ? Math.round(yMax) : null },
-                        { label: 'เฉลี่ย 7 วัน', val: avg7 || null },
+                        { label: '7 วันข้างหน้า', val: avg7 || null },
                       ].map((item, i) => (
                         <div key={i} style={{ textAlign: 'center' }}>
                           <div style={{ fontSize: '0.6rem', color: subTextColor, marginBottom: '2px' }}>{item.label}</div>
@@ -1387,7 +1496,7 @@ export default function MapPage() {
                       <div style={{ color: textColor }}>☀️ UV {selectedHotspot.summary7.tomorrowUv ?? '--'}</div>
                     </div>
                     <div style={{ background: cardBg, padding: '8px', borderRadius: '10px', border: `1px solid #0ea5e920` }}>
-                      <div style={{ color: '#0ea5e9', fontWeight: 'bold', marginBottom: '4px' }}>📊 เฉลี่ย 7 วัน</div>
+                      <div style={{ color: '#0ea5e9', fontWeight: 'bold', marginBottom: '4px' }}>📊 7 วันข้างหน้า</div>
                       <div style={{ color: textColor }}>🌡️ {selectedHotspot.summary7.fcast7TempAvg ?? '--'}° | 🥵 {selectedHotspot.summary7.fcast7HeatAvg ?? '--'}°</div>
                       <div style={{ color: textColor }}>☔ ฝนสะสม {selectedHotspot.summary7.fcast7RainSum ?? '--'}%</div>
                       <div style={{ color: textColor }}>☀️ UV เฉลี่ย {selectedHotspot.summary7.fcast7UvAvg ?? '--'}</div>
