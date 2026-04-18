@@ -844,11 +844,11 @@ export default function MapPage() {
                 {isMobile && (
                   <div style={{ position: 'absolute', top: '56px', left: '12px', right: '60px', zIndex: 1000, display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '2px', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
                     {[
-                      { id: 'filter', label: 'ตัวกรอง', value: basemapStyle === 'satellite' ? 'ดาวเทียม' : basemapStyle === 'osm' ? 'ถนน' : basemapStyle === 'dark' ? 'เข้ม' : 'สว่าง', color: '#475569' },
-                      { id: 'category', label: 'ประเภท', value: activeCategoryOption?.label || 'ทั่วไป', color: activeCategoryOption?.color || '#0ea5e9' },
-                      { id: 'layer', label: 'ชั้นข้อมูล', value: activeModeObj?.name?.replace(/^[^\u0E00-\u0E7Fa-zA-Z0-9]+/u, '').trim() || '-', color: activeModeObj?.color || '#0ea5e9' },
+                      { id: 'filter', label: '🎛️ ตัวกรอง', value: basemapStyle === 'satellite' ? '🛰️ ดาวเทียม' : basemapStyle === 'osm' ? '🛣️ ถนน' : basemapStyle === 'dark' ? '🌙 สีเข้ม' : '☀️ สีสว่าง', color: '#14b8a6', accentBg: 'linear-gradient(135deg, rgba(20,184,166,0.95), rgba(13,148,136,0.92))' },
+                      { id: 'category', label: '🗺️ ประเภท', value: `${activeCategoryOption?.icon || '📊'} ${activeCategoryOption?.label || 'ทั่วไป'}`, color: activeCategoryOption?.color || '#0ea5e9' },
+                      { id: 'layer', label: '🧩 ชั้นข้อมูล', value: activeModeObj?.name || '-', color: activeModeObj?.color || '#0ea5e9' },
                       ...(mapCategory === 'basic' || mapCategory === 'risk'
-                        ? [{ id: 'time', label: 'วันที่', value: timeMode === 'today' ? 'วันนี้' : timeMode === 'tomorrow' ? 'พรุ่งนี้' : '7 วัน', color: timeMode === 'tomorrow' ? '#a855f7' : timeMode === 'avg7' ? '#0ea5e9' : '#22c55e' }]
+                        ? [{ id: 'time', label: '📅 วันที่', value: timeMode === 'today' ? '📍 วันนี้' : timeMode === 'tomorrow' ? '🔮 พรุ่งนี้' : '📊 7 วัน', color: timeMode === 'tomorrow' ? '#a855f7' : timeMode === 'avg7' ? '#0ea5e9' : '#22c55e' }]
                         : [])
                     ].map(item => (
                       <button
@@ -856,21 +856,26 @@ export default function MapPage() {
                         onClick={() => setActivePanel(p => p === item.id ? null : item.id)}
                         style={{
                           flexShrink: 0,
-                          minWidth: item.id === 'layer' ? '116px' : '92px',
+                          minWidth: item.id === 'layer' ? '132px' : item.id === 'filter' ? '118px' : '102px',
                           padding: '8px 10px',
                           borderRadius: '14px',
-                          border: `1px solid ${activePanel === item.id ? item.color : 'rgba(255,255,255,0.2)'}`,
-                          background: activePanel === item.id ? `${item.color}ee` : 'rgba(15,23,42,0.72)',
+                          border: `1px solid ${activePanel === item.id ? item.color : item.id === 'filter' ? 'rgba(45,212,191,0.7)' : 'rgba(255,255,255,0.2)'}`,
+                          background: activePanel === item.id ? (item.accentBg || `${item.color}ee`) : (item.id === 'filter' ? 'linear-gradient(135deg, rgba(13,148,136,0.92), rgba(15,23,42,0.92))' : 'rgba(15,23,42,0.72)'),
                           color: '#fff',
-                          boxShadow: '0 6px 20px rgba(0,0,0,0.22)',
+                          boxShadow: item.id === 'filter' ? '0 8px 24px rgba(13,148,136,0.28)' : '0 6px 20px rgba(0,0,0,0.22)',
                           backdropFilter: 'blur(10px)',
                           fontFamily: 'Kanit',
                           cursor: 'pointer',
-                          textAlign: 'left'
+                          textAlign: 'left',
+                          position: 'relative',
+                          overflow: 'hidden'
                         }}
                       >
-                        <div style={{ fontSize: '0.62rem', opacity: 0.78, fontWeight: 'bold', lineHeight: 1.1 }}>{item.label}</div>
-                        <div style={{ fontSize: '0.74rem', fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2, marginTop: '2px' }}>{item.value}</div>
+                        {item.id === 'filter' && (
+                          <span style={{ position: 'absolute', top: '7px', right: '8px', fontSize: '0.9rem', opacity: activePanel === item.id ? 0.95 : 0.8 }}>✨</span>
+                        )}
+                        <div style={{ fontSize: '0.62rem', opacity: 0.9, fontWeight: 'bold', lineHeight: 1.1 }}>{item.label}</div>
+                        <div style={{ fontSize: '0.74rem', fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2, marginTop: '3px', paddingRight: item.id === 'filter' ? '12px' : '0' }}>{item.value}</div>
                       </button>
                     ))}
                   </div>
