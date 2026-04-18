@@ -28,6 +28,8 @@ const sourceLinkGroups = [
   { label: 'GDACS', url: 'https://www.gdacs.org/', accent: '#7c3aed' },
   { label: 'USGS Earthquake', url: 'https://earthquake.usgs.gov/', accent: '#2563eb' },
   { label: 'ReliefWeb', url: 'https://reliefweb.int/disasters', accent: '#0284c7' },
+  { label: 'NASA Climate', url: 'https://climate.nasa.gov/news/', accent: '#059669' },
+  { label: 'WMO (อุตุนิยมวิทยาโลก)', url: 'https://public.wmo.int/en/media/news', accent: '#0369a1' },
 ];
 
 const thaiSectionConfig = [
@@ -41,6 +43,7 @@ const globalSectionConfig = [
   { key: 'alerts', title: 'เตือนภัยโลก', desc: 'สัญญาณเตือนจากต่างประเทศ', icon: '🚨' },
   { key: 'earthquakes', title: 'แผ่นดินไหวโลก', desc: 'เหตุแผ่นดินไหวเด่นในรอบสัปดาห์', icon: '🌍' },
   { key: 'disasters', title: 'เหตุการณ์สำคัญ', desc: 'รายงานภัยพิบัติจากหลายประเทศ', icon: '🧭' },
+  { key: 'climate', title: 'ภูมิอากาศ & เอลนีโญ่', desc: 'งานวิชาการ ปรากฏการณ์เอลนีโญ่ ลานีญ่า และการเปลี่ยนแปลงภูมิอากาศ', icon: '🌡️' },
 ];
 
 function SectionCard({ children, style }) {
@@ -130,6 +133,89 @@ function MetricCard({ label, value, accent, note, isDark }) {
   );
 }
 
+function VisualArea({ item, compact, visual }) {
+  const hasImage = !!item.imageUrl;
+  const minHeight = compact ? '84px' : '112px';
+  const borderRadius = compact ? '14px' : '16px';
+  const padding = compact ? '12px' : '14px';
+
+  const contentStyle = {
+    position: 'relative',
+    zIndex: 1,
+    height: '100%',
+    display: 'grid',
+    alignContent: 'space-between',
+    minHeight,
+    padding,
+  };
+
+  return (
+    <div
+      style={{
+        borderRadius,
+        minHeight,
+        overflow: 'hidden',
+        position: 'relative',
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.16)',
+      }}
+    >
+      {hasImage ? (
+        <>
+          <img
+            src={item.imageUrl}
+            alt={item.title}
+            loading="lazy"
+            style={{
+              position: 'absolute',
+              inset: 0,
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              objectPosition: 'center',
+            }}
+          />
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background: 'linear-gradient(to bottom, rgba(0,0,0,0.18) 0%, rgba(0,0,0,0.62) 100%)',
+            }}
+          />
+        </>
+      ) : (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: visual.gradient,
+          }}
+        />
+      )}
+      <div style={contentStyle}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'start' }}>
+          <span
+            style={{
+              background: 'rgba(255,255,255,0.22)',
+              borderRadius: '999px',
+              padding: '4px 10px',
+              fontSize: '0.68rem',
+              fontWeight: 800,
+              color: '#ffffff',
+              backdropFilter: 'blur(4px)',
+            }}
+          >
+            {visual.kicker}
+          </span>
+          <span style={{ fontSize: compact ? '1.6rem' : '1.9rem', lineHeight: 1 }}>{visual.emoji}</span>
+        </div>
+        <div style={{ color: '#ffffff', fontSize: compact ? '0.78rem' : '0.84rem', fontWeight: 800, lineHeight: 1.5, opacity: 0.96 }}>
+          {visual.label}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function NewsItem({ item, compact = false, isDark = false }) {
   const severity = severityStyles[item.severity] || severityStyles.normal;
   const visual = item.visual || {
@@ -151,36 +237,7 @@ function NewsItem({ item, compact = false, isDark = false }) {
         boxShadow: isDark ? '0 10px 28px rgba(0,0,0,0.18)' : '0 10px 22px rgba(14,30,56,0.05)',
       }}
     >
-      <div
-        style={{
-          background: visual.gradient,
-          borderRadius: compact ? '14px' : '16px',
-          minHeight: compact ? '84px' : '112px',
-          padding: compact ? '12px' : '14px',
-          color: '#ffffff',
-          display: 'grid',
-          alignContent: 'space-between',
-          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.16)',
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'start' }}>
-          <span
-            style={{
-              background: 'rgba(255,255,255,0.22)',
-              borderRadius: '999px',
-              padding: '4px 10px',
-              fontSize: '0.68rem',
-              fontWeight: 800,
-            }}
-          >
-            {visual.kicker}
-          </span>
-          <span style={{ fontSize: compact ? '1.6rem' : '1.9rem', lineHeight: 1 }}>{visual.emoji}</span>
-        </div>
-        <div style={{ fontSize: compact ? '0.78rem' : '0.84rem', fontWeight: 800, lineHeight: 1.5, opacity: 0.96 }}>
-          {visual.label}
-        </div>
-      </div>
+      <VisualArea item={item} compact={compact} visual={visual} />
 
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -277,6 +334,44 @@ function EmptyState({ title, desc, isDark = false }) {
   );
 }
 
+function SourceStatusBar({ sourceStatus }) {
+  if (!sourceStatus?.length) return null;
+  const failed = sourceStatus.filter((s) => s.status !== 'ok');
+  if (!failed.length) return null;
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: '6px',
+        padding: '10px 14px',
+        background: 'rgba(245,158,11,0.1)',
+        border: '1px solid rgba(245,158,11,0.24)',
+        borderRadius: '14px',
+        fontSize: '0.72rem',
+        color: '#b45309',
+        fontWeight: 700,
+        alignItems: 'center',
+      }}
+    >
+      <span>⚠ แหล่งข้อมูลไม่ตอบสนอง:</span>
+      {failed.map((s) => (
+        <span
+          key={s.label}
+          style={{
+            background: 'rgba(245,158,11,0.16)',
+            border: '1px solid rgba(245,158,11,0.3)',
+            borderRadius: '999px',
+            padding: '2px 8px',
+          }}
+        >
+          {s.label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function BentoSection({ icon, title, desc, items, isDark = false }) {
   return (
     <SectionCard>
@@ -323,11 +418,13 @@ function WeatherDayCard({ day, index, isDark = false }) {
       </div>
       <div style={{ color: 'var(--text-main)', fontWeight: 800, fontSize: '0.83rem', lineHeight: 1.5 }}>{day.label}</div>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
-        <div style={{ color: '#ea580c', fontWeight: 900, fontSize: '1.15rem' }}>{day.max}°</div>
-        <div style={{ color: '#2563eb', fontWeight: 800, fontSize: '0.84rem', alignSelf: 'end' }}>ต่ำสุด {day.min}°</div>
+        <div style={{ color: '#ea580c', fontWeight: 900, fontSize: '1.15rem' }}>{day.max != null ? `${day.max}°` : '-'}</div>
+        <div style={{ color: '#2563eb', fontWeight: 800, fontSize: '0.84rem', alignSelf: 'end' }}>
+          ต่ำสุด {day.min != null ? `${day.min}°` : '-'}
+        </div>
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', color: 'var(--text-sub)', fontSize: '0.72rem' }}>
-        <span>ฝน {day.rainChance}%</span>
+        <span>ฝน {day.rainChance ?? '-'}%</span>
         <span>{day.rainSum || 0} มม.</span>
       </div>
     </div>
@@ -338,12 +435,16 @@ function formatApiItems(items = []) {
   return items.map((item) => ({
     ...item,
     publishedAtLabel: item.publishedAt
-      ? new Date(item.publishedAt).toLocaleString('th-TH', {
-          day: 'numeric',
-          month: 'short',
-          hour: '2-digit',
-          minute: '2-digit',
-        })
+      ? (() => {
+          const d = new Date(item.publishedAt);
+          if (Number.isNaN(d.getTime())) return item.publishedAt;
+          return d.toLocaleString('th-TH', {
+            day: 'numeric',
+            month: 'short',
+            hour: '2-digit',
+            minute: '2-digit',
+          });
+        })()
       : '-',
   }));
 }
@@ -399,6 +500,7 @@ export default function NewsPage() {
     { id: 'overview', label: isMobile ? 'สรุป' : 'ภาพรวม', icon: '✦' },
     { id: 'thailand', label: isMobile ? 'ไทย' : 'ข่าวไทย', icon: '🇹🇭' },
     { id: 'global', label: isMobile ? 'โลก' : 'ต่างประเทศ', icon: '🌐' },
+    { id: 'climate', label: isMobile ? 'ภูมิอากาศ' : 'ภูมิอากาศโลก', icon: '🌡️' },
   ];
 
   const thaiGroups = useMemo(() => {
@@ -417,6 +519,7 @@ export default function NewsPage() {
       alerts: formatApiItems(data.global?.alerts || []),
       earthquakes: formatApiItems(data.global?.earthquakes || []),
       disasters: formatApiItems(data.global?.disasters || []),
+      climate: formatApiItems(data.global?.climate || []),
     };
   }, [data]);
 
@@ -424,6 +527,7 @@ export default function NewsPage() {
   const digestBullets = data?.digest?.bullets || [];
   const leadThaiStory = thaiGroups.warnings?.[0] || thaiGroups.storms?.[0] || thaiGroups.disasters?.[0];
   const leadGlobalStory = globalGroups.alerts?.[0] || globalGroups.earthquakes?.[0] || globalGroups.disasters?.[0];
+  const leadClimateStory = globalGroups.climate?.[0];
 
   return (
     <div
@@ -452,7 +556,7 @@ export default function NewsPage() {
             <CardTitle
               eyebrow="Newsroom"
               title="ข่าวสารอากาศและภัยพิบัติ"
-              desc="บอร์ดข่าวแบบ bento ที่แยกประเด็นให้อ่านง่าย เห็นทั้งภาพรวม เหตุในไทย และสถานการณ์ต่างประเทศในหน้าเดียว"
+              desc="บอร์ดข่าวแบบ bento ที่แยกประเด็นให้อ่านง่าย เห็นทั้งภาพรวม เหตุในไทย สถานการณ์ต่างประเทศ และวิทยาศาสตร์ภูมิอากาศในหน้าเดียว"
               light
               action={
                 <button
@@ -521,7 +625,7 @@ export default function NewsPage() {
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: isMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(2, minmax(0, 1fr))',
+                  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
                   gap: '10px',
                 }}
               >
@@ -570,6 +674,10 @@ export default function NewsPage() {
           </SectionCard>
         ) : null}
 
+        {!loading && !error && data ? (
+          <SourceStatusBar sourceStatus={data.sourceStatus} />
+        ) : null}
+
         {!loading && !error && data && activeTab === 'overview' ? (
           <div
             style={{
@@ -589,7 +697,7 @@ export default function NewsPage() {
                 <CardTitle
                   eyebrow="Overview"
                   title="ภาพรวมสถานการณ์วันนี้"
-                  desc="ออกแบบใหม่ให้เห็นประเด็นสำคัญแบบสแกนเร็ว พร้อมการ์ดเด่นของไทยและต่างประเทศ"
+                  desc="เห็นประเด็นสำคัญแบบสแกนเร็ว พร้อมการ์ดเด่นของไทยและต่างประเทศ"
                 />
                 <div
                   style={{
@@ -634,6 +742,23 @@ export default function NewsPage() {
                     )}
                   </div>
                 </div>
+
+                {leadClimateStory ? (
+                  <div
+                    style={{
+                      marginTop: '12px',
+                      background: isDark
+                        ? 'linear-gradient(135deg, rgba(5,150,105,0.22), rgba(3,105,161,0.18))'
+                        : 'linear-gradient(135deg, rgba(5,150,105,0.12), rgba(3,105,161,0.10))',
+                      borderRadius: '20px',
+                      border: isDark ? '1px solid rgba(52,211,153,0.18)' : '1px solid rgba(5,150,105,0.18)',
+                      padding: '16px',
+                    }}
+                  >
+                    <div style={{ color: '#059669', fontWeight: 900, fontSize: '0.76rem', marginBottom: '8px' }}>CLIMATE SCIENCE</div>
+                    <NewsItem item={leadClimateStory} isDark={isDark} />
+                  </div>
+                ) : null}
               </SectionCard>
 
               <SectionCard>
@@ -742,7 +867,7 @@ export default function NewsPage() {
               gap: '16px',
             }}
           >
-            {globalSectionConfig.map((section) => (
+            {globalSectionConfig.filter((s) => s.key !== 'climate').map((section) => (
               <SectionCard key={section.key}>
                 <CardTitle eyebrow={section.icon} title={section.title} desc={section.desc} />
                 {!globalGroups[section.key]?.length ? (
@@ -756,6 +881,110 @@ export default function NewsPage() {
                 )}
               </SectionCard>
             ))}
+          </div>
+        ) : null}
+
+        {!loading && !error && data && activeTab === 'climate' ? (
+          <div style={{ display: 'grid', gap: '16px' }}>
+            <SectionCard
+              style={{
+                background: isDark
+                  ? 'linear-gradient(135deg, rgba(5,150,105,0.18), rgba(3,105,161,0.22))'
+                  : 'linear-gradient(135deg, rgba(5,150,105,0.08), rgba(3,105,161,0.10))',
+                border: isDark ? '1px solid rgba(52,211,153,0.2)' : '1px solid rgba(5,150,105,0.2)',
+              }}
+            >
+              <CardTitle
+                eyebrow="🌡️ Climate Science"
+                title="ภูมิอากาศ เอลนีโญ่ & ลานีญ่า"
+                desc="ติดตามงานวิชาการ ปรากฏการณ์ ENSO ล่าสุด การเปลี่ยนแปลงสภาพภูมิอากาศ จาก NASA และองค์การอุตุนิยมวิทยาโลก (WMO)"
+              />
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, minmax(0, 1fr))',
+                  gap: '12px',
+                  marginBottom: '16px',
+                }}
+              >
+                <div
+                  style={{
+                    background: isDark ? 'rgba(5,150,105,0.16)' : 'rgba(5,150,105,0.08)',
+                    border: '1px solid rgba(5,150,105,0.24)',
+                    borderRadius: '18px',
+                    padding: '16px',
+                  }}
+                >
+                  <div style={{ fontSize: '1.6rem', marginBottom: '8px' }}>🌊</div>
+                  <div style={{ fontWeight: 900, fontSize: '0.9rem', color: 'var(--text-main)', marginBottom: '6px' }}>เอลนีโญ่ (El Niño)</div>
+                  <div style={{ color: 'var(--text-sub)', fontSize: '0.8rem', lineHeight: 1.6 }}>
+                    ปรากฏการณ์ที่น้ำทะเลในมหาสมุทรแปซิฟิกตะวันออกมีอุณหภูมิสูงกว่าปกติ ทำให้ฝนลดลงในหลายพื้นที่ของเอเชียตะวันออกเฉียงใต้
+                  </div>
+                </div>
+                <div
+                  style={{
+                    background: isDark ? 'rgba(3,105,161,0.16)' : 'rgba(3,105,161,0.08)',
+                    border: '1px solid rgba(3,105,161,0.24)',
+                    borderRadius: '18px',
+                    padding: '16px',
+                  }}
+                >
+                  <div style={{ fontSize: '1.6rem', marginBottom: '8px' }}>🌧️</div>
+                  <div style={{ fontWeight: 900, fontSize: '0.9rem', color: 'var(--text-main)', marginBottom: '6px' }}>ลานีญ่า (La Niña)</div>
+                  <div style={{ color: 'var(--text-sub)', fontSize: '0.8rem', lineHeight: 1.6 }}>
+                    น้ำทะเลในมหาสมุทรแปซิฟิกตะวันออกเย็นกว่าปกติ มักนำฝนมากและอาจก่อให้เกิดน้ำท่วมในภูมิภาคเอเชีย
+                  </div>
+                </div>
+              </div>
+            </SectionCard>
+
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, minmax(0, 1fr))',
+                gap: '16px',
+              }}
+            >
+              <BentoSection
+                icon="🌡️"
+                title="ข่าวภูมิอากาศล่าสุด"
+                desc="งานวิชาการและข่าวสารจาก NASA Climate & WMO"
+                items={(globalGroups.climate || []).filter((item) => item.source === 'NASA Climate').slice(0, 5)}
+                isDark={isDark}
+              />
+              <BentoSection
+                icon="🌍"
+                title="ประกาศ WMO"
+                desc="ข่าวสารจากองค์การอุตุนิยมวิทยาโลก"
+                items={(globalGroups.climate || []).filter((item) => item.source === 'WMO').slice(0, 5)}
+                isDark={isDark}
+              />
+            </div>
+
+            {!!(globalGroups.climate || []).length && (
+              <SectionCard>
+                <CardTitle eyebrow="📚 ทั้งหมด" title="ข่าวภูมิอากาศทั้งหมด" desc="รวมข่าววิทยาศาสตร์ภูมิอากาศจากทุกแหล่ง" />
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, minmax(0, 1fr))',
+                    gap: '10px',
+                  }}
+                >
+                  {(globalGroups.climate || []).map((item, index) => (
+                    <NewsItem key={`climate-all-${item.id || index}`} item={item} compact isDark={isDark} />
+                  ))}
+                </div>
+              </SectionCard>
+            )}
+
+            {!(globalGroups.climate || []).length && (
+              <EmptyState
+                title="ยังไม่มีข่าวภูมิอากาศในขณะนี้"
+                desc="โปรดลองรีเฟรชใหม่อีกครั้ง หรือตรวจสอบที่เว็บไซต์ NASA Climate และ WMO โดยตรง"
+                isDark={isDark}
+              />
+            )}
           </div>
         ) : null}
       </div>

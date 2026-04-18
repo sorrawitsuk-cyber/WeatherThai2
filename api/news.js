@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const WEATHER_URL =
-  'https://api.open-meteo.com/v1/forecast?latitude=13.7563&longitude=100.5018&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,windspeed_10m_max,uv_index_max&current_weather=true&timezone=Asia%2FBangkok&forecast_days=7';
+  'https://api.open-meteo.com/v1/forecast?latitude=13.7563&longitude=100.5018&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,uv_index_max&current_weather=true&timezone=Asia%2FBangkok&forecast_days=7';
 
 const TMD_FEEDS = {
   forecast: 'https://www.tmd.go.th/api/xml/region-daily-forecast?regionid=7',
@@ -13,6 +13,8 @@ const TMD_FEEDS = {
 const GDACS_URL = 'https://www.gdacs.org/xml/rss.xml';
 const USGS_URL = 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/significant_week.geojson';
 const RELIEFWEB_URL = 'https://api.reliefweb.int/v1/disasters?appname=airqualitythai&limit=30&sort[]=date.created:desc';
+const NASA_CLIMATE_URL = 'https://climate.nasa.gov/api/v1/news_items/?page=0&per_page=10&order=publish_date+desc';
+const WMO_RSS_URL = 'https://public.wmo.int/en/rss.xml';
 
 const MODEL_CANDIDATES = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
 const THAI_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
@@ -27,6 +29,12 @@ const GDACS_EVENT_MAP = {
   TS: 'สึนามิ',
 };
 
+const CLIMATE_KEYWORDS = [
+  'el nino', 'el niño', 'la nina', 'la niña', 'enso', 'climate', 'global warming',
+  'sea surface temperature', 'pacific', 'monsoon', 'drought', 'flood', 'extreme weather',
+  'carbon', 'arctic', 'glacier', 'sea level', 'heat wave', 'cyclone', 'typhoon',
+];
+
 const VISUAL_PRESETS = {
   warning: { emoji: '⚠️', gradient: 'linear-gradient(135deg, #f97316 0%, #ef4444 100%)', kicker: 'ประกาศเตือน' },
   storm: { emoji: '🌧️', gradient: 'linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%)', kicker: 'พายุและฝน' },
@@ -35,6 +43,8 @@ const VISUAL_PRESETS = {
   'global-alert': { emoji: '🌐', gradient: 'linear-gradient(135deg, #7c3aed 0%, #2563eb 100%)', kicker: 'เตือนภัยโลก' },
   'global-disaster': { emoji: '🧭', gradient: 'linear-gradient(135deg, #0284c7 0%, #0f766e 100%)', kicker: 'เหตุการณ์สำคัญ' },
   weather: { emoji: '⛅', gradient: 'linear-gradient(135deg, #0ea5e9 0%, #14b8a6 100%)', kicker: 'พยากรณ์อากาศ' },
+  climate: { emoji: '🌡️', gradient: 'linear-gradient(135deg, #059669 0%, #0369a1 100%)', kicker: 'ภูมิอากาศวิทยา' },
+  enso: { emoji: '🌊', gradient: 'linear-gradient(135deg, #0284c7 0%, #7c3aed 100%)', kicker: 'เอลนีโญ่/ลานีญ่า' },
   default: { emoji: '📰', gradient: 'linear-gradient(135deg, #0f766e 0%, #0369a1 100%)', kicker: 'ข่าวเด่น' },
 };
 
@@ -94,7 +104,14 @@ async function fetchJson(url, options) {
 }
 
 async function fetchText(url, options) {
-  const response = await fetchWithTimeout(url, options);
+  const response = await fetchWithTimeout(url, {
+    ...options,
+    headers: {
+      Accept: 'text/xml, application/xml, text/plain, */*',
+      'User-Agent': 'Mozilla/5.0 (compatible; AirQualityThai/1.0)',
+      ...(options?.headers || {}),
+    },
+  });
   return response.text();
 }
 
@@ -129,6 +146,11 @@ function isMostlyThai(text = '') {
   return /[\u0E00-\u0E7F]/.test(text);
 }
 
+function isEnsoRelated(text = '') {
+  const lower = text.toLowerCase();
+  return CLIMATE_KEYWORDS.some((kw) => lower.includes(kw));
+}
+
 function translateStaticText(text = '') {
   const replacements = [
     ['Earthquake', 'แผ่นดินไหว'],
@@ -152,6 +174,16 @@ function translateStaticText(text = '') {
     ['ongoing', 'กำลังเกิดขึ้น'],
     ['alert', 'แจ้งเตือน'],
     ['past', 'ที่ผ่านมา'],
+    ['El Nino', 'เอลนีโญ่'],
+    ['El Niño', 'เอลนีโญ่'],
+    ['La Nina', 'ลานีญ่า'],
+    ['La Niña', 'ลานีญ่า'],
+    ['ENSO', 'ENSO (ปรากฏการณ์เอลนีโญ่)'],
+    ['climate change', 'การเปลี่ยนแปลงสภาพภูมิอากาศ'],
+    ['global warming', 'ภาวะโลกร้อน'],
+    ['sea level', 'ระดับน้ำทะเล'],
+    ['NASA', 'NASA'],
+    ['WMO', 'องค์การอุตุนิยมวิทยาโลก'],
   ];
 
   return replacements.reduce((value, [from, to]) => value.replaceAll(from, to), text).trim();
@@ -168,13 +200,24 @@ function buildVisual(category, fallbackTitle = '', extra = {}) {
 }
 
 function enrichItem(item) {
-  const visualCategory = item.category === 'global-alert' && item.eventType === 'EQ' ? 'earthquake' : item.category;
+  const text = `${item.title} ${item.summary || ''}`.toLowerCase();
+  const isEnso = isEnsoRelated(text);
+  const visualCategory =
+    isEnso && item.category === 'climate'
+      ? 'enso'
+      : item.category === 'global-alert' && item.eventType === 'EQ'
+        ? 'earthquake'
+        : item.category;
   return {
     ...item,
     visual: buildVisual(visualCategory, item.title, {
       kicker: item.eventLabel || item.country || item.status || undefined,
     }),
   };
+}
+
+function getWeatherField(daily, newKey, oldKey, index) {
+  return daily[newKey]?.[index] ?? daily[oldKey]?.[index];
 }
 
 function mapWeatherCode(code) {
@@ -198,7 +241,7 @@ function mapWeatherCode(code) {
     96: 'พายุฝนฟ้าคะนองและลูกเห็บ',
     99: 'พายุรุนแรงและลูกเห็บ',
   };
-  return labels[code] || `สภาพอากาศรหัส ${code}`;
+  return labels[code] || (code != null ? `สภาพอากาศรหัส ${code}` : 'ไม่ทราบสภาพอากาศ');
 }
 
 function buildWeatherSummary(weather) {
@@ -207,6 +250,7 @@ function buildWeatherSummary(weather) {
       title: 'สรุปอากาศกรุงเทพฯ',
       summary: 'ไม่สามารถดึงพยากรณ์อากาศได้ในขณะนี้',
       bullets: [],
+      days: [],
     };
   }
 
@@ -216,12 +260,12 @@ function buildWeatherSummary(weather) {
     min: daily.temperature_2m_min?.[0],
     rainChance: daily.precipitation_probability_max?.[0],
     rainSum: daily.precipitation_sum?.[0],
-    wind: daily.windspeed_10m_max?.[0],
+    wind: getWeatherField(daily, 'wind_speed_10m_max', 'windspeed_10m_max', 0),
     uv: daily.uv_index_max?.[0],
-    code: daily.weathercode?.[0],
+    code: getWeatherField(daily, 'weather_code', 'weathercode', 0),
   };
 
-  const summary = `${mapWeatherCode(today.code)} สูงสุด ${today.max}°C ต่ำสุด ${today.min}°C โอกาสฝน ${today.rainChance}%`;
+  const summary = `${mapWeatherCode(today.code)} สูงสุด ${today.max ?? '-'}°C ต่ำสุด ${today.min ?? '-'}°C โอกาสฝน ${today.rainChance ?? '-'}%`;
   const bullets = [];
 
   if ((today.rainChance || 0) >= 60) bullets.push('กรุงเทพฯ มีโอกาสฝนค่อนข้างสูง ควรเผื่อเวลาเดินทางและเตรียมร่ม');
@@ -237,25 +281,27 @@ function buildWeatherSummary(weather) {
     visual: buildVisual('weather', summary),
     days: (daily.time || []).map((time, index) => ({
       time,
-      label: mapWeatherCode(daily.weathercode?.[index]),
-      code: daily.weathercode?.[index],
+      label: mapWeatherCode(getWeatherField(daily, 'weather_code', 'weathercode', index)),
+      code: getWeatherField(daily, 'weather_code', 'weathercode', index),
       max: daily.temperature_2m_max?.[index],
       min: daily.temperature_2m_min?.[index],
       rainChance: daily.precipitation_probability_max?.[index],
       rainSum: daily.precipitation_sum?.[index],
-      wind: daily.windspeed_10m_max?.[index],
+      wind: getWeatherField(daily, 'wind_speed_10m_max', 'windspeed_10m_max', index),
       uv: daily.uv_index_max?.[index],
     })),
   };
 }
 
 async function fetchTmdFeeds() {
-  const [forecastXml, warningsXml, stormXml, quakeXml] = await Promise.all([
+  const [forecastResult, warningsResult, stormResult, quakeResult] = await Promise.allSettled([
     fetchText(TMD_FEEDS.forecast),
     fetchText(TMD_FEEDS.warnings),
     fetchText(TMD_FEEDS.storm),
     fetchText(TMD_FEEDS.quake),
   ]);
+
+  const safeXml = (result) => (result.status === 'fulfilled' ? result.value : '<rss></rss>');
 
   const parseStandard = (xml) =>
     parseRssItems(xml, (item) => ({
@@ -266,25 +312,37 @@ async function fetchTmdFeeds() {
     }));
 
   return {
-    forecast: parseStandard(forecastXml).slice(0, 5),
-    warnings: parseStandard(warningsXml).slice(0, 8).map((item) => ({
-      ...item,
-      severity: severityFromText(`${item.title} ${item.summary}`),
-      source: 'TMD',
-      category: 'warning',
-    })),
-    storm: parseStandard(stormXml).slice(0, 6).map((item) => ({
-      ...item,
-      severity: 'medium',
-      source: 'TMD',
-      category: 'storm',
-    })),
-    earthquake: parseStandard(quakeXml).slice(0, 10).map((item) => ({
-      ...item,
-      severity: 'medium',
-      source: 'TMD',
-      category: 'earthquake',
-    })),
+    forecast: parseStandard(safeXml(forecastResult)).slice(0, 5),
+    warnings: parseStandard(safeXml(warningsResult))
+      .slice(0, 8)
+      .map((item) => ({
+        ...item,
+        severity: severityFromText(`${item.title} ${item.summary}`),
+        source: 'TMD',
+        category: 'warning',
+      })),
+    storm: parseStandard(safeXml(stormResult))
+      .slice(0, 6)
+      .map((item) => ({
+        ...item,
+        severity: 'medium',
+        source: 'TMD',
+        category: 'storm',
+      })),
+    earthquake: parseStandard(safeXml(quakeResult))
+      .slice(0, 10)
+      .map((item) => ({
+        ...item,
+        severity: 'medium',
+        source: 'TMD',
+        category: 'earthquake',
+      })),
+    tmdStatus: {
+      forecast: forecastResult.status,
+      warnings: warningsResult.status,
+      storm: stormResult.status,
+      earthquake: quakeResult.status,
+    },
   };
 }
 
@@ -372,7 +430,70 @@ async function fetchReliefWebDisasters(mode) {
   });
 }
 
-async function maybeTranslateGlobalItems(items) {
+async function fetchClimateNews() {
+  const results = await Promise.allSettled([
+    fetchJson(NASA_CLIMATE_URL),
+    fetchText(WMO_RSS_URL),
+  ]);
+
+  const items = [];
+
+  // NASA Climate JSON API
+  if (results[0].status === 'fulfilled') {
+    const data = results[0].value;
+    const nasaItems = (data.results || data.items || []).slice(0, 8);
+    for (const item of nasaItems) {
+      items.push({
+        id: `nasa-${item.id}`,
+        title: item.title || '',
+        summary: item.excerpt || item.description || '',
+        publishedAt: item.publish_date,
+        link: item.url || `https://climate.nasa.gov/news/${item.id}/`,
+        imageUrl: item.featured_image_url || item.main_image?.url || '',
+        source: 'NASA Climate',
+        category: 'climate',
+        severity: 'normal',
+      });
+    }
+  }
+
+  // WMO RSS as secondary
+  if (results[1].status === 'fulfilled') {
+    const wmoItems = parseRssItems(results[1].value, (item) => ({
+      title: getTag(item, 'title'),
+      summary: getTag(item, 'description'),
+      publishedAt: getTag(item, 'pubDate'),
+      link: getTag(item, 'link') || getTag(item, 'guid'),
+      imageUrl: '',
+      source: 'WMO',
+      category: 'climate',
+      severity: 'normal',
+    })).slice(0, 5);
+    items.push(...wmoItems);
+  }
+
+  // Sort by publishedAt, deduplicate by title prefix
+  const seen = new Set();
+  return items
+    .filter((item) => {
+      if (!item.title) return false;
+      const key = item.title.slice(0, 40).toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .sort((a, b) => new Date(b.publishedAt || 0) - new Date(a.publishedAt || 0))
+    .slice(0, 12);
+}
+
+function stripMarkdownJson(text = '') {
+  return text
+    .replace(/^```(?:json)?\s*\n?/m, '')
+    .replace(/\n?\s*```\s*$/m, '')
+    .trim();
+}
+
+async function maybeTranslateItems(items) {
   const apiKey = process.env.GEMINI_API_KEY;
   const targets = items.filter((item) => !isMostlyThai(item.title) || !isMostlyThai(item.summary || ''));
   if (!targets.length) return items;
@@ -388,16 +509,17 @@ async function maybeTranslateGlobalItems(items) {
   const payload = targets.map((item, index) => ({
     index,
     title: item.title || '',
-    summary: item.summary || '',
+    summary: (item.summary || '').slice(0, 200),
     eventLabel: item.eventLabel || '',
     country: item.country || '',
     status: item.status || '',
   }));
 
   const prompt = [
-    'แปลข่าวภัยพิบัติและสภาพอากาศต่อไปนี้เป็นภาษาไทยสำหรับผู้ใช้ทั่วไป',
-    'ตอบเป็น JSON array เท่านั้น โดยคงลำดับเดิมและใช้รูปแบบ [{"index":0,"title":"...","summary":"..."}]',
-    'แปลให้กระชับ อ่านง่าย และห้ามเติมข้อมูลใหม่',
+    'แปลข่าวภัยพิบัติ สภาพอากาศ และภูมิอากาศต่อไปนี้เป็นภาษาไทยสำหรับผู้ใช้ทั่วไป',
+    'ตอบเป็น JSON array เท่านั้น (ไม่ต้องมี markdown) โดยคงลำดับเดิมและใช้รูปแบบ [{"index":0,"title":"...","summary":"..."}]',
+    'แปลให้กระชับ อ่านง่าย เข้าใจง่าย และห้ามเติมข้อมูลใหม่',
+    'ชื่อเฉพาะ เช่น El Niño ให้แปลว่า เอลนีโญ่, La Niña ให้แปลว่า ลานีญ่า',
     JSON.stringify(payload),
   ].join('\n');
 
@@ -406,7 +528,8 @@ async function maybeTranslateGlobalItems(items) {
   for (const model of MODEL_CANDIDATES) {
     try {
       const result = await client.getGenerativeModel({ model }).generateContent(prompt);
-      const text = result.response.text()?.trim();
+      const raw = result.response.text()?.trim();
+      const text = stripMarkdownJson(raw);
       const parsed = JSON.parse(text);
       if (!Array.isArray(parsed)) continue;
 
@@ -477,7 +600,7 @@ async function maybeGenerateAiSummary(payload) {
 
   const prompt = [
     'สรุปข่าวอากาศและภัยพิบัติเป็นภาษาไทยแบบกระชับ ใช้งานจริง อ่านง่าย สำหรับหน้า dashboard',
-    'ตอบเป็น JSON เท่านั้นในรูปแบบ {"headline":"...","bullets":["..."]}',
+    'ตอบเป็น JSON เท่านั้น (ไม่ต้องมี markdown) ในรูปแบบ {"headline":"...","bullets":["..."]}',
     'headline 1 ประโยค bullets 3-5 ข้อ และห้ามแต่งข้อมูลเกินชุดข้อมูลที่ให้',
     JSON.stringify(payload),
   ].join('\n');
@@ -487,7 +610,8 @@ async function maybeGenerateAiSummary(payload) {
   for (const model of MODEL_CANDIDATES) {
     try {
       const result = await client.getGenerativeModel({ model }).generateContent(prompt);
-      const text = result.response.text()?.trim();
+      const raw = result.response.text()?.trim();
+      const text = stripMarkdownJson(raw);
       const parsed = JSON.parse(text);
       if (parsed?.headline && Array.isArray(parsed?.bullets)) {
         return {
@@ -525,6 +649,7 @@ export default async function handler(req, res) {
     fetchEarthquakes(),
     fetchReliefWebDisasters('thai'),
     fetchReliefWebDisasters('global'),
+    fetchClimateNews(),
   ]);
 
   const weatherRaw = tasks[0].status === 'fulfilled' ? tasks[0].value : null;
@@ -533,18 +658,29 @@ export default async function handler(req, res) {
   const usgsRaw = tasks[3].status === 'fulfilled' ? tasks[3].value : [];
   const thaiDisastersRaw = tasks[4].status === 'fulfilled' ? tasks[4].value : [];
   const globalDisastersRaw = tasks[5].status === 'fulfilled' ? tasks[5].value : [];
+  const climateRaw = tasks[6].status === 'fulfilled' ? tasks[6].value : [];
 
-  const [gdacsTranslated, usgsTranslated, globalDisastersTranslated] = await Promise.all([
-    maybeTranslateGlobalItems(gdacsRaw),
-    maybeTranslateGlobalItems(usgsRaw),
-    maybeTranslateGlobalItems(globalDisastersRaw),
-  ]);
+  // Batch all non-Thai content into a single translation call for better performance
+  const allGlobalRaw = [
+    ...gdacsRaw.map((item) => ({ ...item, _batch: 'gdacs' })),
+    ...usgsRaw.map((item) => ({ ...item, _batch: 'usgs' })),
+    ...globalDisastersRaw.map((item) => ({ ...item, _batch: 'globalDisasters' })),
+    ...climateRaw.map((item) => ({ ...item, _batch: 'climate' })),
+  ];
+
+  const allGlobalTranslated = await maybeTranslateItems(allGlobalRaw);
+
+  const gdacsTranslated = allGlobalTranslated.filter((item) => item._batch === 'gdacs').map(({ _batch, ...item }) => item);
+  const usgsTranslated = allGlobalTranslated.filter((item) => item._batch === 'usgs').map(({ _batch, ...item }) => item);
+  const globalDisastersTranslated = allGlobalTranslated.filter((item) => item._batch === 'globalDisasters').map(({ _batch, ...item }) => item);
+  const climateTranslated = allGlobalTranslated.filter((item) => item._batch === 'climate').map(({ _batch, ...item }) => item);
 
   const weather = buildWeatherSummary(weatherRaw);
   const thaiDisasters = thaiDisastersRaw.map(enrichItem);
   const globalAlerts = gdacsTranslated.map(enrichItem);
   const globalEarthquakes = usgsTranslated.map(enrichItem);
   const globalDisasters = globalDisastersTranslated.map(enrichItem);
+  const climateItems = climateTranslated.map(enrichItem);
 
   const sourceStatus = [
     normalizeSourceStatus('Open-Meteo', tasks[0], weather.days?.length || 0),
@@ -553,6 +689,7 @@ export default async function handler(req, res) {
     normalizeSourceStatus('USGS', tasks[3], globalEarthquakes.length),
     normalizeSourceStatus('ReliefWeb Thailand', tasks[4], thaiDisasters.length),
     normalizeSourceStatus('ReliefWeb Global', tasks[5], globalDisasters.length),
+    normalizeSourceStatus('NASA Climate / WMO', tasks[6], climateItems.length),
   ];
 
   const deterministicDigest = buildDigest({
@@ -572,6 +709,7 @@ export default async function handler(req, res) {
     thaiDisasters: thaiDisasters.slice(0, 4).map((item) => item.title),
     globalAlerts: globalAlerts.slice(0, 4).map((item) => `${item.eventLabel || ''} ${item.country || ''} ${item.title}`.trim()),
     earthquakes: globalEarthquakes.slice(0, 4).map((item) => item.title),
+    climate: climateItems.slice(0, 3).map((item) => item.title),
   });
 
   const digest = aiDigest
@@ -595,6 +733,7 @@ export default async function handler(req, res) {
       alerts: globalAlerts,
       earthquakes: globalEarthquakes,
       disasters: globalDisasters,
+      climate: climateItems,
     },
     sourceStatus,
     labels: {
