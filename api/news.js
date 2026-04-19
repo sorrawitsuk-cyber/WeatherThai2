@@ -216,6 +216,158 @@ function enrichItem(item) {
   };
 }
 
+function parseDateValue(dateLike) {
+  if (!dateLike) return null;
+  const date = new Date(dateLike);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function hoursSince(dateLike) {
+  const date = parseDateValue(dateLike);
+  if (!date) return Infinity;
+  return Math.max(0, (Date.now() - date.getTime()) / 3600000);
+}
+
+function summarizeForReaders(text = '') {
+  const cleaned = cleanText(text)
+    .replace(/\b(click here|read more|continue reading)\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!cleaned) return '';
+  if (cleaned.length <= 180) return cleaned;
+
+  const short = cleaned.slice(0, 177).trim();
+  const lastStop = Math.max(short.lastIndexOf('. '), short.lastIndexOf('! '), short.lastIndexOf('? '));
+  if (lastStop > 80) return short.slice(0, lastStop + 1).trim();
+  return `${short}...`;
+}
+
+function classifyFreshnessHours(item) {
+  if (item.category === 'warning' || item.category === 'storm') return 48;
+  if (item.category === 'earthquake') return 96;
+  if (item.category === 'global-alert' || item.category === 'thai-disaster' || item.category === 'global-disaster') return 120;
+  if (item.category === 'climate') return 336;
+  return 168;
+}
+
+function isFreshEnough(item) {
+  return hoursSince(item.publishedAt) <= classifyFreshnessHours(item);
+}
+
+function severityScore(severity) {
+  if (severity === 'high') return 120;
+  if (severity === 'medium') return 70;
+  return 25;
+}
+
+function categoryScore(category) {
+  if (category === 'warning') return 90;
+  if (category === 'storm') return 80;
+  if (category === 'global-alert') return 75;
+  if (category === 'thai-disaster') return 70;
+  if (category === 'earthquake') return 65;
+  if (category === 'global-disaster') return 55;
+  if (category === 'climate') return 20;
+  return 10;
+}
+
+function proximityScore(item) {
+  if (item.category === 'warning' || item.category === 'storm' || item.category === 'thai-disaster') return 35;
+  if (item.category === 'earthquake' && /thailand|myanmar|laos|cambodia|vietnam|malaysia|indonesia|china/i.test(`${item.title} ${item.summary} ${item.country || ''}`)) {
+    return 30;
+  }
+  return 0;
+}
+
+function recencyScore(item) {
+  const hours = hoursSince(item.publishedAt);
+  if (hours <= 6) return 80;
+  if (hours <= 24) return 55;
+  if (hours <= 48) return 35;
+  if (hours <= 72) return 20;
+  if (hours <= 120) return 8;
+  return 0;
+}
+
+function normalizeNewsItem(item) {
+  return {
+    ...item,
+    title: cleanText(item.title || ''),
+    summary: summarizeForReaders(item.summary || ''),
+  };
+}
+
+function hasStaleYearMention(text) {
+  const currentYear = new Date().getFullYear();
+  const christianYears = [...text.matchAll(/\b(20\d{2})\b/g)].map((match) => Number(match[1]));
+  if (christianYears.some((year) => year < currentYear)) return true;
+
+  const thaiYears = [...text.matchAll(/\b(25\d{2})\b/g)].map((match) => Number(match[1]) - 543);
+  return thaiYears.some((year) => year < currentYear);
+}
+
+function isActionableNewsItem(item) {
+  const haystack = `${item.title || ''} ${item.summary || ''}`.toLowerCase();
+
+  const staleSeasonalPatterns = [
+    /ประกาศ(?:การ)?เข้าสู่ฤดู/,
+    /ฤดูร้อน/,
+    /ฤดูฝน/,
+    /ฤดูหนาว/,
+    /เริ่มต้นฤดู/,
+    /summer season/,
+    /rainy season/,
+    /winter season/,
+  ];
+
+  if (staleSeasonalPatterns.some((pattern) => pattern.test(haystack))) return false;
+
+  const lowUrgencyPatterns = [
+    /คาดหมายลักษณะอากาศ/,
+    /ภาวะอากาศทั่วไป/,
+    /ระยะยาว/,
+    /apec/,
+    /เทศกาลสงกรานต์/,
+    /ลอยกระทง/,
+    /ปีใหม่/,
+    /วันหยุดยาว/,
+    /ช่วงวันหยุด/,
+    /seasonal outlook/,
+    /monthly outlook/,
+    /holiday travel/,
+  ];
+
+  if ((item.category === 'warning' || item.category === 'storm') && lowUrgencyPatterns.some((pattern) => pattern.test(haystack))) {
+    return false;
+  }
+
+  if ((item.category === 'warning' || item.category === 'storm') && hasStaleYearMention(haystack)) {
+    return false;
+  }
+
+  return true;
+}
+
+function prioritizeItems(items = [], limit = items.length) {
+  return items
+    .map(normalizeNewsItem)
+    .filter((item) => item.title && isFreshEnough(item) && isActionableNewsItem(item))
+    .map((item) => ({
+      ...item,
+      priorityScore:
+        severityScore(item.severity) +
+        categoryScore(item.category) +
+        proximityScore(item) +
+        recencyScore(item),
+    }))
+    .sort((a, b) => {
+      if (b.priorityScore !== a.priorityScore) return b.priorityScore - a.priorityScore;
+      return new Date(b.publishedAt || 0) - new Date(a.publishedAt || 0);
+    })
+    .slice(0, limit);
+}
+
 function getWeatherField(daily, newKey, oldKey, index) {
   return daily[newKey]?.[index] ?? daily[oldKey]?.[index];
 }
@@ -557,33 +709,30 @@ async function maybeTranslateItems(items) {
   }));
 }
 
-function buildDigest({ weather, tmd, gdacs, usgs, thaiDisasters, globalDisasters, sourceStatus }) {
-  const warningTitles = (tmd.warnings || []).slice(0, 2).map((item) => item.title).filter(Boolean);
-  const stormTitles = (tmd.storm || []).slice(0, 1).map((item) => item.title).filter(Boolean);
+function buildDigest({ weather, thaiWarnings, thaiStorms, gdacs, usgs, thaiDisasters, globalDisasters, sourceStatus }) {
+  const warningTitles = (thaiWarnings || []).slice(0, 2).map((item) => item.title).filter(Boolean);
+  const stormTitles = (thaiStorms || []).slice(0, 1).map((item) => item.title).filter(Boolean);
   const topGdacs = (gdacs || []).find((item) => item.severity === 'high') || gdacs?.[0];
   const topEarthquake = (usgs || [])[0];
   const thaiHeadline = thaiDisasters?.[0];
-  const sourceFailures = sourceStatus.filter((entry) => entry.status !== 'ok').map((entry) => entry.label);
 
   const bullets = [];
   const thaiLines = [];
 
   if (warningTitles.length) thaiLines.push(`มีประกาศเตือนจากกรมอุตุนิยมวิทยา เช่น ${warningTitles.join(' / ')}`);
   if (stormTitles.length) thaiLines.push(`มีประเด็นติดตามพายุหรือสภาพอากาศสำคัญ: ${stormTitles[0]}`);
-  if (!thaiLines.length) thaiLines.push('ยังไม่พบประกาศเตือนใหม่ที่เด่นมากจากกรมอุตุนิยมวิทยาในชุดข้อมูลล่าสุด');
 
   bullets.push(...thaiLines);
 
   if (topGdacs) bullets.push(`ต่างประเทศ: ${topGdacs.eventLabel} ใน${topGdacs.country || 'หลายพื้นที่'} ระดับ ${topGdacs.alertLevel || 'ติดตาม'}`);
   if (topEarthquake) bullets.push(`แผ่นดินไหวเด่นในสัปดาห์นี้: ${topEarthquake.title}`);
   if (thaiHeadline) bullets.push(`เหตุการณ์ในไทยล่าสุด: ${thaiHeadline.title}`);
-  if (sourceFailures.length) bullets.push('บางข้อมูลอาจใช้เวลามากกว่าปกติ แต่ข่าวสำคัญยังแสดงได้ตามปกติ');
 
   return {
     title: 'สรุปข่าวอากาศและภัยพิบัติ',
     updatedAt: isoNow(),
     overview: {
-      thaiWarningCount: tmd.warnings?.length || 0,
+      thaiWarningCount: thaiWarnings?.length || 0,
       thaiDisasterCount: thaiDisasters?.length || 0,
       globalAlertCount: gdacs?.length || 0,
       globalDisasterCount: globalDisasters?.length || 0,
@@ -676,11 +825,23 @@ export default async function handler(req, res) {
   const climateTranslated = allGlobalTranslated.filter((item) => item._batch === 'climate').map(({ _batch, ...item }) => item);
 
   const weather = buildWeatherSummary(weatherRaw);
-  const thaiDisasters = thaiDisastersRaw.map(enrichItem);
-  const globalAlerts = gdacsTranslated.map(enrichItem);
-  const globalEarthquakes = usgsTranslated.map(enrichItem);
-  const globalDisasters = globalDisastersTranslated.map(enrichItem);
-  const climateItems = climateTranslated.map(enrichItem);
+  const thaiWarnings = prioritizeItems(tmd.warnings.map(enrichItem), 8);
+  const thaiStorms = prioritizeItems(tmd.storm.map(enrichItem), 6);
+  const thaiEarthquakes = prioritizeItems(tmd.earthquake.map(enrichItem), 8);
+  const thaiDisasters = prioritizeItems(thaiDisastersRaw.map(enrichItem), 8);
+  const globalAlerts = prioritizeItems(gdacsTranslated.map(enrichItem), 10);
+  const globalEarthquakes = prioritizeItems(usgsTranslated.map(enrichItem), 8);
+  const globalDisasters = prioritizeItems(globalDisastersTranslated.map(enrichItem), 8);
+  const climateItems = prioritizeItems(climateTranslated.map(enrichItem), 6);
+
+  const topStories = prioritizeItems([
+    ...thaiWarnings,
+    ...thaiStorms,
+    ...thaiDisasters,
+    ...globalAlerts,
+    ...globalEarthquakes,
+    ...globalDisasters,
+  ], 12);
 
   const sourceStatus = [
     normalizeSourceStatus('Open-Meteo', tasks[0], weather.days?.length || 0),
@@ -694,7 +855,8 @@ export default async function handler(req, res) {
 
   const deterministicDigest = buildDigest({
     weather,
-    tmd,
+    thaiWarnings,
+    thaiStorms,
     gdacs: globalAlerts,
     usgs: globalEarthquakes,
     thaiDisasters,
@@ -704,12 +866,12 @@ export default async function handler(req, res) {
 
   const aiDigest = await maybeGenerateAiSummary({
     weather: weather.summary,
-    thaiWarnings: tmd.warnings.slice(0, 4).map((item) => item.title),
-    thaiStorms: tmd.storm.slice(0, 3).map((item) => item.title),
+    thaiWarnings: thaiWarnings.slice(0, 4).map((item) => item.title),
+    thaiStorms: thaiStorms.slice(0, 3).map((item) => item.title),
     thaiDisasters: thaiDisasters.slice(0, 4).map((item) => item.title),
     globalAlerts: globalAlerts.slice(0, 4).map((item) => `${item.eventLabel || ''} ${item.country || ''} ${item.title}`.trim()),
     earthquakes: globalEarthquakes.slice(0, 4).map((item) => item.title),
-    climate: climateItems.slice(0, 3).map((item) => item.title),
+    climate: [],
   });
 
   const digest = aiDigest
@@ -722,11 +884,12 @@ export default async function handler(req, res) {
     generatedAt: isoNow(),
     digest,
     weather,
+    topStories,
     thailand: {
       forecast: tmd.forecast,
-      warnings: tmd.warnings.map(enrichItem),
-      storms: tmd.storm.map(enrichItem),
-      earthquakes: tmd.earthquake.map(enrichItem),
+      warnings: thaiWarnings,
+      storms: thaiStorms,
+      earthquakes: thaiEarthquakes,
       disasters: thaiDisasters,
     },
     global: {

@@ -13,6 +13,10 @@ import TopStats from '../components/Dashboard/TopStats';
 import WeatherRadar from '../components/Dashboard/WeatherRadar';
 import DisasterSummary from '../components/Dashboard/DisasterSummary';
 
+function normalizeGeoData(data) {
+  return Array.isArray(data) ? data : (data?.data || []);
+}
+
 export default function Dashboard() {
   const { stations, stationTemps, lastUpdated, amphoeData, tmdAvailable } = useContext(WeatherContext);
   
@@ -54,11 +58,22 @@ export default function Dashboard() {
   }, [loadingWeather]);
 
   useEffect(() => {
+    if (amphoeData?.provinces || !selectedProv || geoData.length > 0 || geoError) return;
+
+    let cancelled = false;
     fetch('/thai_geo.json')
       .then(res => res.json())
-      .then(data => setGeoData(Array.isArray(data) ? data : (data.data || [])))
-      .catch(() => setGeoError(true));
-  }, []);
+      .then(data => {
+        if (!cancelled) setGeoData(normalizeGeoData(data));
+      })
+      .catch(() => {
+        if (!cancelled) setGeoError(true);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [amphoeData, selectedProv, geoData.length, geoError]);
 
   const sortedStations = useMemo(() => {
     return [...(stations || [])].sort((a, b) => a.areaTH.localeCompare(b.areaTH, 'th'));

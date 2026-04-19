@@ -194,8 +194,25 @@ export default function MapPage() {
   useEffect(() => {
     const handleResize = () => { setIsMobile(window.innerWidth < 1024); };
     window.addEventListener('resize', handleResize);
-    fetchGeoData();
-    return () => window.removeEventListener('resize', handleResize);
+
+    let cancelled = false;
+    const startFetch = () => {
+      if (!cancelled) fetchGeoData();
+    };
+
+    const idleId = typeof window !== 'undefined' && 'requestIdleCallback' in window
+      ? window.requestIdleCallback(startFetch, { timeout: 800 })
+      : window.setTimeout(startFetch, 0);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener('resize', handleResize);
+      if (typeof idleId === 'number') {
+        window.clearTimeout(idleId);
+      } else if (typeof window !== 'undefined' && 'cancelIdleCallback' in window) {
+        window.cancelIdleCallback(idleId);
+      }
+    };
   }, [fetchGeoData]);
 
   // 🌟 UX: ไม่ auto-zoom บนมือถือ — แสดงแผนที่ทั้งประเทศเมื่อเปิด
@@ -613,6 +630,26 @@ export default function MapPage() {
     });
   }, [flashProv, darkMode]);
 
+  useEffect(() => {
+    if (!geoJsonRef.current) return;
+    geoJsonRef.current.eachLayer(layer => {
+      layer.setStyle(styleGeoJSON(layer.feature));
+    });
+  }, [
+    geoData,
+    allMapData,
+    mapCategory,
+    activeBasicMode,
+    activeRiskMode,
+    activeGistdaMode,
+    activeYesterdayMode,
+    timeMode,
+    polyOpacity,
+    darkMode,
+    flashProv,
+    stations,
+  ]);
+
   const createMapIcon = (stationName, val, color) => {
     return L.divIcon({
         className: 'custom-risk-icon',
@@ -993,7 +1030,7 @@ export default function MapPage() {
                     <MapZoomListener setMapZoom={setMapZoom} />
                     <MapChangeView center={flyToPos} />
                     
-                    {geoData && <GeoJSON ref={geoJsonRef} key={`${mapCategory}-${activeRiskMode}-${activeBasicMode}-${activeGistdaMode}-${activeYesterdayMode}-${timeMode}-${polyOpacity}-${basemapStyle}`} data={geoData} style={styleGeoJSON} onEachFeature={onEachFeature} />}
+                    {geoData && <GeoJSON ref={geoJsonRef} data={geoData} style={styleGeoJSON} onEachFeature={onEachFeature} />}
                     
                     {allMapData.map(st => {
                         let isVisible = false;

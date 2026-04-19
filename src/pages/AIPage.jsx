@@ -3,6 +3,10 @@ import { WeatherContext } from '../context/WeatherContext';
 import { LineChart, Line, XAxis, Tooltip, ResponsiveContainer, YAxis, CartesianGrid } from 'recharts';
 import { useWeatherData } from '../hooks/useWeatherData';
 
+function normalizeGeoData(data) {
+  return Array.isArray(data) ? data : (data?.data || []);
+}
+
 // 🌟 Component ลูกศรบอกแนวโน้ม (บังคับสี: แดง=เพิ่ม/แย่ลง, เขียว=ลด/ดีขึ้น)
 const TrendIndicator = ({ current, prev, hideText = false }) => {
     if (current == null || prev == null || current === '-' || prev === '-') return null;
@@ -43,11 +47,22 @@ export default function AIPage() {
   
   const [geoData, setGeoData] = useState([]);
   useEffect(() => {
+    if (amphoeData?.provinces || !selectedProv || geoData.length > 0) return;
+
+    let cancelled = false;
     fetch('/thai_geo.json')
       .then(res => res.json())
-      .then(data => setGeoData(Array.isArray(data) ? data : (data.data || [])))
-      .catch(e => console.log(e));
-  }, []);
+      .then(data => {
+        if (!cancelled) setGeoData(normalizeGeoData(data));
+      })
+      .catch(e => {
+        if (!cancelled) console.log(e);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [amphoeData, selectedProv, geoData.length]);
 
   const currentAmphoes = useMemo(() => {
     if (!selectedProv) return [];

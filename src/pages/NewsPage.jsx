@@ -1,5 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 
+const NEWS_CACHE_KEY = 'airqualitythai:news-cache:v2';
+const NEWS_CACHE_TTL_MS = 10 * 60 * 1000;
+
 const severityStyles = {
   high: {
     color: '#b91c1c',
@@ -21,16 +24,15 @@ const severityStyles = {
   },
 };
 
-const sourceLinkGroups = [
-  { label: 'กรมอุตุนิยมวิทยา', url: 'https://www.tmd.go.th/', accent: '#0f766e' },
-  { label: 'กรมป้องกันและบรรเทาสาธารณภัย', url: 'https://www.disaster.go.th/', accent: '#dc2626' },
-  { label: 'GISTDA Fire Monitor', url: 'https://fire.gistda.or.th/', accent: '#f97316' },
-  { label: 'GDACS', url: 'https://www.gdacs.org/', accent: '#7c3aed' },
-  { label: 'USGS Earthquake', url: 'https://earthquake.usgs.gov/', accent: '#2563eb' },
-  { label: 'ReliefWeb', url: 'https://reliefweb.int/disasters', accent: '#0284c7' },
-  { label: 'NASA Climate', url: 'https://climate.nasa.gov/news/', accent: '#059669' },
-  { label: 'WMO (อุตุนิยมวิทยาโลก)', url: 'https://public.wmo.int/en/media/news', accent: '#0369a1' },
-];
+const categoryLabels = {
+  warning: 'เตือนภัย',
+  storm: 'ฝน-พายุ',
+  earthquake: 'แผ่นดินไหว',
+  'thai-disaster': 'เหตุในไทย',
+  'global-alert': 'เตือนต่างประเทศ',
+  'global-disaster': 'ภัยพิบัติโลก',
+  climate: 'ภูมิอากาศ',
+};
 
 const thaiSectionConfig = [
   { key: 'warnings', title: 'ประกาศเตือน', desc: 'ติดตามประกาศจากหน่วยงานในประเทศ', icon: '⚠️' },
@@ -218,6 +220,7 @@ function VisualArea({ item, compact, visual }) {
 
 function NewsItem({ item, compact = false, isDark = false }) {
   const severity = severityStyles[item.severity] || severityStyles.normal;
+  const metaTone = isDark ? '#c9deef' : '#516173';
   const visual = item.visual || {
     emoji: '📰',
     gradient: 'linear-gradient(135deg, #0f766e 0%, #0369a1 100%)',
@@ -228,19 +231,25 @@ function NewsItem({ item, compact = false, isDark = false }) {
   return (
     <article
       style={{
-        background: isDark ? '#132745' : '#f7fbff',
-        borderRadius: compact ? '16px' : '18px',
-        border: `1px solid ${isDark ? 'rgba(125,211,252,0.16)' : severity.border}`,
-        padding: compact ? '12px' : '14px',
+        background: compact ? (isDark ? '#132745' : '#f7fbff') : 'transparent',
+        borderRadius: compact ? '16px' : 0,
+        border: compact ? `1px solid ${isDark ? 'rgba(125,211,252,0.16)' : severity.border}` : 'none',
+        borderBottom: compact ? 'none' : `1px solid ${isDark ? 'rgba(125,211,252,0.16)' : 'rgba(148,163,184,0.18)'}`,
+        padding: compact ? '12px' : '0 0 18px',
         display: 'grid',
         gap: compact ? '8px' : '10px',
-        boxShadow: isDark ? '0 10px 28px rgba(0,0,0,0.18)' : '0 10px 22px rgba(14,30,56,0.05)',
+        boxShadow: compact ? (isDark ? '0 10px 28px rgba(0,0,0,0.18)' : '0 10px 22px rgba(14,30,56,0.05)') : 'none',
       }}
     >
-      <VisualArea item={item} compact={compact} visual={visual} />
+      {compact ? <VisualArea item={item} compact={compact} visual={visual} /> : null}
 
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+          {item.categoryLabel ? (
+            <span style={{ color: metaTone, fontSize: '0.68rem', fontWeight: 900, letterSpacing: '0.03em', textTransform: 'uppercase' }}>
+              {item.categoryLabel}
+            </span>
+          ) : null}
           <span
             style={{
               background: severity.bg,
@@ -254,17 +263,17 @@ function NewsItem({ item, compact = false, isDark = false }) {
           >
             {severity.label}
           </span>
-          {item.source ? <MetaBadge text={item.source} tone={isDark ? '#e2f0fb' : '#0f172a'} subtle isDark={isDark} /> : null}
+          {item.source ? <span style={{ color: metaTone, fontSize: '0.72rem', fontWeight: 700 }}>{item.source}</span> : null}
         </div>
-        <span style={{ color: 'var(--text-sub)', fontSize: '0.7rem' }}>{item.publishedAtLabel || '-'}</span>
+        <span style={{ color: 'var(--text-sub)', fontSize: '0.72rem', fontWeight: 700 }}>{item.publishedAgoLabel || item.publishedAtLabel || '-'}</span>
       </div>
 
       <div>
-        <div style={{ color: 'var(--text-main)', fontWeight: 900, fontSize: compact ? '0.88rem' : '0.95rem', lineHeight: 1.5 }}>
+        <div style={{ color: 'var(--text-main)', fontWeight: 900, fontSize: compact ? '0.88rem' : '1rem', lineHeight: 1.55 }}>
           {item.title}
         </div>
         {item.summary ? (
-          <div style={{ color: 'var(--text-sub)', fontSize: compact ? '0.77rem' : '0.81rem', lineHeight: 1.7, marginTop: '6px' }}>
+          <div style={{ color: 'var(--text-sub)', fontSize: compact ? '0.77rem' : '0.83rem', lineHeight: 1.75, marginTop: '6px' }}>
             {item.summary}
           </div>
         ) : null}
@@ -286,7 +295,7 @@ function NewsItem({ item, compact = false, isDark = false }) {
           rel="noopener noreferrer"
           style={{ color: '#0284c7', fontSize: '0.77rem', fontWeight: 800, textDecoration: 'none' }}
         >
-          อ่านต่อจากแหล่งข่าว →
+          อ่านข่าวต้นทาง →
         </a>
       ) : null}
     </article>
@@ -330,44 +339,6 @@ function EmptyState({ title, desc, isDark = false }) {
     >
       <div style={{ color: 'var(--text-main)', fontWeight: 900 }}>{title}</div>
       <div style={{ color: 'var(--text-sub)', fontSize: '0.82rem', marginTop: '6px', lineHeight: 1.6 }}>{desc}</div>
-    </div>
-  );
-}
-
-function SourceStatusBar({ sourceStatus }) {
-  if (!sourceStatus?.length) return null;
-  const failed = sourceStatus.filter((s) => s.status !== 'ok');
-  if (!failed.length) return null;
-  return (
-    <div
-      style={{
-        display: 'flex',
-        flexWrap: 'wrap',
-        gap: '6px',
-        padding: '10px 14px',
-        background: 'rgba(245,158,11,0.1)',
-        border: '1px solid rgba(245,158,11,0.24)',
-        borderRadius: '14px',
-        fontSize: '0.72rem',
-        color: '#b45309',
-        fontWeight: 700,
-        alignItems: 'center',
-      }}
-    >
-      <span>⚠ แหล่งข้อมูลไม่ตอบสนอง:</span>
-      {failed.map((s) => (
-        <span
-          key={s.label}
-          style={{
-            background: 'rgba(245,158,11,0.16)',
-            border: '1px solid rgba(245,158,11,0.3)',
-            borderRadius: '999px',
-            padding: '2px 8px',
-          }}
-        >
-          {s.label}
-        </span>
-      ))}
     </div>
   );
 }
@@ -434,6 +405,7 @@ function WeatherDayCard({ day, index, isDark = false }) {
 function formatApiItems(items = []) {
   return items.map((item) => ({
     ...item,
+    categoryLabel: categoryLabels[item.category] || 'ข่าว',
     publishedAtLabel: item.publishedAt
       ? (() => {
           const d = new Date(item.publishedAt);
@@ -446,13 +418,48 @@ function formatApiItems(items = []) {
           });
         })()
       : '-',
+    publishedAgoLabel: item.publishedAt
+      ? (() => {
+          const d = new Date(item.publishedAt);
+          if (Number.isNaN(d.getTime())) return '';
+          const diffMs = Date.now() - d.getTime();
+          if (diffMs < 0) return '';
+          const hours = Math.floor(diffMs / 3600000);
+          const days = Math.floor(diffMs / 86400000);
+          if (hours < 1) return 'ไม่ถึง 1 ชม.';
+          if (hours < 24) return `${hours} ชม.ที่ผ่านมา`;
+          if (days <= 7) return `${days} วันที่ผ่านมา`;
+          return '';
+        })()
+      : '',
   }));
+}
+
+function readCachedNews() {
+  try {
+    const raw = sessionStorage.getItem(NEWS_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed?.payload || !parsed?.savedAt) return null;
+    if (Date.now() - parsed.savedAt > NEWS_CACHE_TTL_MS) return null;
+    return parsed.payload;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedNews(payload) {
+  try {
+    sessionStorage.setItem(NEWS_CACHE_KEY, JSON.stringify({ payload, savedAt: Date.now() }));
+  } catch {
+    // Ignore cache write failures.
+  }
 }
 
 export default function NewsPage() {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [activeTab, setActiveTab] = useState('overview');
-  const [data, setData] = useState(null);
+  const [data, setData] = useState(() => readCachedNews());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [isDark, setIsDark] = useState(document.body.classList.contains('dark-theme'));
@@ -473,16 +480,17 @@ export default function NewsPage() {
     return () => observer.disconnect();
   }, []);
 
-  const loadNews = async () => {
-    setLoading(true);
+  const loadNews = async ({ silent = false } = {}) => {
+    if (!silent || !data) setLoading(true);
     setError('');
     try {
-      const response = await fetch('/api/news', { cache: 'no-store' });
+      const response = await fetch('/api/news');
       if (!response.ok) {
         throw new Error('ยังไม่สามารถโหลดข่าวได้ในขณะนี้');
       }
       const payload = await response.json();
       setData(payload);
+      writeCachedNews(payload);
     } catch (fetchError) {
       setError(fetchError.message || 'ขออภัย ขณะนี้ยังไม่สามารถแสดงข่าวได้');
     } finally {
@@ -491,8 +499,15 @@ export default function NewsPage() {
   };
 
   useEffect(() => {
-    loadNews();
-    const timer = setInterval(loadNews, 10 * 60 * 1000);
+    const cached = readCachedNews();
+    if (cached) {
+      setData(cached);
+      setLoading(false);
+      loadNews({ silent: true });
+    } else {
+      loadNews();
+    }
+    const timer = setInterval(() => loadNews({ silent: true }), 10 * 60 * 1000);
     return () => clearInterval(timer);
   }, []);
 
@@ -525,9 +540,11 @@ export default function NewsPage() {
 
   const weatherDays = data?.weather?.days || [];
   const digestBullets = data?.digest?.bullets || [];
+  const topStories = data?.topStories || [];
   const leadThaiStory = thaiGroups.warnings?.[0] || thaiGroups.storms?.[0] || thaiGroups.disasters?.[0];
   const leadGlobalStory = globalGroups.alerts?.[0] || globalGroups.earthquakes?.[0] || globalGroups.disasters?.[0];
   const leadClimateStory = globalGroups.climate?.[0];
+  const leadStory = topStories[0] || leadThaiStory || leadGlobalStory || leadClimateStory;
 
   return (
     <div
@@ -553,10 +570,28 @@ export default function NewsPage() {
           <div style={{ position: 'absolute', inset: '-60px auto auto -80px', width: '200px', height: '200px', borderRadius: '50%', background: 'rgba(255,255,255,0.06)' }} />
 
           <div style={{ position: 'relative', display: 'grid', gap: '18px' }}>
+            {!!topStories.length && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  flexWrap: 'wrap',
+                  padding: '10px 14px',
+                  borderRadius: '16px',
+                  background: 'rgba(127,29,29,0.28)',
+                  border: '1px solid rgba(254,202,202,0.28)',
+                }}
+              >
+                <span style={{ fontSize: '0.72rem', fontWeight: 900, letterSpacing: '0.04em' }}>BREAKING</span>
+                <span style={{ fontSize: '0.88rem', fontWeight: 700, lineHeight: 1.5 }}>
+                  {topStories.slice(0, 3).map((item) => item.title).join(' • ')}
+                </span>
+              </div>
+            )}
             <CardTitle
-              eyebrow="Newsroom"
+              eyebrow="ข่าวเด่น"
               title="ข่าวสารอากาศและภัยพิบัติ"
-              desc="บอร์ดข่าวแบบ bento ที่แยกประเด็นให้อ่านง่าย เห็นทั้งภาพรวม เหตุในไทย สถานการณ์ต่างประเทศ และวิทยาศาสตร์ภูมิอากาศในหน้าเดียว"
               light
               action={
                 <button
@@ -580,7 +615,7 @@ export default function NewsPage() {
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: isMobile ? '1fr' : '1.55fr 1fr',
+                gridTemplateColumns: '1fr',
                 gap: '14px',
                 alignItems: 'stretch',
               }}
@@ -622,22 +657,10 @@ export default function NewsPage() {
                 )}
               </div>
 
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-                  gap: '10px',
-                }}
-              >
-                <MetricCard label="เตือนไทย" value={data?.digest?.overview?.thaiWarningCount ?? 0} accent="#fecaca" note="ประกาศที่ควรจับตา" isDark={isDark} />
-                <MetricCard label="เหตุไทย" value={data?.digest?.overview?.thaiDisasterCount ?? 0} accent="#fdba74" note="เหตุการณ์ในประเทศ" isDark={isDark} />
-                <MetricCard label="เตือนโลก" value={data?.digest?.overview?.globalAlertCount ?? 0} accent="#e9d5ff" note="สัญญาณจากต่างประเทศ" isDark={isDark} />
-                <MetricCard label="แผ่นดินไหว" value={data?.digest?.overview?.earthquakeCount ?? 0} accent="#86efac" note="เหตุเด่นรอบสัปดาห์" isDark={isDark} />
-              </div>
             </div>
 
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              {tabs.map((tab) => {
+              {tabs.filter((tab) => tab.id !== 'climate').map((tab) => {
                 const active = tab.id === activeTab;
                 return (
                   <button
@@ -674,163 +697,62 @@ export default function NewsPage() {
           </SectionCard>
         ) : null}
 
-        {!loading && !error && data ? (
-          <SourceStatusBar sourceStatus={data.sourceStatus} />
-        ) : null}
-
         {!loading && !error && data && activeTab === 'overview' ? (
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: isMobile ? '1fr' : '1.2fr 0.8fr',
-              gap: '16px',
+              gap: '14px',
+              maxWidth: '860px',
+              margin: '0 auto',
             }}
           >
-            <div style={{ display: 'grid', gap: '16px' }}>
-              <SectionCard
+            {!!weatherDays.length && (
+              <section
                 style={{
-                  background: isDark
-                    ? 'linear-gradient(180deg, rgba(8,19,38,0.95), rgba(15,33,63,0.96))'
-                    : 'linear-gradient(180deg, rgba(255,255,255,0.96), rgba(221,240,255,0.9))',
+                  display: 'grid',
+                  gap: '10px',
                 }}
               >
-                <CardTitle
-                  eyebrow="Overview"
-                  title="ภาพรวมสถานการณ์วันนี้"
-                  desc="เห็นประเด็นสำคัญแบบสแกนเร็ว พร้อมการ์ดเด่นของไทยและต่างประเทศ"
-                />
+                <div style={{ color: 'var(--text-main)', fontWeight: 900, fontSize: '0.95rem' }}>พยากรณ์วันนี้ พรุ่งนี้ และ 7 วันข้างหน้า</div>
                 <div
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
-                    gap: '12px',
+                    gridTemplateColumns: isMobile ? '1fr' : 'repeat(7, minmax(0, 1fr))',
+                    gap: '10px',
                   }}
                 >
-                  <div
-                    style={{
-                      background: isDark
-                        ? 'linear-gradient(135deg, rgba(20,184,166,0.24), rgba(6,182,212,0.18))'
-                        : 'linear-gradient(135deg, rgba(20,184,166,0.16), rgba(6,182,212,0.12))',
-                      borderRadius: '20px',
-                      border: isDark ? '1px solid rgba(45,212,191,0.18)' : '1px solid rgba(20,184,166,0.18)',
-                      padding: '16px',
-                    }}
-                  >
-                    <div style={{ color: '#0f766e', fontWeight: 900, fontSize: '0.76rem', marginBottom: '8px' }}>THAILAND FOCUS</div>
-                    {leadThaiStory ? (
-                      <NewsItem item={leadThaiStory} isDark={isDark} />
-                    ) : (
-                      <EmptyState title="วันนี้ยังไม่มีประเด็นเด่นในไทย" desc="สามารถติดตามหมวดข่าวไทยเพิ่มเติมได้ด้านบน" isDark={isDark} />
-                    )}
-                  </div>
-
-                  <div
-                    style={{
-                      background: isDark
-                        ? 'linear-gradient(135deg, rgba(59,130,246,0.22), rgba(124,58,237,0.18))'
-                        : 'linear-gradient(135deg, rgba(59,130,246,0.14), rgba(124,58,237,0.12))',
-                      borderRadius: '20px',
-                      border: isDark ? '1px solid rgba(96,165,250,0.18)' : '1px solid rgba(59,130,246,0.18)',
-                      padding: '16px',
-                    }}
-                  >
-                    <div style={{ color: '#1d4ed8', fontWeight: 900, fontSize: '0.76rem', marginBottom: '8px' }}>GLOBAL WATCH</div>
-                    {leadGlobalStory ? (
-                      <NewsItem item={leadGlobalStory} isDark={isDark} />
-                    ) : (
-                      <EmptyState title="วันนี้ยังไม่มีประเด็นเด่นต่างประเทศ" desc="สามารถติดตามหมวดต่างประเทศเพิ่มเติมได้ด้านบน" isDark={isDark} />
-                    )}
-                  </div>
-                </div>
-
-                {leadClimateStory ? (
-                  <div
-                    style={{
-                      marginTop: '12px',
-                      background: isDark
-                        ? 'linear-gradient(135deg, rgba(5,150,105,0.22), rgba(3,105,161,0.18))'
-                        : 'linear-gradient(135deg, rgba(5,150,105,0.12), rgba(3,105,161,0.10))',
-                      borderRadius: '20px',
-                      border: isDark ? '1px solid rgba(52,211,153,0.18)' : '1px solid rgba(5,150,105,0.18)',
-                      padding: '16px',
-                    }}
-                  >
-                    <div style={{ color: '#059669', fontWeight: 900, fontSize: '0.76rem', marginBottom: '8px' }}>CLIMATE SCIENCE</div>
-                    <NewsItem item={leadClimateStory} isDark={isDark} />
-                  </div>
-                ) : null}
-              </SectionCard>
-
-              <SectionCard>
-                <CardTitle
-                  eyebrow="Weather"
-                  title="อากาศกรุงเทพฯ 7 วัน"
-                  desc={data.weather?.summary || 'ดูแนวโน้มอากาศกรุงเทพฯ สำหรับสัปดาห์นี้'}
-                />
-                {!weatherDays.length ? (
-                  <EmptyState title="ยังไม่มีพยากรณ์อากาศ" desc="โปรดลองใหม่อีกครั้งในอีกสักครู่" isDark={isDark} />
-                ) : (
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: isMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(4, minmax(0, 1fr))',
-                      gap: '10px',
-                    }}
-                  >
-                    {weatherDays.slice(0, isMobile ? 6 : 7).map((day, index) => (
-                      <WeatherDayCard key={day.time} day={day} index={index} isDark={isDark} />
-                    ))}
-                  </div>
-                )}
-              </SectionCard>
-            </div>
-
-            <div style={{ display: 'grid', gap: '16px' }}>
-              <BentoSection
-                icon="⚠️"
-                title="ประกาศเตือนในไทย"
-                desc="หยิบข่าวที่ควรรู้ก่อนออกจากบ้าน"
-                items={(thaiGroups.warnings || []).slice(0, 3)}
-                isDark={isDark}
-              />
-              <BentoSection
-                icon="🌐"
-                title="จับตาสถานการณ์โลก"
-                desc="เหตุการณ์ต่างประเทศที่น่าสนใจในช่วงนี้"
-                items={(globalGroups.alerts || []).slice(0, 3)}
-                isDark={isDark}
-              />
-              <SectionCard>
-                <CardTitle eyebrow="Links" title="ติดตามจากต้นทาง" desc="เปิดดูประกาศหรือข่าวฉบับเต็มจากหน่วยงานต่าง ๆ" />
-                <div style={{ display: 'grid', gap: '10px' }}>
-                  {sourceLinkGroups.map((item) => (
-                    <a
-                      key={item.label}
-                      href={item.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        textDecoration: 'none',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        gap: '12px',
-                        alignItems: 'center',
-                        background: 'var(--bg-secondary)',
-                        border: `1px solid ${isDark ? 'rgba(125,211,252,0.14)' : `${item.accent}33`}`,
-                        borderRadius: '16px',
-                        padding: '12px 14px',
-                        color: 'var(--text-main)',
-                        fontSize: '0.82rem',
-                        fontWeight: 800,
-                      }}
-                    >
-                      <span>{item.label}</span>
-                      <span style={{ color: item.accent }}>→</span>
-                    </a>
+                  {weatherDays.slice(0, 7).map((day, index) => (
+                    <WeatherDayCard key={`${day.time}-${index}`} day={day} index={index} isDark={isDark} />
                   ))}
                 </div>
-              </SectionCard>
-            </div>
+              </section>
+            )}
+
+            {leadStory ? (
+              <article
+                style={{
+                  background: isDark
+                    ? 'linear-gradient(180deg, rgba(8,19,38,0.96), rgba(15,33,63,0.98))'
+                    : 'linear-gradient(180deg, rgba(255,255,255,0.98), rgba(239,248,255,0.96))',
+                  borderRadius: '24px',
+                  border: '1px solid var(--border-color)',
+                  padding: isMobile ? '16px' : '20px',
+                }}
+              >
+                <div style={{ color: '#0f766e', fontWeight: 900, fontSize: '0.76rem', marginBottom: '10px' }}>ข่าวนำ</div>
+                <NewsItem item={leadStory} isDark={isDark} />
+              </article>
+            ) : null}
+
+            {topStories.slice(1).length ? (
+              <div style={{ display: 'grid', gap: '10px' }}>
+                {topStories.slice(1).map((item, index) => (
+                  <NewsItem key={`overview-feed-${item.id || item.title || index}`} item={item} compact={false} isDark={isDark} />
+                ))}
+              </div>
+            ) : !leadStory ? (
+              <EmptyState title="ยังไม่มีข่าวเด่นในตอนนี้" desc="โปรดลองรีเฟรชใหม่อีกครั้งในอีกสักครู่" isDark={isDark} />
+            ) : null}
           </div>
         ) : null}
 

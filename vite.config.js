@@ -2,9 +2,65 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
+function apiNewsDevPlugin() {
+  return {
+    name: 'api-news-dev-middleware',
+    configureServer(server) {
+      server.middlewares.use('/api/news', async (req, res, next) => {
+        if (req.method !== 'GET') {
+          res.statusCode = 405;
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.end(JSON.stringify({ error: 'Method Not Allowed' }));
+          return;
+        }
+
+        try {
+          const mod = await server.ssrLoadModule('/api/news.js');
+          const handler = mod?.default;
+
+          if (typeof handler !== 'function') {
+            throw new Error('api/news.js does not export a default handler');
+          }
+
+          const headers = {};
+          const bridgeRes = {
+            setHeader(name, value) {
+              headers[name] = value;
+              res.setHeader(name, value);
+            },
+            status(code) {
+              res.statusCode = code;
+              return this;
+            },
+            json(payload) {
+              if (!headers['Content-Type']) {
+                res.setHeader('Content-Type', 'application/json; charset=utf-8');
+              }
+              res.end(JSON.stringify(payload));
+              return this;
+            },
+          };
+
+          await handler(req, bridgeRes);
+        } catch (error) {
+          server.ssrFixStacktrace(error);
+          res.statusCode = 500;
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.end(
+            JSON.stringify({
+              error: error?.message || 'Failed to load /api/news in dev server',
+            }),
+          );
+        }
+      });
+    },
+  };
+}
+
 export default defineConfig({
   plugins: [
     react(),
+    apiNewsDevPlugin(),
     VitePWA({
       strategies: 'injectManifest',
       srcDir: 'src',
