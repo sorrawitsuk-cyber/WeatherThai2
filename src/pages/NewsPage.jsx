@@ -1,54 +1,175 @@
 import React, { useEffect, useMemo, useState } from 'react';
 
-const NEWS_CACHE_KEY = 'airqualitythai:news-cache:v2';
+const NEWS_CACHE_KEY = 'airqualitythai:news-cache:v3';
 const NEWS_CACHE_TTL_MS = 10 * 60 * 1000;
+const NEWS_FETCH_TIMEOUT_MS = 12000;
 
-const severityStyles = {
+const ANIMATIONS = `
+@keyframes alertPulse {
+  0%,100% { box-shadow: 0 0 0 0 rgba(220,38,38,0.5); }
+  50% { box-shadow: 0 0 0 8px rgba(220,38,38,0); }
+}
+@keyframes dotBlink {
+  0%,100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+`;
+
+const SEV = {
   high: {
-    color: '#b91c1c',
-    bg: 'rgba(239,68,68,0.12)',
-    border: 'rgba(239,68,68,0.24)',
+    color: '#dc2626',
+    bg: 'rgba(220,38,38,0.10)',
+    border: 'rgba(220,38,38,0.28)',
+    accent: '#ef4444',
+    badgeBg: 'rgba(220,38,38,0.16)',
     label: 'เร่งด่วน',
+    icon: '🔴',
+    priority: 3,
   },
   medium: {
     color: '#b45309',
-    bg: 'rgba(245,158,11,0.12)',
-    border: 'rgba(245,158,11,0.24)',
+    bg: 'rgba(245,158,11,0.10)',
+    border: 'rgba(245,158,11,0.28)',
+    accent: '#f59e0b',
+    badgeBg: 'rgba(245,158,11,0.16)',
     label: 'เฝ้าระวัง',
+    icon: '🟡',
+    priority: 2,
   },
   normal: {
     color: '#0f766e',
-    bg: 'rgba(20,184,166,0.12)',
-    border: 'rgba(20,184,166,0.24)',
-    label: 'อัปเดต',
+    bg: 'rgba(20,184,166,0.08)',
+    border: 'rgba(20,184,166,0.20)',
+    accent: '#14b8a6',
+    badgeBg: 'rgba(20,184,166,0.12)',
+    label: 'ติดตาม',
+    icon: '🟢',
+    priority: 1,
   },
 };
 
-const categoryLabels = {
-  warning: 'เตือนภัย',
-  storm: 'ฝน-พายุ',
+const CAT_LABELS = {
+  warning: 'ประกาศเตือน',
+  storm: 'พายุ-ฝน',
   earthquake: 'แผ่นดินไหว',
   'thai-disaster': 'เหตุในไทย',
-  'global-alert': 'เตือนต่างประเทศ',
-  'global-disaster': 'ภัยพิบัติโลก',
+  'global-alert': 'เตือนโลก',
+  'global-disaster': 'ภัยพิบัติ',
   climate: 'ภูมิอากาศ',
 };
 
-const thaiSectionConfig = [
-  { key: 'warnings', title: 'ประกาศเตือน', desc: 'ติดตามประกาศจากหน่วยงานในประเทศ', icon: '⚠️' },
-  { key: 'storms', title: 'พายุและฝน', desc: 'ข่าวพายุหรือสภาพอากาศน่าจับตา', icon: '🌧️' },
-  { key: 'earthquakes', title: 'แผ่นดินไหวใกล้ไทย', desc: 'เหตุแผ่นดินไหวที่เกี่ยวข้องกับภูมิภาค', icon: '🌋' },
-  { key: 'disasters', title: 'รายงานเหตุการณ์', desc: 'เหตุการณ์ที่มีผลกระทบในประเทศไทย', icon: '📍' },
+const THAI_SECTIONS = [
+  { key: 'warnings', title: 'ประกาศเตือนภัย', desc: 'ติดตามประกาศจากกรมอุตุนิยมวิทยา (TMD)', icon: '⚠️', accent: '#ef4444' },
+  { key: 'storms', title: 'พายุและฝน', desc: 'สภาพอากาศน่าจับตามองในไทย', icon: '🌧️', accent: '#3b82f6' },
+  { key: 'earthquakes', title: 'แผ่นดินไหวใกล้ไทย', desc: 'รายงานแผ่นดินไหวในภูมิภาคจาก TMD & USGS', icon: '🌋', accent: '#f97316' },
+  { key: 'disasters', title: 'รายงานเหตุการณ์ไทย', desc: 'ข้อมูลภัยพิบัติในไทยจาก ReliefWeb', icon: '📍', accent: '#14b8a6' },
+  { key: 'ddpm', title: 'กรมป้องกันและบรรเทาสาธารณภัย', desc: 'ข้อมูลจาก ปภ. (disaster.go.th)', icon: '🛡️', accent: '#dc2626' },
+  { key: 'thaiPbs', title: 'ข่าวไทยพีบีเอส', desc: 'ข่าวสภาพอากาศและภัยพิบัติจาก Thai PBS', icon: '📺', accent: '#7c3aed' },
 ];
 
-const globalSectionConfig = [
-  { key: 'alerts', title: 'เตือนภัยโลก', desc: 'สัญญาณเตือนจากต่างประเทศ', icon: '🚨' },
-  { key: 'earthquakes', title: 'แผ่นดินไหวโลก', desc: 'เหตุแผ่นดินไหวเด่นในรอบสัปดาห์', icon: '🌍' },
-  { key: 'disasters', title: 'เหตุการณ์สำคัญ', desc: 'รายงานภัยพิบัติจากหลายประเทศ', icon: '🧭' },
-  { key: 'climate', title: 'ภูมิอากาศ & เอลนีโญ่', desc: 'งานวิชาการ ปรากฏการณ์เอลนีโญ่ ลานีญ่า และการเปลี่ยนแปลงภูมิอากาศ', icon: '🌡️' },
+const GLOBAL_SECTIONS = [
+  { key: 'alerts', title: 'เตือนภัยระดับโลก', desc: 'ข้อมูลจาก GDACS ระดับ Orange/Red', icon: '🚨', accent: '#ef4444' },
+  { key: 'earthquakes', title: 'แผ่นดินไหวรุนแรงทั่วโลก', desc: 'แผ่นดินไหวสำคัญทั่วโลก จาก USGS', icon: '🌍', accent: '#f97316' },
+  { key: 'earthquakesRegional', title: 'แผ่นดินไหว M4.5+ เอเชีย', desc: 'แผ่นดินไหว M4.5+ ในภูมิภาคเอเชียจาก USGS', icon: '🌏', accent: '#ea580c' },
+  { key: 'disasters', title: 'ภัยพิบัติทั่วโลก', desc: 'รายงานภัยพิบัติจาก ReliefWeb', icon: '🧭', accent: '#8b5cf6' },
+  { key: 'eonet', title: 'ปรากฏการณ์ธรรมชาติ', desc: 'เหตุการณ์ธรรมชาติแบบ real-time จาก NASA EONET', icon: '🌋', accent: '#f59e0b' },
 ];
 
-function SectionCard({ children, style }) {
+// ─── Cache helpers ────────────────────────────────────────────────────────────
+
+function readCachedNews() {
+  try {
+    const raw = sessionStorage.getItem(NEWS_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed?.payload || !parsed?.savedAt) return null;
+    if (Date.now() - parsed.savedAt > NEWS_CACHE_TTL_MS) return null;
+    return parsed.payload;
+  } catch { return null; }
+}
+
+function writeCachedNews(payload) {
+  try {
+    sessionStorage.setItem(NEWS_CACHE_KEY, JSON.stringify({ payload, savedAt: Date.now() }));
+  } catch {}
+}
+
+async function fetchNewsWithTimeout(url, timeoutMs = NEWS_FETCH_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    return response;
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw new Error('ใช้เวลานานกว่าปกติในการดึง RSS feed โปรดลองใหม่อีกครั้ง');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+// ─── Formatters ───────────────────────────────────────────────────────────────
+
+function formatAgo(publishedAt) {
+  if (!publishedAt) return '';
+  const d = new Date(publishedAt);
+  if (Number.isNaN(d.getTime())) return '';
+  const diffMs = Date.now() - d.getTime();
+  if (diffMs < 0) return '';
+  const hours = Math.floor(diffMs / 3_600_000);
+  const days = Math.floor(diffMs / 86_400_000);
+  if (hours < 1) return 'เพิ่งอัปเดต';
+  if (hours < 24) return `${hours} ชม.ที่แล้ว`;
+  if (days <= 7) return `${days} วันที่แล้ว`;
+  return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
+}
+
+function formatItems(items = []) {
+  return items.map((item) => ({
+    ...item,
+    categoryLabel: CAT_LABELS[item.category] || 'ข่าว',
+    timeAgo: formatAgo(item.publishedAt),
+  }));
+}
+
+// ─── Analysis helpers ─────────────────────────────────────────────────────────
+
+function detectEnsoPhase(climateItems = []) {
+  const text = climateItems
+    .map((item) => `${item.title} ${item.summary || ''}`)
+    .join(' ')
+    .toLowerCase();
+  if (/el ni[ñn]o|เอลนีโญ่/.test(text)) return 'elnino';
+  if (/la ni[ñn]a|ลานีญ่า/.test(text)) return 'lanina';
+  return 'neutral';
+}
+
+function computeThaiRisk(thaiGroups) {
+  const allThai = [
+    ...(thaiGroups.warnings || []),
+    ...(thaiGroups.storms || []),
+    ...(thaiGroups.disasters || []),
+    ...(thaiGroups.earthquakes || []),
+  ];
+  const highCount = allThai.filter((item) => item.severity === 'high').length;
+  const medCount = allThai.filter((item) => item.severity === 'medium').length;
+  const score = Math.min(100, highCount * 22 + medCount * 9);
+  if (score >= 60) return { score, label: 'สูง', color: '#dc2626', icon: '🔴' };
+  if (score >= 30) return { score, label: 'ปานกลาง', color: '#d97706', icon: '🟡' };
+  if (score > 0) return { score, label: 'ต่ำ', color: '#059669', icon: '🟢' };
+  return { score: 0, label: 'น้อยมาก', color: '#6b7280', icon: '⚪' };
+}
+
+// ─── Base components ──────────────────────────────────────────────────────────
+
+function Card({ children, style }) {
   return (
     <section
       style={{
@@ -66,259 +187,60 @@ function SectionCard({ children, style }) {
   );
 }
 
-function CardTitle({ eyebrow, title, desc, action, light = false }) {
+function SectionHeader({ icon, title, desc, accent, count }) {
   return (
-    <div
-      style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'flex-start',
-        gap: '12px',
-        marginBottom: '14px',
-        flexWrap: 'wrap',
-      }}
-    >
-      <div>
-        {eyebrow ? (
-          <div
+    <div style={{ marginBottom: '14px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
+        {accent && (
+          <div style={{ width: '4px', height: '22px', borderRadius: '999px', background: accent, flexShrink: 0 }} />
+        )}
+        <span style={{ fontSize: '1.05rem' }}>{icon}</span>
+        <h2 style={{ margin: 0, color: 'var(--text-main)', fontSize: '0.95rem', fontWeight: 900 }}>{title}</h2>
+        {count != null && count > 0 && (
+          <span
             style={{
-              color: light ? 'rgba(255,255,255,0.76)' : 'var(--text-sub)',
-              fontSize: '0.72rem',
-              fontWeight: 800,
-              letterSpacing: '0.04em',
-              textTransform: 'uppercase',
-              marginBottom: '6px',
+              background: accent ? `${accent}22` : 'rgba(148,163,184,0.16)',
+              color: accent || 'var(--text-sub)',
+              border: `1px solid ${accent ? `${accent}44` : 'rgba(148,163,184,0.2)'}`,
+              borderRadius: '999px',
+              padding: '2px 9px',
+              fontSize: '0.66rem',
+              fontWeight: 900,
             }}
           >
-            {eyebrow}
-          </div>
-        ) : null}
-        <h2 style={{ margin: 0, color: light ? '#ffffff' : 'var(--text-main)', fontSize: '1.02rem', fontWeight: 900 }}>
-          {title}
-        </h2>
-        {desc ? (
-          <p
-            style={{
-              margin: '6px 0 0',
-              color: light ? 'rgba(255,255,255,0.82)' : 'var(--text-sub)',
-              fontSize: '0.82rem',
-              lineHeight: 1.65,
-              maxWidth: '720px',
-            }}
-          >
-            {desc}
-          </p>
-        ) : null}
+            {count} รายการ
+          </span>
+        )}
       </div>
-      {action}
-    </div>
-  );
-}
-
-function MetricCard({ label, value, accent, note, isDark }) {
-  return (
-    <div
-      style={{
-        background: isDark
-          ? 'linear-gradient(180deg, rgba(7,18,38,0.78), rgba(20,39,69,0.92))'
-          : 'linear-gradient(180deg, rgba(9,27,56,0.28), rgba(20,55,100,0.42))',
-        borderRadius: '20px',
-        border: isDark ? '1px solid rgba(125,211,252,0.16)' : '1px solid rgba(255,255,255,0.22)',
-        padding: '16px',
-        boxShadow: isDark ? 'inset 0 1px 0 rgba(255,255,255,0.08)' : 'inset 0 1px 0 rgba(255,255,255,0.16)',
-      }}
-    >
-      <div style={{ color: 'rgba(255,255,255,0.88)', fontSize: '0.74rem', marginBottom: '8px', fontWeight: 700 }}>{label}</div>
-      <div style={{ color: '#ffffff', fontWeight: 900, fontSize: '1.55rem', lineHeight: 1 }}>{value}</div>
-      <div style={{ color: accent, fontWeight: 800, fontSize: '0.74rem', marginTop: '8px' }}>{note}</div>
-    </div>
-  );
-}
-
-function VisualArea({ item, compact, visual }) {
-  const hasImage = !!item.imageUrl;
-  const minHeight = compact ? '84px' : '112px';
-  const borderRadius = compact ? '14px' : '16px';
-  const padding = compact ? '12px' : '14px';
-
-  const contentStyle = {
-    position: 'relative',
-    zIndex: 1,
-    height: '100%',
-    display: 'grid',
-    alignContent: 'space-between',
-    minHeight,
-    padding,
-  };
-
-  return (
-    <div
-      style={{
-        borderRadius,
-        minHeight,
-        overflow: 'hidden',
-        position: 'relative',
-        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.16)',
-      }}
-    >
-      {hasImage ? (
-        <>
-          <img
-            src={item.imageUrl}
-            alt={item.title}
-            loading="lazy"
-            style={{
-              position: 'absolute',
-              inset: 0,
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              objectPosition: 'center',
-            }}
-          />
-          <div
-            style={{
-              position: 'absolute',
-              inset: 0,
-              background: 'linear-gradient(to bottom, rgba(0,0,0,0.18) 0%, rgba(0,0,0,0.62) 100%)',
-            }}
-          />
-        </>
-      ) : (
-        <div
+      {desc && (
+        <p
           style={{
-            position: 'absolute',
-            inset: 0,
-            background: visual.gradient,
+            margin: 0,
+            color: 'var(--text-sub)',
+            fontSize: '0.77rem',
+            lineHeight: 1.55,
+            paddingLeft: accent ? '12px' : '0',
           }}
-        />
+        >
+          {desc}
+        </p>
       )}
-      <div style={contentStyle}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'start' }}>
-          <span
-            style={{
-              background: 'rgba(255,255,255,0.22)',
-              borderRadius: '999px',
-              padding: '4px 10px',
-              fontSize: '0.68rem',
-              fontWeight: 800,
-              color: '#ffffff',
-              backdropFilter: 'blur(4px)',
-            }}
-          >
-            {visual.kicker}
-          </span>
-          <span style={{ fontSize: compact ? '1.6rem' : '1.9rem', lineHeight: 1 }}>{visual.emoji}</span>
-        </div>
-        <div style={{ color: '#ffffff', fontSize: compact ? '0.78rem' : '0.84rem', fontWeight: 800, lineHeight: 1.5, opacity: 0.96 }}>
-          {visual.label}
-        </div>
-      </div>
     </div>
   );
 }
 
-function NewsItem({ item, compact = false, isDark = false }) {
-  const severity = severityStyles[item.severity] || severityStyles.normal;
-  const metaTone = isDark ? '#c9deef' : '#516173';
-  const visual = item.visual || {
-    emoji: '📰',
-    gradient: 'linear-gradient(135deg, #0f766e 0%, #0369a1 100%)',
-    kicker: item.source || 'ข่าวเด่น',
-    label: item.title,
-  };
-
-  return (
-    <article
-      style={{
-        background: compact ? (isDark ? '#132745' : '#f7fbff') : 'transparent',
-        borderRadius: compact ? '16px' : 0,
-        border: compact ? `1px solid ${isDark ? 'rgba(125,211,252,0.16)' : severity.border}` : 'none',
-        borderBottom: compact ? 'none' : `1px solid ${isDark ? 'rgba(125,211,252,0.16)' : 'rgba(148,163,184,0.18)'}`,
-        padding: compact ? '12px' : '0 0 18px',
-        display: 'grid',
-        gap: compact ? '8px' : '10px',
-        boxShadow: compact ? (isDark ? '0 10px 28px rgba(0,0,0,0.18)' : '0 10px 22px rgba(14,30,56,0.05)') : 'none',
-      }}
-    >
-      {compact ? <VisualArea item={item} compact={compact} visual={visual} /> : null}
-
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-          {item.categoryLabel ? (
-            <span style={{ color: metaTone, fontSize: '0.68rem', fontWeight: 900, letterSpacing: '0.03em', textTransform: 'uppercase' }}>
-              {item.categoryLabel}
-            </span>
-          ) : null}
-          <span
-            style={{
-              background: severity.bg,
-              color: severity.color,
-              border: `1px solid ${severity.border}`,
-              borderRadius: '999px',
-              padding: '4px 10px',
-              fontSize: '0.68rem',
-              fontWeight: 800,
-            }}
-          >
-            {severity.label}
-          </span>
-          {item.source ? <span style={{ color: metaTone, fontSize: '0.72rem', fontWeight: 700 }}>{item.source}</span> : null}
-        </div>
-        <span style={{ color: 'var(--text-sub)', fontSize: '0.72rem', fontWeight: 700 }}>{item.publishedAgoLabel || item.publishedAtLabel || '-'}</span>
-      </div>
-
-      <div>
-        <div style={{ color: 'var(--text-main)', fontWeight: 900, fontSize: compact ? '0.88rem' : '1rem', lineHeight: 1.55 }}>
-          {item.title}
-        </div>
-        {item.summary ? (
-          <div style={{ color: 'var(--text-sub)', fontSize: compact ? '0.77rem' : '0.83rem', lineHeight: 1.75, marginTop: '6px' }}>
-            {item.summary}
-          </div>
-        ) : null}
-      </div>
-
-      {(item.eventLabel || item.country || item.status || item.magnitude) && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-          {item.eventLabel ? <MetaBadge text={item.eventLabel} isDark={isDark} /> : null}
-          {item.country ? <MetaBadge text={item.country} isDark={isDark} /> : null}
-          {item.status ? <MetaBadge text={item.status} isDark={isDark} /> : null}
-          {item.magnitude ? <MetaBadge text={`M ${item.magnitude}`} isDark={isDark} /> : null}
-        </div>
-      )}
-
-      {item.link ? (
-        <a
-          href={item.link}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ color: '#0284c7', fontSize: '0.77rem', fontWeight: 800, textDecoration: 'none' }}
-        >
-          อ่านข่าวต้นทาง →
-        </a>
-      ) : null}
-    </article>
-  );
-}
-
-function MetaBadge({ text, subtle = false, tone, isDark = false }) {
+function MetaBadge({ text, color, bg }) {
   return (
     <span
       style={{
-        background: subtle
-          ? isDark
-            ? 'rgba(8,19,38,0.7)'
-            : 'rgba(255,255,255,0.92)'
-          : isDark
-            ? 'rgba(96,202,242,0.14)'
-            : 'rgba(148,163,184,0.16)',
-        color: tone || 'var(--text-main)',
-        border: `1px solid ${isDark ? 'rgba(125,211,252,0.16)' : 'rgba(148,163,184,0.2)'}`,
+        background: bg || 'rgba(148,163,184,0.15)',
+        color: color || 'var(--text-sub)',
+        border: `1px solid ${color ? `${color}44` : 'rgba(148,163,184,0.2)'}`,
         borderRadius: '999px',
-        padding: '4px 9px',
-        fontSize: '0.68rem',
+        padding: '3px 9px',
+        fontSize: '0.66rem',
         fontWeight: 800,
+        whiteSpace: 'nowrap',
       }}
     >
       {text}
@@ -326,41 +248,402 @@ function MetaBadge({ text, subtle = false, tone, isDark = false }) {
   );
 }
 
-function EmptyState({ title, desc, isDark = false }) {
+function EmptyCard({ title, desc }) {
   return (
     <div
       style={{
-        borderRadius: '18px',
+        borderRadius: '16px',
         border: '1px dashed var(--border-color)',
         padding: '24px',
         textAlign: 'center',
-        background: isDark ? '#132745' : '#f7fbff',
       }}
     >
-      <div style={{ color: 'var(--text-main)', fontWeight: 900 }}>{title}</div>
-      <div style={{ color: 'var(--text-sub)', fontSize: '0.82rem', marginTop: '6px', lineHeight: 1.6 }}>{desc}</div>
+      <div style={{ color: 'var(--text-main)', fontWeight: 800, marginBottom: '4px' }}>{title}</div>
+      <div style={{ color: 'var(--text-sub)', fontSize: '0.8rem', lineHeight: 1.5 }}>{desc}</div>
     </div>
   );
 }
 
-function BentoSection({ icon, title, desc, items, isDark = false }) {
+// ─── NewsItem ─────────────────────────────────────────────────────────────────
+
+function NewsItem({ item, showRank, rank, isDark = false }) {
+  const sev = SEV[item.severity] || SEV.normal;
+  const isHigh = item.severity === 'high';
+
   return (
-    <SectionCard>
-      <CardTitle eyebrow={icon} title={title} desc={desc} />
-      {!items.length ? (
-        <EmptyState title={`ยังไม่มี${title}`} desc="ตอนนี้ยังไม่มีประเด็นใหม่ในหมวดนี้" isDark={isDark} />
-      ) : (
-        <div style={{ display: 'grid', gap: '10px' }}>
-          {items.map((item, index) => (
-            <NewsItem key={`${title}-${item.title}-${index}`} item={item} compact isDark={isDark} />
-          ))}
+    <article
+      style={{
+        background: isDark ? 'rgba(15,30,60,0.75)' : '#ffffff',
+        borderRadius: '16px',
+        border: `1px solid ${sev.border}`,
+        borderLeft: `4px solid ${sev.accent}`,
+        padding: '14px',
+        display: 'grid',
+        gap: '8px',
+        animation: isHigh ? 'alertPulse 2.5s ease-in-out infinite, fadeSlideIn 0.3s ease' : 'fadeSlideIn 0.3s ease',
+      }}
+    >
+      <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+        {showRank && (
+          <div
+            style={{
+              flexShrink: 0,
+              width: '30px',
+              height: '30px',
+              borderRadius: '50%',
+              background: sev.badgeBg,
+              border: `2px solid ${sev.accent}`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '0.7rem',
+              fontWeight: 900,
+              color: sev.color,
+            }}
+          >
+            {rank}
+          </div>
+        )}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div
+            style={{
+              display: 'flex',
+              gap: '6px',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              marginBottom: '6px',
+            }}
+          >
+            <span
+              style={{
+                background: sev.badgeBg,
+                color: sev.color,
+                border: `1px solid ${sev.accent}44`,
+                borderRadius: '999px',
+                padding: '3px 10px',
+                fontSize: '0.65rem',
+                fontWeight: 900,
+              }}
+            >
+              {sev.icon} {sev.label}
+            </span>
+            {item.categoryLabel && (
+              <span style={{ color: 'var(--text-sub)', fontSize: '0.68rem', fontWeight: 700 }}>
+                {item.categoryLabel}
+              </span>
+            )}
+            {item.source && (
+              <span style={{ color: 'var(--text-sub)', fontSize: '0.67rem', fontWeight: 600 }}>
+                {item.source}
+              </span>
+            )}
+            {item.timeAgo && (
+              <span style={{ marginLeft: 'auto', color: 'var(--text-sub)', fontSize: '0.67rem' }}>
+                {item.timeAgo}
+              </span>
+            )}
+          </div>
+
+          <div
+            style={{
+              color: 'var(--text-main)',
+              fontWeight: 900,
+              fontSize: '0.9rem',
+              lineHeight: 1.5,
+              marginBottom: '4px',
+            }}
+          >
+            {item.title}
+          </div>
+
+          {item.summary && (
+            <div style={{ color: 'var(--text-sub)', fontSize: '0.78rem', lineHeight: 1.65 }}>
+              {item.summary}
+            </div>
+          )}
+
+          <div
+            style={{
+              display: 'flex',
+              gap: '6px',
+              flexWrap: 'wrap',
+              marginTop: '8px',
+              alignItems: 'center',
+            }}
+          >
+            {item.eventLabel && <MetaBadge text={item.eventLabel} color={sev.color} bg={sev.badgeBg} />}
+            {item.country && <MetaBadge text={`📍 ${item.country}`} />}
+            {item.magnitude && <MetaBadge text={`M ${item.magnitude}`} color="#ea580c" bg="rgba(234,88,12,0.12)" />}
+            {item.tsunami === 1 && (
+              <MetaBadge text="⚠️ สึนามิ" color="#dc2626" bg="rgba(220,38,38,0.12)" />
+            )}
+            {item.status && <MetaBadge text={item.status} />}
+            {item.link && (
+              <a
+                href={item.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  marginLeft: 'auto',
+                  color: '#0284c7',
+                  fontSize: '0.72rem',
+                  fontWeight: 800,
+                  textDecoration: 'none',
+                }}
+              >
+                อ่านต้นทาง →
+              </a>
+            )}
+          </div>
         </div>
-      )}
-    </SectionCard>
+      </div>
+    </article>
   );
 }
 
-function WeatherDayCard({ day, index, isDark = false }) {
+// ─── AlertDashboard ───────────────────────────────────────────────────────────
+
+function AlertDashboard({ allItems }) {
+  const counts = useMemo(
+    () => ({
+      high: allItems.filter((item) => item.severity === 'high').length,
+      medium: allItems.filter((item) => item.severity === 'medium').length,
+      total: allItems.length,
+    }),
+    [allItems],
+  );
+
+  if (!counts.total) return null;
+
+  const chips = [];
+  if (counts.high)
+    chips.push({ label: `เร่งด่วน ${counts.high}`, color: '#ef4444', bg: 'rgba(239,68,68,0.18)', icon: '🔴' });
+  if (counts.medium)
+    chips.push({ label: `เฝ้าระวัง ${counts.medium}`, color: '#f59e0b', bg: 'rgba(245,158,11,0.18)', icon: '🟡' });
+  chips.push({ label: `ทั้งหมด ${counts.total}`, color: 'rgba(255,255,255,0.75)', bg: 'rgba(255,255,255,0.12)', icon: '📊' });
+
+  return (
+    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+      {chips.map((chip, index) => (
+        <div
+          key={index}
+          style={{
+            background: chip.bg,
+            color: chip.color,
+            border: `1px solid ${chip.color}44`,
+            borderRadius: '999px',
+            padding: '6px 13px',
+            fontSize: '0.74rem',
+            fontWeight: 900,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+          }}
+        >
+          {chip.icon} {chip.label}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── ENSO Phase Card ──────────────────────────────────────────────────────────
+
+function EnsoPhaseCard({ phase }) {
+  const configs = {
+    elnino: {
+      name: 'เอลนีโญ่ (El Niño)',
+      status: 'มีสัญญาณ',
+      color: '#ea580c',
+      bg: 'linear-gradient(135deg, rgba(234,88,12,0.18), rgba(185,28,28,0.14))',
+      border: 'rgba(234,88,12,0.36)',
+      emoji: '☀️',
+      description:
+        'น้ำทะเลในมหาสมุทรแปซิฟิกตะวันออกอุ่นกว่าปกติ ส่งผลให้ฝนน้อยลงในไทยและเอเชียตะวันออกเฉียงใต้ ฤดูแล้งอาจยาวนานขึ้น',
+      impactThai: [
+        'ฝนน้อยกว่าปกติในช่วงฤดูร้อน–ต้นฝน',
+        'เสี่ยงภาวะภัยแล้งในพื้นที่เกษตรกรรม',
+        'อุณหภูมิสูงสุดอาจทุบสถิติในหลายจังหวัด',
+      ],
+    },
+    lanina: {
+      name: 'ลานีญ่า (La Niña)',
+      status: 'มีสัญญาณ',
+      color: '#0284c7',
+      bg: 'linear-gradient(135deg, rgba(2,132,199,0.18), rgba(30,58,138,0.14))',
+      border: 'rgba(2,132,199,0.36)',
+      emoji: '🌧️',
+      description:
+        'น้ำทะเลในมหาสมุทรแปซิฟิกตะวันออกเย็นกว่าปกติ มักนำฝนมากและเพิ่มโอกาสเกิดพายุในภูมิภาคเอเชียตะวันออกเฉียงใต้',
+      impactThai: [
+        'ฝนมากกว่าปกติ เสี่ยงน้ำท่วมในลุ่มแม่น้ำ',
+        'พายุโซนร้อนมีโอกาสพัดขึ้นฝั่งเพิ่มขึ้น',
+        'อุณหภูมิต่ำกว่าปกติในฤดูหนาวบางช่วง',
+      ],
+    },
+    neutral: {
+      name: 'ปรากฏการณ์ ENSO',
+      status: 'ระยะเป็นกลาง',
+      color: '#059669',
+      bg: 'linear-gradient(135deg, rgba(5,150,105,0.14), rgba(2,132,199,0.10))',
+      border: 'rgba(5,150,105,0.28)',
+      emoji: '🌊',
+      description:
+        'อุณหภูมิน้ำทะเลอยู่ในเกณฑ์ปกติ ยังไม่มีสัญญาณเอลนีโญ่หรือลานีญ่าที่ชัดเจน สภาพอากาศเป็นไปตามปกติตามฤดูกาล',
+      impactThai: [
+        'สภาพอากาศเป็นไปตามฤดูกาลปกติ',
+        'ติดตามพยากรณ์ระยะกลาง 3–6 เดือนจาก WMO',
+        'ยังคงต้องเฝ้าระวังพายุในฤดูมรสุม',
+      ],
+    },
+  };
+
+  const c = configs[phase] || configs.neutral;
+
+  return (
+    <div
+      style={{
+        background: c.bg,
+        border: `1px solid ${c.border}`,
+        borderRadius: '20px',
+        padding: '20px',
+      }}
+    >
+      <div style={{ display: 'flex', gap: '14px', alignItems: 'flex-start' }}>
+        <span style={{ fontSize: '2.6rem', lineHeight: 1, flexShrink: 0 }}>{c.emoji}</span>
+        <div style={{ flex: 1 }}>
+          <div
+            style={{
+              display: 'flex',
+              gap: '8px',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              marginBottom: '8px',
+            }}
+          >
+            <div style={{ color: c.color, fontWeight: 900, fontSize: '1rem' }}>{c.name}</div>
+            <span
+              style={{
+                background: `${c.color}22`,
+                color: c.color,
+                border: `1px solid ${c.color}44`,
+                borderRadius: '999px',
+                padding: '3px 10px',
+                fontSize: '0.68rem',
+                fontWeight: 900,
+              }}
+            >
+              {c.status}
+            </span>
+          </div>
+          <p style={{ margin: '0 0 12px', color: 'var(--text-sub)', fontSize: '0.83rem', lineHeight: 1.65 }}>
+            {c.description}
+          </p>
+          <div style={{ color: 'var(--text-main)', fontWeight: 800, fontSize: '0.78rem', marginBottom: '8px' }}>
+            ผลกระทบต่อประเทศไทย:
+          </div>
+          <div style={{ display: 'grid', gap: '6px' }}>
+            {c.impactThai.map((impact, i) => (
+              <div
+                key={i}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '16px 1fr',
+                  gap: '6px',
+                  color: 'var(--text-sub)',
+                  fontSize: '0.8rem',
+                  lineHeight: 1.55,
+                }}
+              >
+                <span style={{ color: c.color, fontWeight: 900 }}>•</span>
+                <span>{impact}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Risk Meter ───────────────────────────────────────────────────────────────
+
+function RiskMeter({ risk }) {
+  const { score, label, color, icon } = risk;
+
+  return (
+    <Card>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap', marginBottom: '16px' }}>
+        <div>
+          <div style={{ color: 'var(--text-sub)', fontSize: '0.74rem', fontWeight: 800, marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+            ระดับความเสี่ยงต่อประเทศไทย
+          </div>
+          <div style={{ color, fontWeight: 900, fontSize: '1.4rem' }}>
+            {icon} ความเสี่ยง{label}
+          </div>
+        </div>
+        <div
+          style={{
+            width: '68px',
+            height: '68px',
+            borderRadius: '50%',
+            border: `4px solid ${color}`,
+            background: `${color}14`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}
+        >
+          <span style={{ color, fontWeight: 900, fontSize: '1.1rem' }}>{score}</span>
+        </div>
+      </div>
+
+      <div>
+        <div
+          style={{
+            height: '10px',
+            borderRadius: '999px',
+            background: 'rgba(148,163,184,0.18)',
+            overflow: 'hidden',
+            marginBottom: '10px',
+          }}
+        >
+          <div
+            style={{
+              height: '100%',
+              width: `${score}%`,
+              borderRadius: '999px',
+              background:
+                score > 60
+                  ? 'linear-gradient(90deg, #10b981, #f59e0b, #ef4444)'
+                  : score > 25
+                    ? 'linear-gradient(90deg, #10b981, #f59e0b)'
+                    : '#10b981',
+              transition: 'width 0.8s ease',
+            }}
+          />
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          {[
+            { label: 'น้อย', color: '#10b981' },
+            { label: 'ปานกลาง', color: '#f59e0b' },
+            { label: 'สูง', color: '#ef4444' },
+          ].map((seg) => (
+            <div key={seg.label} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: seg.color }} />
+              <span style={{ color: 'var(--text-sub)', fontSize: '0.68rem' }}>{seg.label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+// ─── Weather Day Card ─────────────────────────────────────────────────────────
+
+function WeatherDayCard({ day, index, isDark }) {
   return (
     <div
       style={{
@@ -368,101 +651,95 @@ function WeatherDayCard({ day, index, isDark = false }) {
           index === 0
             ? isDark
               ? 'linear-gradient(180deg, rgba(14,165,233,0.38), rgba(19,39,69,0.96))'
-              : 'linear-gradient(180deg, rgba(14,165,233,0.18), rgba(255,255,255,0.68))'
+              : 'linear-gradient(180deg, rgba(14,165,233,0.18), rgba(255,255,255,0.7))'
             : isDark
               ? 'linear-gradient(180deg, rgba(8,19,38,0.92), rgba(19,39,69,0.9))'
               : 'linear-gradient(180deg, rgba(255,255,255,0.92), rgba(221,240,255,0.8))',
         borderRadius: '18px',
         border: `1px solid ${isDark ? 'rgba(125,211,252,0.16)' : 'var(--border-color)'}`,
-        padding: '14px',
+        padding: '12px',
         display: 'grid',
-        gap: '7px',
+        gap: '6px',
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', alignItems: 'center' }}>
-        <div style={{ color: 'var(--text-main)', fontWeight: 900, fontSize: '0.8rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ color: 'var(--text-main)', fontWeight: 900, fontSize: '0.78rem' }}>
           {index === 0 ? 'วันนี้' : new Date(day.time).toLocaleDateString('th-TH', { weekday: 'short' })}
         </div>
-        <span style={{ color: 'var(--text-sub)', fontSize: '0.7rem' }}>
+        <span style={{ color: 'var(--text-sub)', fontSize: '0.68rem' }}>
           {new Date(day.time).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
         </span>
       </div>
-      <div style={{ color: 'var(--text-main)', fontWeight: 800, fontSize: '0.83rem', lineHeight: 1.5 }}>{day.label}</div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
-        <div style={{ color: '#ea580c', fontWeight: 900, fontSize: '1.15rem' }}>{day.max != null ? `${day.max}°` : '-'}</div>
-        <div style={{ color: '#2563eb', fontWeight: 800, fontSize: '0.84rem', alignSelf: 'end' }}>
-          ต่ำสุด {day.min != null ? `${day.min}°` : '-'}
-        </div>
+      <div style={{ color: 'var(--text-main)', fontWeight: 700, fontSize: '0.75rem', lineHeight: 1.4 }}>{day.label}</div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'end' }}>
+        <div style={{ color: '#ea580c', fontWeight: 900, fontSize: '1.1rem' }}>{day.max != null ? `${day.max}°` : '-'}</div>
+        <div style={{ color: '#2563eb', fontWeight: 800, fontSize: '0.8rem' }}>{day.min != null ? `${day.min}°` : '-'}</div>
       </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', color: 'var(--text-sub)', fontSize: '0.72rem' }}>
-        <span>ฝน {day.rainChance ?? '-'}%</span>
+      <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-sub)', fontSize: '0.68rem' }}>
+        <span>🌧️ {day.rainChance ?? '-'}%</span>
         <span>{day.rainSum || 0} มม.</span>
       </div>
     </div>
   );
 }
 
-function formatApiItems(items = []) {
-  return items.map((item) => ({
-    ...item,
-    categoryLabel: categoryLabels[item.category] || 'ข่าว',
-    publishedAtLabel: item.publishedAt
-      ? (() => {
-          const d = new Date(item.publishedAt);
-          if (Number.isNaN(d.getTime())) return item.publishedAt;
-          return d.toLocaleString('th-TH', {
-            day: 'numeric',
-            month: 'short',
-            hour: '2-digit',
-            minute: '2-digit',
-          });
-        })()
-      : '-',
-    publishedAgoLabel: item.publishedAt
-      ? (() => {
-          const d = new Date(item.publishedAt);
-          if (Number.isNaN(d.getTime())) return '';
-          const diffMs = Date.now() - d.getTime();
-          if (diffMs < 0) return '';
-          const hours = Math.floor(diffMs / 3600000);
-          const days = Math.floor(diffMs / 86400000);
-          if (hours < 1) return 'ไม่ถึง 1 ชม.';
-          if (hours < 24) return `${hours} ชม.ที่ผ่านมา`;
-          if (days <= 7) return `${days} วันที่ผ่านมา`;
-          return '';
-        })()
-      : '',
-  }));
+// ─── Source Status ────────────────────────────────────────────────────────────
+
+function SourceStatus({ sourceStatus = [] }) {
+  if (!sourceStatus.length) return null;
+  return (
+    <Card>
+      <SectionHeader icon="📡" title="สถานะแหล่งข้อมูล" desc="การเชื่อมต่อแหล่งข่าวแบบเรียลไทม์" />
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+          gap: '8px',
+        }}
+      >
+        {sourceStatus.map((src, i) => (
+          <div
+            key={i}
+            style={{
+              background: src.status === 'ok' ? 'rgba(16,185,129,0.08)' : 'rgba(220,38,38,0.08)',
+              border: `1px solid ${src.status === 'ok' ? 'rgba(16,185,129,0.22)' : 'rgba(220,38,38,0.22)'}`,
+              borderRadius: '14px',
+              padding: '12px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+              <div
+                style={{
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '50%',
+                  background: src.status === 'ok' ? '#10b981' : '#ef4444',
+                  flexShrink: 0,
+                  animation: src.status !== 'ok' ? 'dotBlink 1s ease infinite' : 'none',
+                }}
+              />
+              <span style={{ fontWeight: 900, fontSize: '0.76rem', color: 'var(--text-main)' }}>{src.label}</span>
+            </div>
+            <div style={{ color: src.status === 'ok' ? '#059669' : '#dc2626', fontSize: '0.68rem', fontWeight: 700 }}>
+              {src.status === 'ok' ? `✓ ${src.count} รายการ` : '✗ เชื่อมต่อไม่ได้'}
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
 }
 
-function readCachedNews() {
-  try {
-    const raw = sessionStorage.getItem(NEWS_CACHE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!parsed?.payload || !parsed?.savedAt) return null;
-    if (Date.now() - parsed.savedAt > NEWS_CACHE_TTL_MS) return null;
-    return parsed.payload;
-  } catch {
-    return null;
-  }
-}
-
-function writeCachedNews(payload) {
-  try {
-    sessionStorage.setItem(NEWS_CACHE_KEY, JSON.stringify({ payload, savedAt: Date.now() }));
-  } catch {
-    // Ignore cache write failures.
-  }
-}
+// ─── Main NewsPage ────────────────────────────────────────────────────────────
 
 export default function NewsPage() {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [activeTab, setActiveTab] = useState('overview');
   const [data, setData] = useState(() => readCachedNews());
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!readCachedNews());
   const [error, setError] = useState('');
   const [isDark, setIsDark] = useState(document.body.classList.contains('dark-theme'));
+  const [sevFilter, setSevFilter] = useState('all');
 
   useEffect(() => {
     const onResize = () => setIsMobile(window.innerWidth < 768);
@@ -473,28 +750,24 @@ export default function NewsPage() {
   useEffect(() => {
     const syncTheme = () => setIsDark(document.body.classList.contains('dark-theme'));
     syncTheme();
-
     const observer = new MutationObserver(syncTheme);
     observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
-
     return () => observer.disconnect();
   }, []);
 
   const loadNews = async ({ silent = false } = {}) => {
-    if (!silent || !data) setLoading(true);
+    if (!silent) setLoading(true);
     setError('');
     try {
-      const response = await fetch('/api/news');
-      if (!response.ok) {
-        throw new Error('ยังไม่สามารถโหลดข่าวได้ในขณะนี้');
-      }
+      const response = await fetchNewsWithTimeout('/api/news');
+      if (!response.ok) throw new Error('ยังไม่สามารถโหลดข่าวได้ในขณะนี้');
       const payload = await response.json();
       setData(payload);
       writeCachedNews(payload);
-    } catch (fetchError) {
-      setError(fetchError.message || 'ขออภัย ขณะนี้ยังไม่สามารถแสดงข่าวได้');
+    } catch (err) {
+      if (!silent) setError(err.message || 'ขออภัย ไม่สามารถแสดงข่าวได้');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -511,40 +784,97 @@ export default function NewsPage() {
     return () => clearInterval(timer);
   }, []);
 
-  const tabs = [
-    { id: 'overview', label: isMobile ? 'สรุป' : 'ภาพรวม', icon: '✦' },
-    { id: 'thailand', label: isMobile ? 'ไทย' : 'ข่าวไทย', icon: '🇹🇭' },
-    { id: 'global', label: isMobile ? 'โลก' : 'ต่างประเทศ', icon: '🌐' },
-    { id: 'climate', label: isMobile ? 'ภูมิอากาศ' : 'ภูมิอากาศโลก', icon: '🌡️' },
-  ];
-
   const thaiGroups = useMemo(() => {
     if (!data) return {};
     return {
-      warnings: formatApiItems(data.thailand?.warnings || []),
-      storms: formatApiItems(data.thailand?.storms || []),
-      earthquakes: formatApiItems(data.thailand?.earthquakes || []),
-      disasters: formatApiItems(data.thailand?.disasters || []),
+      warnings: formatItems(data.thailand?.warnings || []),
+      storms: formatItems(data.thailand?.storms || []),
+      earthquakes: formatItems(data.thailand?.earthquakes || []),
+      disasters: formatItems(data.thailand?.disasters || []),
+      ddpm: formatItems(data.thailand?.ddpm || []),
+      thaiPbs: formatItems(data.thailand?.thaiPbs || []),
+      tmdEq: formatItems(data.thailand?.tmdEq || []),
+      webSevenday: formatItems(data.thailand?.webSevenday || []),
     };
   }, [data]);
 
   const globalGroups = useMemo(() => {
     if (!data) return {};
     return {
-      alerts: formatApiItems(data.global?.alerts || []),
-      earthquakes: formatApiItems(data.global?.earthquakes || []),
-      disasters: formatApiItems(data.global?.disasters || []),
-      climate: formatApiItems(data.global?.climate || []),
+      alerts: formatItems(data.global?.alerts || []),
+      earthquakes: formatItems(data.global?.earthquakes || []),
+      earthquakesRegional: formatItems(data.global?.earthquakesRegional || []),
+      disasters: formatItems(data.global?.disasters || []),
+      climate: formatItems(data.global?.climate || []),
+      eonet: formatItems(data.global?.eonet || []),
     };
   }, [data]);
 
+  const topStories = useMemo(() => formatItems(data?.topStories || []), [data]);
   const weatherDays = data?.weather?.days || [];
   const digestBullets = data?.digest?.bullets || [];
-  const topStories = data?.topStories || [];
-  const leadThaiStory = thaiGroups.warnings?.[0] || thaiGroups.storms?.[0] || thaiGroups.disasters?.[0];
-  const leadGlobalStory = globalGroups.alerts?.[0] || globalGroups.earthquakes?.[0] || globalGroups.disasters?.[0];
-  const leadClimateStory = globalGroups.climate?.[0];
-  const leadStory = topStories[0] || leadThaiStory || leadGlobalStory || leadClimateStory;
+  const ensoPhase = useMemo(() => detectEnsoPhase(globalGroups.climate || []), [globalGroups.climate]);
+  const riskScore = useMemo(() => computeThaiRisk(thaiGroups), [thaiGroups]);
+
+  const allItems = useMemo(
+    () => [
+      ...(thaiGroups.warnings || []),
+      ...(thaiGroups.storms || []),
+      ...(thaiGroups.earthquakes || []),
+      ...(thaiGroups.disasters || []),
+      ...(thaiGroups.ddpm || []),
+      ...(thaiGroups.thaiPbs || []),
+      ...(globalGroups.alerts || []),
+      ...(globalGroups.earthquakes || []),
+      ...(globalGroups.earthquakesRegional || []),
+      ...(globalGroups.disasters || []),
+      ...(globalGroups.eonet || []),
+    ],
+    [thaiGroups, globalGroups],
+  );
+
+  const riskItems = useMemo(() => {
+    const thai = [
+      ...(thaiGroups.warnings || []),
+      ...(thaiGroups.storms || []),
+      ...(thaiGroups.disasters || []),
+      ...(thaiGroups.earthquakes || []),
+      ...(thaiGroups.ddpm || []),
+    ];
+    const regional = [
+      ...(globalGroups.alerts || []),
+      ...(globalGroups.earthquakesRegional || []),
+      ...(globalGroups.eonet || []),
+    ].filter((item) => {
+      const text = `${item.title} ${item.summary || ''} ${item.country || ''}`.toLowerCase();
+      return /thailand|myanmar|laos|cambodia|vietnam|malaysia|indonesia|mekong|southeast asia|เอเชีย/.test(text);
+    });
+    const combined = [...thai, ...regional];
+    const seen = new Set();
+    return combined
+      .filter((item) => {
+        if (seen.has(item.title)) return false;
+        seen.add(item.title);
+        return true;
+      })
+      .sort((a, b) => (b.priorityScore || 0) - (a.priorityScore || 0))
+      .slice(0, 15);
+  }, [thaiGroups, globalGroups]);
+
+  const breakingItems = topStories.filter((item) => item.severity === 'high').slice(0, 3);
+
+  const applyFilter = (items) => {
+    if (sevFilter === 'all') return items;
+    return items.filter((item) => item.severity === sevFilter);
+  };
+
+  const tabs = [
+    { id: 'overview', label: 'ภาพรวม', icon: '✦' },
+    { id: 'thailand', label: isMobile ? 'ไทย' : 'ข่าวไทย', icon: '🇹🇭' },
+    { id: 'global', label: isMobile ? 'โลก' : 'ต่างประเทศ', icon: '🌐' },
+    { id: 'enso', label: isMobile ? 'เอลนีโญ่' : 'เอลนีโญ่/ลานีญ่า', icon: '🌊' },
+    { id: 'risk', label: isMobile ? 'ความเสี่ยง' : 'ความเสี่ยงต่อไทย', icon: '🎯' },
+  ];
 
   return (
     <div
@@ -557,8 +887,11 @@ export default function NewsPage() {
         paddingBottom: isMobile ? '88px' : '42px',
       }}
     >
+      <style>{ANIMATIONS}</style>
+
       <div style={{ maxWidth: '1160px', margin: '0 auto', display: 'grid', gap: '16px' }}>
-        <SectionCard
+        {/* ── Header Card ─────────────────────────────────────────────────────── */}
+        <Card
           style={{
             background: 'linear-gradient(135deg, #115e59 0%, #0369a1 45%, #1d4ed8 100%)',
             color: '#fff',
@@ -566,11 +899,30 @@ export default function NewsPage() {
             boxShadow: '0 24px 60px rgba(2,132,199,0.22)',
           }}
         >
-          <div style={{ position: 'absolute', inset: 'auto -80px -120px auto', width: '260px', height: '260px', borderRadius: '50%', background: 'rgba(255,255,255,0.08)' }} />
-          <div style={{ position: 'absolute', inset: '-60px auto auto -80px', width: '200px', height: '200px', borderRadius: '50%', background: 'rgba(255,255,255,0.06)' }} />
+          <div
+            style={{
+              position: 'absolute',
+              inset: 'auto -80px -120px auto',
+              width: '260px',
+              height: '260px',
+              borderRadius: '50%',
+              background: 'rgba(255,255,255,0.08)',
+            }}
+          />
+          <div
+            style={{
+              position: 'absolute',
+              inset: '-60px auto auto -80px',
+              width: '200px',
+              height: '200px',
+              borderRadius: '50%',
+              background: 'rgba(255,255,255,0.06)',
+            }}
+          />
 
-          <div style={{ position: 'relative', display: 'grid', gap: '18px' }}>
-            {!!topStories.length && (
+          <div style={{ position: 'relative', display: 'grid', gap: '16px' }}>
+            {/* Breaking news banner */}
+            {!!breakingItems.length && (
               <div
                 style={{
                   display: 'flex',
@@ -578,337 +930,573 @@ export default function NewsPage() {
                   gap: '10px',
                   flexWrap: 'wrap',
                   padding: '10px 14px',
-                  borderRadius: '16px',
-                  background: 'rgba(127,29,29,0.28)',
-                  border: '1px solid rgba(254,202,202,0.28)',
+                  borderRadius: '14px',
+                  background: 'rgba(127,29,29,0.34)',
+                  border: '1px solid rgba(254,202,202,0.3)',
                 }}
               >
-                <span style={{ fontSize: '0.72rem', fontWeight: 900, letterSpacing: '0.04em' }}>BREAKING</span>
-                <span style={{ fontSize: '0.88rem', fontWeight: 700, lineHeight: 1.5 }}>
-                  {topStories.slice(0, 3).map((item) => item.title).join(' • ')}
+                <span
+                  style={{
+                    background: '#dc2626',
+                    color: '#fff',
+                    borderRadius: '6px',
+                    padding: '2px 8px',
+                    fontSize: '0.64rem',
+                    fontWeight: 900,
+                    letterSpacing: '0.05em',
+                    animation: 'dotBlink 1.5s ease-in-out infinite',
+                    flexShrink: 0,
+                  }}
+                >
+                  ⚡ ด่วน
+                </span>
+                <span style={{ fontSize: '0.84rem', fontWeight: 700, lineHeight: 1.5 }}>
+                  {breakingItems.map((item) => item.title).join(' • ')}
                 </span>
               </div>
             )}
-            <CardTitle
-              eyebrow="ข่าวเด่น"
-              title="ข่าวสารอากาศและภัยพิบัติ"
-              light
-              action={
-                <button
-                  onClick={loadNews}
-                  style={{
-                    border: '1px solid rgba(255,255,255,0.26)',
-                    borderRadius: '999px',
-                    padding: '10px 14px',
-                    background: 'rgba(255,255,255,0.08)',
-                    color: '#ffffff',
-                    cursor: 'pointer',
-                    fontWeight: 800,
-                    fontSize: '0.82rem',
-                  }}
-                >
-                  รีเฟรชข่าว
-                </button>
-              }
-            />
 
+            {/* Title row */}
             <div
               style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr',
-                gap: '14px',
-                alignItems: 'stretch',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'flex-start',
+                gap: '12px',
+                flexWrap: 'wrap',
               }}
             >
-              <div
+              <div>
+                <div
+                  style={{
+                    color: 'rgba(255,255,255,0.7)',
+                    fontSize: '0.7rem',
+                    fontWeight: 800,
+                    letterSpacing: '0.05em',
+                    textTransform: 'uppercase',
+                    marginBottom: '5px',
+                  }}
+                >
+                  ข่าวสารและการแจ้งเตือน
+                </div>
+                <h1 style={{ margin: 0, color: '#ffffff', fontSize: isMobile ? '1.1rem' : '1.3rem', fontWeight: 900 }}>
+                  ข่าวอากาศ ภัยพิบัติ และภูมิอากาศ
+                </h1>
+                <div style={{ color: 'rgba(255,255,255,0.65)', fontSize: '0.75rem', marginTop: '4px' }}>
+                  อัปเดต {data?.labels?.generatedAt || '-'}
+                </div>
+              </div>
+              <button
+                onClick={loadNews}
                 style={{
-                  background: isDark ? 'rgba(8,19,38,0.42)' : 'rgba(255,255,255,0.18)',
-                  borderRadius: '24px',
-                  padding: isMobile ? '16px' : '20px',
-                  border: isDark ? '1px solid rgba(125,211,252,0.16)' : '1px solid rgba(255,255,255,0.22)',
-                  backdropFilter: 'blur(12px)',
+                  border: '1px solid rgba(255,255,255,0.28)',
+                  borderRadius: '999px',
+                  padding: '10px 16px',
+                  background: 'rgba(255,255,255,0.1)',
+                  color: '#ffffff',
+                  cursor: 'pointer',
+                  fontWeight: 800,
+                  fontSize: '0.82rem',
+                  backdropFilter: 'blur(8px)',
+                  flexShrink: 0,
                 }}
               >
-                <div style={{ fontSize: '0.72rem', fontWeight: 800, opacity: 0.82, marginBottom: '8px' }}>
-                  อัปเดตล่าสุด {data?.labels?.generatedAt || '-'}
-                </div>
-                <div style={{ fontSize: isMobile ? '1rem' : '1.24rem', fontWeight: 900, lineHeight: 1.55 }}>
-                  {data?.digest?.headline || 'รวมประเด็นสำคัญด้านอากาศและภัยพิบัติไว้ในที่เดียว'}
-                </div>
+                ↺ รีเฟรช
+              </button>
+            </div>
+
+            {/* Alert dashboard */}
+            <AlertDashboard allItems={allItems} />
+
+            {/* AI Digest */}
+            {(data?.digest?.headline || !!digestBullets.length) && (
+              <div
+                style={{
+                  background: 'rgba(255,255,255,0.12)',
+                  borderRadius: '18px',
+                  padding: isMobile ? '14px' : '18px',
+                  border: '1px solid rgba(255,255,255,0.18)',
+                  backdropFilter: 'blur(8px)',
+                }}
+              >
+                {data?.digest?.headline && (
+                  <div
+                    style={{
+                      fontWeight: 900,
+                      fontSize: isMobile ? '0.92rem' : '1.05rem',
+                      lineHeight: 1.55,
+                      marginBottom: digestBullets.length ? '12px' : 0,
+                    }}
+                  >
+                    {data.digest.headline}
+                  </div>
+                )}
                 {!!digestBullets.length && (
-                  <div style={{ marginTop: '14px', display: 'grid', gap: '8px' }}>
-                    {digestBullets.slice(0, 4).map((bullet) => (
+                  <div style={{ display: 'grid', gap: '7px' }}>
+                    {digestBullets.slice(0, 4).map((bullet, i) => (
                       <div
-                        key={bullet}
+                        key={i}
                         style={{
                           display: 'grid',
                           gridTemplateColumns: '14px 1fr',
                           gap: '8px',
-                          alignItems: 'start',
-                          fontSize: '0.84rem',
-                          lineHeight: 1.6,
+                          fontSize: '0.83rem',
+                          lineHeight: 1.55,
                         }}
                       >
-                        <span style={{ fontWeight: 900 }}>•</span>
+                        <span style={{ fontWeight: 900, color: 'rgba(255,255,255,0.7)' }}>•</span>
                         <span>{bullet}</span>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
+            )}
 
-            </div>
-
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              {tabs.filter((tab) => tab.id !== 'climate').map((tab) => {
+            {/* Tabs */}
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+              {tabs.map((tab) => {
                 const active = tab.id === activeTab;
                 return (
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
                     style={{
-                      border: 'none',
+                      border: active ? '1px solid rgba(255,255,255,0.5)' : '1px solid rgba(255,255,255,0.15)',
                       borderRadius: '999px',
-                      padding: '10px 14px',
+                      padding: '9px 15px',
                       background: active ? '#ffffff' : 'rgba(255,255,255,0.14)',
                       color: active ? '#0f172a' : '#ffffff',
                       cursor: 'pointer',
                       fontWeight: 900,
-                      fontSize: '0.82rem',
+                      fontSize: '0.8rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
                     }}
                   >
                     {tab.icon} {tab.label}
+                    {tab.id === 'risk' && riskScore.score > 0 && (
+                      <span
+                        style={{
+                          background: riskScore.color,
+                          color: '#fff',
+                          borderRadius: '999px',
+                          padding: '1px 7px',
+                          fontSize: '0.62rem',
+                          fontWeight: 900,
+                          marginLeft: '2px',
+                        }}
+                      >
+                        {riskScore.score}
+                      </span>
+                    )}
                   </button>
                 );
               })}
             </div>
           </div>
-        </SectionCard>
+        </Card>
 
-        {loading ? (
-          <SectionCard>
-            <div style={{ textAlign: 'center', padding: '34px 12px', color: 'var(--text-sub)' }}>กำลังอัปเดตข่าวล่าสุด...</div>
-          </SectionCard>
-        ) : null}
+        {/* Loading/Error */}
+        {loading && (
+          <Card>
+            <div style={{ textAlign: 'center', padding: '40px 12px', color: 'var(--text-sub)' }}>
+              ⏳ กำลังโหลดข่าวล่าสุด...
+            </div>
+          </Card>
+        )}
+        {error && (
+          <Card>
+            <div style={{ color: '#dc2626', fontWeight: 800, padding: '8px 0' }}>⚠️ {error}</div>
+          </Card>
+        )}
 
-        {error ? (
-          <SectionCard>
-            <div style={{ color: '#dc2626', fontWeight: 800 }}>{error}</div>
-          </SectionCard>
-        ) : null}
-
-        {!loading && !error && data && activeTab === 'overview' ? (
-          <div
-            style={{
-              display: 'grid',
-              gap: '14px',
-              maxWidth: '860px',
-              margin: '0 auto',
-            }}
-          >
+        {/* ── OVERVIEW TAB ──────────────────────────────────────────────────── */}
+        {!loading && !error && data && activeTab === 'overview' && (
+          <div style={{ display: 'grid', gap: '16px', maxWidth: '860px', margin: '0 auto', width: '100%' }}>
             {!!weatherDays.length && (
-              <section
-                style={{
-                  display: 'grid',
-                  gap: '10px',
-                }}
-              >
-                <div style={{ color: 'var(--text-main)', fontWeight: 900, fontSize: '0.95rem' }}>พยากรณ์วันนี้ พรุ่งนี้ และ 7 วันข้างหน้า</div>
+              <Card>
+                <SectionHeader
+                  icon="🌤️"
+                  title="พยากรณ์อากาศ 7 วัน — กรุงเทพฯ"
+                  desc="ข้อมูลจาก Open-Meteo อัปเดตทุก 10 นาที"
+                  accent="#0ea5e9"
+                />
                 <div
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: isMobile ? '1fr' : 'repeat(7, minmax(0, 1fr))',
-                    gap: '10px',
+                    gridTemplateColumns: isMobile ? 'repeat(4, 1fr)' : 'repeat(7, 1fr)',
+                    gap: '8px',
                   }}
                 >
-                  {weatherDays.slice(0, 7).map((day, index) => (
+                  {weatherDays.slice(0, isMobile ? 4 : 7).map((day, index) => (
                     <WeatherDayCard key={`${day.time}-${index}`} day={day} index={index} isDark={isDark} />
                   ))}
                 </div>
-              </section>
+              </Card>
             )}
 
-            {leadStory ? (
-              <article
-                style={{
-                  background: isDark
-                    ? 'linear-gradient(180deg, rgba(8,19,38,0.96), rgba(15,33,63,0.98))'
-                    : 'linear-gradient(180deg, rgba(255,255,255,0.98), rgba(239,248,255,0.96))',
-                  borderRadius: '24px',
-                  border: '1px solid var(--border-color)',
-                  padding: isMobile ? '16px' : '20px',
-                }}
-              >
-                <div style={{ color: '#0f766e', fontWeight: 900, fontSize: '0.76rem', marginBottom: '10px' }}>ข่าวนำ</div>
-                <NewsItem item={leadStory} isDark={isDark} />
-              </article>
-            ) : null}
+            {!!topStories.length ? (
+              <Card>
+                <SectionHeader
+                  icon="🎯"
+                  title="จัดลำดับความเร่งด่วน"
+                  desc="ข่าวเรียงตามระดับอันตราย ความเร่งด่วน และความใกล้ชิดกับไทย"
+                  accent="#ef4444"
+                  count={topStories.length}
+                />
+                <div style={{ display: 'grid', gap: '10px' }}>
+                  {topStories.slice(0, 10).map((item, index) => (
+                    <NewsItem
+                      key={`rank-${item.id || item.title || index}`}
+                      item={item}
+                      showRank
+                      rank={index + 1}
+                      isDark={isDark}
+                    />
+                  ))}
+                </div>
+              </Card>
+            ) : (
+              <EmptyCard title="ยังไม่มีข่าวเด่นในขณะนี้" desc="โปรดลองรีเฟรชใหม่อีกครั้ง" />
+            )}
+          </div>
+        )}
 
-            {topStories.slice(1).length ? (
-              <div style={{ display: 'grid', gap: '10px' }}>
-                {topStories.slice(1).map((item, index) => (
-                  <NewsItem key={`overview-feed-${item.id || item.title || index}`} item={item} compact={false} isDark={isDark} />
+        {/* ── THAILAND TAB ──────────────────────────────────────────────────── */}
+        {!loading && !error && data && activeTab === 'thailand' && (
+          <div style={{ display: 'grid', gap: '16px' }}>
+            {/* Filter bar */}
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+              <span style={{ color: 'var(--text-sub)', fontSize: '0.78rem', fontWeight: 700 }}>กรอง:</span>
+              {[
+                { id: 'all', label: 'ทั้งหมด', color: '#64748b' },
+                { id: 'high', label: '🔴 เร่งด่วน', color: '#dc2626' },
+                { id: 'medium', label: '🟡 เฝ้าระวัง', color: '#d97706' },
+                { id: 'normal', label: '🟢 ทั่วไป', color: '#059669' },
+              ].map((f) => (
+                <button
+                  key={f.id}
+                  onClick={() => setSevFilter(f.id)}
+                  style={{
+                    border: `1px solid ${sevFilter === f.id ? f.color : 'var(--border-color)'}`,
+                    borderRadius: '999px',
+                    padding: '7px 14px',
+                    background: sevFilter === f.id ? `${f.color}18` : 'var(--bg-card)',
+                    color: sevFilter === f.id ? f.color : 'var(--text-sub)',
+                    cursor: 'pointer',
+                    fontWeight: 800,
+                    fontSize: '0.78rem',
+                  }}
+                >
+                  {f.label}
+                </button>
+              ))}
+
+              {/* TMD source links */}
+              <div style={{ marginLeft: 'auto', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                {[
+                  { label: 'พยากรณ์ประจำวัน', href: 'https://www.tmd.go.th/forecast/daily' },
+                  { label: 'พยากรณ์ 7 วัน', href: 'https://www.tmd.go.th/forecast/sevenday' },
+                  { label: 'เตือนภัยพายุ', href: 'https://www.tmd.go.th/warning-and-events/warning-storm' },
+                ].map((link) => (
+                  <a
+                    key={link.href}
+                    href={link.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      color: '#0284c7',
+                      fontSize: '0.72rem',
+                      fontWeight: 800,
+                      textDecoration: 'none',
+                      background: 'rgba(2,132,199,0.1)',
+                      border: '1px solid rgba(2,132,199,0.22)',
+                      borderRadius: '999px',
+                      padding: '5px 10px',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    🔗 {link.label}
+                  </a>
                 ))}
               </div>
-            ) : !leadStory ? (
-              <EmptyState title="ยังไม่มีข่าวเด่นในตอนนี้" desc="โปรดลองรีเฟรชใหม่อีกครั้งในอีกสักครู่" isDark={isDark} />
-            ) : null}
-          </div>
-        ) : null}
+            </div>
 
-        {!loading && !error && data && activeTab === 'thailand' ? (
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, minmax(0, 1fr))',
-              gap: '16px',
-            }}
-          >
-            {thaiSectionConfig.map((section) => (
-              <SectionCard key={section.key}>
-                <CardTitle eyebrow={section.icon} title={section.title} desc={section.desc} />
-                {!thaiGroups[section.key]?.length ? (
-                  <EmptyState title={`ยังไม่มี${section.title}`} desc="ตอนนี้ยังไม่มีประเด็นใหม่ในหมวดนี้" isDark={isDark} />
-                ) : (
-                  <div style={{ display: 'grid', gap: '10px' }}>
-                    {thaiGroups[section.key].slice(0, 5).map((item, index) => (
-                      <NewsItem key={`${section.key}-${item.title}-${index}`} item={item} compact isDark={isDark} />
-                    ))}
-                  </div>
-                )}
-              </SectionCard>
-            ))}
-          </div>
-        ) : null}
-
-        {!loading && !error && data && activeTab === 'global' ? (
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, minmax(0, 1fr))',
-              gap: '16px',
-            }}
-          >
-            {globalSectionConfig.filter((s) => s.key !== 'climate').map((section) => (
-              <SectionCard key={section.key}>
-                <CardTitle eyebrow={section.icon} title={section.title} desc={section.desc} />
-                {!globalGroups[section.key]?.length ? (
-                  <EmptyState title={`ยังไม่มี${section.title}`} desc="ตอนนี้ยังไม่มีประเด็นใหม่ในหมวดนี้" isDark={isDark} />
-                ) : (
-                  <div style={{ display: 'grid', gap: '10px' }}>
-                    {globalGroups[section.key].slice(0, 5).map((item, index) => (
-                      <NewsItem key={`${section.key}-${item.title}-${index}`} item={item} compact isDark={isDark} />
-                    ))}
-                  </div>
-                )}
-              </SectionCard>
-            ))}
-          </div>
-        ) : null}
-
-        {!loading && !error && data && activeTab === 'climate' ? (
-          <div style={{ display: 'grid', gap: '16px' }}>
-            <SectionCard
-              style={{
-                background: isDark
-                  ? 'linear-gradient(135deg, rgba(5,150,105,0.18), rgba(3,105,161,0.22))'
-                  : 'linear-gradient(135deg, rgba(5,150,105,0.08), rgba(3,105,161,0.10))',
-                border: isDark ? '1px solid rgba(52,211,153,0.2)' : '1px solid rgba(5,150,105,0.2)',
-              }}
-            >
-              <CardTitle
-                eyebrow="🌡️ Climate Science"
-                title="ภูมิอากาศ เอลนีโญ่ & ลานีญ่า"
-                desc="ติดตามงานวิชาการ ปรากฏการณ์ ENSO ล่าสุด การเปลี่ยนแปลงสภาพภูมิอากาศ จาก NASA และองค์การอุตุนิยมวิทยาโลก (WMO)"
-              />
-              <div
+            {/* 7-day extended forecast from TMD web */}
+            {!!(thaiGroups.webSevenday || []).length && sevFilter === 'all' && (
+              <Card
                 style={{
-                  display: 'grid',
-                  gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, minmax(0, 1fr))',
-                  gap: '12px',
-                  marginBottom: '16px',
+                  background: isDark
+                    ? 'linear-gradient(135deg, rgba(3,105,161,0.18), rgba(8,19,38,0.9))'
+                    : 'linear-gradient(135deg, rgba(14,165,233,0.08), rgba(255,255,255,0.96))',
+                  border: isDark ? '1px solid rgba(125,211,252,0.18)' : '1px solid rgba(14,165,233,0.2)',
                 }}
               >
-                <div
-                  style={{
-                    background: isDark ? 'rgba(5,150,105,0.16)' : 'rgba(5,150,105,0.08)',
-                    border: '1px solid rgba(5,150,105,0.24)',
-                    borderRadius: '18px',
-                    padding: '16px',
-                  }}
-                >
-                  <div style={{ fontSize: '1.6rem', marginBottom: '8px' }}>🌊</div>
-                  <div style={{ fontWeight: 900, fontSize: '0.9rem', color: 'var(--text-main)', marginBottom: '6px' }}>เอลนีโญ่ (El Niño)</div>
-                  <div style={{ color: 'var(--text-sub)', fontSize: '0.8rem', lineHeight: 1.6 }}>
-                    ปรากฏการณ์ที่น้ำทะเลในมหาสมุทรแปซิฟิกตะวันออกมีอุณหภูมิสูงกว่าปกติ ทำให้ฝนลดลงในหลายพื้นที่ของเอเชียตะวันออกเฉียงใต้
-                  </div>
+                <SectionHeader
+                  icon="📅"
+                  title="พยากรณ์อากาศ 7 วัน (กรมอุตุนิยมวิทยา)"
+                  desc="ข้อมูลโดยตรงจาก tmd.go.th/forecast/sevenday — อัปเดตทุกวัน"
+                  accent="#0ea5e9"
+                  count={(thaiGroups.webSevenday || []).length}
+                />
+                <div style={{ display: 'grid', gap: '10px' }}>
+                  {(thaiGroups.webSevenday || []).map((item, index) => (
+                    <NewsItem key={`sevenday-${index}`} item={item} isDark={isDark} />
+                  ))}
                 </div>
-                <div
-                  style={{
-                    background: isDark ? 'rgba(3,105,161,0.16)' : 'rgba(3,105,161,0.08)',
-                    border: '1px solid rgba(3,105,161,0.24)',
-                    borderRadius: '18px',
-                    padding: '16px',
-                  }}
-                >
-                  <div style={{ fontSize: '1.6rem', marginBottom: '8px' }}>🌧️</div>
-                  <div style={{ fontWeight: 900, fontSize: '0.9rem', color: 'var(--text-main)', marginBottom: '6px' }}>ลานีญ่า (La Niña)</div>
-                  <div style={{ color: 'var(--text-sub)', fontSize: '0.8rem', lineHeight: 1.6 }}>
-                    น้ำทะเลในมหาสมุทรแปซิฟิกตะวันออกเย็นกว่าปกติ มักนำฝนมากและอาจก่อให้เกิดน้ำท่วมในภูมิภาคเอเชีย
-                  </div>
-                </div>
-              </div>
-            </SectionCard>
+              </Card>
+            )}
 
+            {/* Main 2-column grid */}
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, minmax(0, 1fr))',
+                gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)',
                 gap: '16px',
               }}
             >
-              <BentoSection
-                icon="🌡️"
-                title="ข่าวภูมิอากาศล่าสุด"
-                desc="งานวิชาการและข่าวสารจาก NASA Climate & WMO"
-                items={(globalGroups.climate || []).filter((item) => item.source === 'NASA Climate').slice(0, 5)}
-                isDark={isDark}
-              />
-              <BentoSection
-                icon="🌍"
-                title="ประกาศ WMO"
-                desc="ข่าวสารจากองค์การอุตุนิยมวิทยาโลก"
-                items={(globalGroups.climate || []).filter((item) => item.source === 'WMO').slice(0, 5)}
-                isDark={isDark}
-              />
+              {THAI_SECTIONS.map((section) => {
+                const raw = thaiGroups[section.key] || [];
+                const items = applyFilter(raw);
+                return (
+                  <Card key={section.key}>
+                    <SectionHeader
+                      icon={section.icon}
+                      title={section.title}
+                      desc={section.desc}
+                      accent={section.accent}
+                      count={raw.length}
+                    />
+                    {!items.length ? (
+                      <EmptyCard
+                        title={sevFilter !== 'all' ? 'ไม่มีรายการในระดับที่เลือก' : `ยังไม่มี${section.title}`}
+                        desc="ตอนนี้ยังไม่มีประเด็นใหม่ในหมวดนี้"
+                      />
+                    ) : (
+                      <div style={{ display: 'grid', gap: '10px' }}>
+                        {items.slice(0, 6).map((item, index) => (
+                          <NewsItem key={`${section.key}-${index}`} item={item} isDark={isDark} />
+                        ))}
+                      </div>
+                    )}
+                  </Card>
+                );
+              })}
             </div>
+          </div>
+        )}
 
-            {!!(globalGroups.climate || []).length && (
-              <SectionCard>
-                <CardTitle eyebrow="📚 ทั้งหมด" title="ข่าวภูมิอากาศทั้งหมด" desc="รวมข่าววิทยาศาสตร์ภูมิอากาศจากทุกแหล่ง" />
+        {/* ── GLOBAL TAB ────────────────────────────────────────────────────── */}
+        {!loading && !error && data && activeTab === 'global' && (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)',
+              gap: '16px',
+            }}
+          >
+            {GLOBAL_SECTIONS.map((section) => {
+              const items = globalGroups[section.key] || [];
+              return (
+                <Card key={section.key}>
+                  <SectionHeader
+                    icon={section.icon}
+                    title={section.title}
+                    desc={section.desc}
+                    accent={section.accent}
+                    count={items.length}
+                  />
+                  {!items.length ? (
+                    <EmptyCard title={`ยังไม่มี${section.title}`} desc="ตอนนี้ยังไม่มีประเด็นใหม่ในหมวดนี้" />
+                  ) : (
+                    <div style={{ display: 'grid', gap: '10px' }}>
+                      {items.slice(0, 6).map((item, index) => (
+                        <NewsItem key={`${section.key}-${index}`} item={item} isDark={isDark} />
+                      ))}
+                    </div>
+                  )}
+                </Card>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ── ENSO TAB ──────────────────────────────────────────────────────── */}
+        {!loading && !error && data && activeTab === 'enso' && (
+          <div style={{ display: 'grid', gap: '16px' }}>
+            <Card
+              style={{
+                background: isDark
+                  ? 'linear-gradient(135deg, rgba(5,150,105,0.16), rgba(3,105,161,0.20))'
+                  : 'linear-gradient(135deg, rgba(5,150,105,0.06), rgba(3,105,161,0.08))',
+                border: isDark ? '1px solid rgba(52,211,153,0.2)' : '1px solid rgba(5,150,105,0.18)',
+              }}
+            >
+              <SectionHeader
+                icon="🌊"
+                title="ปรากฏการณ์เอลนีโญ่ & ลานีญ่า (ENSO)"
+                desc="วิเคราะห์สถานะ ENSO ปัจจุบันจากข้อมูล NASA Climate และ WMO พร้อมผลกระทบต่อประเทศไทย"
+                accent="#0ea5e9"
+              />
+              <EnsoPhaseCard phase={ensoPhase} />
+
+              <div style={{ marginTop: '18px' }}>
+                <div
+                  style={{
+                    color: 'var(--text-sub)',
+                    fontSize: '0.76rem',
+                    fontWeight: 800,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em',
+                    marginBottom: '12px',
+                  }}
+                >
+                  ปัจจัยที่ใช้ติดตาม ENSO
+                </div>
                 <div
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, minmax(0, 1fr))',
+                    gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)',
+                    gap: '10px',
+                  }}
+                >
+                  {[
+                    {
+                      emoji: '🌡️',
+                      title: 'อุณหภูมิผิวน้ำทะเล (SST)',
+                      desc: 'วัดจากดาวเทียม NOAA บ่งบอกระยะเอลนีโญ่/ลานีญ่า',
+                      source: 'NOAA / NASA',
+                    },
+                    {
+                      emoji: '🌬️',
+                      title: 'ลมสินค้าตะวันออก',
+                      desc: 'ความแรงของลมแปซิฟิกกำหนดทิศทางกระแสน้ำอุ่น-เย็น',
+                      source: 'WMO',
+                    },
+                    {
+                      emoji: '☁️',
+                      title: 'ปริมาณฝนในภูมิภาค',
+                      desc: 'การกระจายฝนในเขตมรสุมเอเชียตะวันออกเฉียงใต้',
+                      source: 'TMD / NASA',
+                    },
+                  ].map((card, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        background: isDark ? 'rgba(8,19,38,0.5)' : 'rgba(255,255,255,0.65)',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '16px',
+                        padding: '14px',
+                      }}
+                    >
+                      <span style={{ fontSize: '1.5rem', display: 'block', marginBottom: '8px' }}>{card.emoji}</span>
+                      <div
+                        style={{
+                          fontWeight: 900,
+                          fontSize: '0.83rem',
+                          color: 'var(--text-main)',
+                          marginBottom: '5px',
+                        }}
+                      >
+                        {card.title}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: '0.76rem',
+                          color: 'var(--text-sub)',
+                          lineHeight: 1.55,
+                          marginBottom: '10px',
+                        }}
+                      >
+                        {card.desc}
+                      </div>
+                      <span
+                        style={{
+                          fontSize: '0.64rem',
+                          fontWeight: 800,
+                          color: '#0284c7',
+                          background: 'rgba(2,132,199,0.1)',
+                          borderRadius: '6px',
+                          padding: '2px 8px',
+                        }}
+                      >
+                        {card.source}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </Card>
+
+            {!!(globalGroups.climate || []).length ? (
+              <Card>
+                <SectionHeader
+                  icon="📰"
+                  title="ข่าวภูมิอากาศล่าสุด"
+                  desc="รายงานจาก NASA Climate & WMO — วิทยาศาสตร์ภูมิอากาศและการเปลี่ยนแปลงสภาพอากาศ"
+                  accent="#059669"
+                  count={(globalGroups.climate || []).length}
+                />
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)',
                     gap: '10px',
                   }}
                 >
                   {(globalGroups.climate || []).map((item, index) => (
-                    <NewsItem key={`climate-all-${item.id || index}`} item={item} compact isDark={isDark} />
+                    <NewsItem key={`climate-${index}`} item={item} isDark={isDark} />
                   ))}
                 </div>
-              </SectionCard>
-            )}
-
-            {!(globalGroups.climate || []).length && (
-              <EmptyState
-                title="ยังไม่มีข่าวภูมิอากาศในขณะนี้"
-                desc="โปรดลองรีเฟรชใหม่อีกครั้ง หรือตรวจสอบที่เว็บไซต์ NASA Climate และ WMO โดยตรง"
-                isDark={isDark}
+              </Card>
+            ) : (
+              <EmptyCard
+                title="ยังไม่มีข่าวภูมิอากาศ"
+                desc="โปรดลองรีเฟรชใหม่ หรือดูที่ climate.nasa.gov และ wmo.int โดยตรง"
               />
             )}
           </div>
-        ) : null}
+        )}
+
+        {/* ── RISK TAB ──────────────────────────────────────────────────────── */}
+        {!loading && !error && data && activeTab === 'risk' && (
+          <div style={{ display: 'grid', gap: '16px' }}>
+            <RiskMeter risk={riskScore} />
+
+            <Card>
+              <SectionHeader
+                icon="🇹🇭"
+                title="ภัยคุกคามและความเสี่ยงต่อไทย"
+                desc="รวมข่าวที่มีผลกระทบโดยตรงและทางอ้อมต่อประเทศไทยและภูมิภาค เรียงตามลำดับความเร่งด่วน"
+                accent="#ef4444"
+                count={riskItems.length}
+              />
+
+              {!riskItems.length ? (
+                <EmptyCard
+                  title="ไม่พบภัยคุกคามที่น่าเป็นห่วงในขณะนี้"
+                  desc="สถานการณ์ทั้งในประเทศและภูมิภาคอยู่ในเกณฑ์ปกติ"
+                />
+              ) : (
+                <div style={{ display: 'grid', gap: '10px' }}>
+                  {riskItems.map((item, index) => (
+                    <NewsItem
+                      key={`risk-${index}`}
+                      item={item}
+                      showRank
+                      rank={index + 1}
+                      isDark={isDark}
+                    />
+                  ))}
+                </div>
+              )}
+            </Card>
+
+            <SourceStatus sourceStatus={data.sourceStatus || []} />
+          </div>
+        )}
       </div>
     </div>
   );

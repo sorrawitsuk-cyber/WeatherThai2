@@ -16,7 +16,43 @@ const RELIEFWEB_URL = 'https://api.reliefweb.int/v1/disasters?appname=airquality
 const NASA_CLIMATE_URL = 'https://climate.nasa.gov/api/v1/news_items/?page=0&per_page=10&order=publish_date+desc';
 const WMO_RSS_URL = 'https://public.wmo.int/en/rss.xml';
 
+const TMD_WEB = {
+  daily: 'https://www.tmd.go.th/forecast/daily',
+  sevenday: 'https://www.tmd.go.th/forecast/sevenday',
+  storm: 'https://www.tmd.go.th/warning-and-events/warning-storm',
+};
+
+// Additional TMD XML region feeds (complement the single-region feed)
+const TMD_REGION_FEEDS = [1, 2, 3, 4, 5, 6].map(
+  (id) => `https://www.tmd.go.th/api/xml/region-daily-forecast?regionid=${id}`,
+);
+
+// ─── New data source URLs ─────────────────────────────────────────────────────
+const EONET_URL = 'https://eonet.gsfc.nasa.gov/api/v3/events?status=open&days=14&limit=50';
+const USGS_45_WEEK_URL = 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/4.5_week.geojson';
+const THAIPBS_RSS_CANDIDATES = [
+  'https://www.thaipbs.or.th/news/rss/news/3',
+  'https://www.thaipbs.or.th/rss/2',
+  'https://news.thaipbs.or.th/rss',
+];
+const DDPM_WEB = 'https://www.disaster.go.th/';
+const TMD_EQ_WEB = 'https://earthquake.tmd.go.th/';
+
+const EONET_CATS = {
+  volcanoes:    { th: 'ภูเขาไฟ',                  severity: 'medium', category: 'global-disaster' },
+  wildfires:    { th: 'ไฟป่า',                     severity: 'medium', category: 'global-disaster' },
+  severeStorms: { th: 'พายุรุนแรง',               severity: 'high',   category: 'global-alert'    },
+  dustHaze:     { th: 'พายุฝุ่น/หมอกควัน',       severity: 'medium', category: 'global-disaster' },
+  floods:       { th: 'น้ำท่วม',                   severity: 'medium', category: 'global-disaster' },
+  earthquakes:  { th: 'แผ่นดินไหว',               severity: 'medium', category: 'earthquake'      },
+  drought:      { th: 'ภัยแล้ง',                   severity: 'normal', category: 'global-disaster' },
+  landslides:   { th: 'ดินถล่ม',                   severity: 'medium', category: 'global-disaster' },
+  seaLakeIce:   { th: 'น้ำแข็งขั้วโลก',           severity: 'normal', category: 'climate'         },
+  snow:         { th: 'พายุหิมะ/หิมะหนัก',        severity: 'normal', category: 'global-disaster' },
+};
+
 const MODEL_CANDIDATES = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+const AI_TIMEOUT_MS = 7000;
 const THAI_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
 
 const GDACS_EVENT_MAP = {
@@ -36,16 +72,21 @@ const CLIMATE_KEYWORDS = [
 ];
 
 const VISUAL_PRESETS = {
-  warning: { emoji: '⚠️', gradient: 'linear-gradient(135deg, #f97316 0%, #ef4444 100%)', kicker: 'ประกาศเตือน' },
-  storm: { emoji: '🌧️', gradient: 'linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%)', kicker: 'พายุและฝน' },
-  earthquake: { emoji: '🌋', gradient: 'linear-gradient(135deg, #f97316 0%, #b91c1c 100%)', kicker: 'แผ่นดินไหว' },
-  'thai-disaster': { emoji: '📍', gradient: 'linear-gradient(135deg, #14b8a6 0%, #0f766e 100%)', kicker: 'เหตุการณ์ในไทย' },
-  'global-alert': { emoji: '🌐', gradient: 'linear-gradient(135deg, #7c3aed 0%, #2563eb 100%)', kicker: 'เตือนภัยโลก' },
-  'global-disaster': { emoji: '🧭', gradient: 'linear-gradient(135deg, #0284c7 0%, #0f766e 100%)', kicker: 'เหตุการณ์สำคัญ' },
-  weather: { emoji: '⛅', gradient: 'linear-gradient(135deg, #0ea5e9 0%, #14b8a6 100%)', kicker: 'พยากรณ์อากาศ' },
-  climate: { emoji: '🌡️', gradient: 'linear-gradient(135deg, #059669 0%, #0369a1 100%)', kicker: 'ภูมิอากาศวิทยา' },
-  enso: { emoji: '🌊', gradient: 'linear-gradient(135deg, #0284c7 0%, #7c3aed 100%)', kicker: 'เอลนีโญ่/ลานีญ่า' },
-  default: { emoji: '📰', gradient: 'linear-gradient(135deg, #0f766e 0%, #0369a1 100%)', kicker: 'ข่าวเด่น' },
+  warning:         { emoji: '⚠️',  gradient: 'linear-gradient(135deg, #f97316 0%, #ef4444 100%)',  kicker: 'ประกาศเตือน'       },
+  storm:           { emoji: '🌧️', gradient: 'linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%)',  kicker: 'พายุและฝน'         },
+  earthquake:      { emoji: '🌋',  gradient: 'linear-gradient(135deg, #f97316 0%, #b91c1c 100%)',  kicker: 'แผ่นดินไหว'        },
+  'thai-disaster': { emoji: '📍',  gradient: 'linear-gradient(135deg, #14b8a6 0%, #0f766e 100%)',  kicker: 'เหตุการณ์ในไทย'    },
+  'global-alert':  { emoji: '🌐',  gradient: 'linear-gradient(135deg, #7c3aed 0%, #2563eb 100%)',  kicker: 'เตือนภัยโลก'       },
+  'global-disaster':{ emoji: '🧭', gradient: 'linear-gradient(135deg, #0284c7 0%, #0f766e 100%)',  kicker: 'เหตุการณ์สำคัญ'    },
+  weather:         { emoji: '⛅',  gradient: 'linear-gradient(135deg, #0ea5e9 0%, #14b8a6 100%)',  kicker: 'พยากรณ์อากาศ'      },
+  climate:         { emoji: '🌡️', gradient: 'linear-gradient(135deg, #059669 0%, #0369a1 100%)',  kicker: 'ภูมิอากาศวิทยา'    },
+  enso:            { emoji: '🌊',  gradient: 'linear-gradient(135deg, #0284c7 0%, #7c3aed 100%)',  kicker: 'เอลนีโญ่/ลานีญ่า'  },
+  volcano:         { emoji: '🌋',  gradient: 'linear-gradient(135deg, #ef4444 0%, #78350f 100%)',  kicker: 'ภูเขาไฟ'           },
+  wildfire:        { emoji: '🔥',  gradient: 'linear-gradient(135deg, #f97316 0%, #dc2626 100%)',  kicker: 'ไฟป่า'             },
+  dust:            { emoji: '🌫️', gradient: 'linear-gradient(135deg, #92400e 0%, #78716c 100%)',  kicker: 'ฝุ่น/หมอกควัน'    },
+  flood:           { emoji: '🌊',  gradient: 'linear-gradient(135deg, #0ea5e9 0%, #1d4ed8 100%)',  kicker: 'น้ำท่วม'           },
+  ddpm:            { emoji: '🛡️', gradient: 'linear-gradient(135deg, #dc2626 0%, #9f1239 100%)',  kicker: 'ปภ. แจ้งเตือน'     },
+  default:         { emoji: '📰',  gradient: 'linear-gradient(135deg, #0f766e 0%, #0369a1 100%)',  kicker: 'ข่าวเด่น'           },
 };
 
 function isoNow() {
@@ -202,12 +243,23 @@ function buildVisual(category, fallbackTitle = '', extra = {}) {
 function enrichItem(item) {
   const text = `${item.title} ${item.summary || ''}`.toLowerCase();
   const isEnso = isEnsoRelated(text);
-  const visualCategory =
-    isEnso && item.category === 'climate'
-      ? 'enso'
-      : item.category === 'global-alert' && item.eventType === 'EQ'
-        ? 'earthquake'
-        : item.category;
+
+  let visualCategory = item.category;
+  if (isEnso && item.category === 'climate') {
+    visualCategory = 'enso';
+  } else if (item.category === 'global-alert' && item.eventType === 'EQ') {
+    visualCategory = 'earthquake';
+  } else if (item.source === 'NASA EONET' || item.source === 'ปภ.') {
+    const eonetMap = {
+      volcanoes:    'volcano',
+      wildfires:    'wildfire',
+      dustHaze:     'dust',
+      floods:       'flood',
+      severeStorms: 'storm',
+    };
+    visualCategory = eonetMap[item.eventType] || (item.source === 'ปภ.' ? 'ddpm' : item.category);
+  }
+
   return {
     ...item,
     visual: buildVisual(visualCategory, item.title, {
@@ -645,6 +697,19 @@ function stripMarkdownJson(text = '') {
     .trim();
 }
 
+async function withTimeout(promise, timeoutMs, label = 'operation') {
+  let timeoutId;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 async function maybeTranslateItems(items) {
   const apiKey = process.env.GEMINI_API_KEY;
   const targets = items.filter((item) => !isMostlyThai(item.title) || !isMostlyThai(item.summary || ''));
@@ -679,7 +744,11 @@ async function maybeTranslateItems(items) {
 
   for (const model of MODEL_CANDIDATES) {
     try {
-      const result = await client.getGenerativeModel({ model }).generateContent(prompt);
+      const result = await withTimeout(
+        client.getGenerativeModel({ model }).generateContent(prompt),
+        AI_TIMEOUT_MS,
+        `AI translation (${model})`,
+      );
       const raw = result.response.text()?.trim();
       const text = stripMarkdownJson(raw);
       const parsed = JSON.parse(text);
@@ -758,7 +827,11 @@ async function maybeGenerateAiSummary(payload) {
 
   for (const model of MODEL_CANDIDATES) {
     try {
-      const result = await client.getGenerativeModel({ model }).generateContent(prompt);
+      const result = await withTimeout(
+        client.getGenerativeModel({ model }).generateContent(prompt),
+        AI_TIMEOUT_MS,
+        `AI digest (${model})`,
+      );
       const raw = result.response.text()?.trim();
       const text = stripMarkdownJson(raw);
       const parsed = JSON.parse(text);
@@ -786,19 +859,501 @@ function normalizeSourceStatus(label, result, count = 0) {
   };
 }
 
+// ─── TMD Web Scraping ─────────────────────────────────────────────────────────
+
+function extractNextData(html) {
+  const m = html.match(/<script[^>]*id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+  if (!m) return null;
+  try { return JSON.parse(m[1]); } catch { return null; }
+}
+
+function deepFind(obj, keys, _depth = 0) {
+  if (_depth > 7 || obj == null || typeof obj !== 'object') return undefined;
+  if (Array.isArray(obj)) {
+    for (const item of obj.slice(0, 20)) {
+      const r = deepFind(item, keys, _depth + 1);
+      if (r !== undefined) return r;
+    }
+    return undefined;
+  }
+  for (const key of keys) {
+    if (obj[key] !== undefined && obj[key] !== null) return obj[key];
+  }
+  for (const val of Object.values(obj).slice(0, 30)) {
+    const r = deepFind(val, keys, _depth + 1);
+    if (r !== undefined) return r;
+  }
+  return undefined;
+}
+
+function makeTmdItem(title, summary, link, category, severity = 'normal') {
+  return enrichItem({
+    title: cleanText(title || '').slice(0, 200),
+    summary: summarizeForReaders(summary || ''),
+    publishedAt: new Date().toISOString(),
+    link,
+    severity,
+    source: 'TMD',
+    category,
+  });
+}
+
+function parseTmdNextData(nextData, url, type) {
+  const props = nextData?.props?.pageProps;
+  if (!props) return [];
+  const items = [];
+
+  if (type === 'storm') {
+    const stormList = deepFind(props, ['storms', 'stormList', 'cyclones', 'warnings', 'stormData', 'data']);
+    if (Array.isArray(stormList) && stormList.length) {
+      for (const s of stormList.slice(0, 5)) {
+        const title = s.title_th || s.name_th || s.name || s.title || '';
+        const summary = s.detail_th || s.description_th || s.body || s.content || '';
+        if (!title) continue;
+        const sev = /ไต้ฝุ่น|โซนร้อนกำลังแรง/.test(`${title}${summary}`) ? 'high' : 'medium';
+        items.push(makeTmdItem(title, summary, url, 'storm', sev));
+      }
+    }
+    // Fallback: look for content blob
+    if (!items.length) {
+      const blob = deepFind(props, ['content', 'body', 'html', 'text', 'description']);
+      if (typeof blob === 'string') {
+        const stormBlocks = blob.match(/(?:พายุ|ดีเปรสชัน|โซนร้อน|ไต้ฝุ่น)[^.!?\n]{20,300}/g) || [];
+        for (const block of stormBlocks.slice(0, 3)) {
+          items.push(makeTmdItem(block.slice(0, 100), block, url, 'storm', 'medium'));
+        }
+      }
+    }
+  } else {
+    // daily / sevenday forecast
+    const fcList = deepFind(props, ['forecasts', 'forecast', 'regions', 'dailyForecast', 'sevenDayForecast', 'regionForecast', 'data']);
+    if (Array.isArray(fcList) && fcList.length) {
+      for (const f of fcList.slice(0, 8)) {
+        const title = f.region_th || f.region || f.title_th || f.header || f.name || '';
+        const summary = f.forecast_th || f.detail_th || f.content || f.description || f.weather || '';
+        if (!title) continue;
+        items.push(makeTmdItem(title, summary, url, 'warning', 'normal'));
+      }
+    }
+  }
+
+  return items;
+}
+
+function parseTmdHtml(html, url, type) {
+  const items = [];
+
+  // Strip non-content sections
+  const stripped = html
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<nav[\s\S]*?<\/nav>/gi, ' ')
+    .replace(/<footer[\s\S]*?<\/footer>/gi, ' ')
+    .replace(/<header[\s\S]*?<\/header>/gi, ' ')
+    .replace(/<!--[\s\S]*?-->/g, ' ');
+
+  // Flatten to plain text
+  const plain = stripped
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  // Extract Thai text blocks (30-400 chars)
+  const blocks = plain.match(/[\u0E00-\u0E7F][\u0E00-\u0E7F\s\d.,!?:;()\-]{29,399}/g) || [];
+  const unique = [...new Set(blocks)].filter((t) => t.trim().length > 30);
+
+  if (type === 'storm') {
+    const stormBlocks = unique.filter((t) =>
+      /พายุ|ดีเปรสชัน|โซนร้อน|ไต้ฝุ่น|คลื่นลมแรง|ลมมรสุม/.test(t),
+    );
+    if (stormBlocks.length) {
+      const isHigh = stormBlocks.some((t) => /ไต้ฝุ่น|โซนร้อนกำลังแรง/.test(t));
+      items.push(
+        makeTmdItem(
+          stormBlocks[0].slice(0, 100),
+          stormBlocks.slice(0, 3).join(' ').slice(0, 500),
+          url,
+          'storm',
+          isHigh ? 'high' : 'medium',
+        ),
+      );
+    } else {
+      // Show a "no active storm" info item if page loaded but no storm found
+      items.push(
+        makeTmdItem(
+          'ไม่มีพายุที่น่าเป็นห่วงในขณะนี้',
+          'กรมอุตุนิยมวิทยาไม่ได้ประกาศเตือนพายุใดในขณะนี้',
+          url,
+          'storm',
+          'normal',
+        ),
+      );
+    }
+  } else {
+    const REGIONS = [
+      'ภาคเหนือ',
+      'ภาคตะวันออกเฉียงเหนือ',
+      'ภาคกลาง',
+      'ภาคตะวันออก',
+      'ภาคใต้',
+      'กรุงเทพมหานคร',
+    ];
+
+    let found = 0;
+    for (const region of REGIONS) {
+      const block = unique.find((t) => t.includes(region));
+      if (block) {
+        items.push(makeTmdItem(`พยากรณ์${region}`, block, url, 'warning', 'normal'));
+        found++;
+      }
+    }
+
+    if (!found) {
+      const weatherBlocks = unique
+        .filter((t) => /อากาศ|ฝน|อุณหภูมิ|ลม|พยากรณ์|ร้อน|เย็น/.test(t))
+        .slice(0, 4);
+      if (weatherBlocks.length) {
+        const label = type === 'daily' ? 'พยากรณ์อากาศประจำวัน' : 'พยากรณ์อากาศ 7 วัน';
+        items.push(makeTmdItem(label, weatherBlocks.join(' ').slice(0, 500), url, 'warning', 'normal'));
+      }
+    }
+  }
+
+  return items;
+}
+
+async function fetchTmdAllRegions() {
+  const results = await Promise.allSettled(
+    TMD_REGION_FEEDS.map((url) => fetchText(url)),
+  );
+
+  const parseStandard = (xml) =>
+    parseRssItems(xml, (item) => ({
+      title: getTag(item, 'title'),
+      summary: getTag(item, 'description'),
+      publishedAt: getTag(item, 'pubDate'),
+      link: getTag(item, 'link'),
+      severity: 'normal',
+      source: 'TMD',
+      category: 'warning',
+    }));
+
+  const items = [];
+  for (const result of results) {
+    if (result.status === 'fulfilled' && result.value) {
+      items.push(...parseStandard(result.value).slice(0, 2));
+    }
+  }
+
+  // Deduplicate by title prefix
+  const seen = new Set();
+  return items.filter((item) => {
+    if (!item.title) return false;
+    const key = item.title.slice(0, 30).toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+async function fetchTmdWebPages() {
+  const htmlHeaders = {
+    Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    'User-Agent':
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    'Accept-Language': 'th-TH,th;q=0.9,en;q=0.8',
+    Referer: 'https://www.tmd.go.th/',
+  };
+
+  const [dailyRes, sevendayRes, stormRes, regionsRaw] = await Promise.allSettled([
+    fetchText(TMD_WEB.daily, { headers: htmlHeaders }),
+    fetchText(TMD_WEB.sevenday, { headers: htmlHeaders }),
+    fetchText(TMD_WEB.storm, { headers: htmlHeaders }),
+    fetchTmdAllRegions(),
+  ]);
+
+  const parsePage = (result, url, type) => {
+    if (result.status !== 'fulfilled' || !result.value) return [];
+    const html = result.value;
+    const nextData = extractNextData(html);
+    if (nextData) {
+      const parsed = parseTmdNextData(nextData, url, type);
+      if (parsed.length) return parsed;
+    }
+    return parseTmdHtml(html, url, type);
+  };
+
+  return {
+    daily: parsePage(dailyRes, TMD_WEB.daily, 'daily'),
+    sevenday: parsePage(sevendayRes, TMD_WEB.sevenday, 'sevenday'),
+    storm: parsePage(stormRes, TMD_WEB.storm, 'storm'),
+    regions: regionsRaw.status === 'fulfilled' ? regionsRaw.value : [],
+  };
+}
+
+// ─── EONET: NASA natural events ──────────────────────────────────────────────
+async function fetchEonetEvents() {
+  const data = await fetchJson(EONET_URL);
+  if (!data?.events) return [];
+  const items = [];
+  for (const event of data.events) {
+    const catId = event.categories?.[0]?.id || '';
+    const catKey = Object.keys(EONET_CATS).find((k) => catId.toLowerCase().includes(k.toLowerCase().replace(/severe/i, ''))) ||
+      Object.keys(EONET_CATS).find((k) => event.categories?.[0]?.title?.toLowerCase().includes(k.toLowerCase().replace(/severe/i, '')));
+    const cat = EONET_CATS[catKey] || { th: 'เหตุการณ์ธรรมชาติ', severity: 'normal', category: 'global-disaster' };
+
+    const geom = event.geometry?.[0];
+    let country = '';
+    let coords = null;
+    if (geom?.coordinates) {
+      coords = geom.coordinates;
+      const [lon, lat] = Array.isArray(coords[0]) ? coords[0] : coords;
+      if (lat >= -10 && lat <= 35 && lon >= 88 && lon <= 145) country = 'ภูมิภาคเอเชียตะวันออกเฉียงใต้';
+    }
+
+    const date = geom?.date || event.geometry?.[event.geometry.length - 1]?.date || isoNow();
+    items.push({
+      id: `eonet-${event.id}`,
+      title: event.title,
+      summary: `${cat.th}${country ? ` · ${country}` : ''}`,
+      source: 'NASA EONET',
+      category: cat.category,
+      severity: cat.severity,
+      eventType: catKey || catId,
+      eventLabel: cat.th,
+      country,
+      url: event.sources?.[0]?.url || `https://eonet.gsfc.nasa.gov/api/v3/events/${event.id}`,
+      publishedAt: date,
+      lang: 'en',
+    });
+  }
+  return items;
+}
+
+// ─── USGS regional M4.5+ SE Asia ────────────────────────────────────────────
+async function fetchUsgsRegional() {
+  const data = await fetchJson(USGS_45_WEEK_URL);
+  if (!data?.features) return [];
+  return data.features
+    .filter((f) => {
+      const [lon, lat] = f.geometry?.coordinates || [];
+      return lat >= -10 && lat <= 35 && lon >= 88 && lon <= 145;
+    })
+    .map((f) => {
+      const p = f.properties;
+      const mag = p.mag?.toFixed(1) ?? '?';
+      const place = p.place || 'ไม่ระบุสถานที่';
+      return {
+        id: `usgs-reg-${f.id}`,
+        title: `แผ่นดินไหว M${mag} · ${place}`,
+        summary: `USGS · ขนาด ${mag} · ${place}`,
+        source: 'USGS Regional',
+        category: 'earthquake',
+        severity: parseFloat(mag) >= 6 ? 'high' : parseFloat(mag) >= 5 ? 'medium' : 'normal',
+        eventType: 'EQ',
+        eventLabel: 'แผ่นดินไหว',
+        country: 'ภูมิภาคเอเชีย',
+        url: p.url || 'https://earthquake.usgs.gov',
+        publishedAt: new Date(p.time).toISOString(),
+        lang: 'mixed',
+        magnitude: parseFloat(mag),
+      };
+    });
+}
+
+// ─── Thai PBS RSS ─────────────────────────────────────────────────────────────
+async function fetchThaiPbsRss() {
+  const htmlHeaders = { 'User-Agent': 'Mozilla/5.0', Accept: 'application/rss+xml,text/xml,*/*' };
+  const KEYWORDS_RE = /ฝน|พายุ|น้ำท่วม|แผ่นดินไหว|ภัย|อากาศ|ร้อน|ไฟ|ฝุ่น|หมอก|สภาพ|ดิน/;
+  for (const url of THAIPBS_RSS_CANDIDATES) {
+    try {
+      const xml = await fetchText(url, { headers: htmlHeaders });
+      if (!xml) continue;
+      const items = [];
+      const itemMatches = xml.matchAll(/<item[^>]*>([\s\S]*?)<\/item>/gi);
+      for (const m of itemMatches) {
+        const block = m[1];
+        const title = cleanText(block.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || '');
+        const link  = cleanText(block.match(/<link[^>]*>([\s\S]*?)<\/link>/i)?.[1] || block.match(/<guid[^>]*>([\s\S]*?)<\/guid>/i)?.[1] || '');
+        const desc  = cleanText(block.match(/<description[^>]*>([\s\S]*?)<\/description>/i)?.[1] || '');
+        const pubDate = block.match(/<pubDate[^>]*>([\s\S]*?)<\/pubDate>/i)?.[1] || '';
+        if (!title || !KEYWORDS_RE.test(title + desc)) continue;
+        items.push({
+          id: `thaipbs-${Buffer.from(link).toString('base64').slice(0, 16)}`,
+          title,
+          summary: desc.slice(0, 200),
+          source: 'Thai PBS',
+          category: 'thai-disaster',
+          severity: 'normal',
+          eventLabel: 'ข่าวไทยพีบีเอส',
+          url: link,
+          publishedAt: pubDate ? new Date(pubDate).toISOString() : isoNow(),
+          lang: 'th',
+        });
+        if (items.length >= 10) break;
+      }
+      if (items.length > 0) return items;
+    } catch (_) { /* try next candidate */ }
+  }
+  return [];
+}
+
+// ─── DDPM (กรมป้องกันและบรรเทาสาธารณภัย) ────────────────────────────────────
+function parseDdpmHtml(html) {
+  const items = [];
+  const thaiRe = /[\u0E00-\u0E7F]{4,}/g;
+  const paragraphs = html
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .split(/<\/?(p|div|li|h[1-6]|section|article)[^>]*>/gi)
+    .map((s) => cleanText(s).trim())
+    .filter((s) => s.length > 20 && thaiRe.test(s));
+  for (const p of paragraphs.slice(0, 15)) {
+    items.push({
+      id: `ddpm-${Buffer.from(p.slice(0, 40)).toString('base64').slice(0, 16)}`,
+      title: p.slice(0, 120),
+      summary: p.slice(0, 300),
+      source: 'ปภ.',
+      category: 'thai-disaster',
+      severity: /เตือน|ภัย|วิกฤต|ฉุกเฉิน/.test(p) ? 'high' : 'medium',
+      eventLabel: 'ปภ. แจ้งเตือน',
+      url: DDPM_WEB,
+      publishedAt: isoNow(),
+      lang: 'th',
+    });
+  }
+  return items;
+}
+
+async function fetchDdpmPage() {
+  try {
+    const htmlHeaders = {
+      Accept: 'text/html,*/*',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      'Accept-Language': 'th-TH,th;q=0.9',
+    };
+    const html = await fetchText(DDPM_WEB, { headers: htmlHeaders });
+    if (!html) return [];
+    const nextData = extractNextData(html);
+    if (nextData) {
+      const texts = [];
+      deepFind(nextData, (v) => {
+        if (typeof v === 'string' && /[\u0E00-\u0E7F]{4,}/.test(v) && v.length > 20) texts.push(v);
+      });
+      if (texts.length) {
+        return texts.slice(0, 10).map((t) => ({
+          id: `ddpm-nd-${Buffer.from(t.slice(0, 40)).toString('base64').slice(0, 16)}`,
+          title: t.slice(0, 120),
+          summary: t.slice(0, 300),
+          source: 'ปภ.',
+          category: 'thai-disaster',
+          severity: /เตือน|ภัย|วิกฤต|ฉุกเฉิน/.test(t) ? 'high' : 'medium',
+          eventLabel: 'ปภ. แจ้งเตือน',
+          url: DDPM_WEB,
+          publishedAt: isoNow(),
+          lang: 'th',
+        }));
+      }
+    }
+    return parseDdpmHtml(html);
+  } catch (_) {
+    return [];
+  }
+}
+
+// ─── TMD Earthquake Division ─────────────────────────────────────────────────
+function parseTmdEqHtml(html) {
+  const items = [];
+  const thaiRe = /[\u0E00-\u0E7F]{3,}/g;
+  const rows = html.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi);
+  for (const row of rows) {
+    const cells = [...row[1].matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)].map((c) => cleanText(c[1]).trim());
+    if (cells.length < 3) continue;
+    const text = cells.join(' ');
+    const magMatch = text.match(/(\d+\.?\d*)\s*(ริกเตอร์|ML|Mw|M\b)/i);
+    const mag = magMatch ? parseFloat(magMatch[1]) : null;
+    if (!mag && !thaiRe.test(text)) continue;
+    const title = cells.find((c) => /[\u0E00-\u0E7F]/.test(c) || c.match(/\d+\.\d+/)) || text.slice(0, 80);
+    items.push({
+      id: `tmdeq-${Buffer.from(text.slice(0, 40)).toString('base64').slice(0, 16)}`,
+      title: mag ? `แผ่นดินไหว M${mag.toFixed(1)} · ${title.slice(0, 80)}` : title.slice(0, 120),
+      summary: text.slice(0, 200),
+      source: 'TMD แผ่นดินไหว',
+      category: 'earthquake',
+      severity: mag && mag >= 5 ? 'medium' : 'normal',
+      eventLabel: 'แผ่นดินไหว',
+      magnitude: mag,
+      url: TMD_EQ_WEB,
+      publishedAt: isoNow(),
+      lang: 'th',
+    });
+    if (items.length >= 8) break;
+  }
+  return items;
+}
+
+async function fetchTmdEqPage() {
+  try {
+    const htmlHeaders = {
+      Accept: 'text/html,*/*',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      'Accept-Language': 'th-TH,th;q=0.9',
+    };
+    const html = await fetchText(TMD_EQ_WEB, { headers: htmlHeaders });
+    if (!html) return [];
+    const nextData = extractNextData(html);
+    if (nextData) {
+      const eqItems = [];
+      deepFind(nextData, (v, path) => {
+        if (typeof v === 'object' && v !== null && (v.magnitude || v.mag) && (v.location || v.place || v.region)) {
+          const mag = parseFloat(v.magnitude || v.mag || 0);
+          const place = v.location || v.place || v.region || 'ไม่ระบุ';
+          eqItems.push({
+            id: `tmdeq-nd-${Buffer.from(place.slice(0, 30)).toString('base64').slice(0, 16)}`,
+            title: `แผ่นดินไหว M${mag.toFixed(1)} · ${place}`,
+            summary: `TMD รายงานแผ่นดินไหว ขนาด ${mag.toFixed(1)} บริเวณ ${place}`,
+            source: 'TMD แผ่นดินไหว',
+            category: 'earthquake',
+            severity: mag >= 5 ? 'medium' : 'normal',
+            eventLabel: 'แผ่นดินไหว',
+            magnitude: mag,
+            url: TMD_EQ_WEB,
+            publishedAt: v.datetime || v.date || v.time || isoNow(),
+            lang: 'th',
+          });
+        }
+      });
+      if (eqItems.length) return eqItems.slice(0, 8);
+    }
+    return parseTmdEqHtml(html);
+  } catch (_) {
+    return [];
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
   const tasks = await Promise.allSettled([
-    fetchJson(WEATHER_URL),
-    fetchTmdFeeds(),
-    fetchGdacsAlerts(),
-    fetchEarthquakes(),
-    fetchReliefWebDisasters('thai'),
-    fetchReliefWebDisasters('global'),
-    fetchClimateNews(),
+    fetchJson(WEATHER_URL),            // 0
+    fetchTmdFeeds(),                   // 1
+    fetchGdacsAlerts(),                // 2
+    fetchEarthquakes(),                // 3
+    fetchReliefWebDisasters('thai'),   // 4
+    fetchReliefWebDisasters('global'), // 5
+    fetchClimateNews(),                // 6
+    fetchTmdWebPages(),                // 7
+    fetchEonetEvents(),                // 8
+    fetchUsgsRegional(),               // 9
+    fetchThaiPbsRss(),                 // 10
+    fetchDdpmPage(),                   // 11
+    fetchTmdEqPage(),                  // 12
   ]);
 
   const weatherRaw = tasks[0].status === 'fulfilled' ? tasks[0].value : null;
@@ -808,6 +1363,14 @@ export default async function handler(req, res) {
   const thaiDisastersRaw = tasks[4].status === 'fulfilled' ? tasks[4].value : [];
   const globalDisastersRaw = tasks[5].status === 'fulfilled' ? tasks[5].value : [];
   const climateRaw = tasks[6].status === 'fulfilled' ? tasks[6].value : [];
+  const tmdWeb = tasks[7].status === 'fulfilled'
+    ? tasks[7].value
+    : { daily: [], sevenday: [], storm: [], regions: [] };
+  const eonetRaw = tasks[8].status === 'fulfilled' ? tasks[8].value : [];
+  const usgsRegionalRaw = tasks[9].status === 'fulfilled' ? tasks[9].value : [];
+  const thaiPbsRaw = tasks[10].status === 'fulfilled' ? tasks[10].value : [];
+  const ddpmRaw = tasks[11].status === 'fulfilled' ? tasks[11].value : [];
+  const tmdEqRaw = tasks[12].status === 'fulfilled' ? tasks[12].value : [];
 
   // Batch all non-Thai content into a single translation call for better performance
   const allGlobalRaw = [
@@ -815,6 +1378,8 @@ export default async function handler(req, res) {
     ...usgsRaw.map((item) => ({ ...item, _batch: 'usgs' })),
     ...globalDisastersRaw.map((item) => ({ ...item, _batch: 'globalDisasters' })),
     ...climateRaw.map((item) => ({ ...item, _batch: 'climate' })),
+    ...eonetRaw.map((item) => ({ ...item, _batch: 'eonet' })),
+    ...usgsRegionalRaw.map((item) => ({ ...item, _batch: 'usgsRegional' })),
   ];
 
   const allGlobalTranslated = await maybeTranslateItems(allGlobalRaw);
@@ -823,34 +1388,61 @@ export default async function handler(req, res) {
   const usgsTranslated = allGlobalTranslated.filter((item) => item._batch === 'usgs').map(({ _batch, ...item }) => item);
   const globalDisastersTranslated = allGlobalTranslated.filter((item) => item._batch === 'globalDisasters').map(({ _batch, ...item }) => item);
   const climateTranslated = allGlobalTranslated.filter((item) => item._batch === 'climate').map(({ _batch, ...item }) => item);
+  const eonetTranslated = allGlobalTranslated.filter((item) => item._batch === 'eonet').map(({ _batch, ...item }) => item);
+  const usgsRegionalTranslated = allGlobalTranslated.filter((item) => item._batch === 'usgsRegional').map(({ _batch, ...item }) => item);
 
   const weather = buildWeatherSummary(weatherRaw);
-  const thaiWarnings = prioritizeItems(tmd.warnings.map(enrichItem), 8);
-  const thaiStorms = prioritizeItems(tmd.storm.map(enrichItem), 6);
-  const thaiEarthquakes = prioritizeItems(tmd.earthquake.map(enrichItem), 8);
-  const thaiDisasters = prioritizeItems(thaiDisastersRaw.map(enrichItem), 8);
+
+  // Merge TMD XML warnings with regional forecasts from web scrape
+  const allTmdWarnings = [
+    ...tmd.warnings.map(enrichItem),
+    ...tmdWeb.regions.map(enrichItem),
+    ...tmdWeb.daily.map(enrichItem),
+  ];
+  const thaiWarnings = prioritizeItems(allTmdWarnings, 10);
+
+  // Merge TMD XML storms with web-scraped storm data (web may have richer details)
+  const allTmdStorms = [
+    ...tmd.storm.map(enrichItem),
+    ...tmdWeb.storm.map(enrichItem),
+  ];
+  const thaiStorms = prioritizeItems(allTmdStorms, 8);
+  const thaiEarthquakes = prioritizeItems([...tmd.earthquake.map(enrichItem), ...tmdEqRaw.map(enrichItem)], 10);
+  const thaiDisasters = prioritizeItems([...thaiDisastersRaw.map(enrichItem), ...ddpmRaw.map(enrichItem)], 10);
+  const thaiPbsItems = prioritizeItems(thaiPbsRaw.map(enrichItem), 8);
   const globalAlerts = prioritizeItems(gdacsTranslated.map(enrichItem), 10);
-  const globalEarthquakes = prioritizeItems(usgsTranslated.map(enrichItem), 8);
+  const globalEarthquakes = prioritizeItems([...usgsTranslated.map(enrichItem), ...usgsRegionalTranslated.map(enrichItem)], 10);
   const globalDisasters = prioritizeItems(globalDisastersTranslated.map(enrichItem), 8);
   const climateItems = prioritizeItems(climateTranslated.map(enrichItem), 6);
+  const eonetItems = prioritizeItems(eonetTranslated.map(enrichItem), 12);
 
   const topStories = prioritizeItems([
     ...thaiWarnings,
     ...thaiStorms,
     ...thaiDisasters,
+    ...thaiPbsItems,
     ...globalAlerts,
     ...globalEarthquakes,
     ...globalDisasters,
+    ...eonetItems.filter((i) => i.severity === 'high'),
   ], 12);
+
+  const tmdWebCount = tmdWeb.daily.length + tmdWeb.sevenday.length + tmdWeb.storm.length + tmdWeb.regions.length;
 
   const sourceStatus = [
     normalizeSourceStatus('Open-Meteo', tasks[0], weather.days?.length || 0),
-    normalizeSourceStatus('TMD', tasks[1], tmd.forecast.length + tmd.warnings.length + tmd.storm.length + tmd.earthquake.length),
+    normalizeSourceStatus('TMD XML', tasks[1], tmd.forecast.length + tmd.warnings.length + tmd.storm.length + tmd.earthquake.length),
+    normalizeSourceStatus('TMD Web (พยากรณ์/เตือนภัย)', tasks[7], tmdWebCount),
     normalizeSourceStatus('GDACS', tasks[2], globalAlerts.length),
     normalizeSourceStatus('USGS', tasks[3], globalEarthquakes.length),
+    normalizeSourceStatus('USGS Regional (SE Asia)', tasks[9], usgsRegionalTranslated.length),
     normalizeSourceStatus('ReliefWeb Thailand', tasks[4], thaiDisasters.length),
     normalizeSourceStatus('ReliefWeb Global', tasks[5], globalDisasters.length),
     normalizeSourceStatus('NASA Climate / WMO', tasks[6], climateItems.length),
+    normalizeSourceStatus('NASA EONET', tasks[8], eonetItems.length),
+    normalizeSourceStatus('Thai PBS', tasks[10], thaiPbsItems.length),
+    normalizeSourceStatus('ปภ. (DDPM)', tasks[11], ddpmRaw.length),
+    normalizeSourceStatus('TMD แผ่นดินไหว', tasks[12], tmdEqRaw.length),
   ];
 
   const deterministicDigest = buildDigest({
@@ -891,12 +1483,18 @@ export default async function handler(req, res) {
       storms: thaiStorms,
       earthquakes: thaiEarthquakes,
       disasters: thaiDisasters,
+      ddpm: prioritizeItems(ddpmRaw.map(enrichItem), 8),
+      thaiPbs: thaiPbsItems,
+      tmdEq: prioritizeItems(tmdEqRaw.map(enrichItem), 8),
+      webSevenday: prioritizeItems(tmdWeb.sevenday.map(enrichItem), 5),
     },
     global: {
       alerts: globalAlerts,
       earthquakes: globalEarthquakes,
+      earthquakesRegional: usgsRegionalTranslated.map(enrichItem),
       disasters: globalDisasters,
       climate: climateItems,
+      eonet: eonetItems,
     },
     sourceStatus,
     labels: {
