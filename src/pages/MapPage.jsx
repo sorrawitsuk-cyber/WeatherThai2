@@ -115,6 +115,8 @@ export default function MapPage() {
   const hasAutoLocated = useRef(false);
   const flashTimeoutRef = useRef(null);
   const geoJsonRef = useRef(null);
+  const mobileLayerSwipeStartX = useRef(null);
+  const desktopViewportHeight = 'calc(100vh - 28px)';
 
   const basemapUrls = {
     dark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
@@ -335,7 +337,7 @@ export default function MapPage() {
   }, [darkMode]);
 
   const calculateRisk = useCallback((station) => {
-      let pm25 = 0, temp = 0, wind = 0, rain = 0, uv = 0, hum = 50;
+      let pm25 = 0, temp = 0, feelsLike = 0, wind = 0, rain = 0, uv = 0, hum = 50;
       let humEstimated = false;
       const daily = stationDaily[station.stationID] || {};
 
@@ -353,6 +355,7 @@ export default function MapPage() {
           const data = stationTemps[station.stationID] || {};
           pm25 = station.AQILast?.PM25?.value || 0;
           temp = data.temp || 0;
+          feelsLike = data.feelsLike || temp;
           wind = data.windSpeed || 0;
           rain = data.rainProb || 0;
           uv = data.uv || 0;
@@ -361,6 +364,7 @@ export default function MapPage() {
           const idx = effectiveDayOffset + 7;
           pm25 = daily.pm25?.[idx] || 0;
           temp = daily.temp?.[idx] || 0;
+          feelsLike = daily.heat?.[idx] || temp;
           wind = daily.wind?.[idx] || 0;
           rain = daily.rain?.[idx] || 0;
           uv = daily.uv?.[idx] || 0;
@@ -373,12 +377,13 @@ export default function MapPage() {
           }
       }
 
-      const nPm = Math.min(pm25 / 75 * 10, 10); 
-      const nTemp = Math.max(0, Math.min((temp - 28) / 12 * 10, 10)); 
-      const nWind = Math.min(wind / 40 * 10, 10); 
-      const nRain = Math.min(rain / 80 * 10, 10); 
-      const nUv = Math.min(uv / 11 * 10, 10); 
-      const nHumDry = Math.max(0, 10 - (hum / 100 * 10)); 
+      const nPm = Math.min(pm25 / 75 * 10, 10);
+      const nTemp = Math.max(0, Math.min((temp - 28) / 12 * 10, 10));
+      const nHeat = Math.max(0, Math.min((feelsLike - 28) / 12 * 10, 10));
+      const nWind = Math.min(wind / 40 * 10, 10);
+      const nRain = Math.min(rain / 80 * 10, 10);
+      const nUv = Math.min(uv / 11 * 10, 10);
+      const nHumDry = Math.max(0, 10 - (hum / 100 * 10));
       const nHumWet = Math.min(hum / 100 * 10, 10);
       const nNoRain = Math.max(0, 10 - (rain / 100 * 10));
 
@@ -386,17 +391,17 @@ export default function MapPage() {
       let factors = [];
 
       if (activeRiskMode === 'respiratory') {
-          score = (nPm * 0.6) + (nHumWet * 0.2) + (nTemp * 0.2);
-          factors = [{ label: 'มลพิษฝุ่น PM2.5', val: pm25, unit: 'µg/m³', risk: nPm, weight: 60, color: '#f97316' }, { label: `ความชื้นสัมพัทธ์สูง${humEstimated ? ' (ค่าประมาณ)' : ''}`, val: hum, unit: '%', risk: nHumWet, weight: 20, color: '#3b82f6' }, { label: 'อุณหภูมิความร้อน', val: temp, unit: '°C', risk: nTemp, weight: 20, color: '#ef4444' }];
+          score = (nPm * 0.6) + (nHumWet * 0.2) + (nHeat * 0.2);
+          factors = [{ label: 'มลพิษฝุ่น PM2.5', val: pm25, unit: 'µg/m³', risk: nPm, weight: 60, color: '#f97316' }, { label: `ความชื้นสัมพัทธ์สูง${humEstimated ? ' (ค่าประมาณ)' : ''}`, val: hum, unit: '%', risk: nHumWet, weight: 20, color: '#3b82f6' }, { label: 'ดัชนีความร้อน', val: feelsLike, unit: '°C', risk: nHeat, weight: 20, color: '#ef4444' }];
       } else if (activeRiskMode === 'outdoor') {
           score = (nRain * 0.4) + (nWind * 0.3) + (nTemp * 0.2) + (nUv * 0.1);
-          factors = [{ label: 'โอกาสเกิดฝนตก', val: rain, unit: '%', risk: nRain, weight: 40, color: '#3b82f6' }, { label: 'ความเร็วลมกระโชก', val: wind, unit: 'km/h', risk: nWind, weight: 30, color: '#0ea5e9' }, { label: 'อุณหภูมิความร้อน', val: temp, unit: '°C', risk: nTemp, weight: 20, color: '#ef4444' }, { label: 'ความเข้มรังสี UV', val: uv, unit: 'ดัชนี', risk: nUv, weight: 10, color: '#a855f7' }];
+          factors = [{ label: 'โอกาสเกิดฝนตก', val: rain, unit: '%', risk: nRain, weight: 40, color: '#3b82f6' }, { label: 'ความเร็วลมกระโชก', val: wind, unit: 'km/h', risk: nWind, weight: 30, color: '#0ea5e9' }, { label: 'อุณหภูมิอากาศ', val: temp, unit: '°C', risk: nTemp, weight: 20, color: '#ef4444' }, { label: 'ความเข้มรังสี UV', val: uv, unit: 'ดัชนี', risk: nUv, weight: 10, color: '#a855f7' }];
       } else if (activeRiskMode === 'wildfire') {
           score = (nWind * 0.35) + (nHumDry * 0.30) + (nNoRain * 0.20) + (nTemp * 0.15);
-          factors = [{ label: 'ความเร็วลมกระโชก', val: wind, unit: 'km/h', risk: nWind, weight: 35, color: '#0ea5e9' }, { label: `ความแห้งแล้งของอากาศ${humEstimated ? ' (ประมาณ)' : ''}`, val: hum, unit: '%', risk: nHumDry, weight: 30, color: '#eab308' }, { label: 'ไม่มีฝนตก (เชื้อเพลิงแห้ง)', val: rain, unit: '%', risk: nNoRain, weight: 20, color: '#94a3b8' }, { label: 'อุณหภูมิความร้อน', val: temp, unit: '°C', risk: nTemp, weight: 15, color: '#ef4444' }];
+          factors = [{ label: 'ความเร็วลมกระโชก', val: wind, unit: 'km/h', risk: nWind, weight: 35, color: '#0ea5e9' }, { label: `ความแห้งแล้งของอากาศ${humEstimated ? ' (ประมาณ)' : ''}`, val: hum, unit: '%', risk: nHumDry, weight: 30, color: '#eab308' }, { label: 'ไม่มีฝนตก (เชื้อเพลิงแห้ง)', val: rain, unit: '%', risk: nNoRain, weight: 20, color: '#94a3b8' }, { label: 'อุณหภูมิอากาศ', val: temp, unit: '°C', risk: nTemp, weight: 15, color: '#ef4444' }];
       } else if (activeRiskMode === 'heatstroke') {
-          score = (nTemp * 0.45) + (nHumWet * 0.30) + (nUv * 0.25);
-          factors = [{ label: 'อุณหภูมิความร้อน', val: temp, unit: '°C', risk: nTemp, weight: 45, color: '#ef4444' }, { label: `ความชื้นสัมพัทธ์สูง${humEstimated ? ' (ประมาณ)' : ''} (เหงื่อไม่ระเหย)`, val: hum, unit: '%', risk: nHumWet, weight: 30, color: '#3b82f6' }, { label: 'ความเข้มรังสี UV', val: uv, unit: 'ดัชนี', risk: nUv, weight: 25, color: '#a855f7' }];
+          score = (nHeat * 0.45) + (nHumWet * 0.30) + (nUv * 0.25);
+          factors = [{ label: 'ดัชนีความร้อน (feels like)', val: feelsLike, unit: '°C', risk: nHeat, weight: 45, color: '#ef4444' }, { label: `ความชื้นสัมพัทธ์สูง${humEstimated ? ' (ประมาณ)' : ''} (เหงื่อไม่ระเหย)`, val: hum, unit: '%', risk: nHumWet, weight: 30, color: '#3b82f6' }, { label: 'ความเข้มรังสี UV', val: uv, unit: 'ดัชนี', risk: nUv, weight: 25, color: '#a855f7' }];
       }
 
       return { score: Math.min(Math.round(score * 10) / 10, 10), factors, humEstimated };
@@ -672,6 +677,37 @@ export default function MapPage() {
                         mapCategory === 'risk' ? riskModes.find(m => m.id === activeRiskMode) :
                         mapCategory === 'yesterday' ? yesterdayModes.find(m => m.id === activeYesterdayMode) :
                         gistdaModes.find(m => m.id === activeGistdaMode);
+  const activeModeList = mapCategory === 'basic' ? basicModes :
+                         mapCategory === 'risk' ? riskModes :
+                         gistdaModes;
+  const activeModeIndex = Math.max(0, activeModeList.findIndex(m => m.id === activeModeObj?.id));
+  const activeCategoryLabel = mapCategory === 'basic' ? 'ข้อมูลทั่วไป' :
+                              mapCategory === 'risk' ? 'วิเคราะห์ความเสี่ยง' :
+                              'พิบัติภัย GISTDA';
+
+  const setActiveModeById = useCallback((modeId) => {
+    if (mapCategory === 'basic') setActiveBasicMode(modeId);
+    else if (mapCategory === 'risk') setActiveRiskMode(modeId);
+    else setActiveGistdaMode(modeId);
+  }, [mapCategory]);
+
+  const cycleActiveMode = useCallback((direction) => {
+    if (!activeModeList.length) return;
+    const nextIndex = (activeModeIndex + direction + activeModeList.length) % activeModeList.length;
+    setActiveModeById(activeModeList[nextIndex].id);
+  }, [activeModeIndex, activeModeList, setActiveModeById]);
+
+  const handleMobileLayerSwipeStart = useCallback((e) => {
+    mobileLayerSwipeStartX.current = e.touches[0].clientX;
+  }, []);
+
+  const handleMobileLayerSwipeEnd = useCallback((e) => {
+    if (mobileLayerSwipeStartX.current === null) return;
+    const dx = e.changedTouches[0].clientX - mobileLayerSwipeStartX.current;
+    mobileLayerSwipeStartX.current = null;
+    if (Math.abs(dx) < 36) return;
+    cycleActiveMode(dx < 0 ? 1 : -1);
+  }, [cycleActiveMode]);
 
   const thaiMonths = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
   const getDateLabel = (offset) => {
@@ -838,20 +874,20 @@ export default function MapPage() {
   ];
 
   return (
-    <div style={{ height: '100%', width: '100%', background: appBg, display: 'flex', flexDirection: 'column', fontFamily: 'Kanit, sans-serif', padding: isMobile ? '0' : '20px', boxSizing: 'border-box' }}>
+    <div style={{ height: isMobile ? '100%' : desktopViewportHeight, width: '100%', background: appBg, display: 'flex', flexDirection: 'column', fontFamily: 'Kanit, sans-serif', padding: isMobile ? '0' : '12px', boxSizing: 'border-box', overflow: 'hidden' }}>
       
       {/* === DESKTOP HEADER (ซ่อนบนมือถือ) === */}
       {!isMobile && (
         <>
-          <div style={{ display: 'flex', flexDirection: 'row', gap: '15px', alignItems: 'center', justifyContent: 'space-between', marginBottom: '15px', flexShrink: 0 }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <div style={{ display: 'flex', flexDirection: 'row', gap: '10px', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px', flexShrink: 0 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', minWidth: 0, flex: 1 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0, flexWrap: 'wrap', flex: 1 }}>
                           <div>
-                              <h2 style={{ margin: 0, color: textColor, fontSize: '1.5rem', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>🗺️ แผนที่เฝ้าระวังภัย</h2>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
+                              <h2 style={{ margin: 0, color: textColor, fontSize: '1.28rem', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', lineHeight: 1.15 }}>🗺️ แผนที่เฝ้าระวังภัย</h2>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '3px', flexWrap: 'wrap' }}>
                                   <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#22c55e', display: 'inline-block', boxShadow: '0 0 8px #22c55e', animation: 'pulse 2s infinite' }}></span>
-                                  <span style={{ fontSize: '0.75rem', color: subTextColor, fontWeight: 'bold' }}>ข้อมูลตามเวลาจริง {tmdAvailable && '• 📡 TMD'} • อัปเดตล่าสุด: {getLastUpdatedText()}</span>
+                                  <span style={{ fontSize: '0.72rem', color: subTextColor, fontWeight: 'bold', lineHeight: 1.3 }}>ข้อมูลตามเวลาจริง {tmdAvailable && '• 📡 TMD'} • อัปเดตล่าสุด: {getLastUpdatedText()}</span>
                               </div>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px', flexWrap: 'wrap' }}>
                                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: darkMode ? `${activeDataSourceMeta.color}22` : `${activeDataSourceMeta.color}14`, color: activeDataSourceMeta.color, border: `1px solid ${darkMode ? `${activeDataSourceMeta.color}55` : `${activeDataSourceMeta.color}35`}`, borderRadius: '999px', padding: '4px 10px', fontSize: '0.72rem', fontWeight: 'bold' }}>
@@ -861,69 +897,68 @@ export default function MapPage() {
                                   <span style={{ fontSize: '0.72rem', color: subTextColor }}>{activeDataSourceMeta.detail}</span>
                               </div>
                           </div>
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '8px', background: cardBg, borderRadius: '18px', border: `1px solid ${borderColor}`, padding: '8px', minWidth: '720px' }}>
+                          <div className="hide-scrollbar" style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '2px', maxWidth: '100%' }}>
                               {mapCategoryOptions.map(opt => (
                                 <button
                                   key={opt.id}
                                   onClick={() => setMapCategory(opt.id)}
                                   style={{
-                                    background: mapCategory === opt.id ? (darkMode ? `${opt.color}28` : `${opt.color}18`) : 'transparent',
-                                    color: mapCategory === opt.id ? opt.color : textColor,
-                                    border: `1px solid ${mapCategory === opt.id ? opt.color : 'transparent'}`,
-                                    padding: '10px 12px',
-                                    borderRadius: '14px',
-                                    fontSize: '0.8rem',
+                                    background: mapCategory === opt.id ? opt.color : 'transparent',
+                                    color: mapCategory === opt.id ? '#fff' : subTextColor,
+                                    border: `1px solid ${mapCategory === opt.id ? opt.color : borderColor}`,
+                                    padding: '5px 12px',
+                                    borderRadius: '999px',
+                                    fontSize: '0.78rem',
                                     fontWeight: 'bold',
                                     cursor: 'pointer',
                                     transition: '0.2s',
                                     fontFamily: 'Kanit',
-                                    textAlign: 'left',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    gap: '3px',
-                                    minHeight: '74px',
-                                    justifyContent: 'center'
+                                    lineHeight: 1.2,
+                                    whiteSpace: 'nowrap',
+                                    flexShrink: 0
                                   }}
                                 >
-                                  <span style={{ fontSize: '0.88rem', lineHeight: 1.1 }}>{opt.icon} {opt.label}</span>
-                                  <span style={{ fontSize: '0.68rem', color: mapCategory === opt.id ? opt.color : subTextColor, fontWeight: mapCategory === opt.id ? 'bold' : 'normal', lineHeight: 1.3 }}>{opt.desc}</span>
+                                  {opt.icon} {opt.shortLabel || opt.label}
                                 </button>
                               ))}
                           </div>
+                          </div>
                       </div>
                       {mapCategory === 'risk' && (
-                          <button onClick={() => setShowReferenceModal(true)} style={{ background: 'var(--bg-secondary)', color: '#8b5cf6', border: `1px solid #8b5cf6`, padding: '6px 15px', borderRadius: '50px', fontSize: '0.85rem', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s' }}>
+                          <button onClick={() => setShowReferenceModal(true)} style={{ background: 'var(--bg-secondary)', color: '#8b5cf6', border: `1px solid #8b5cf6`, padding: '5px 12px', borderRadius: '50px', fontSize: '0.8rem', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit', display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s', flexShrink: 0 }}>
                               📚 แหล่งอ้างอิงทางวิชาการ
                           </button>
                       )}
                   </div>
-                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <div className="hide-scrollbar" style={{ display: 'flex', gap: '8px', flexWrap: 'nowrap', overflowX: 'auto', paddingBottom: '2px' }}>
                     {mapCategory === 'basic' ? basicModes.map(m => (
-                        <button key={m.id} onClick={() => setActiveBasicMode(m.id)} style={{ padding: '7px 14px', borderRadius: '12px', border: `1px solid ${activeBasicMode === m.id ? m.color : borderColor}`, background: activeBasicMode === m.id ? (darkMode ? `${m.color}20` : `${m.color}15`) : cardBg, color: activeBasicMode === m.id ? m.color : textColor, fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'Kanit', fontSize: '0.85rem' }}>{m.name}</button>
+                        <button key={m.id} onClick={() => setActiveBasicMode(m.id)} style={{ padding: '6px 12px', borderRadius: '12px', border: `1px solid ${activeBasicMode === m.id ? m.color : borderColor}`, background: activeBasicMode === m.id ? (darkMode ? `${m.color}20` : `${m.color}15`) : cardBg, color: activeBasicMode === m.id ? m.color : textColor, fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'Kanit', fontSize: '0.82rem', whiteSpace: 'nowrap', flexShrink: 0 }}>{m.name}</button>
                     )) : mapCategory === 'risk' ? riskModes.map(m => (
-                        <button key={m.id} onClick={() => setActiveRiskMode(m.id)} style={{ padding: '7px 14px', borderRadius: '12px', border: `1px solid ${activeRiskMode === m.id ? m.color : borderColor}`, background: activeRiskMode === m.id ? (darkMode ? `${m.color}20` : `${m.color}15`) : cardBg, color: activeRiskMode === m.id ? m.color : textColor, fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'Kanit', fontSize: '0.85rem' }}>{m.name}</button>
+                        <button key={m.id} onClick={() => setActiveRiskMode(m.id)} style={{ padding: '6px 12px', borderRadius: '12px', border: `1px solid ${activeRiskMode === m.id ? m.color : borderColor}`, background: activeRiskMode === m.id ? (darkMode ? `${m.color}20` : `${m.color}15`) : cardBg, color: activeRiskMode === m.id ? m.color : textColor, fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'Kanit', fontSize: '0.82rem', whiteSpace: 'nowrap', flexShrink: 0 }}>{m.name}</button>
                     )) : mapCategory === 'yesterday' ? yesterdayModes.map(m => (
-                        <button key={m.id} onClick={() => setActiveYesterdayMode(m.id)} style={{ padding: '7px 14px', borderRadius: '12px', border: `1px solid ${activeYesterdayMode === m.id ? m.color : borderColor}`, background: activeYesterdayMode === m.id ? (darkMode ? `${m.color}20` : `${m.color}15`) : cardBg, color: activeYesterdayMode === m.id ? m.color : textColor, fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'Kanit', fontSize: '0.85rem' }}>{m.name}</button>
+                        <button key={m.id} onClick={() => setActiveYesterdayMode(m.id)} style={{ padding: '6px 12px', borderRadius: '12px', border: `1px solid ${activeYesterdayMode === m.id ? m.color : borderColor}`, background: activeYesterdayMode === m.id ? (darkMode ? `${m.color}20` : `${m.color}15`) : cardBg, color: activeYesterdayMode === m.id ? m.color : textColor, fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'Kanit', fontSize: '0.82rem', whiteSpace: 'nowrap', flexShrink: 0 }}>{m.name}</button>
                     )) : gistdaModes.map(m => (
-                        <button key={m.id} onClick={() => setActiveGistdaMode(m.id)} style={{ padding: '7px 14px', borderRadius: '12px', border: `1px solid ${activeGistdaMode === m.id ? m.color : borderColor}`, background: activeGistdaMode === m.id ? (darkMode ? `${m.color}20` : `${m.color}15`) : cardBg, color: activeGistdaMode === m.id ? m.color : textColor, fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'Kanit', fontSize: '0.85rem' }}>{m.name}</button>
+                        <button key={m.id} onClick={() => setActiveGistdaMode(m.id)} style={{ padding: '6px 12px', borderRadius: '12px', border: `1px solid ${activeGistdaMode === m.id ? m.color : borderColor}`, background: activeGistdaMode === m.id ? (darkMode ? `${m.color}20` : `${m.color}15`) : cardBg, color: activeGistdaMode === m.id ? m.color : textColor, fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'Kanit', fontSize: '0.82rem', whiteSpace: 'nowrap', flexShrink: 0 }}>{m.name}</button>
                     ))}
                   </div>
-                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                    {quickPresetOptions.map(opt => (
-                      <button
-                        key={opt.id}
-                        onClick={opt.onClick}
-                        style={{ padding: '6px 12px', borderRadius: '999px', border: `1px solid ${darkMode ? `${opt.color}55` : `${opt.color}35`}`, background: darkMode ? `${opt.color}18` : `${opt.color}10`, color: opt.color, fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit', fontSize: '0.78rem' }}
-                      >
-                        {opt.icon} {opt.label}
-                      </button>
-                    ))}
-                  </div>
+                  {mapCategory !== 'yesterday' && (
+                    <div className="hide-scrollbar" style={{ display: 'flex', gap: '8px', flexWrap: 'nowrap', overflowX: 'auto', paddingBottom: '2px' }}>
+                      {quickPresetOptions.map(opt => (
+                        <button
+                          key={opt.id}
+                          onClick={opt.onClick}
+                          style={{ padding: '5px 10px', borderRadius: '999px', border: `1px solid ${darkMode ? `${opt.color}55` : `${opt.color}35`}`, background: darkMode ? `${opt.color}18` : `${opt.color}10`, color: opt.color, fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit', fontSize: '0.74rem', whiteSpace: 'nowrap', flexShrink: 0 }}
+                        >
+                          {opt.icon} {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
               </div>
           </div>
 
-          {mapCategory === 'basic' || mapCategory === 'risk' ? (
-              <div style={{ background: cardBg, padding: '10px 15px', borderRadius: '12px', border: `1px solid ${borderColor}`, display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px', flexShrink: 0, boxShadow: '0 4px 10px rgba(0,0,0,0.05)', flexWrap: 'wrap' }}>
+          {(mapCategory === 'basic' || mapCategory === 'risk') ? (
+              <div style={{ background: cardBg, padding: '8px 12px', borderRadius: '12px', border: `1px solid ${borderColor}`, display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px', flexShrink: 0, boxShadow: '0 4px 10px rgba(0,0,0,0.05)', flexWrap: 'wrap' }}>
                   <span style={{ fontSize: '0.8rem', color: subTextColor, fontWeight: 'bold', whiteSpace: 'nowrap' }}>📅 ช่วงเวลา:</span>
                   {[
                       { id: 'today', label: `📍 ตอนนี้ ${getDateLabel(0)}`, sub: 'ข้อมูลล่าสุด', color: '#22c55e' },
@@ -950,82 +985,22 @@ export default function MapPage() {
                   </div>
               </div>
           ) : (
-              <div style={{ background: cardBg, padding: '8px 15px', borderRadius: '12px', border: `1px solid ${borderColor}`, marginBottom: '15px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', color: subTextColor, fontWeight: 'bold' }}>
+              <div style={{ background: cardBg, padding: '8px 12px', borderRadius: '12px', border: `1px solid ${borderColor}`, marginBottom: '10px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.72rem', color: subTextColor, fontWeight: 'bold' }}>
                   {mapCategory === 'yesterday' ? `📋 สถิติเมื่อวาน ${getDateLabel(-1)} — ข้อมูลจากกรมอุตุนิยมวิทยา (TMD)` : 'ℹ️ ข้อมูลจากดาวเทียม GISTDA แสดงค่าสะสมล่าสุดเท่านั้น — ไม่สามารถเลือกดูย้อนหลังหรือพยากรณ์ได้'}
               </div>
           )}
         </>
       )}
 
-      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', flex: 1, gap: isMobile ? '0' : '15px', overflow: 'hidden' }}>
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', flex: 1, gap: isMobile ? '0' : '12px', overflow: 'hidden', minHeight: 0 }}>
           
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: isMobile ? '0' : '15px' }}>
-              <div style={{ flex: 1, borderRadius: isMobile ? '0' : '20px', overflow: 'hidden', border: isMobile ? 'none' : `1px solid ${borderColor}`, position: 'relative', minHeight: isMobile ? 'calc(100vh - 120px)' : 'auto', background: cardBg }}>
-                {/* === MOBILE MODE INDICATOR (top-left) === */}
-                {isMobile && (
-                  <div style={{ position: 'absolute', top: '12px', left: '12px', zIndex: 1000, background: `${activeModeObj?.color || '#0ea5e9'}dd`, backdropFilter: 'blur(6px)', color: '#fff', padding: '5px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 'bold', boxShadow: '0 2px 10px rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', gap: '5px', pointerEvents: 'none' }}>
-                    <span>{activeModeObj?.name || '📊 ข้อมูลทั่วไป'}</span>
-                    {(mapCategory === 'basic' || mapCategory === 'risk') && (
-                      <span style={{ opacity: 0.8, fontSize: '0.65rem' }}>
-                        {timeMode === 'today' ? '• ตอนนี้' : timeMode === 'tomorrow' ? '• พรุ่งนี้' : '• 7 วันข้างหน้า'}
-                      </span>
-                    )}
-                  </div>
-                )}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: isMobile ? '0' : '12px', minHeight: 0 }}>
+              <div style={{ flex: 1, borderRadius: isMobile ? '0' : '20px', overflow: 'hidden', border: isMobile ? 'none' : `1px solid ${borderColor}`, position: 'relative', minHeight: isMobile ? 'calc(100vh - 120px)' : 0, background: cardBg }}>
+                <MapContainer center={[13.5, 100.5]} zoom={isMobile ? 5 : 6} style={{ height: '100%', width: '100%', background: appBg }} zoomControl={false}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: isMobile ? '0' : '12px', minHeight: 0 }}>
+              <div style={{ flex: 1, borderRadius: isMobile ? '0' : '20px', overflow: 'hidden', border: isMobile ? 'none' : `1px solid ${borderColor}`, position: 'relative', minHeight: isMobile ? 'calc(100vh - 120px)' : 0, background: cardBg }}>
 
-                {isMobile && (
-                  <div style={{ position: 'absolute', top: '38px', left: '12px', zIndex: 1000, display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', maxWidth: 'calc(100vw - 88px)' }}>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: darkMode ? `${activeDataSourceMeta.color}22` : `${activeDataSourceMeta.color}16`, color: activeDataSourceMeta.color, border: `1px solid ${darkMode ? `${activeDataSourceMeta.color}55` : `${activeDataSourceMeta.color}35`}`, backdropFilter: 'blur(8px)', borderRadius: '999px', padding: '3px 8px', fontSize: '0.64rem', fontWeight: 'bold' }}>
-                      <span>{activeDataSourceMeta.icon}</span>
-                      <span>{activeDataSourceMeta.label}</span>
-                    </span>
-                    {(mapCategory === 'basic' || mapCategory === 'risk') && (
-                      <span style={{ fontSize: '0.62rem', color: '#fff', opacity: 0.9, textShadow: '0 1px 3px rgba(0,0,0,0.45)' }}>{timeHelperText}</span>
-                    )}
-                  </div>
-                )}
-
-                {isMobile && (
-                  <div style={{ position: 'absolute', top: '56px', left: '12px', right: '60px', zIndex: 1000, display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '2px', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                    {[
-                      { id: 'filter', label: '🎛️ ตัวกรอง', value: basemapStyle === 'satellite' ? '🛰️ ดาวเทียม' : basemapStyle === 'osm' ? '🛣️ ถนน' : basemapStyle === 'dark' ? '🌙 สีเข้ม' : '☀️ สีสว่าง', color: '#14b8a6', accentBg: 'linear-gradient(135deg, rgba(20,184,166,0.95), rgba(13,148,136,0.92))' },
-                      { id: 'category', label: '🗺️ ประเภท', value: `${activeCategoryOption?.icon || '🌤️'} ${activeCategoryOption?.shortLabel || 'อากาศ'}`, color: activeCategoryOption?.color || '#0ea5e9' },
-                      { id: 'layer', label: '🧩 ชั้นข้อมูล', value: activeModeObj?.name || '-', color: activeModeObj?.color || '#0ea5e9' },
-                      ...(mapCategory === 'basic' || mapCategory === 'risk'
-                        ? [{ id: 'time', label: '📅 วันที่', value: timeMode === 'today' ? '📍 ตอนนี้' : timeMode === 'tomorrow' ? '🔮 พรุ่งนี้' : '📊 7 วันข้างหน้า', color: timeMode === 'tomorrow' ? '#a855f7' : timeMode === 'avg7' ? '#0ea5e9' : '#22c55e' }]
-                        : [])
-                    ].map(item => (
-                      <button
-                        key={item.id}
-                        onClick={() => setActivePanel(p => p === item.id ? null : item.id)}
-                        style={{
-                          flexShrink: 0,
-                          minWidth: item.id === 'layer' ? '132px' : item.id === 'filter' ? '118px' : '102px',
-                          padding: '8px 10px',
-                          borderRadius: '14px',
-                          border: `1px solid ${activePanel === item.id ? item.color : item.id === 'filter' ? 'rgba(45,212,191,0.7)' : 'rgba(255,255,255,0.2)'}`,
-                          background: activePanel === item.id ? (item.accentBg || `${item.color}ee`) : (item.id === 'filter' ? 'linear-gradient(135deg, rgba(13,148,136,0.92), rgba(15,23,42,0.92))' : 'rgba(15,23,42,0.72)'),
-                          color: '#fff',
-                          boxShadow: item.id === 'filter' ? '0 8px 24px rgba(13,148,136,0.28)' : '0 6px 20px rgba(0,0,0,0.22)',
-                          backdropFilter: 'blur(10px)',
-                          fontFamily: 'Kanit',
-                          cursor: 'pointer',
-                          textAlign: 'left',
-                          position: 'relative',
-                          overflow: 'hidden'
-                        }}
-                      >
-                        {item.id === 'filter' && (
-                          <span style={{ position: 'absolute', top: '7px', right: '8px', fontSize: '0.9rem', opacity: activePanel === item.id ? 0.95 : 0.8 }}>✨</span>
-                        )}
-                        <div style={{ fontSize: '0.62rem', opacity: 0.9, fontWeight: 'bold', lineHeight: 1.1 }}>{item.label}</div>
-                        <div style={{ fontSize: '0.74rem', fontWeight: 'bold', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2, marginTop: '3px', paddingRight: item.id === 'filter' ? '12px' : '0' }}>{item.value}</div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                <MapContainer center={[13.5, 100.5]} zoom={isMobile ? 6 : 6} style={{ height: '100%', width: '100%', background: appBg }} zoomControl={false}>
+                <MapContainer center={[13.5, 100.5]} zoom={isMobile ? 5 : 6} style={{ height: '100%', width: '100%', background: appBg }} zoomControl={false}>
                     <TileLayer url={basemapUrls[basemapStyle]} />
                     <MapZoomListener setMapZoom={setMapZoom} />
                     <MapChangeView center={flyToPos} />
@@ -1087,6 +1062,47 @@ export default function MapPage() {
                         return amphoeMarkers;
                     })()}
                 </MapContainer>
+
+                {isMobile && (
+                  <div
+                    className="fade-in"
+                    onClick={() => setActivePanel(p => p === 'layer' ? null : 'layer')}
+                    onTouchStart={handleMobileLayerSwipeStart}
+                    onTouchEnd={handleMobileLayerSwipeEnd}
+                    style={{ position: 'absolute', top: '12px', left: '12px', right: '64px', zIndex: 1001, background: 'var(--bg-nav-blur)', backdropFilter: 'blur(12px)', border: `1px solid ${borderColor}`, borderRadius: '16px', padding: '8px 10px', boxShadow: '0 4px 16px rgba(0,0,0,0.22)', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}
+                  >
+                    <button
+                      aria-label="เลื่อนชั้นข้อมูลก่อนหน้า"
+                      onClick={(e) => { e.stopPropagation(); cycleActiveMode(-1); }}
+                      style={{ width: '24px', height: '24px', borderRadius: '50%', border: 'none', background: 'var(--bg-secondary)', color: textColor, fontSize: '0.9rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                    >
+                      ‹
+                    </button>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px', minWidth: 0 }}>
+                        <span style={{ background: activeModeObj?.color || '#0ea5e9', color: '#fff', borderRadius: '999px', padding: '2px 8px', fontSize: '0.6rem', fontWeight: 'bold', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                          {activeCategoryLabel}
+                        </span>
+                        <span style={{ fontSize: '0.58rem', color: subTextColor, fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                          {activeModeIndex + 1}/{activeModeList.length}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '0.78rem', color: textColor, fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {activeModeObj?.name}
+                      </div>
+                      <div style={{ fontSize: '0.6rem', color: subTextColor, fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        ปัดซ้ายขวาเพื่อเปลี่ยนชั้นข้อมูล
+                      </div>
+                    </div>
+                    <button
+                      aria-label="เลื่อนชั้นข้อมูลถัดไป"
+                      onClick={(e) => { e.stopPropagation(); cycleActiveMode(1); }}
+                      style={{ width: '24px', height: '24px', borderRadius: '50%', border: 'none', background: 'var(--bg-secondary)', color: textColor, fontSize: '0.9rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                    >
+                      ›
+                    </button>
+                  </div>
+                )}
 
                 {/* === LEGEND: เล็กลงบนมือถือ / collapsible === */}
                 {isMobile ? (
@@ -1291,8 +1307,8 @@ export default function MapPage() {
 
           {/* === DESKTOP SIDEBAR (ซ่อนบนมือถือ — ใช้ Bottom Sheet แทน) === */}
           {!isMobile && (
-            <div style={{ width: '320px', background: cardBg, borderRadius: '20px', padding: '15px', border: `1px solid ${borderColor}`, display: 'flex', flexDirection: 'column', zIndex: 10, flexShrink: 0 }}>
-               <h3 style={{ margin: '0 0 3px 0', fontSize: '1rem', color: textColor }}>
+            <div style={{ width: '300px', background: cardBg, borderRadius: '20px', padding: '14px', border: `1px solid ${borderColor}`, display: 'flex', flexDirection: 'column', zIndex: 10, flexShrink: 0, minHeight: 0 }}>
+               <h3 style={{ margin: '0 0 5px 0', fontSize: '1rem', color: textColor }}>
                   📍 {mapCategory === 'risk' ? 'พื้นที่เสี่ยงสูงสุด (Top 15)' : mapCategory === 'gistda' ? 'พื้นที่วิกฤต (Top 5)' : mapCategory === 'yesterday' ? `สถิติเมื่อวาน ${getDateLabel(-1)}` : 'จัดอันดับค่าสูงสุด (Top 15)'}
                </h3>
                <p style={{ margin: '0 0 8px 0', fontSize: '0.72rem', color: activeModeObj?.color, fontWeight: 'bold' }}>{activeModeObj?.desc}</p>

@@ -1,5 +1,5 @@
-import React, { useContext, useState, useEffect } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import React, { useContext, useState, useEffect, useRef, useCallback } from 'react';
+import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { WeatherContext } from '../context/WeatherContext';
 import InstallPrompt from './InstallPrompt';
 import UpdateNotification from './UpdateNotification';
@@ -9,11 +9,18 @@ import { usePushNotification } from '../hooks/usePushNotification';
 export default function Layout() {
   const { darkMode, setDarkMode } = useContext(WeatherContext);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-  const { location, loading: gpsLoading, permission: gpsPermission, getLocation } = useGeolocation();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const touchStartX = useRef(null);
+  const touchStartY = useRef(null);
+  const { location: gpsLocation, loading: gpsLoading, permission: gpsPermission, getLocation } = useGeolocation();
   const { permission: notifPermission, requestPermission: requestNotif, isSupported: notifSupported } = usePushNotification();
 
   // ✅ ให้ GPS location พร้อมใน context ทั่วทั้งแอป
-  const userLocation = location;
+  const [userLocation, setUserLocation] = useState(null);
+  useEffect(() => {
+    if (gpsLocation) setUserLocation(gpsLocation);
+  }, [gpsLocation]);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -28,14 +35,41 @@ export default function Layout() {
     { path: '/news', icon: '📰', label: 'ข่าวสาร' },
   ];
 
+  const pagePaths = navItems.map(item => item.path);
+
+  const handleTouchStart = useCallback((e) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+  }, []);
+
+  const handleTouchEnd = useCallback((e) => {
+    if (touchStartX.current === null) return;
+    const dx = e.changedTouches[0].clientX - touchStartX.current;
+    const dy = e.changedTouches[0].clientY - touchStartY.current;
+    touchStartX.current = null;
+    touchStartY.current = null;
+
+    // ต้องเป็น horizontal swipe ที่ชัดเจน (dx > dy*1.5 และ ระยะ > 60px)
+    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+
+    const currentIndex = pagePaths.indexOf(location.pathname);
+    if (currentIndex === -1) return;
+
+    if (dx < 0 && currentIndex < pagePaths.length - 1) {
+      navigate(pagePaths[currentIndex + 1]);
+    } else if (dx > 0 && currentIndex > 0) {
+      navigate(pagePaths[currentIndex - 1]);
+    }
+  }, [location.pathname, navigate, pagePaths]);
+
   const appBg = 'var(--bg-app)';
   const sidebarBg = 'var(--bg-card)';
   const textColor = 'var(--text-main)';
   const borderColor = 'var(--border-color)';
   const subTextColor = 'var(--text-sub)';
 
-  const gpsColor = gpsPermission === 'granted' && location ? '#22c55e' : gpsPermission === 'denied' ? '#ef4444' : '#0ea5e9';
-  const gpsIcon = gpsLoading ? '⏳' : gpsPermission === 'granted' && location ? '📍' : '📡';
+  const gpsColor = gpsPermission === 'granted' && gpsLocation ? '#22c55e' : gpsPermission === 'denied' ? '#ef4444' : '#0ea5e9';
+  const gpsIcon = gpsLoading ? '⏳' : gpsPermission === 'granted' && gpsLocation ? '📍' : '📡';
 
   return (
     <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', height: '100vh', width: '100vw', overflow: 'hidden', background: appBg, color: textColor, fontFamily: 'Kanit, sans-serif' }}>
@@ -77,10 +111,10 @@ export default function Layout() {
             <button
               onClick={getLocation}
               disabled={gpsLoading}
-              title={location ? `ตำแหน่ง: ${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}` : 'คลิกเพื่อระบุตำแหน่ง GPS'}
+              title={gpsLocation ? `ตำแหน่ง: ${gpsLocation.lat.toFixed(4)}, ${gpsLocation.lng.toFixed(4)}` : 'คลิกเพื่อระบุตำแหน่ง GPS'}
               style={{ width: '100%', padding: '10px', borderRadius: '12px', border: `1px solid ${borderColor}`, background: 'var(--bg-secondary)', color: gpsColor, fontFamily: 'Kanit, sans-serif', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s', fontSize: '0.85rem' }}
             >
-              {gpsIcon} {gpsLoading ? 'กำลังค้นหา...' : location ? 'พบตำแหน่งแล้ว' : 'ระบุตำแหน่ง GPS'}
+              {gpsIcon} {gpsLoading ? 'กำลังค้นหา...' : gpsLocation ? 'พบตำแหน่งแล้ว' : 'ระบุตำแหน่ง GPS'}
             </button>
 
             {/* Notification Button */}
@@ -105,7 +139,11 @@ export default function Layout() {
       )}
 
       {/* 🟢 Main Content */}
-      <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', position: 'relative', paddingBottom: isMobile ? '80px' : '0' }}>
+      <div
+        style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', position: 'relative', paddingBottom: isMobile ? '80px' : '0' }}
+        onTouchStart={isMobile ? handleTouchStart : undefined}
+        onTouchEnd={isMobile ? handleTouchEnd : undefined}
+      >
         <Outlet context={{ userLocation }} />
       </div>
 
@@ -141,7 +179,7 @@ export default function Layout() {
           >
             <span style={{ fontSize: '1.4rem', opacity: gpsLoading ? 0.5 : 0.85 }}>{gpsIcon}</span>
             <span style={{ fontSize: '0.62rem', fontWeight: 'bold', opacity: 0.75 }}>
-              {gpsLoading ? 'ค้นหา...' : location ? 'GPS ✓' : 'GPS'}
+              {gpsLoading ? 'ค้นหา...' : gpsLocation ? 'GPS ✓' : 'GPS'}
             </span>
           </div>
 
