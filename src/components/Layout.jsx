@@ -1,5 +1,5 @@
-import React, { useContext, useState, useEffect, useRef, useCallback } from 'react';
-import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
+import React, { useContext, useState, useEffect } from 'react';
+import { NavLink, Outlet } from 'react-router-dom';
 import { WeatherContext } from '../context/WeatherContext';
 import InstallPrompt from './InstallPrompt';
 import UpdateNotification from './UpdateNotification';
@@ -9,10 +9,6 @@ import { usePushNotification } from '../hooks/usePushNotification';
 export default function Layout() {
   const { darkMode, setDarkMode } = useContext(WeatherContext);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-  const navigate = useNavigate();
-  const location = useLocation();
-  const touchStartX = useRef(null);
-  const touchStartY = useRef(null);
   const { location: gpsLocation, loading: gpsLoading, permission: gpsPermission, getLocation } = useGeolocation();
   const { permission: notifPermission, requestPermission: requestNotif, isSupported: notifSupported } = usePushNotification();
 
@@ -34,33 +30,6 @@ export default function Layout() {
     { path: '/ai', icon: '✨', label: 'วิเคราะห์' },
     { path: '/news', icon: '📰', label: 'ข่าวสาร' },
   ];
-
-  const pagePaths = navItems.map(item => item.path);
-
-  const handleTouchStart = useCallback((e) => {
-    touchStartX.current = e.touches[0].clientX;
-    touchStartY.current = e.touches[0].clientY;
-  }, []);
-
-  const handleTouchEnd = useCallback((e) => {
-    if (touchStartX.current === null) return;
-    const dx = e.changedTouches[0].clientX - touchStartX.current;
-    const dy = e.changedTouches[0].clientY - touchStartY.current;
-    touchStartX.current = null;
-    touchStartY.current = null;
-
-    // ต้องเป็น horizontal swipe ที่ชัดเจน (dx > dy*1.5 และ ระยะ > 60px)
-    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
-
-    const currentIndex = pagePaths.indexOf(location.pathname);
-    if (currentIndex === -1) return;
-
-    if (dx < 0 && currentIndex < pagePaths.length - 1) {
-      navigate(pagePaths[currentIndex + 1]);
-    } else if (dx > 0 && currentIndex > 0) {
-      navigate(pagePaths[currentIndex - 1]);
-    }
-  }, [location.pathname, navigate, pagePaths]);
 
   const appBg = 'var(--bg-app)';
   const sidebarBg = 'var(--bg-card)';
@@ -141,8 +110,6 @@ export default function Layout() {
       {/* 🟢 Main Content */}
       <div
         style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', position: 'relative', paddingBottom: isMobile ? '80px' : '0' }}
-        onTouchStart={isMobile ? handleTouchStart : undefined}
-        onTouchEnd={isMobile ? handleTouchEnd : undefined}
       >
         <Outlet context={{ userLocation }} />
       </div>
