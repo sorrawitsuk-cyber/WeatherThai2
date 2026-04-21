@@ -86,22 +86,6 @@ const getActionableAdvice = (pm25, temp, rain, uv, wind) => {
     return tips;
 };
 
-const buildRadarPoints = (factors, centerX, centerY, radius, valueKey = 'risk') =>
-  factors.map((factor, index) => {
-    const angle = (-Math.PI / 2) + ((Math.PI * 2 * index) / factors.length);
-    const normalized = Math.max(0, Math.min(10, Number(factor[valueKey]) || 0)) / 10;
-    return {
-      ...factor,
-      angle,
-      axisX: centerX + Math.cos(angle) * radius,
-      axisY: centerY + Math.sin(angle) * radius,
-      pointX: centerX + Math.cos(angle) * radius * normalized,
-      pointY: centerY + Math.sin(angle) * radius * normalized,
-      labelX: centerX + Math.cos(angle) * (radius + 24),
-      labelY: centerY + Math.sin(angle) * (radius + 24),
-    };
-  });
-
 export default function MapPage() {
   const { stations, stationTemps, stationYesterday, stationMaxYesterday, stationDaily, darkMode, gistdaSummary, lastUpdated, amphoeData, tmdAvailable } = useContext(WeatherContext);
   
@@ -132,9 +116,6 @@ export default function MapPage() {
   const flashTimeoutRef = useRef(null);
   const geoJsonRef = useRef(null);
   const desktopViewportHeight = 'calc(100vh - 28px)';
-  const riskRadarSize = isMobile ? 220 : 240;
-  const riskRadarCenter = riskRadarSize / 2;
-  const riskRadarRadius = isMobile ? 64 : 74;
 
   const basemapUrls = {
     dark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
@@ -1467,89 +1448,19 @@ export default function MapPage() {
                 </div>
 
                 <h4 style={{ margin: '0 0 10px 0', color: textColor, fontSize: '0.95rem' }}>🔬 ปัจจัยหลักที่ส่งผลต่อความเสี่ยง:</h4>
-                {(() => {
-                    const radarPoints = buildRadarPoints(selectedHotspot.factors, riskRadarCenter, riskRadarCenter, riskRadarRadius);
-                    const radarPolygon = radarPoints.map(point => `${point.pointX},${point.pointY}`).join(' ');
-                    return (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                            <div style={{ background: 'var(--bg-secondary)', borderRadius: '18px', border: `1px solid ${borderColor}`, padding: '14px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
-                                <svg width={riskRadarSize} height={riskRadarSize} viewBox={`0 0 ${riskRadarSize} ${riskRadarSize}`} role="img" aria-label="กราฟเรดาร์ปัจจัยความเสี่ยง">
-                                    {[0.25, 0.5, 0.75, 1].map((scale, ringIndex) => {
-                                        const ringPoints = selectedHotspot.factors.map((_, factorIndex) => {
-                                            const angle = (-Math.PI / 2) + ((Math.PI * 2 * factorIndex) / selectedHotspot.factors.length);
-                                            const x = riskRadarCenter + Math.cos(angle) * riskRadarRadius * scale;
-                                            const y = riskRadarCenter + Math.sin(angle) * riskRadarRadius * scale;
-                                            return `${x},${y}`;
-                                        }).join(' ');
-                                        return (
-                                            <polygon
-                                                key={ringIndex}
-                                                points={ringPoints}
-                                                fill="none"
-                                                stroke={darkMode ? 'rgba(148,163,184,0.25)' : 'rgba(100,116,139,0.22)'}
-                                                strokeWidth="1"
-                                            />
-                                        );
-                                    })}
-                                    {radarPoints.map((point, index) => (
-                                        <g key={index}>
-                                            <line
-                                                x1={riskRadarCenter}
-                                                y1={riskRadarCenter}
-                                                x2={point.axisX}
-                                                y2={point.axisY}
-                                                stroke={darkMode ? 'rgba(148,163,184,0.22)' : 'rgba(100,116,139,0.2)'}
-                                                strokeWidth="1"
-                                            />
-                                            <text
-                                                x={point.labelX}
-                                                y={point.labelY}
-                                                textAnchor={Math.abs(point.labelX - riskRadarCenter) < 12 ? 'middle' : point.labelX < riskRadarCenter ? 'end' : 'start'}
-                                                dominantBaseline="middle"
-                                                fill={subTextColor}
-                                                fontSize="10"
-                                                fontWeight="700"
-                                            >
-                                                {point.label.length > 12 ? `${point.label.slice(0, 12)}…` : point.label}
-                                            </text>
-                                        </g>
-                                    ))}
-                                    <polygon
-                                        points={radarPolygon}
-                                        fill={`${selectedHotspot.color}30`}
-                                        stroke={selectedHotspot.color}
-                                        strokeWidth="2.5"
-                                    />
-                                    {radarPoints.map((point, index) => (
-                                        <circle key={index} cx={point.pointX} cy={point.pointY} r="4.5" fill={point.color} stroke={cardBg} strokeWidth="2" />
-                                    ))}
-                                    <circle cx={riskRadarCenter} cy={riskRadarCenter} r="3" fill={selectedHotspot.color} />
-                                </svg>
-                                <div style={{ fontSize: '0.68rem', color: subTextColor, textAlign: 'center', lineHeight: 1.5 }}>
-                                    กราฟนี้สรุประดับความเสี่ยง 0-10 ของทุกปัจจัยในมุมมองเดียว ยิ่งยื่นออกมากยิ่งเป็นตัวผลักความเสี่ยงหลักของจังหวัดนี้
-                                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {selectedHotspot.factors.map((factor, i) => (
+                        <div key={i}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', marginBottom: '5px', color: textColor }}>
+                                <span style={{fontWeight: 'bold'}}>{factor.label} <span style={{color:subTextColor, fontWeight:'normal'}}>(สัดส่วน {factor.weight}%)</span></span>
+                                <span>{factor.val} <span style={{color:subTextColor}}>{factor.unit}</span></span>
                             </div>
-
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
-                                {selectedHotspot.factors.map((factor, i) => (
-                                    <div key={i} style={{ background: 'var(--bg-secondary)', borderRadius: '12px', border: `1px solid ${borderColor}`, padding: '10px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-                                            <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: factor.color, flexShrink: 0 }}></span>
-                                            <div style={{ minWidth: 0 }}>
-                                                <div style={{ fontSize: '0.78rem', fontWeight: 'bold', color: textColor, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{factor.label}</div>
-                                                <div style={{ fontSize: '0.65rem', color: subTextColor }}>สัดส่วน {factor.weight}%</div>
-                                            </div>
-                                        </div>
-                                        <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                                            <div style={{ fontSize: '0.82rem', fontWeight: '900', color: factor.color }}>{factor.val} <span style={{ fontSize: '0.62rem', color: subTextColor, fontWeight: 'normal' }}>{factor.unit}</span></div>
-                                            <div style={{ fontSize: '0.65rem', color: subTextColor }}>ความเสี่ยง {factor.risk.toFixed(1)}/10</div>
-                                        </div>
-                                    </div>
-                                ))}
+                            <div style={{ width: '100%', height: '6px', background: 'var(--border-color)', borderRadius: '10px', overflow: 'hidden' }}>
+                                <div style={{ width: `${(factor.risk / 10) * 100}%`, height: '100%', background: factor.color, borderRadius: '10px', transition: 'width 1s ease-out' }}></div>
                             </div>
                         </div>
-                    );
-                })()}
+                    ))}
+                </div>
             </div>
         </div>
       )}
