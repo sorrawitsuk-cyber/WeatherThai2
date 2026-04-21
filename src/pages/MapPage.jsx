@@ -1355,8 +1355,8 @@ export default function MapPage() {
           {/* === DESKTOP SIDEBAR (ซ่อนบนมือถือ — ใช้ Bottom Sheet แทน) === */}
           {!isMobile && (
             <div style={{ width: '320px', background: cardBg, borderRadius: '24px', padding: '16px', border: `1px solid ${borderColor}`, boxShadow: '0 10px 30px rgba(0,0,0,0.08)', display: 'flex', flexDirection: 'column', zIndex: 10, flexShrink: 0, minHeight: 0 }}>
-               <h3 style={{ margin: '0 0 5px 0', fontSize: '1rem', color: textColor }}>
-                  📍 {mapCategory === 'risk' ? 'พื้นที่เสี่ยงสูงสุด (Top 15)' : mapCategory === 'gistda' ? 'พื้นที่วิกฤต (Top 5)' : mapCategory === 'yesterday' ? `สถิติเมื่อวาน ${getDateLabel(-1)}` : 'จัดอันดับค่าสูงสุด (Top 15)'}
+               <h3 style={{ margin: '0 0 15px 0', fontSize: '1.1rem', color: textColor, display: 'flex', alignItems: 'center' }}>
+                  📍 {mapCategory === 'risk' ? 'พื้นที่เสี่ยงสูงสุด (Top 5)' : mapCategory === 'gistda' ? 'พื้นที่วิกฤต (Top 5)' : mapCategory === 'yesterday' ? `สถิติเมื่อวาน ${getDateLabel(-1)}` : 'จังหวัดที่น่าสนใจ (Top 5)'}
                </h3>
                <p style={{ margin: '0 0 8px 0', fontSize: '0.72rem', color: activeModeObj?.color, fontWeight: 'bold' }}>{activeModeObj?.desc}</p>
                {mapCategory === 'yesterday' && (
@@ -1388,14 +1388,19 @@ export default function MapPage() {
                       if (!searchQuery.trim()) return true;
                       const name = st.areaTH.replace('จังหวัด', '').trim();
                       return name.includes(searchQuery.trim());
-                  }).map((st, idx) => (
-                     <div key={st.stationID} onClick={() => handleRegionClick(st)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: 'var(--bg-tertiary)', borderRadius: '12px', marginBottom: '8px', borderLeft: `5px solid ${st.color}`, cursor: 'pointer', transition: 'all 0.1s', border: `1px solid ${borderColor}` }} onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 10px rgba(0,0,0,0.1)'; }} onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}>
-                        <div>
-                            <div style={{ fontSize: '0.9rem', fontWeight: 'bold', color: textColor }}>{idx+1}. จ.{st.areaTH.replace('จังหวัด', '')}</div>
-                            {mapCategory === 'risk' && <div style={{ fontSize: '0.65rem', color: subTextColor, marginTop: '2px' }}>สถานะ: {getRiskLabel(st.displayVal)}</div>}
+                  }).slice(0, 5).map((st, idx) => (
+                     <div key={st.stationID} onClick={() => handleRegionClick(st)} style={{ position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: '8px', padding: '16px', background: 'var(--bg-secondary)', borderRadius: '20px', marginBottom: '12px', cursor: 'pointer', transition: 'all 0.3s ease', border: `1px solid ${borderColor}`, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }} onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = '0 10px 20px rgba(0,0,0,0.1)'; }} onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.05)'; }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ fontSize: '1.2rem', fontWeight: '900', color: textColor }}>จ.{st.areaTH.replace('จังหวัด', '')}</div>
+                            <div style={{ fontSize: '1.8rem', fontWeight: '900', color: st.color }}>
+                               {st.displayVal} <span style={{fontSize:'0.8rem', color: subTextColor, fontWeight:'bold'}}>{(mapCategory==='basic' || mapCategory==='yesterday') ? activeModeObj?.unit : ''}</span>
+                            </div>
                         </div>
-                        <div style={{ background: cardBg, padding: '4px 10px', borderRadius: '10px', textAlign: 'center', border: `1px solid ${borderColor}` }}>
-                            <div style={{ fontSize: '1rem', fontWeight: '900', color: st.color }}>{st.displayVal} <span style={{fontSize:'0.6rem', color: subTextColor, fontWeight:'normal'}}>{(mapCategory==='basic' || mapCategory==='yesterday') ? activeModeObj?.unit : ''}</span></div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ fontSize: '0.85rem', color: subTextColor, fontWeight: 'bold' }}>
+                                อันดับ {idx+1} {mapCategory === 'risk' && <span style={{ marginLeft: '5px' }}>• สถานะ: {getRiskLabel(st.displayVal)}</span>}
+                            </div>
+                            <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: st.color, boxShadow: `0 0 8px ${st.color}` }}></div>
                         </div>
                      </div>
                   ))}
