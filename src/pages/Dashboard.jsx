@@ -33,8 +33,10 @@ export default function Dashboard() {
   const [showBackToTop, setShowBackToTop] = useState(false);
 
   const scrollRef = useRef(null);
+  const hourlyScrollRef = useRef(null);
   const mainScrollRef = useRef(null);
   const { isDragging, events: scrollEvents } = useDraggableScroll(scrollRef);
+  const { isDragging: isHourlyDragging, events: hourlyScrollEvents } = useDraggableScroll(hourlyScrollRef);
 
   useEffect(() => {
     const handleResize = () => {
@@ -495,27 +497,85 @@ export default function Dashboard() {
            {/* RIGHT COLUMN: Hourly Forecast */}
            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0 }}>
               <div style={{ background: cardBg, borderRadius: '25px', padding: isMobile ? '20px' : '22px', border: `1px solid ${borderColor}`, display: 'flex', flexDirection: 'column', height: isMobile ? 'auto' : '100%', minHeight: isMobile ? 'auto' : '980px' }}>
-                 <h3 style={{ margin: '0 0 15px 0', fontSize: '1.2rem', color: textColor, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontSize: '1.4rem' }}>🕒</span> พยากรณ์รายชั่วโมง
-                 </h3>
-                 
-                 <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', overflowY: 'auto', flex: 1, paddingRight: '5px' }} className="hide-scrollbar">
-                    {chartData.map((item, idx) => (
-                       <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 15px', background: 'var(--bg-secondary)', borderRadius: '16px', border: `1px solid ${borderColor}` }}>
-                          <div style={{ color: subTextColor, fontWeight: 'bold', fontSize: '0.95rem', width: '60px' }}>
-                             {item.time}
+                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', marginBottom: '14px', flexWrap: 'wrap' }}>
+                    <div>
+                      <h3 style={{ margin: '0 0 4px 0', fontSize: '1.2rem', color: textColor, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '1.4rem' }}>🕒</span> พยากรณ์รายชั่วโมง
+                      </h3>
+                      <div style={{ fontSize: '0.78rem', color: subTextColor, lineHeight: 1.5 }}>
+                        รูปแบบเลื่อนซ้ายขวาแบบแอปอากาศ ดูเวลา อุณหภูมิ ฝน และดัชนีสำคัญได้ในแถวเดียว
+                      </div>
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: subTextColor, fontWeight: 'bold', background: 'var(--bg-secondary)', border: `1px solid ${borderColor}`, borderRadius: '999px', padding: '6px 10px' }}>
+                      ↔ ลากเพื่อเลื่อนดูชั่วโมงถัดไป
+                    </div>
+                 </div>
+
+                 <div
+                    ref={hourlyScrollRef}
+                    {...hourlyScrollEvents}
+                    style={{ overflowX: 'auto', overflowY: 'hidden', paddingBottom: '10px', cursor: isHourlyDragging ? 'grabbing' : 'grab', userSelect: 'none' }}
+                    className="hide-scrollbar"
+                 >
+                    <div style={{ display: 'flex', gap: '12px', minWidth: 'max-content', paddingRight: '8px' }}>
+                      {chartData.map((item, idx) => {
+                        const isNowCard = idx === 0;
+                        const rainColor = item.rain > 60 ? '#2563eb' : item.rain > 30 ? '#0ea5e9' : '#7dd3fc';
+                        const pmColor = item.pm25 > 75 ? '#ef4444' : item.pm25 > 37.5 ? '#f97316' : item.pm25 > 25 ? '#eab308' : item.pm25 > 15 ? '#22c55e' : '#0ea5e9';
+                        return (
+                          <div
+                            key={idx}
+                            style={{
+                              width: isMobile ? '132px' : '146px',
+                              minHeight: isMobile ? '192px' : '204px',
+                              padding: '14px 12px',
+                              background: isNowCard
+                                ? (darkMode ? 'linear-gradient(180deg, rgba(14,165,233,0.20), rgba(14,165,233,0.08))' : 'linear-gradient(180deg, rgba(14,165,233,0.12), rgba(255,255,255,0.92))')
+                                : 'var(--bg-secondary)',
+                              borderRadius: '22px',
+                              border: `1px solid ${isNowCard ? '#0ea5e955' : borderColor}`,
+                              boxShadow: isNowCard ? '0 10px 24px rgba(14,165,233,0.18)' : 'none',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              justifyContent: 'space-between',
+                              flexShrink: 0,
+                            }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                              <div>
+                                <div style={{ fontSize: '0.82rem', color: textColor, fontWeight: '900' }}>{isNowCard ? 'ตอนนี้' : item.time}</div>
+                                <div style={{ fontSize: '0.68rem', color: subTextColor, marginTop: '2px' }}>{isNowCard ? item.time : 'รายชั่วโมง'}</div>
+                              </div>
+                              {isNowCard && (
+                                <span style={{ fontSize: '0.62rem', color: '#0ea5e9', background: darkMode ? 'rgba(14,165,233,0.16)' : 'rgba(14,165,233,0.10)', borderRadius: '999px', padding: '3px 8px', fontWeight: 'bold' }}>
+                                  สด
+                                </span>
+                              )}
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', padding: '6px 0' }}>
+                              <div style={{ fontSize: isMobile ? '2rem' : '2.2rem', lineHeight: 1 }}>{item.icon}</div>
+                              <div style={{ fontSize: isMobile ? '1.65rem' : '1.85rem', fontWeight: '900', color: textColor, lineHeight: 1 }}>{item.temp}°</div>
+                              <div style={{ fontSize: '0.74rem', color: subTextColor, fontWeight: 'bold' }}>รู้สึกเหมือน {item.feelsLike}°</div>
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', fontSize: '0.72rem' }}>
+                                <span style={{ color: subTextColor }}>ฝน</span>
+                                <span style={{ color: rainColor, fontWeight: '900' }}>{item.rain}%</span>
+                              </div>
+                              <div style={{ width: '100%', height: '6px', background: darkMode ? 'rgba(255,255,255,0.08)' : 'rgba(148,163,184,0.18)', borderRadius: '999px', overflow: 'hidden' }}>
+                                <div style={{ width: `${Math.min(item.rain, 100)}%`, height: '100%', background: `linear-gradient(90deg, ${rainColor}, #60a5fa)` }}></div>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', fontSize: '0.72rem' }}>
+                                <span style={{ color: subTextColor }}>PM2.5</span>
+                                <span style={{ color: pmColor, fontWeight: '900' }}>{item.pm25}</span>
+                              </div>
+                            </div>
                           </div>
-                          <div style={{ fontSize: '1.8rem' }}>
-                             {item.icon}
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                             {item.rain > 10 && (
-                                <span style={{ fontSize: '0.8rem', color: '#0ea5e9', fontWeight: 'bold' }}>{item.rain}%</span>
-                             )}
-                             <span style={{ fontSize: '1.1rem', fontWeight: 'bold', color: textColor }}>{item.temp}°</span>
-                          </div>
-                       </div>
-                    ))}
+                        );
+                      })}
+                    </div>
                  </div>
                  
               </div>
