@@ -733,7 +733,7 @@ export default function AIPage() {
   );
 
   return (
-    <div style={{ width: '100%', minHeight: '100dvh', background: appBg, display: 'block', overflowX: 'hidden', overflowY: 'auto', WebkitOverflowScrolling: 'touch', fontFamily: 'Kanit, sans-serif', boxSizing: 'border-box' }} className="hide-scrollbar">
+    <div style={{ width: '100%', minHeight: '100dvh', background: appBg, display: 'block', overflowX: 'hidden', overflowY: 'auto', WebkitOverflowScrolling: 'touch', fontFamily: 'Kanit, sans-serif', boxSizing: 'border-box' }} className="hide-scrollbar ai-page">
       
       <style dangerouslySetInlineStyle={{__html: `
         .hide-scrollbar::-webkit-scrollbar { display: none; }
@@ -745,9 +745,11 @@ export default function AIPage() {
           body { background: white !important; color: black !important; }
         }
         .recharts-tooltip-wrapper { outline: none !important; }
+        .ai-page, .ai-page * { box-sizing: border-box; }
+        .ai-page .wrap-text { overflow-wrap: anywhere; word-break: break-word; }
       `}} />
 
-      <div style={{ width: '100%', maxWidth: '1300px', margin: '0 auto', display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? '16px' : '24px', padding: isMobile ? '12px' : '30px', paddingBottom: '120px', boxSizing: 'border-box', alignItems: 'flex-start', overflowX: 'clip' }}>
+      <div style={{ width: '100%', maxWidth: '1300px', minWidth: 0, margin: '0 auto', display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? '16px' : '24px', padding: isMobile ? '12px' : '30px', paddingBottom: '120px', boxSizing: 'border-box', alignItems: 'flex-start', overflowX: 'clip' }}>
       {/* 🟢 LEFT COLUMN (65%) */}
       <div style={{ flex: isMobile ? '1' : '0 0 calc(65% - 12px)', display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0 }}>
 
@@ -1016,7 +1018,7 @@ export default function AIPage() {
                 background: darkMode ? `linear-gradient(145deg, ${activeColor}10, ${cardBg})` : `linear-gradient(145deg, ${activeColor}08, #ffffff)`, 
                 borderRadius: '24px', padding: isMobile ? '20px' : '30px', 
                 border: `1px solid ${activeColor}30`, 
-                boxShadow: `0 15px 40px ${activeColor}15`, position: 'relative', overflow: 'hidden'
+                boxShadow: `0 15px 40px ${activeColor}15`, position: 'relative', overflow: 'hidden', minWidth: 0, maxWidth: '100%'
             }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px', flexWrap: 'wrap', gap: '15px' }}>
                     <div>
@@ -1034,7 +1036,7 @@ export default function AIPage() {
                                 🔙 กลับหน้าภาพรวม
                             </button>
                         )}
-                        <div className="no-print" style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', width: isMobile ? '100%' : 'auto' }}>
+                        <div className="no-print" style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', width: isMobile ? '100%' : 'auto', minWidth: 0 }}>
                             <button onClick={exportToCSV} title="Export to CSV" style={{ background: darkMode ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.5)', color: textColor, border: `1px solid ${borderColor}`, padding: '8px 12px', borderRadius: '12px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold', backdropFilter: 'blur(5px)', flex: isMobile ? '1 1 calc(50% - 4px)' : '0 0 auto', minWidth: 0 }}>CSV</button>
                             <button onClick={exportToJSON} title="Export to JSON" style={{ background: darkMode ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.5)', color: textColor, border: `1px solid ${borderColor}`, padding: '8px 12px', borderRadius: '12px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold', backdropFilter: 'blur(5px)', flex: isMobile ? '1 1 calc(50% - 4px)' : '0 0 auto', minWidth: 0 }}>JSON</button>
                             <button onClick={exportToPDF} title="Export to PDF (Print)" style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: '12px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold', boxShadow: '0 4px 10px rgba(239,68,68,0.3)', flex: isMobile ? '1 1 calc(50% - 4px)' : '0 0 auto', minWidth: 0 }}>PDF</button>
@@ -1184,17 +1186,17 @@ export default function AIPage() {
                 </h4>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '40px' }}>
                     {aiReport.timeline.map((item, i) => (
-                        <div key={i} style={{ display: 'flex', gap: '18px', position: 'relative' }}>
+                        <div key={i} style={{ display: 'flex', gap: '18px', position: 'relative', minWidth: 0 }}>
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                                 <div style={{ width: '16px', height: '16px', borderRadius: '50%', background: activeColor, zIndex: 1, border: `4px solid ${darkMode ? '#050d1a' : '#ffffff'}`, boxShadow: `0 0 0 1px ${activeColor}40` }}></div>
                                 {i !== aiReport.timeline.length - 1 && <div style={{ width: '2px', flex: 1, background: `linear-gradient(to bottom, ${activeColor}80, ${activeColor}20)`, marginTop: '-8px', marginBottom: '-8px' }}></div>}
                             </div>
-                            <div style={{ flex: 1, paddingBottom: i !== aiReport.timeline.length - 1 ? '20px' : '0' }}>
+                            <div style={{ flex: 1, minWidth: 0, paddingBottom: i !== aiReport.timeline.length - 1 ? '20px' : '0' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
                                     <span style={{ fontSize: '1.3rem', background: darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)', padding: '5px', borderRadius: '10px' }}>{item.icon}</span>
                                     <span style={{ fontWeight: '800', color: textColor, fontSize: '1rem' }}>{item.time}</span>
                                 </div>
-                                <div style={{ fontSize: '0.95rem', color: darkMode ? '#d8eeff' : '#475569', lineHeight: 1.6, background: darkMode ? 'rgba(96,202,242,0.05)' : 'rgba(0,0,0,0.02)', padding: '15px 18px', borderRadius: '16px', border: `1px solid ${borderColor}` }}>
+                                <div className="wrap-text" style={{ fontSize: '0.95rem', color: darkMode ? '#d8eeff' : '#475569', lineHeight: 1.6, background: darkMode ? 'rgba(96,202,242,0.05)' : 'rgba(0,0,0,0.02)', padding: '15px 18px', borderRadius: '16px', border: `1px solid ${borderColor}`, maxWidth: '100%' }}>
                                     {renderHighlightedText(item.text, activeColor)}
                                 </div>
                             </div>
@@ -1207,7 +1209,7 @@ export default function AIPage() {
                     <div style={{background: `linear-gradient(135deg, ${activeColor}, ${activeColor}dd)`, color: '#fff', width: '32px', height: '32px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.1rem', boxShadow: `0 4px 10px ${activeColor}40`}}>🤖</div> 
                     <span style={{fontWeight: '800'}}>ถามการวิเคราะห์สภาพอากาศเพิ่มเติมกับ AI</span>
                 </h4>
-                <div style={{ background: darkMode ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.8)', borderRadius: '20px', padding: '20px', border: `1px solid ${borderColor}` }}>
+                <div style={{ background: darkMode ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.8)', borderRadius: '20px', padding: '20px', border: `1px solid ${borderColor}`, minWidth: 0, maxWidth: '100%' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '300px', overflowY: 'auto', marginBottom: '15px', paddingRight: '5px' }}>
                         {chatLogs.length === 0 && (
                             <div style={{ textAlign: 'center', padding: '20px 0', color: subTextColor, fontSize: '0.9rem' }}>
@@ -1219,7 +1221,7 @@ export default function AIPage() {
                                 display: 'flex', 
                                 justifyContent: log.role === 'user' ? 'flex-end' : 'flex-start' 
                             }}>
-                                <div style={{
+                                <div className="wrap-text" style={{
                                     maxWidth: '85%',
                                     padding: '12px 16px',
                                     borderRadius: '16px',
@@ -1329,9 +1331,9 @@ export default function AIPage() {
             {/* Warning List */}
             <div style={{ background: cardBg, borderRadius: '24px', border: `1px solid ${borderColor}`, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                 <div style={{ padding: '15px 20px', borderBottom: `1px solid ${borderColor}`, background: darkMode ? 'var(--bg-tertiary)' : '#f8fafc' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', gap: '10px', flexWrap: 'wrap' }}>
                         <h3 style={{ margin: 0, color: textColor, fontSize: '1rem' }}>📋 แจ้งเตือนพื้นที่เสี่ยง</h3>
-                        <span style={{ fontSize: '0.75rem', background: `${activeWarningTabData.color}20`, color: activeWarningTabData.color, padding: '4px 10px', borderRadius: '12px', fontWeight: 'bold' }}>พบ {activeWarningTabData.data.length} จังหวัด</span>
+                        <span style={{ fontSize: '0.75rem', background: `${activeWarningTabData.color}20`, color: activeWarningTabData.color, padding: '4px 10px', borderRadius: '12px', fontWeight: 'bold', maxWidth: '100%' }}>พบ {activeWarningTabData.data.length} จังหวัด</span>
                     </div>
                     <div style={{ fontSize: '0.75rem', color: '#0ea5e9', fontWeight: 'bold', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '5px' }}>
                         <span style={{ display: 'inline-block', width: '6px', height: '6px', background: '#0ea5e9', borderRadius: '50%' }}></span>
@@ -1341,13 +1343,13 @@ export default function AIPage() {
                 </div>
                 <div style={{ padding: '5px 15px', overflowY: 'auto', maxHeight: isMobile ? '300px' : '450px' }} className="hide-scrollbar">
                     {sortedFilteredWarningData.length > 0 ? sortedFilteredWarningData.map((item, i) => (
-                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 10px', borderBottom: `1px solid ${borderColor}` }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: isMobile ? 'flex-start' : 'center', padding: '12px 10px', borderBottom: `1px solid ${borderColor}`, gap: '10px', minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
                                 <span style={{ color: subTextColor, fontSize: '0.8rem', width: '20px' }}>{i+1}.</span>
-                                <span style={{ color: textColor, fontWeight: '600', fontSize: '0.9rem' }}>จ.{item.prov}</span>
+                                <span className="wrap-text" style={{ color: textColor, fontWeight: '600', fontSize: '0.9rem', minWidth: 0 }}>จ.{item.prov}</span>
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <span style={{ color: activeWarningTabData.color, fontWeight: '900', fontSize: '1rem', width: '80px', textAlign: 'right' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px', flexShrink: 0, maxWidth: isMobile ? '46%' : 'none' }}>
+                                <span className="wrap-text" style={{ color: activeWarningTabData.color, fontWeight: '900', fontSize: '1rem', width: isMobile ? 'auto' : '80px', textAlign: 'right' }}>
                                     {typeof item.val === 'number' ? item.val.toLocaleString() : item.val} <small style={{fontSize: '0.6rem'}}>{item.unit}</small>
                                 </span>
                                 {activeWarningTab === 'wind' && item.windDir != null && <WindDirection deg={item.windDir} />}
