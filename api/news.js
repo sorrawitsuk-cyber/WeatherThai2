@@ -1,5 +1,10 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
+// Module-level cache (survives across warm Vercel invocations and local dev reloads)
+let _newsCache = null;
+let _newsCacheAt = 0;
+const SERVER_CACHE_TTL_MS = 10 * 60 * 1000;
+
 const WEATHER_URL =
   'https://api.open-meteo.com/v1/forecast?latitude=13.7563&longitude=100.5018&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,uv_index_max&current_weather=true&timezone=Asia%2FBangkok&forecast_days=7';
 
@@ -139,12 +144,12 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 12000) {
   }
 }
 
-async function fetchJson(url, options) {
-  const response = await fetchWithTimeout(url, options);
+async function fetchJson(url, options, timeoutMs = 12000) {
+  const response = await fetchWithTimeout(url, options, timeoutMs);
   return response.json();
 }
 
-async function fetchText(url, options) {
+async function fetchText(url, options, timeoutMs = 12000) {
   const response = await fetchWithTimeout(url, {
     ...options,
     headers: {
@@ -152,7 +157,7 @@ async function fetchText(url, options) {
       'User-Agent': 'Mozilla/5.0 (compatible; AirQualityThai/1.0)',
       ...(options?.headers || {}),
     },
-  });
+  }, timeoutMs);
   return response.text();
 }
 
@@ -1028,7 +1033,7 @@ function parseTmdHtml(html, url, type) {
 
 async function fetchTmdAllRegions() {
   const results = await Promise.allSettled(
-    TMD_REGION_FEEDS.map((url) => fetchText(url)),
+    TMD_REGION_FEEDS.map((url) => fetchText(url, undefined, 8000)),
   );
 
   const parseStandard = (xml) =>
@@ -1070,9 +1075,9 @@ async function fetchTmdWebPages() {
   };
 
   const [dailyRes, sevendayRes, stormRes, regionsRaw] = await Promise.allSettled([
-    fetchText(TMD_WEB.daily, { headers: htmlHeaders }),
-    fetchText(TMD_WEB.sevenday, { headers: htmlHeaders }),
-    fetchText(TMD_WEB.storm, { headers: htmlHeaders }),
+    fetchText(TMD_WEB.daily, { headers: htmlHeaders }, 8000),
+    fetchText(TMD_WEB.sevenday, { headers: htmlHeaders }, 8000),
+    fetchText(TMD_WEB.storm, { headers: htmlHeaders }, 8000),
     fetchTmdAllRegions(),
   ]);
 
@@ -1171,7 +1176,7 @@ async function fetchThaiPbsRss() {
   const KEYWORDS_RE = /ฝน|พายุ|น้ำท่วม|แผ่นดินไหว|ภัย|อากาศ|ร้อน|ไฟ|ฝุ่น|หมอก|สภาพ|ดิน/;
   for (const url of THAIPBS_RSS_CANDIDATES) {
     try {
-      const xml = await fetchText(url, { headers: htmlHeaders });
+      const xml = await fetchText(url, { headers: htmlHeaders }, 8000);
       if (!xml) continue;
       const items = [];
       const itemMatches = xml.matchAll(/<item[^>]*>([\s\S]*?)<\/item>/gi);
@@ -1236,7 +1241,7 @@ async function fetchDdpmPage() {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
       'Accept-Language': 'th-TH,th;q=0.9',
     };
-    const html = await fetchText(DDPM_WEB, { headers: htmlHeaders });
+    const html = await fetchText(DDPM_WEB, { headers: htmlHeaders }, 8000);
     if (!html) return [];
     const nextData = extractNextData(html);
     if (nextData) {
@@ -1303,7 +1308,7 @@ async function fetchTmdEqPage() {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
       'Accept-Language': 'th-TH,th;q=0.9',
     };
-    const html = await fetchText(TMD_EQ_WEB, { headers: htmlHeaders });
+    const html = await fetchText(TMD_EQ_WEB, { headers: htmlHeaders }, 8000);
     if (!html) return [];
     const nextData = extractNextData(html);
     if (nextData) {
@@ -1340,6 +1345,13 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
+  // Return cached response immediately on warm instances (dev + warm Vercel lambdas)
+  if (_newsCache && (Date.now() - _newsCacheAt) < SERVER_CACHE_TTL_MS) {
+    res.setHeader('Cache-Control', 's-maxage=600, stale-while-revalidate=300');
+    res.setHeader('X-Cache', 'HIT');
+    return res.status(200).json(_newsCache);
+  }
+
   const tasks = await Promise.allSettled([
     fetchJson(WEATHER_URL),            // 0
     fetchTmdFeeds(),                   // 1
@@ -1372,7 +1384,26 @@ export default async function handler(req, res) {
   const ddpmRaw = tasks[11].status === 'fulfilled' ? tasks[11].value : [];
   const tmdEqRaw = tasks[12].status === 'fulfilled' ? tasks[12].value : [];
 
-  // Batch all non-Thai content into a single translation call for better performance
+  const weather = buildWeatherSummary(weatherRaw);
+
+  // Build Thai items first (no translation needed)
+  const allTmdWarnings = [
+    ...tmd.warnings.map(enrichItem),
+    ...tmdWeb.regions.map(enrichItem),
+    ...tmdWeb.daily.map(enrichItem),
+  ];
+  const thaiWarnings = prioritizeItems(allTmdWarnings, 10);
+
+  const allTmdStorms = [
+    ...tmd.storm.map(enrichItem),
+    ...tmdWeb.storm.map(enrichItem),
+  ];
+  const thaiStorms = prioritizeItems(allTmdStorms, 8);
+  const thaiEarthquakes = prioritizeItems([...tmd.earthquake.map(enrichItem), ...tmdEqRaw.map(enrichItem)], 10);
+  const thaiDisasters = prioritizeItems([...thaiDisastersRaw.map(enrichItem), ...ddpmRaw.map(enrichItem)], 10);
+  const thaiPbsItems = prioritizeItems(thaiPbsRaw.map(enrichItem), 8);
+
+  // Batch all non-Thai content for translation
   const allGlobalRaw = [
     ...gdacsRaw.map((item) => ({ ...item, _batch: 'gdacs' })),
     ...usgsRaw.map((item) => ({ ...item, _batch: 'usgs' })),
@@ -1382,7 +1413,22 @@ export default async function handler(req, res) {
     ...usgsRegionalRaw.map((item) => ({ ...item, _batch: 'usgsRegional' })),
   ];
 
-  const allGlobalTranslated = await maybeTranslateItems(allGlobalRaw);
+  // AI summary input uses raw (pre-translation) global titles — AI handles both Thai and English
+  const aiSummaryInput = {
+    weather: weather.summary,
+    thaiWarnings: thaiWarnings.slice(0, 4).map((item) => item.title),
+    thaiStorms: thaiStorms.slice(0, 3).map((item) => item.title),
+    thaiDisasters: thaiDisasters.slice(0, 4).map((item) => item.title),
+    globalAlerts: gdacsRaw.slice(0, 4).map((item) => `${item.eventLabel || ''} ${item.country || ''} ${item.title}`.trim()),
+    earthquakes: usgsRaw.slice(0, 4).map((item) => item.title),
+    climate: [],
+  };
+
+  // Run translation and AI summary in parallel — saves ~7 seconds vs sequential
+  const [allGlobalTranslated, aiDigest] = await Promise.all([
+    maybeTranslateItems(allGlobalRaw),
+    maybeGenerateAiSummary(aiSummaryInput),
+  ]);
 
   const gdacsTranslated = allGlobalTranslated.filter((item) => item._batch === 'gdacs').map(({ _batch, ...item }) => item);
   const usgsTranslated = allGlobalTranslated.filter((item) => item._batch === 'usgs').map(({ _batch, ...item }) => item);
@@ -1391,25 +1437,6 @@ export default async function handler(req, res) {
   const eonetTranslated = allGlobalTranslated.filter((item) => item._batch === 'eonet').map(({ _batch, ...item }) => item);
   const usgsRegionalTranslated = allGlobalTranslated.filter((item) => item._batch === 'usgsRegional').map(({ _batch, ...item }) => item);
 
-  const weather = buildWeatherSummary(weatherRaw);
-
-  // Merge TMD XML warnings with regional forecasts from web scrape
-  const allTmdWarnings = [
-    ...tmd.warnings.map(enrichItem),
-    ...tmdWeb.regions.map(enrichItem),
-    ...tmdWeb.daily.map(enrichItem),
-  ];
-  const thaiWarnings = prioritizeItems(allTmdWarnings, 10);
-
-  // Merge TMD XML storms with web-scraped storm data (web may have richer details)
-  const allTmdStorms = [
-    ...tmd.storm.map(enrichItem),
-    ...tmdWeb.storm.map(enrichItem),
-  ];
-  const thaiStorms = prioritizeItems(allTmdStorms, 8);
-  const thaiEarthquakes = prioritizeItems([...tmd.earthquake.map(enrichItem), ...tmdEqRaw.map(enrichItem)], 10);
-  const thaiDisasters = prioritizeItems([...thaiDisastersRaw.map(enrichItem), ...ddpmRaw.map(enrichItem)], 10);
-  const thaiPbsItems = prioritizeItems(thaiPbsRaw.map(enrichItem), 8);
   const globalAlerts = prioritizeItems(gdacsTranslated.map(enrichItem), 10);
   const globalEarthquakes = prioritizeItems([...usgsTranslated.map(enrichItem), ...usgsRegionalTranslated.map(enrichItem)], 10);
   const globalDisasters = prioritizeItems(globalDisastersTranslated.map(enrichItem), 8);
@@ -1456,23 +1483,11 @@ export default async function handler(req, res) {
     sourceStatus,
   });
 
-  const aiDigest = await maybeGenerateAiSummary({
-    weather: weather.summary,
-    thaiWarnings: thaiWarnings.slice(0, 4).map((item) => item.title),
-    thaiStorms: thaiStorms.slice(0, 3).map((item) => item.title),
-    thaiDisasters: thaiDisasters.slice(0, 4).map((item) => item.title),
-    globalAlerts: globalAlerts.slice(0, 4).map((item) => `${item.eventLabel || ''} ${item.country || ''} ${item.title}`.trim()),
-    earthquakes: globalEarthquakes.slice(0, 4).map((item) => item.title),
-    climate: [],
-  });
-
   const digest = aiDigest
     ? { ...deterministicDigest, headline: aiDigest.headline, bullets: aiDigest.bullets, mode: 'ai' }
     : { ...deterministicDigest, mode: 'rule-based' };
 
-  res.setHeader('Cache-Control', 's-maxage=600, stale-while-revalidate=300');
-
-  return res.status(200).json({
+  const payload = {
     generatedAt: isoNow(),
     digest,
     weather,
@@ -1501,5 +1516,13 @@ export default async function handler(req, res) {
       generatedAt: toThaiDateTime(isoNow()),
       weatherUpdatedFor: toThaiDate(isoNow()),
     },
-  });
+  };
+
+  // Save to module-level cache for warm instances
+  _newsCache = payload;
+  _newsCacheAt = Date.now();
+
+  res.setHeader('Cache-Control', 's-maxage=600, stale-while-revalidate=300');
+  res.setHeader('X-Cache', 'MISS');
+  return res.status(200).json(payload);
 }

@@ -3,7 +3,7 @@ import { AreaChart, Area, BarChart, Bar, PieChart, Pie, XAxis, YAxis, Tooltip, R
 
 const NEWS_CACHE_KEY = 'airqualitythai:news-cache:v3';
 const NEWS_CACHE_TTL_MS = 10 * 60 * 1000;
-const NEWS_FETCH_TIMEOUT_MS = 12000;
+const NEWS_FETCH_TIMEOUT_MS = 30000;
 
 const ANIMATIONS = `
 @keyframes alertPulse {
