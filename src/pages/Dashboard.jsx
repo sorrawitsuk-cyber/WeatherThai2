@@ -272,9 +272,9 @@ export default function Dashboard() {
   
   const bgGradient = getWeatherBackground(isNight, isRaining, isHot);
   const alertBanner = getAlertBanner(current);
-  const desktopMainColumns = 'minmax(0, 1.7fr) minmax(340px, 0.9fr)';
-  const desktopHeroColumns = 'minmax(0, 1.08fr) minmax(300px, 0.92fr)';
-  const desktopActivityColumns = 'minmax(0, 1.25fr) minmax(250px, 0.75fr)';
+  const desktopMainColumns = 'minmax(0, 1.82fr) minmax(320px, 0.82fr)';
+  const desktopHeroColumns = 'minmax(0, 1.14fr) minmax(280px, 0.86fr)';
+  const desktopActivityColumns = 'minmax(0, 1.18fr) minmax(240px, 0.82fr)';
   const hourlyNowCardBg = 'linear-gradient(180deg, color-mix(in srgb, #0ea5e9 16%, var(--bg-card)), color-mix(in srgb, #0ea5e9 6%, var(--bg-secondary)))';
   const hourlyNowBadgeBg = 'color-mix(in srgb, #0ea5e9 14%, transparent)';
   const hourlyBarTrackBg = 'color-mix(in srgb, var(--text-main) 10%, transparent)';
@@ -498,8 +498,8 @@ export default function Dashboard() {
            </div> {/* END LEFT COLUMN */}
 
            {/* RIGHT COLUMN: Hourly Forecast */}
-           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0 }}>
-              <div style={{ background: cardBg, borderRadius: '25px', padding: isMobile ? '20px' : '22px', border: `1px solid ${borderColor}`, display: 'flex', flexDirection: 'column', height: isMobile ? 'auto' : '100%', minHeight: isMobile ? 'auto' : '980px' }}>
+           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0, alignSelf: 'start' }}>
+              <div style={{ background: cardBg, borderRadius: '25px', padding: isMobile ? '20px' : '22px', border: `1px solid ${borderColor}`, display: 'flex', flexDirection: 'column', height: 'auto', minHeight: 'auto' }}>
                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', marginBottom: '14px', flexWrap: 'wrap' }}>
                     <div>
                       <h3 style={{ margin: '0 0 4px 0', fontSize: '1.2rem', color: textColor, display: 'flex', alignItems: 'center', gap: '8px' }}>
