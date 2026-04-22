@@ -18,7 +18,7 @@ function normalizeGeoData(data) {
 }
 
 export default function Dashboard() {
-  const { stations, stationTemps, lastUpdated, amphoeData, tmdAvailable, darkMode } = useContext(WeatherContext);
+  const { stations, stationTemps, lastUpdated, amphoeData, tmdAvailable } = useContext(WeatherContext);
   
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
   const [locationName, setLocationName] = useState('กำลังระบุตำแหน่ง...');
@@ -275,6 +275,9 @@ export default function Dashboard() {
   const desktopMainColumns = 'minmax(0, 1.7fr) minmax(340px, 0.9fr)';
   const desktopHeroColumns = 'minmax(0, 1.08fr) minmax(300px, 0.92fr)';
   const desktopActivityColumns = 'minmax(0, 1.25fr) minmax(250px, 0.75fr)';
+  const hourlyNowCardBg = 'linear-gradient(180deg, color-mix(in srgb, #0ea5e9 16%, var(--bg-card)), color-mix(in srgb, #0ea5e9 6%, var(--bg-secondary)))';
+  const hourlyNowBadgeBg = 'color-mix(in srgb, #0ea5e9 14%, transparent)';
+  const hourlyBarTrackBg = 'color-mix(in srgb, var(--text-main) 10%, transparent)';
 
   const nowMs = Date.now();
   const startIdx = hourly?.time?.findIndex(t => new Date(t).getTime() >= nowMs - 3600000) || 0;
@@ -530,7 +533,7 @@ export default function Dashboard() {
                               minHeight: isMobile ? '192px' : '204px',
                               padding: '14px 12px',
                               background: isNowCard
-                                ? (darkMode ? 'linear-gradient(180deg, rgba(14,165,233,0.20), rgba(14,165,233,0.08))' : 'linear-gradient(180deg, rgba(14,165,233,0.12), rgba(255,255,255,0.92))')
+                                ? hourlyNowCardBg
                                 : 'var(--bg-secondary)',
                               borderRadius: '22px',
                               border: `1px solid ${isNowCard ? '#0ea5e955' : borderColor}`,
@@ -547,7 +550,7 @@ export default function Dashboard() {
                                 <div style={{ fontSize: '0.68rem', color: subTextColor, marginTop: '2px' }}>{isNowCard ? item.time : 'รายชั่วโมง'}</div>
                               </div>
                               {isNowCard && (
-                                <span style={{ fontSize: '0.62rem', color: '#0ea5e9', background: darkMode ? 'rgba(14,165,233,0.16)' : 'rgba(14,165,233,0.10)', borderRadius: '999px', padding: '3px 8px', fontWeight: 'bold' }}>
+                                <span style={{ fontSize: '0.62rem', color: '#0ea5e9', background: hourlyNowBadgeBg, borderRadius: '999px', padding: '3px 8px', fontWeight: 'bold' }}>
                                   สด
                                 </span>
                               )}
@@ -564,7 +567,7 @@ export default function Dashboard() {
                                 <span style={{ color: subTextColor }}>ฝน</span>
                                 <span style={{ color: rainColor, fontWeight: '900' }}>{item.rain}%</span>
                               </div>
-                              <div style={{ width: '100%', height: '6px', background: darkMode ? 'rgba(255,255,255,0.08)' : 'rgba(148,163,184,0.18)', borderRadius: '999px', overflow: 'hidden' }}>
+                              <div style={{ width: '100%', height: '6px', background: hourlyBarTrackBg, borderRadius: '999px', overflow: 'hidden' }}>
                                 <div style={{ width: `${Math.min(item.rain, 100)}%`, height: '100%', background: `linear-gradient(90deg, ${rainColor}, #60a5fa)` }}></div>
                               </div>
                               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', fontSize: '0.72rem' }}>
