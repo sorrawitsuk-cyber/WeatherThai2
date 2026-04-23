@@ -892,8 +892,11 @@ export default function MapPage() {
       disabled: false,
     }
   ];
-  const mobileDockBottom = 'calc(env(safe-area-inset-bottom, 0px) + 64px)';
-  const mobilePanelBottom = 'calc(env(safe-area-inset-bottom, 0px) + 138px)';
+  const mobileBottomNavHeight = 70;
+  const mobileDockGap = 14;
+  const mobilePanelGap = 88;
+  const mobileDockBottom = `calc(env(safe-area-inset-bottom, 0px) + ${mobileBottomNavHeight + mobileDockGap}px)`;
+  const mobilePanelBottom = `calc(env(safe-area-inset-bottom, 0px) + ${mobileBottomNavHeight + mobilePanelGap}px)`;
 
   return (
     <div style={{ height: isMobile ? '100%' : desktopViewportHeight, width: '100%', background: appBg, display: 'flex', flexDirection: 'column', fontFamily: 'Kanit, sans-serif', padding: isMobile ? '0' : '12px', boxSizing: 'border-box', overflow: 'hidden' }}>
