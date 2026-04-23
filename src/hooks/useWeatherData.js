@@ -25,7 +25,7 @@ export function useWeatherData() {
   const fetchWeatherByCoords = useCallback(async (lat, lon) => {
     try {
       setLoadingWeather(true);
-      const wUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,rain,weather_code,surface_pressure,wind_speed_10m,wind_direction_10m,visibility&hourly=temperature_2m,apparent_temperature,precipitation_probability,precipitation,pm2_5,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,precipitation_sum,sunrise,sunset,uv_index_max,precipitation_probability_max,wind_speed_10m_max&timezone=Asia%2FBangkok`;
+      const wUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,rain,weather_code,surface_pressure,wind_speed_10m,wind_direction_10m,visibility&hourly=temperature_2m,apparent_temperature,relative_humidity_2m,precipitation_probability,precipitation,pm2_5,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,precipitation_sum,sunrise,sunset,uv_index_max,precipitation_probability_max,wind_speed_10m_max&timezone=Asia%2FBangkok`;
       const aUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&current=pm2_5&hourly=pm2_5&timezone=Asia%2FBangkok`;
 
       const [wRes, aRes] = await Promise.all([fetch(wUrl), fetch(aUrl)]);
@@ -50,6 +50,7 @@ export function useWeatherData() {
             rainProb: wData.hourly.precipitation_probability[currentHour],
             precipitation: wData.current.precipitation,
             rain: wData.current.rain || 0,
+            weatherCode: wData.current.weather_code,
           },
           hourly: {
             time: wData.hourly.time,
@@ -59,6 +60,7 @@ export function useWeatherData() {
             precipitation: wData.hourly.precipitation,
             pm25: aData.hourly.pm2_5,
             wind_speed_10m: wData.hourly.wind_speed_10m,
+            relative_humidity_2m: wData.hourly.relative_humidity_2m,
           },
           daily: {
             time: wData.daily.time,
