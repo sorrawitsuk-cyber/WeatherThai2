@@ -335,7 +335,7 @@ export default function Dashboard() {
     { label: 'ฝนสูงสุด', value: top5Rain?.[0] ? `${top5Rain[0].name} ${top5Rain[0].val}%` : '-', tone: '#2563eb' },
   ];
   const surfaceCardStyle = {
-    background: `linear-gradient(180deg, color-mix(in srgb, ${cardBg} 92%, #ffffff), color-mix(in srgb, ${cardBg} 88%, var(--bg-secondary)))`,
+    background: `linear-gradient(180deg, color-mix(in srgb, ${cardBg} 96%, #ffffff), color-mix(in srgb, ${cardBg} 92%, var(--bg-secondary)))`,
     border: `1px solid ${borderColor}`,
     borderRadius: '24px',
     boxShadow: isMobile ? '0 14px 28px rgba(2, 6, 23, 0.08)' : '0 20px 40px rgba(2, 6, 23, 0.08)',
@@ -347,8 +347,7 @@ export default function Dashboard() {
 
   const heroCard = (
     <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-      <div style={{ background: bgGradient, backgroundImage: !isMobile ? `linear-gradient(90deg, rgba(9, 20, 45, 0.18), rgba(9, 20, 45, 0.08)), url("https://images.unsplash.com/photo-1508009603885-50cf7c579365?auto=format&fit=crop&w=1400&q=80")` : bgGradient, backgroundSize: !isMobile ? 'cover' : undefined, backgroundPosition: !isMobile ? 'center' : undefined, borderRadius: isMobile ? '24px' : '30px', padding: isMobile ? '20px' : '28px 24px', color: '#fff', boxShadow: '0 20px 40px rgba(0,0,0,0.2)', display: 'flex', flexDirection: 'column', transition: 'background 0.5s ease', position: 'relative', flex: 1, minHeight: isMobile ? 'auto' : '318px', overflow: 'hidden' }}>
-        {!isMobile && <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(90deg, rgba(255,255,255,0.12), rgba(255,255,255,0.04) 35%, rgba(15,23,42,0.18) 100%)' }} />}
+      <div style={{ background: bgGradient, borderRadius: isMobile ? '24px' : '30px', padding: isMobile ? '20px' : '28px 24px', color: '#fff', boxShadow: '0 20px 40px rgba(0,0,0,0.2)', display: 'flex', flexDirection: 'column', transition: 'background 0.5s ease', position: 'relative', flex: 1, minHeight: isMobile ? 'auto' : '276px', overflow: 'hidden' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%', marginBottom: '5px' }}>
           <div style={{ position: 'relative', zIndex: 1 }}>
             <h2 style={{ margin: 0, fontSize: isMobile ? '1.3rem' : '1.8rem', fontWeight: '900', lineHeight: 1.2 }}>{locationName}</h2>
@@ -372,8 +371,8 @@ export default function Dashboard() {
   );
 
   const desktopMetricsGrid = (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '15px', minWidth: 0 }}>
-      <div style={{ background: cardBg, borderRadius: '20px', padding: '16px', border: `1px solid ${borderColor}`, minHeight: '150px' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '14px', minWidth: 0 }}>
+      <div style={{ background: cardBg, borderRadius: '20px', padding: '16px', border: `1px solid ${borderColor}`, minHeight: '132px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: subTextColor, fontWeight: 'bold', fontSize: '0.95rem' }}>
           <span style={{ fontSize: '1.2rem' }}>☀️</span> รังสี UV
         </div>
@@ -387,7 +386,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div style={{ background: cardBg, borderRadius: '20px', padding: '16px', border: `1px solid ${borderColor}`, minHeight: '150px' }}>
+      <div style={{ background: cardBg, borderRadius: '20px', padding: '16px', border: `1px solid ${borderColor}`, minHeight: '132px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: subTextColor, fontWeight: 'bold', fontSize: '0.95rem' }}>
           <span style={{ fontSize: '1.2rem' }}>🌫️</span> ระดับฝุ่น
         </div>
@@ -399,7 +398,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div style={{ background: cardBg, borderRadius: '20px', padding: '16px', border: `1px solid ${borderColor}`, minHeight: '128px' }}>
+      <div style={{ background: cardBg, borderRadius: '20px', padding: '16px', border: `1px solid ${borderColor}`, minHeight: '120px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: subTextColor, fontSize: '0.85rem', fontWeight: 'bold' }}>
           <span style={{ fontSize: '1.2rem' }}>💨</span> ลม
         </div>
@@ -410,7 +409,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div style={{ background: cardBg, borderRadius: '20px', padding: '16px', border: `1px solid ${borderColor}`, minHeight: '128px' }}>
+      <div style={{ background: cardBg, borderRadius: '20px', padding: '16px', border: `1px solid ${borderColor}`, minHeight: '120px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: subTextColor, fontSize: '0.85rem', fontWeight: 'bold' }}>
           <span style={{ fontSize: '1.2rem' }}>💧</span> ความชื้น
         </div>
@@ -515,7 +514,7 @@ export default function Dashboard() {
   );
 
   const desktopShowcaseLayout = (
-    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.75fr) minmax(330px, 0.95fr)', gap: '20px', width: '100%', alignItems: 'start' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2.15fr) minmax(360px, 1.05fr)', gap: '20px', width: '100%', alignItems: 'start' }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0 }}>
         <div style={{ ...surfaceCardStyle, padding: '20px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '14px', marginBottom: '16px', flexWrap: 'wrap' }}>
@@ -537,7 +536,7 @@ export default function Dashboard() {
 
           {heroCard}
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: '12px', marginTop: '16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '12px', marginTop: '16px' }}>
             {desktopHeroMetrics.map((metric) => (
               <div key={metric.label} style={{ background: 'color-mix(in srgb, var(--bg-secondary) 82%, white)', border: `1px solid ${borderColor}`, borderRadius: '18px', padding: '14px 14px 15px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.77rem', color: subTextColor, fontWeight: 'bold' }}>
@@ -554,7 +553,7 @@ export default function Dashboard() {
         {hourlyForecastCard}
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0, height: '100%' }}>
         <div style={{ ...surfaceCardStyle, padding: '18px' }}>
           <WeatherRadar
             coords={coords}
@@ -567,7 +566,7 @@ export default function Dashboard() {
           />
         </div>
 
-        <div style={{ ...surfaceCardStyle, padding: '18px' }}>
+        <div style={{ ...surfaceCardStyle, padding: '18px', flex: 1 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
             <div style={{ fontSize: '1rem', color: textColor, fontWeight: '900' }}>สถานการณ์เด่น</div>
             <div style={{ fontSize: '0.72rem', color: subTextColor, fontWeight: 'bold' }}>อัปเดตล่าสุด</div>
@@ -593,7 +592,7 @@ export default function Dashboard() {
   const desktopOverviewLayout = (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', minWidth: 0 }}>
       {desktopShowcaseLayout}
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) minmax(320px, 0.8fr)', gap: '20px', alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.55fr) minmax(360px, 1fr)', gap: '20px', alignItems: 'start' }}>
         <ActivityRecommendations
           current={current}
           chartData={chartData}
@@ -602,7 +601,7 @@ export default function Dashboard() {
           borderColor={borderColor}
           subTextColor={subTextColor}
         />
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.15fr) minmax(0, 1fr)', gap: '20px', alignItems: 'stretch' }}>
           <SunriseSunsetArc
             current={current}
             cardBg={cardBg}
@@ -662,7 +661,7 @@ export default function Dashboard() {
     <div ref={mainScrollRef} style={{ height: '100%', width: '100%', background: appBg, display: 'flex', justifyContent: 'center', overflowY: 'auto', fontFamily: 'Kanit, sans-serif', position: 'relative' }} className="hide-scrollbar">
       <style dangerouslySetInnerHTML={{__html: `.hide-scrollbar::-webkit-scrollbar { display: none; } .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; } .fade-in { animation: fadeIn 0.3s ease-in-out; } @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } } @keyframes pulseGlow { 0% { filter: drop-shadow(0 0 10px rgba(255,255,255,0.1)); transform: scale(1); } 50% { filter: drop-shadow(0 0 25px rgba(255,255,255,0.4)); transform: scale(1.05); } 100% { filter: drop-shadow(0 0 10px rgba(255,255,255,0.1)); transform: scale(1); } }`}} />
       
-      <div style={{ width: '100%', maxWidth: isMobile ? '600px' : '1280px', display: 'flex', flexDirection: 'column', gap: isMobile ? '12px' : '20px', padding: isMobile ? '15px' : '30px', paddingBottom: '40px', margin: '0 auto' }}>
+      <div style={{ width: '100%', maxWidth: isMobile ? '600px' : 'none', display: 'flex', flexDirection: 'column', gap: isMobile ? '12px' : '20px', padding: isMobile ? '15px' : '24px', paddingBottom: '40px', margin: '0 auto' }}>
 
         {/* === SECTION 1: Alert Banner === */}
         {alertBanner && (

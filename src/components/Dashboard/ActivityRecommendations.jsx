@@ -87,9 +87,9 @@ function splitRadarLabel(title) {
 
 export default function ActivityRecommendations({ current, isMobile, cardBg, borderColor, subTextColor }) {
   const items = getActivityMetrics(current);
-  const chartSize = isMobile ? 288 : 320;
+  const chartSize = isMobile ? 288 : 286;
   const chartCenter = chartSize / 2;
-  const chartRadius = isMobile ? 76 : 104;
+  const chartRadius = isMobile ? 76 : 92;
   const radarPoints = buildRadarPoints(items, chartCenter, chartCenter, chartRadius);
   const polygonPoints = radarPoints.map((point) => `${point.pointX},${point.pointY}`).join(' ');
   const headline = items.reduce((best, item) => (item.score > best.score ? item : best), items[0]);
@@ -173,9 +173,8 @@ export default function ActivityRecommendations({ current, isMobile, cardBg, bor
         style={
           isMobile
             ? { display: 'grid', gridTemplateColumns: '1fr', gap: '10px' }
-            : { display: 'flex', gap: '12px', overflowX: 'auto', paddingBottom: '4px' }
+            : { display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '12px' }
         }
-        className={!isMobile ? 'hide-scrollbar' : undefined}
       >
         {items.map((item) => (
           <div
@@ -188,8 +187,7 @@ export default function ActivityRecommendations({ current, isMobile, cardBg, bor
               display: 'flex',
               justifyContent: 'space-between',
               gap: '10px',
-              minWidth: isMobile ? 0 : '188px',
-              flex: isMobile ? 'unset' : '0 0 188px',
+              minWidth: 0,
             }}
           >
             <div style={{ minWidth: 0 }}>

@@ -56,7 +56,7 @@ export default function SunriseSunsetArc({ current, cardBg, borderColor, textCol
     const setTime = current?.sunset ? new Date(current.sunset).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : '-';
 
     return (
-        <div style={{ background: cardBg, borderRadius: '20px', padding: '18px 16px', border: `1px solid ${borderColor}`, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, width: '100%', minHeight: '100%', overflow: 'hidden', position: 'relative' }}>
+        <div style={{ background: cardBg, borderRadius: '20px', padding: '16px 16px 14px', border: `1px solid ${borderColor}`, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, width: '100%', minHeight: '100%', overflow: 'hidden', position: 'relative' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: subTextColor, fontSize: '0.85rem', fontWeight: 'bold', alignSelf: 'flex-start', marginBottom: '5px' }}>
                 <span style={{ fontSize: '1.2rem' }}>🌅</span> พระอาทิตย์ขึ้น / ตก
             </div>
