@@ -7,11 +7,11 @@ export default function WeatherRadar({ coords, isMobile, cardBg, borderColor, te
   const frameHeight = isMobile ? '340px' : '540px';
   
   return (
-    <div style={{ background: cardBg, borderRadius: isMobile ? '20px' : '25px', padding: isMobile ? '15px' : '20px', border: `1px solid ${borderColor}`, overflow: 'hidden', flexShrink: 0, width: '100%' }}>
+    <div style={{ background: cardBg, borderRadius: isMobile ? '20px' : '25px', padding: isMobile ? '15px' : '20px', border: `1px solid ${borderColor}`, overflow: 'hidden', flexShrink: 0, width: '100%', position: 'relative', isolation: 'isolate' }}>
         <h3 style={{ margin: '0 0 15px 0', fontSize: '1rem', color: textColor, display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{ fontSize: '1.2rem' }}>⛈️</span> เรดาร์สภาพอากาศ
         </h3>
-        <div style={{ width: '100%', height: frameHeight, minHeight: frameHeight, borderRadius: '12px', overflow: 'hidden', position: 'relative' }}>
+        <div style={{ width: '100%', height: frameHeight, minHeight: frameHeight, borderRadius: '12px', overflow: 'hidden', position: 'relative', isolation: 'isolate', contain: 'layout paint', background: 'var(--bg-secondary)' }}>
             {!iframeLoaded && (
                 <div style={{ 
                     position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, 
@@ -31,7 +31,7 @@ export default function WeatherRadar({ coords, isMobile, cardBg, borderColor, te
             <iframe 
                 width="100%" height="100%" 
                 src={`https://embed.windy.com/embed2.html?lat=${coords?.lat || 13.75}&lon=${coords?.lon || 100.5}&detailLat=${coords?.lat || 13.75}&detailLon=${coords?.lon || 100.5}&zoom=8&level=surface&overlay=${defaultOverlay}&product=${defaultProduct}&menu=&message=true&marker=true`} 
-                style={{ border: 'none', opacity: iframeLoaded ? 1 : 0, transition: 'opacity 0.5s ease' }}
+                style={{ border: 'none', opacity: iframeLoaded ? 1 : 0, transition: 'opacity 0.5s ease', display: 'block', position: 'relative', zIndex: 0 }}
                 title="Radar Map"
                 onLoad={() => setIframeLoaded(true)}
             ></iframe>

@@ -488,7 +488,7 @@ export default function Dashboard() {
   );
 
   const desktopOverviewLayout = (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%', minWidth: 0 }}>
       {heroCard}
       {desktopMetricsGrid}
       {hourlyForecastCard}
@@ -520,7 +520,7 @@ export default function Dashboard() {
   );
 
   const mobileOverviewLayout = (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '12px', flexShrink: 0, width: '100%', alignItems: 'stretch' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '12px', flexShrink: 0, width: '100%', alignItems: 'stretch', minWidth: 0 }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', minWidth: 0 }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '12px', flexShrink: 0, alignItems: 'stretch' }}>
           {heroCard}

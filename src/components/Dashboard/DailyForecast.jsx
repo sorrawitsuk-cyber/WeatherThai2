@@ -2,7 +2,7 @@ import React from 'react';
 
 export default function DailyForecast({ daily, isMobile, cardBg, borderColor, textColor, subTextColor }) {
   return (
-    <div style={{ background: cardBg, borderRadius: isMobile ? '20px' : '25px', padding: isMobile ? '15px' : '25px', border: `1px solid ${borderColor}`, flex: 1, flexShrink: 0 }}>
+    <div style={{ background: cardBg, borderRadius: isMobile ? '20px' : '25px', padding: isMobile ? '15px' : '25px', border: `1px solid ${borderColor}`, flex: 1, flexShrink: 0, minWidth: 0, overflow: 'hidden' }}>
        <h3 style={{ margin: '0 0 15px 0', fontSize: '0.95rem', color: textColor }}>📅 พยากรณ์ 7 วัน</h3>
        <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
           {daily?.time?.map((t, idx) => (
@@ -20,7 +20,7 @@ export default function DailyForecast({ daily, isMobile, cardBg, borderColor, te
                     </div>
                 </div>
 
-                <div style={{ marginLeft: isMobile ? '0' : '55px', display: 'flex', justifyContent: 'space-between', marginTop: '8px', background: 'var(--bg-overlay)', padding: '6px 10px', borderRadius: '10px', fontSize: '0.75rem', color: subTextColor, fontWeight: 'bold' }}>
+                <div style={isMobile ? { marginTop: '8px', background: 'var(--bg-overlay)', padding: '8px 10px', borderRadius: '10px', fontSize: '0.75rem', color: subTextColor, fontWeight: 'bold', display: 'grid', gridTemplateColumns: '1fr', gap: '6px' } : { marginLeft: '55px', display: 'flex', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap', marginTop: '8px', background: 'var(--bg-overlay)', padding: '6px 10px', borderRadius: '10px', fontSize: '0.75rem', color: subTextColor, fontWeight: 'bold' }}>
                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                      <span style={{fontSize:'0.9rem'}}>☔</span> 
                      {daily?.precipitation_probability_max?.[idx] || 0}% 
