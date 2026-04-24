@@ -1,12 +1,236 @@
-import React, { useContext, useState, useEffect } from 'react';
-import { WeatherContext } from '../context/WeatherContext';
+import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { MapContainer, TileLayer, CircleMarker } from 'react-leaflet';
+import {
+  AlertTriangle,
+  Bell,
+  ChevronLeft,
+  ChevronRight,
+  CloudRain,
+  ExternalLink,
+  Flame,
+  MapPinned,
+  Newspaper,
+  RefreshCw,
+  Search,
+  ShieldAlert,
+  ThermometerSun,
+  Waves,
+} from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
+import { WeatherContext } from '../context/WeatherContext';
+
+const categoryOptions = [
+  { id: 'all', label: 'ทั้งหมด', icon: Search, color: '#2563eb' },
+  { id: 'warning', label: 'เตือนภัย', icon: ShieldAlert, color: '#ef4444' },
+  { id: 'news', label: 'ข่าวสาร', icon: Newspaper, color: '#475569' },
+  { id: 'weather', label: 'สภาพอากาศ', icon: CloudRain, color: '#0ea5e9' },
+  { id: 'storm', label: 'พายุ', icon: Waves, color: '#2563eb' },
+  { id: 'rain', label: 'ฝนตกหนัก', icon: CloudRain, color: '#2563eb' },
+  { id: 'flood', label: 'น้ำท่วม', icon: Waves, color: '#0f766e' },
+  { id: 'quake', label: 'แผ่นดินไหว', icon: AlertTriangle, color: '#d97706' },
+  { id: 'fire', label: 'ไฟป่า', icon: Flame, color: '#dc2626' },
+  { id: 'climate', label: 'Climate', icon: ThermometerSun, color: '#16a34a' },
+];
+
+const topicMeta = {
+  warning: { label: 'เตือนภัย', icon: '⚠️', color: '#ef4444', gradient: 'linear-gradient(135deg, #ef4444 0%, #991b1b 100%)' },
+  news: { label: 'ข่าวสาร', icon: '📰', color: '#475569', gradient: 'linear-gradient(135deg, #475569 0%, #0f172a 100%)' },
+  weather: { label: 'สภาพอากาศ', icon: '⛅', color: '#0ea5e9', gradient: 'linear-gradient(135deg, #0ea5e9 0%, #38bdf8 100%)' },
+  storm: { label: 'พายุ', icon: '🌪️', color: '#2563eb', gradient: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)' },
+  rain: { label: 'ฝนตกหนัก', icon: '🌧️', color: '#2563eb', gradient: 'linear-gradient(135deg, #38bdf8 0%, #2563eb 100%)' },
+  flood: { label: 'น้ำท่วม', icon: '🌊', color: '#0f766e', gradient: 'linear-gradient(135deg, #0ea5e9 0%, #0f766e 100%)' },
+  quake: { label: 'แผ่นดินไหว', icon: '🌋', color: '#d97706', gradient: 'linear-gradient(135deg, #f97316 0%, #b45309 100%)' },
+  fire: { label: 'ไฟป่า', icon: '🔥', color: '#dc2626', gradient: 'linear-gradient(135deg, #f97316 0%, #b91c1c 100%)' },
+  climate: { label: 'Climate', icon: '🌍', color: '#16a34a', gradient: 'linear-gradient(135deg, #16a34a 0%, #0f766e 100%)' },
+  air: { label: 'คุณภาพอากาศ', icon: '🌫️', color: '#7c3aed', gradient: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)' },
+};
+
+const sourceLinks = {
+  'Open-Meteo': 'https://open-meteo.com/',
+  'TMD XML': 'https://www.tmd.go.th/',
+  'TMD Web (พยากรณ์/เตือนภัย)': 'https://www.tmd.go.th/',
+  GDACS: 'https://www.gdacs.org/',
+  USGS: 'https://earthquake.usgs.gov/',
+  'USGS Regional (SE Asia)': 'https://earthquake.usgs.gov/',
+  'ReliefWeb Thailand': 'https://reliefweb.int/country/tha',
+  'ReliefWeb Global': 'https://reliefweb.int/',
+  'NASA Climate / WMO': 'https://climate.nasa.gov/',
+  'NASA EONET': 'https://eonet.gsfc.nasa.gov/',
+  'Thai PBS': 'https://www.thaipbs.or.th/',
+  'ปภ. (DDPM)': 'https://www.disaster.go.th/',
+  'TMD แผ่นดินไหว': 'https://earthquake.tmd.go.th/',
+};
+
+const agencyCards = [
+  { label: 'กรมอุตุนิยมวิทยา', short: 'TMD', key: 'TMD XML', url: 'https://www.tmd.go.th/' },
+  { label: 'กรมป้องกันและบรรเทาสาธารณภัย', short: 'DDPM', key: 'ปภ. (DDPM)', url: 'https://www.disaster.go.th/' },
+  { label: 'USGS', short: 'USGS', key: 'USGS', url: 'https://earthquake.usgs.gov/' },
+  { label: 'NASA EONET', short: 'EONET', key: 'NASA EONET', url: 'https://eonet.gsfc.nasa.gov/' },
+];
+
+const defaultAlertPrefs = {
+  push: true,
+  email: false,
+  line: true,
+  sms: false,
+};
+
+const Panel = React.forwardRef(({ children, style }, ref) => (
+  <section
+    ref={ref}
+    style={{
+      background: 'var(--bg-card)',
+      border: '1px solid var(--border-color)',
+      borderRadius: 24,
+      boxShadow: '0 18px 42px rgba(15, 23, 42, 0.06)',
+      ...style,
+    }}
+  >
+    {children}
+  </section>
+));
+
+Panel.displayName = 'NewsPanel';
+
+function toThaiDateTime(value) {
+  if (!value) return 'ไม่ระบุเวลา';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return new Intl.DateTimeFormat('th-TH', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+}
+
+function toThaiShortDate(value) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return new Intl.DateTimeFormat('th-TH', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).format(date);
+}
+
+function getSeverityMeta(level = 'normal') {
+  if (level === 'high') return { label: 'ระดับสูง', color: '#ef4444', bg: 'rgba(239, 68, 68, 0.12)' };
+  if (level === 'medium') return { label: 'ระดับปานกลาง', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.12)' };
+  return { label: 'ระดับติดตาม', color: '#22c55e', bg: 'rgba(34, 197, 94, 0.12)' };
+}
+
+function inferTopic(item) {
+  const text = `${item.title || ''} ${item.summary || ''} ${item.category || ''} ${item.eventLabel || ''}`.toLowerCase();
+  if (/pm2\.?5|aqi|ฝุ่น|หมอกควัน|dust|haze/.test(text)) return 'air';
+  if (/heat|คลื่นความร้อน|อากาศร้อน|อุณหภูมิสูง/.test(text)) return 'warning';
+  if (/climate|โลกร้อน|ภูมิอากาศ|el nino|la nina|enso/.test(text)) return 'climate';
+  if (/earthquake|แผ่นดินไหว/.test(text) || item.category === 'earthquake') return 'quake';
+  if (/flood|น้ำท่วม|น้ำป่า|ท่วมฉับพลัน/.test(text)) return 'flood';
+  if (/wildfire|ไฟป่า/.test(text)) return 'fire';
+  if (/storm|typhoon|cyclone|พายุ|มรสุม|ลมแรง/.test(text) || item.category === 'storm') return 'storm';
+  if (/rain|ฝน|ฝนตกหนัก/.test(text)) return 'rain';
+  if (/forecast|พยากรณ์|weather|อากาศ/.test(text) || item.category === 'weather') return 'weather';
+  if (['warning', 'thai-disaster', 'global-alert', 'global-disaster'].includes(item.category)) return 'warning';
+  return 'news';
+}
+
+function deriveArea(item) {
+  const text = `${item.title || ''} ${item.summary || ''} ${item.country || ''}`;
+  if (item.country) return item.country;
+  const thaiMatch = text.match(/(กรุงเทพมหานคร|ภาคเหนือ|ภาคตะวันออกเฉียงเหนือ|ภาคกลาง|ภาคตะวันออก|ภาคใต้|ภาคตะวันตก|อ่าวไทย|ทะเลอันดามัน|จังหวัด[^\s,]+)/);
+  if (thaiMatch) return thaiMatch[1];
+  const globalMatch = text.match(/(Myanmar|Japan|Laos|Cambodia|Vietnam|China|Philippines|Indonesia|Malaysia|Thailand|เอเชีย)/i);
+  if (globalMatch) return globalMatch[1];
+  return 'หลายพื้นที่';
+}
+
+function normalizeItem(item, forcedType) {
+  if (!item?.title) return null;
+  const topic = inferTopic(item);
+  const meta = topicMeta[topic] || topicMeta.news;
+  const severity = item.severity || 'normal';
+  const alertLike = ['warning', 'storm', 'earthquake', 'thai-disaster', 'global-alert', 'global-disaster'].includes(item.category) || severity !== 'normal';
+  const type = forcedType || (alertLike ? 'warning' : 'news');
+  return {
+    id: item.id || `${item.source || 'source'}-${item.title}`,
+    title: item.title,
+    summary: item.summary || item.description || 'ไม่มีรายละเอียดเพิ่มเติม',
+    source: item.source || 'แหล่งข่าว',
+    url: item.url || item.link || '',
+    publishedAt: item.publishedAt || item.time || item.date || '',
+    severity,
+    severityMeta: getSeverityMeta(severity),
+    topic,
+    type,
+    area: deriveArea(item),
+    visual: item.visual || {},
+    icon: item.visual?.emoji || meta.icon,
+    gradient: item.visual?.gradient || meta.gradient,
+    kicker: item.visual?.kicker || meta.label,
+    label: meta.label,
+    color: meta.color,
+    eventLabel: item.eventLabel || meta.label,
+    priorityScore: item.priorityScore || 0,
+  };
+}
+
+function dedupeItems(items) {
+  const seen = new Set();
+  return items.filter((item) => {
+    const key = `${item.source}-${item.title}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function matchesCategory(item, activeCategory) {
+  if (activeCategory === 'all') return true;
+  if (activeCategory === 'warning') return item.type === 'warning';
+  if (activeCategory === 'news') return item.type === 'news';
+  return item.topic === activeCategory;
+}
+
+function includesQuery(item, query) {
+  if (!query) return true;
+  const haystack = `${item.title} ${item.summary} ${item.source} ${item.area} ${item.label}`.toLowerCase();
+  return haystack.includes(query.toLowerCase());
+}
+
+function openExternal(url) {
+  if (!url || typeof window === 'undefined') return;
+  window.open(url, '_blank', 'noopener,noreferrer');
+}
 
 export default function NewsPage() {
   const { darkMode, stations, stationTemps } = useContext(WeatherContext);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
+  const [activeCategory, setActiveCategory] = useState('all');
+  const [query, setQuery] = useState('');
+  const [feed, setFeed] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [refreshToken, setRefreshToken] = useState(0);
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [currentHero, setCurrentHero] = useState(0);
+  const [alertPrefs, setAlertPrefs] = useState(() => {
+    try {
+      const saved = window.localStorage.getItem('air4thai-news-alert-prefs');
+      return saved ? { ...defaultAlertPrefs, ...JSON.parse(saved) } : defaultAlertPrefs;
+    } catch {
+      return defaultAlertPrefs;
+    }
+  });
+
+  const heroRef = useRef(null);
+  const detailRef = useRef(null);
+  const alertsRef = useRef(null);
+  const newsRef = useRef(null);
+  const mapRef = useRef(null);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 1024);
@@ -14,349 +238,799 @@ export default function NewsPage() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const cardBg = 'var(--bg-card)';
-  const textColor = 'var(--text-main)';
-  const borderColor = 'var(--border-color)';
-  const subTextColor = 'var(--text-sub)';
+  useEffect(() => {
+    window.localStorage.setItem('air4thai-news-alert-prefs', JSON.stringify(alertPrefs));
+  }, [alertPrefs]);
 
-  const WarningCard = ({ icon, title, level, area, time, bgColor, borderColor, iconColor, textColor }) => (
-    <div style={{ background: bgColor, border: `1px solid ${borderColor}`, borderRadius: '20px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', flex: 1, minWidth: '280px' }}>
-      <div style={{ display: 'flex', gap: '16px' }}>
-        <div style={{ width: '50px', height: '50px', borderRadius: '50%', background: iconColor, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', flexShrink: 0, boxShadow: `0 4px 12px ${iconColor}66` }}>
-          {icon}
-        </div>
-        <div>
-          <div style={{ fontSize: '1.1rem', fontWeight: 'bold', color: textColor }}>{title}</div>
-          <div style={{ fontSize: '0.8rem', color: textColor, opacity: 0.9, marginTop: '4px' }}>ระดับอันตราย: <strong>{level}</strong></div>
-          <div style={{ fontSize: '0.8rem', color: textColor, opacity: 0.8 }}>พื้นที่: {area}</div>
-        </div>
-      </div>
-      <div style={{ fontSize: '0.75rem', color: textColor, opacity: 0.7, borderTop: `1px solid ${borderColor}`, paddingTop: '12px' }}>
-        ถึง {time}
-      </div>
-      <button style={{ width: '100%', padding: '10px', borderRadius: '12px', background: 'var(--bg-card)', color: textColor, border: `1px solid ${borderColor}`, fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer' }}>
-        ดูรายละเอียด
-      </button>
-    </div>
+  useEffect(() => {
+    const controller = new AbortController();
+    let active = true;
+
+    async function loadFeed() {
+      setLoading(true);
+      setError('');
+      try {
+        const response = await fetch('/api/news', {
+          signal: controller.signal,
+          cache: 'no-store',
+          headers: { Accept: 'application/json' },
+        });
+        if (!response.ok) {
+          throw new Error(`โหลดข่าวไม่สำเร็จ (${response.status})`);
+        }
+        const payload = await response.json();
+        if (!active) return;
+        setFeed(payload);
+      } catch (loadError) {
+        if (loadError.name === 'AbortError') return;
+        if (!active) return;
+        setError(loadError.message || 'ไม่สามารถโหลดข่าวจากแหล่งข้อมูลได้');
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+
+    loadFeed();
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [refreshToken]);
+
+  const normalizedAlerts = useMemo(() => {
+    if (!feed) return [];
+    return dedupeItems(
+      [
+        ...(feed.thailand?.warnings || []).map((item) => normalizeItem(item, 'warning')),
+        ...(feed.thailand?.storms || []).map((item) => normalizeItem(item, 'warning')),
+        ...(feed.thailand?.earthquakes || []).map((item) => normalizeItem(item, 'warning')),
+        ...(feed.thailand?.disasters || []).map((item) => normalizeItem(item, 'warning')),
+        ...(feed.thailand?.ddpm || []).map((item) => normalizeItem(item, 'warning')),
+        ...(feed.thailand?.tmdEq || []).map((item) => normalizeItem(item, 'warning')),
+        ...(feed.global?.alerts || []).map((item) => normalizeItem(item, 'warning')),
+        ...(feed.global?.earthquakes || []).map((item) => normalizeItem(item, 'warning')),
+        ...(feed.global?.disasters || []).map((item) => normalizeItem(item, 'warning')),
+        ...(feed.global?.eonet || []).map((item) => normalizeItem(item, 'warning')),
+      ].filter(Boolean),
+    ).sort((a, b) => (b.priorityScore || 0) - (a.priorityScore || 0));
+  }, [feed]);
+
+  const normalizedStories = useMemo(() => {
+    if (!feed) return [];
+    const weatherCards = (feed.weather?.days || []).slice(0, 3).map((day) =>
+      normalizeItem({
+        title: `พยากรณ์ ${toThaiShortDate(day.time)}`,
+        summary: `${day.label} สูงสุด ${day.max}°C ต่ำสุด ${day.min}°C โอกาสฝน ${day.rainChance}%`,
+        source: 'Open-Meteo',
+        category: 'weather',
+        severity: day.rainChance >= 60 ? 'medium' : 'normal',
+        publishedAt: day.time,
+        url: sourceLinks['Open-Meteo'],
+        visual: {
+          emoji: day.rainChance >= 50 ? '🌧️' : '⛅',
+          gradient: topicMeta.weather.gradient,
+          kicker: 'พยากรณ์อากาศ',
+        },
+      }),
+    );
+
+    return dedupeItems(
+      [
+        ...(feed.topStories || []).map((item) => normalizeItem(item)),
+        ...(feed.thailand?.thaiPbs || []).map((item) => normalizeItem(item, 'news')),
+        ...(feed.thailand?.webSevenday || []).map((item) => normalizeItem(item, 'news')),
+        ...(feed.global?.climate || []).map((item) => normalizeItem(item, 'news')),
+        ...weatherCards,
+      ].filter(Boolean),
+    ).sort((a, b) => new Date(b.publishedAt || 0).getTime() - new Date(a.publishedAt || 0).getTime());
+  }, [feed]);
+
+  const filteredAlerts = useMemo(
+    () => normalizedAlerts.filter((item) => matchesCategory(item, activeCategory) && includesQuery(item, query)),
+    [normalizedAlerts, activeCategory, query],
   );
 
+  const filteredStories = useMemo(
+    () => normalizedStories.filter((item) => matchesCategory(item, activeCategory) && includesQuery(item, query)),
+    [normalizedStories, activeCategory, query],
+  );
+
+  const heroItems = useMemo(() => {
+    const items = dedupeItems([...filteredAlerts.slice(0, 4), ...filteredStories.slice(0, 4)]);
+    return items.length ? items.slice(0, 4) : dedupeItems([...normalizedAlerts.slice(0, 4), ...normalizedStories.slice(0, 4)]).slice(0, 4);
+  }, [filteredAlerts, filteredStories, normalizedAlerts, normalizedStories]);
+
+  const riskAreas = useMemo(() => dedupeItems(normalizedAlerts.filter((item) => item.severity !== 'normal')).slice(0, 3), [normalizedAlerts]);
+
+  const heroItem = heroItems[currentHero] || null;
+
+  useEffect(() => {
+    if (!heroItems.length) {
+      setCurrentHero(0);
+      return undefined;
+    }
+    setCurrentHero((current) => (current >= heroItems.length ? 0 : current));
+    const timer = window.setInterval(() => {
+      setCurrentHero((current) => (current + 1) % heroItems.length);
+    }, 6000);
+    return () => window.clearInterval(timer);
+  }, [heroItems]);
+
+  const scrollTo = (ref) => ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  const openDetail = (item) => {
+    setSelectedItem(item);
+    window.setTimeout(() => scrollTo(detailRef), 60);
+  };
+
+  const togglePref = (key) => {
+    setAlertPrefs((current) => ({ ...current, [key]: !current[key] }));
+  };
+
   return (
-    <div style={{ padding: isMobile ? '16px' : '24px', background: 'var(--bg-app)', minHeight: '100%', color: textColor, fontFamily: 'Sarabun, sans-serif' }} className="hide-scrollbar">
-      
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
-         <div>
-            <h1 style={{ margin: 0, fontSize: isMobile ? '1.3rem' : '1.6rem', fontWeight: '800' }}>ข่าว & เตือนภัย</h1>
-            <div style={{ fontSize: '0.85rem', color: subTextColor, marginTop: '4px' }}>ติดตามสถานการณ์สภาพอากาศและประกาศเตือนภัยล่าสุด</div>
-         </div>
-         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            <button style={{ padding: '8px 16px', borderRadius: '20px', background: '#3b82f6', color: '#fff', border: 'none', fontSize: '0.8rem', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span>👆</span> ทั้งหมด
-            </button>
-            <button style={{ padding: '8px 16px', borderRadius: '20px', background: 'var(--bg-secondary)', color: '#ef4444', border: `1px solid #fca5a5`, fontSize: '0.8rem', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span>⚠️</span> เตือนภัย
-            </button>
-            <button style={{ padding: '8px 16px', borderRadius: '20px', background: 'var(--bg-secondary)', color: subTextColor, border: `1px solid ${borderColor}`, fontSize: '0.8rem', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span>📰</span> ข่าวสาร
-            </button>
-            <button style={{ padding: '8px 16px', borderRadius: '20px', background: 'var(--bg-secondary)', color: subTextColor, border: `1px solid ${borderColor}`, fontSize: '0.8rem', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span>🌧️</span> ฝน / พายุ
-            </button>
-            <button style={{ padding: '8px 16px', borderRadius: '20px', background: 'var(--bg-secondary)', color: subTextColor, border: `1px solid ${borderColor}`, fontSize: '0.8rem', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span>🌫️</span> ฝุ่น / AQI
-            </button>
-         </div>
-      </div>
-
-      {/* Top Warnings */}
-      <div style={{ background: cardBg, borderRadius: '24px', padding: '24px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 20px rgba(0,0,0,0.03)', marginBottom: '24px' }}>
-         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '800' }}>คำเตือนที่ต้องเฝ้าระวัง</h2>
-            <span style={{ fontSize: '0.8rem', color: '#0ea5e9', cursor: 'pointer', fontWeight: 'bold' }}>ดูคำเตือนทั้งหมด (3) →</span>
-         </div>
-         <div style={{ display: 'flex', gap: '16px', overflowX: 'auto', paddingBottom: '8px' }} className="hide-scrollbar">
-            <WarningCard 
-              icon="🥵" title="คลื่นความร้อน" level="สูงมาก" area="ภาคเหนือ ภาคกลาง" time="17 พ.ค. 17:00 น."
-              bgColor="#fef2f2" borderColor="#fca5a5" iconColor="#ef4444" textColor="#991b1b"
-            />
-            <WarningCard 
-              icon="🌧️" title="ฝนตกหนัก" level="ปานกลาง" area="ภาคตะวันออก ภาคใต้" time="17 พ.ค. 22:00 น."
-              bgColor="#fffbeb" borderColor="#fcd34d" iconColor="#f59e0b" textColor="#92400e"
-            />
-            <WarningCard 
-              icon="💨" title="ลมแรง" level="ปานกลาง" area="ภาคอีสานตอนบน" time="17 พ.ค. 18:00 น."
-              bgColor="#fefce8" borderColor="#fde047" iconColor="#eab308" textColor="#854d0e"
-            />
-         </div>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1.8fr 1fr', gap: '24px', alignItems: 'start' }}>
-        
-        {/* ================= LEFT COLUMN ================= */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-           
-           {/* สถานการณ์เด่นวันนี้ */}
-           <div style={{ background: cardBg, borderRadius: '24px', padding: '24px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 20px rgba(0,0,0,0.03)' }}>
-              <h2 style={{ margin: '0 0 20px 0', fontSize: '1.1rem', fontWeight: '800' }}>สถานการณ์เด่นวันนี้</h2>
-              
-              <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '20px' }}>
-                 {/* Real Map for Rain Accumulation */}
-                 <div style={{ flex: 1.5, borderRadius: '16px', minHeight: '260px', position: 'relative', overflow: 'hidden', border: `1px solid ${borderColor}`, zIndex: 0 }}>
-                    <MapContainer center={[13.75, 100.5]} zoom={5} zoomControl={false} style={{ width: '100%', height: '100%', background: darkMode ? '#0f172a' : '#bfe8ff' }}>
-                      <TileLayer url={darkMode ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"} />
-                      {/* Map Real Rain Data */}
-                      {(stations && stations.length > 0) && stations.map((station, i) => {
-                         const lat = parseFloat(station.lat);
-                         const lon = parseFloat(station.long);
-                         if (isNaN(lat) || isNaN(lon) || lat === 0) return null;
-                         const tObj = stationTemps ? stationTemps[station.stationID] : null;
-                         const rainVal = (tObj?.rainProb || 0) / 2;
-                         if (rainVal < 5) return null;
-                         let color = '#3b82f6';
-                         let radius = 10;
-                         if (rainVal > 50) { color = '#7f1d1d'; radius = 45; }
-                         else if (rainVal > 20) { color = '#ef4444'; radius = 30; }
-                         else if (rainVal > 10) { color = '#f59e0b'; radius = 20; }
-                         return <CircleMarker key={i} center={[lat, lon]} radius={radius} fillColor={color} fillOpacity={0.6} color="transparent" />
-                      })}
-                    </MapContainer>
-
-                    <div style={{ position: 'absolute', top: '16px', left: '16px', background: 'rgba(255,255,255,0.9)', padding: '8px 12px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 'bold', backdropFilter: 'blur(4px)', boxShadow: '0 2px 10px rgba(0,0,0,0.1)', zIndex: 1000, color: '#1e293b' }}>
-                       ฝนสะสม 24 ชั่วโมง<br/><span style={{fontWeight:'normal', color: '#64748b'}}>16 พ.ค. 2567 09:00 น.</span>
-                    </div>
-                    <div style={{ position: 'absolute', bottom: '16px', left: '16px', right: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 1000 }}>
-                       <div style={{ background: 'rgba(255,255,255,0.9)', padding: '8px', borderRadius: '12px', fontSize: '0.65rem', backdropFilter: 'blur(4px)', width: '60%', color: '#1e293b' }}>
-                          <div style={{marginBottom:'4px', color:'#64748b'}}>ฝนสะสม (มม.)</div>
-                          <div style={{width:'100%', height:'8px', background:'linear-gradient(to right, #e0f2fe, #bae6fd, #38bdf8, #0284c7, #1e3a8a, #ef4444, #7f1d1d)', borderRadius:'4px'}}></div>
-                          <div style={{display:'flex', justifyContent:'space-between', marginTop:'2px', opacity:0.7}}>
-                             <span>0</span><span>20</span><span>50</span><span>100</span><span>200+</span>
-                          </div>
-                       </div>
-                       <button style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 10px rgba(59, 130, 246, 0.4)' }}>
-                          ดูแผนที่เรดาร์ →
-                       </button>
-                    </div>
-                 </div>
-
-                 {/* Highlights */}
-                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    <div style={{ background: 'var(--bg-secondary)', border: `1px solid ${borderColor}`, borderRadius: '16px', padding: '16px', display: 'flex', gap: '12px', cursor: 'pointer' }}>
-                       <div style={{ fontSize: '1.8rem', color: '#3b82f6', flexShrink: 0 }}>🌧️</div>
-                       <div>
-                          <div style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>ฝนตกหนักต่อเนื่อง</div>
-                          <div style={{ fontSize: '0.75rem', color: subTextColor, marginTop: '4px', lineHeight: '1.4' }}>ภาคตะวันออกมีฝนตกหนักหลายแห่ง และมีฝนสะสมมากกว่า 90 มม.</div>
-                          <div style={{ fontSize: '0.65rem', color: '#3b82f6', marginTop: '8px', fontWeight: 'bold' }}>10 นาทีที่แล้ว ↗</div>
-                       </div>
-                    </div>
-                    <div style={{ background: 'var(--bg-secondary)', border: `1px solid ${borderColor}`, borderRadius: '16px', padding: '16px', display: 'flex', gap: '12px', cursor: 'pointer' }}>
-                       <div style={{ fontSize: '1.8rem', color: '#ef4444', flexShrink: 0 }}>🥵</div>
-                       <div>
-                          <div style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>อากาศร้อนจัด</div>
-                          <div style={{ fontSize: '0.75rem', color: subTextColor, marginTop: '4px', lineHeight: '1.4' }}>หลายพื้นที่มีอุณหภูมิสูงกว่า 40°C ต่อเนื่องหลายวัน</div>
-                          <div style={{ fontSize: '0.65rem', color: '#3b82f6', marginTop: '8px', fontWeight: 'bold' }}>25 นาทีที่แล้ว ↗</div>
-                       </div>
-                    </div>
-                    <div style={{ background: 'var(--bg-secondary)', border: `1px solid ${borderColor}`, borderRadius: '16px', padding: '16px', display: 'flex', gap: '12px', cursor: 'pointer' }}>
-                       <div style={{ fontSize: '1.8rem', color: '#10b981', flexShrink: 0 }}>💨</div>
-                       <div>
-                          <div style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>ลมแรงบริเวณอ่าวไทย</div>
-                          <div style={{ fontSize: '0.75rem', color: subTextColor, marginTop: '4px', lineHeight: '1.4' }}>คลื่นสูง 2-3 เมตร เรือเล็กควรงดออกจากฝั่ง</div>
-                          <div style={{ fontSize: '0.65rem', color: '#3b82f6', marginTop: '8px', fontWeight: 'bold' }}>40 นาทีที่แล้ว ↗</div>
-                       </div>
-                    </div>
-                 </div>
-              </div>
-           </div>
-
-           {/* ข่าวสารล่าสุด */}
-           <div style={{ background: cardBg, borderRadius: '24px', padding: '24px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 20px rgba(0,0,0,0.03)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                 <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '800' }}>ข่าวสารล่าสุด</h2>
-                 <span style={{ fontSize: '0.8rem', color: '#0ea5e9', cursor: 'pointer', fontWeight: 'bold' }}>ดูข่าวทั้งหมด →</span>
-              </div>
-              
-              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)', gap: '16px' }}>
-                 {[
-                   { tag: 'เตือนภัย', tagColor: '#ef4444', tagBg: '#fef2f2', title: 'กรมอุตุฯ เตือนทั่วไทยรับมือคลื่นความร้อน 16-17 พ.ค.', desc: 'อุณหภูมิสูงสุดบางพื้นที่แตะ 43°C แนะหลีกเลี่ยงออกนอกบ้านช่วงบ่าย', views: '12K', time: '08:30', imgGradient: 'linear-gradient(135deg, #f59e0b, #ef4444)' },
-                   { tag: 'ฝน / พายุ', tagColor: '#3b82f6', tagBg: '#eff6ff', title: 'ภาคตะวันออกมีฝนตกหนักถึงหนักมาก 16-17 พ.ค. นี้', desc: 'เสี่ยงน้ำท่วมฉับพลัน น้ำป่าไหลหลาก ในบางพื้นที่', views: '8.5K', time: '07:15', imgGradient: 'linear-gradient(135deg, #3b82f6, #8b5cf6)' },
-                   { tag: 'ฝุ่น / AQI', tagColor: '#8b5cf6', tagBg: '#f3e8ff', title: 'สถานการณ์ PM2.5 เช้านี้ เกินมาตรฐาน 18 จังหวัด', desc: 'ภาคเหนือและภาคอีสานยังคงมีค่าเกินมาตรฐาน', views: '6.3K', time: '06:45', imgGradient: 'linear-gradient(135deg, #8b5cf6, #10b981)' },
-                   { tag: 'ประกาศ', tagColor: '#0ea5e9', tagBg: '#e0f2fe', title: 'ประกาศกรมอุตุนิยมวิทยา ฉบับที่ 5 (120/2567)', desc: 'เรื่อง ฝนตกหนักบริเวณประเทศไทย (มีผลถึง 18 พ.ค. 67)', views: '4.1K', time: '05:30', imgGradient: 'linear-gradient(135deg, #64748b, #cbd5e1)' },
-                 ].map((news, i) => (
-                    <div key={i} style={{ display: 'flex', flexDirection: 'column', borderRadius: '16px', border: `1px solid ${borderColor}`, overflow: 'hidden', cursor: 'pointer' }}>
-                       <div style={{ height: '140px', background: news.imgGradient, position: 'relative' }}>
-                          <div style={{ position: 'absolute', top: '12px', left: '12px', background: news.tagBg, color: news.tagColor, padding: '4px 10px', borderRadius: '8px', fontSize: '0.65rem', fontWeight: 'bold' }}>
-                            {news.tag}
-                          </div>
-                       </div>
-                       <div style={{ padding: '16px', background: 'var(--bg-secondary)', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                          <div>
-                            <div style={{ fontSize: '0.9rem', fontWeight: 'bold', color: textColor, lineHeight: '1.4', marginBottom: '8px', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                               {news.title}
-                            </div>
-                            <div style={{ fontSize: '0.75rem', color: subTextColor, lineHeight: '1.4', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                               {news.desc}
-                            </div>
-                          </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', fontSize: '0.7rem', color: subTextColor }}>
-                             <span>16 พ.ค. 2567 {news.time} น.</span>
-                             <span style={{display:'flex', alignItems:'center', gap:'4px'}}>👁️ {news.views}</span>
-                          </div>
-                       </div>
-                    </div>
-                 ))}
-              </div>
-           </div>
-
+    <main
+      style={{
+        padding: isMobile ? 14 : 24,
+        background: 'var(--bg-app)',
+        minHeight: '100%',
+        color: 'var(--text-main)',
+        fontFamily: 'Sarabun, sans-serif',
+      }}
+      className="hide-scrollbar"
+    >
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(0, 1fr) auto', gap: 14, alignItems: 'start', marginBottom: 18 }}>
+        <div>
+          <h1 style={{ margin: 0, fontSize: isMobile ? '1.5rem' : '1.95rem', fontWeight: 900 }}>ข่าวสาร & เตือนภัย</h1>
+          <p style={{ margin: '6px 0 0', color: 'var(--text-sub)', fontSize: '0.92rem' }}>
+            อัปเดตสถานการณ์ล่าสุดเพื่อความปลอดภัยของคุณ และตรวจสอบแหล่งข้อมูลจริงได้จากหน้าเดียว
+          </p>
         </div>
 
-        {/* ================= RIGHT COLUMN ================= */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-           
-           {/* เลือกดูพื้นที่ */}
-           <div style={{ background: cardBg, borderRadius: '24px', padding: '24px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 20px rgba(0,0,0,0.03)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                 <h2 style={{ margin: 0, fontSize: '1.05rem', fontWeight: '800' }}>เลือกดูพื้นที่</h2>
-                 <select style={{ padding: '6px 12px', borderRadius: '12px', background: 'var(--bg-secondary)', color: textColor, border: `1px solid ${borderColor}`, fontSize: '0.8rem', fontWeight: 'bold', outline: 'none' }}>
-                    <option>ประเทศไทย</option>
-                    <option>กรุงเทพมหานคร</option>
-                 </select>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', justifyContent: isMobile ? 'flex-start' : 'flex-end' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              minWidth: isMobile ? '100%' : 360,
+              border: '1px solid var(--border-color)',
+              background: 'var(--bg-card)',
+              borderRadius: 18,
+              padding: '11px 14px',
+            }}
+          >
+            <Search size={18} color="#64748b" />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="ค้นหาข่าวสาร, เตือนภัย, พายุ, ฝนตกหนัก, PM2.5..."
+              style={{
+                border: 0,
+                outline: 'none',
+                background: 'transparent',
+                width: '100%',
+                color: 'var(--text-main)',
+                fontWeight: 700,
+                fontSize: '0.92rem',
+              }}
+            />
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setRefreshToken((value) => value + 1)}
+            style={{
+              border: '1px solid var(--border-color)',
+              background: 'var(--bg-card)',
+              color: 'var(--text-main)',
+              borderRadius: 16,
+              padding: '11px 14px',
+              fontWeight: 900,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              cursor: 'pointer',
+            }}
+          >
+            <RefreshCw size={16} />
+            รีเฟรชข่าวจริง
+          </button>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 18 }}>
+        {categoryOptions.map((option) => {
+          const Icon = option.icon;
+          const active = activeCategory === option.id;
+          return (
+            <button
+              key={option.id}
+              type="button"
+              onClick={() => setActiveCategory(option.id)}
+              style={{
+                border: `1px solid ${active ? option.color : 'var(--border-color)'}`,
+                background: active ? option.color : 'var(--bg-card)',
+                color: active ? '#fff' : 'var(--text-main)',
+                borderRadius: 999,
+                padding: '10px 14px',
+                fontWeight: 900,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                cursor: 'pointer',
+                fontSize: '0.82rem',
+              }}
+            >
+              <Icon size={15} />
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(0, 1.68fr) minmax(320px, 0.78fr)', gap: 18, alignItems: 'start' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <Panel
+            ref={heroRef}
+            style={{
+              padding: 18,
+              overflow: 'hidden',
+              background: heroItem
+                ? `${heroItem.gradient}, radial-gradient(circle at right center, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0) 46%)`
+                : 'var(--bg-card)',
+              color: heroItem ? '#fff' : 'var(--text-main)',
+            }}
+          >
+            {loading ? (
+              <div style={{ padding: '18px 4px', color: 'rgba(255,255,255,0.92)' }}>กำลังดึงข่าวล่าสุดจากแหล่งข้อมูลจริง...</div>
+            ) : error ? (
+              <div style={{ padding: '18px 4px', color: '#fff' }}>
+                <div style={{ fontWeight: 900, fontSize: '1rem' }}>โหลดข่าวจาก `/api/news` ไม่สำเร็จ</div>
+                <div style={{ opacity: 0.92, marginTop: 6 }}>{error}</div>
+              </div>
+            ) : heroItem ? (
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(0, 1.1fr) minmax(280px, 0.9fr)', gap: 18, alignItems: 'stretch' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
+                    <div>
+                      <div
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          background: 'rgba(255,255,255,0.14)',
+                          border: '1px solid rgba(255,255,255,0.18)',
+                          borderRadius: 999,
+                          padding: '7px 12px',
+                          fontWeight: 900,
+                          fontSize: '0.78rem',
+                        }}
+                      >
+                        {heroItem.icon}
+                        {heroItem.kicker}
+                      </div>
+                      <h2 style={{ margin: '14px 0 0', fontSize: isMobile ? '1.32rem' : '1.72rem', lineHeight: 1.18, fontWeight: 900 }}>
+                        {heroItem.title}
+                      </h2>
+                      <p style={{ margin: '10px 0 0', lineHeight: 1.65, maxWidth: 620, color: 'rgba(255,255,255,0.9)' }}>
+                        {heroItem.summary}
+                      </p>
+                    </div>
+
+                    {!isMobile && (
+                      <div
+                        style={{
+                          minWidth: 82,
+                          height: 82,
+                          borderRadius: 24,
+                          background: 'rgba(255,255,255,0.12)',
+                          border: '1px solid rgba(255,255,255,0.18)',
+                          display: 'grid',
+                          placeItems: 'center',
+                          fontSize: '2.2rem',
+                          flexShrink: 0,
+                        }}
+                      >
+                        {heroItem.icon}
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                    <div style={{ background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.18)', borderRadius: 14, padding: '10px 12px', minWidth: 150 }}>
+                      <div style={{ fontSize: '0.72rem', opacity: 0.82 }}>แหล่งข้อมูล</div>
+                      <div style={{ fontWeight: 900, marginTop: 3 }}>{heroItem.source}</div>
+                    </div>
+                    <div style={{ background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.18)', borderRadius: 14, padding: '10px 12px', minWidth: 150 }}>
+                      <div style={{ fontSize: '0.72rem', opacity: 0.82 }}>อัปเดตล่าสุด</div>
+                      <div style={{ fontWeight: 900, marginTop: 3 }}>{toThaiDateTime(heroItem.publishedAt)}</div>
+                    </div>
+                    <div style={{ background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.18)', borderRadius: 14, padding: '10px 12px', minWidth: 150 }}>
+                      <div style={{ fontSize: '0.72rem', opacity: 0.82 }}>พื้นที่หลัก</div>
+                      <div style={{ fontWeight: 900, marginTop: 3 }}>{heroItem.area}</div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 6 }}>
+                    <button
+                      type="button"
+                      onClick={() => openDetail(heroItem)}
+                      style={{
+                        border: 0,
+                        background: 'rgba(255,255,255,0.18)',
+                        color: '#fff',
+                        borderRadius: 14,
+                        padding: '12px 16px',
+                        fontWeight: 900,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      ดูรายละเอียดเพิ่มเติม
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => (heroItem.url ? openExternal(heroItem.url) : scrollTo(alertsRef))}
+                      style={{
+                        border: '1px solid rgba(255,255,255,0.22)',
+                        background: 'transparent',
+                        color: '#fff',
+                        borderRadius: 14,
+                        padding: '12px 16px',
+                        fontWeight: 900,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {heroItem.url ? 'เปิดแหล่งข่าวต้นทาง' : 'ดูรายการแจ้งเตือน'}
+                    </button>
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    borderRadius: 24,
+                    border: '1px solid rgba(255,255,255,0.16)',
+                    background: 'rgba(255,255,255,0.12)',
+                    padding: 16,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    gap: 14,
+                    position: 'relative',
+                    overflow: 'hidden',
+                  }}
+                >
+                  <div
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      background:
+                        'radial-gradient(circle at 20% 18%, rgba(255,255,255,0.24) 0, rgba(255,255,255,0) 24%), radial-gradient(circle at 80% 26%, rgba(255,255,255,0.16) 0, rgba(255,255,255,0) 18%), radial-gradient(circle at 56% 72%, rgba(255,255,255,0.14) 0, rgba(255,255,255,0) 20%)',
+                      pointerEvents: 'none',
+                    }}
+                  />
+                  <div style={{ position: 'relative', zIndex: 1 }}>
+                    <div style={{ fontSize: '0.74rem', opacity: 0.86 }}>ภาพรวมสถานการณ์วันนี้</div>
+                    <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
+                      {[
+                        ['เตือนภัย', normalizedAlerts.length, '#fff'],
+                        ['ข่าวเด่น', normalizedStories.length, '#fff'],
+                        ['แหล่งข่าวหลัก', heroItem?.source || '-', '#fff'],
+                        ['โหมดสรุป', feed?.digest?.mode === 'ai' ? 'AI' : 'Rule', '#fff'],
+                      ].map(([label, value]) => (
+                        <div key={label} style={{ background: 'rgba(255,255,255,0.12)', borderRadius: 16, padding: '12px 14px', border: '1px solid rgba(255,255,255,0.12)' }}>
+                          <div style={{ fontSize: '0.72rem', opacity: 0.82 }}>{label}</div>
+                          <div style={{ fontSize: '1.15rem', fontWeight: 900, marginTop: 4 }}>{value}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      {heroItems.map((item, index) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => setCurrentHero(index)}
+                          aria-label={`slide-${index + 1}`}
+                          style={{
+                            width: index === currentHero ? 28 : 10,
+                            height: 10,
+                            borderRadius: 999,
+                            border: 0,
+                            background: index === currentHero ? '#fff' : 'rgba(255,255,255,0.35)',
+                            cursor: 'pointer',
+                          }}
+                        />
+                      ))}
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        type="button"
+                        onClick={() => setCurrentHero((current) => (current - 1 + heroItems.length) % heroItems.length)}
+                        style={{ width: 34, height: 34, borderRadius: 999, border: 0, background: 'rgba(255,255,255,0.16)', color: '#fff', display: 'grid', placeItems: 'center', cursor: 'pointer' }}
+                      >
+                        <ChevronLeft size={18} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCurrentHero((current) => (current + 1) % heroItems.length)}
+                        style={{ width: 34, height: 34, borderRadius: 999, border: 0, background: 'rgba(255,255,255,0.16)', color: '#fff', display: 'grid', placeItems: 'center', cursor: 'pointer' }}
+                      >
+                        <ChevronRight size={18} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div style={{ padding: '18px 4px', color: '#fff' }}>ยังไม่มีข่าวที่ตรงกับตัวกรองตอนนี้</div>
+            )}
+          </Panel>
+
+          {selectedItem && (
+            <Panel ref={detailRef} style={{ padding: 18, borderColor: `${selectedItem.color}40` }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 14 }}>
+                <div style={{ display: 'flex', gap: 14 }}>
+                  <div style={{ width: 52, height: 52, borderRadius: 18, background: `${selectedItem.color}15`, display: 'grid', placeItems: 'center', fontSize: '1.5rem', flexShrink: 0 }}>
+                    {selectedItem.icon}
+                  </div>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span style={{ color: selectedItem.color, fontSize: '0.76rem', fontWeight: 900 }}>{selectedItem.kicker}</span>
+                      <span style={{ background: selectedItem.severityMeta.bg, color: selectedItem.severityMeta.color, borderRadius: 999, padding: '4px 9px', fontSize: '0.7rem', fontWeight: 900 }}>
+                        {selectedItem.severityMeta.label}
+                      </span>
+                    </div>
+                    <h2 style={{ margin: '6px 0 0', fontSize: '1.12rem' }}>{selectedItem.title}</h2>
+                    <div style={{ marginTop: 7, color: 'var(--text-sub)', fontSize: '0.8rem' }}>
+                      {selectedItem.source} • {toThaiDateTime(selectedItem.publishedAt)} • {selectedItem.area}
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedItem(null)}
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 12,
+                    border: '1px solid var(--border-color)',
+                    background: 'var(--bg-secondary)',
+                    color: 'var(--text-sub)',
+                    cursor: 'pointer',
+                    fontWeight: 900,
+                  }}
+                >
+                  ×
+                </button>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '20px', textAlign: 'center' }}>
-                 <div>
-                   <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#ef4444' }}>⚠️ 3</div>
-                   <div style={{ fontSize: '0.7rem', color: subTextColor }}>อันตราย</div>
-                 </div>
-                 <div>
-                   <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#f59e0b' }}>⚠️ 7</div>
-                   <div style={{ fontSize: '0.7rem', color: subTextColor }}>เฝ้าระวัง</div>
-                 </div>
-                 <div>
-                   <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#3b82f6' }}>📢 12</div>
-                   <div style={{ fontSize: '0.7rem', color: subTextColor }}>ประกาศทั่วไป</div>
-                 </div>
-              </div>
+              <p style={{ margin: '14px 0 0', color: 'var(--text-sub)', lineHeight: 1.75 }}>{selectedItem.summary}</p>
 
-              <div style={{ height: '220px', background: 'var(--bg-secondary)', borderRadius: '16px', border: `1px solid ${borderColor}`, position: 'relative', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 0 }}>
-                 {/* Real Map for Danger Zones */}
-                 <MapContainer center={[13.75, 100.5]} zoom={4.5} zoomControl={false} style={{ width: '100%', height: '100%', background: darkMode ? '#0f172a' : '#f1f5f9' }}>
-                    <TileLayer url={darkMode ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"} />
-                    <CircleMarker center={[18.78, 98.98]} radius={6} fillColor="#ef4444" fillOpacity={1} color="#fff" weight={2} /> {/* Chiang Mai - Danger */}
-                    <CircleMarker center={[16.82, 100.26]} radius={6} fillColor="#ef4444" fillOpacity={1} color="#fff" weight={2} /> {/* Phitsanulok - Danger */}
-                    <CircleMarker center={[13.75, 100.5]} radius={6} fillColor="#f59e0b" fillOpacity={1} color="#fff" weight={2} /> {/* Bangkok - Watch */}
-                    <CircleMarker center={[7.0, 100.47]} radius={6} fillColor="#eab308" fillOpacity={1} color="#fff" weight={2} /> {/* Hat Yai - Announce */}
-                 </MapContainer>
-                 
-                 {/* Legend */}
-                 <div style={{ position: 'absolute', bottom: '12px', right: '12px', background: 'rgba(255,255,255,0.9)', padding: '10px 14px', borderRadius: '12px', fontSize: '0.65rem', backdropFilter: 'blur(4px)', display: 'flex', flexDirection: 'column', gap: '8px', zIndex: 1000, boxShadow: '0 2px 8px rgba(0,0,0,0.1)', color: '#1e293b' }}>
-                    <div style={{display:'flex', alignItems:'center', gap:'6px', fontWeight: 'bold'}}><span style={{width:'8px',height:'8px',borderRadius:'50%',background:'#ef4444'}}></span> อันตราย</div>
-                    <div style={{display:'flex', alignItems:'center', gap:'6px', fontWeight: 'bold'}}><span style={{width:'8px',height:'8px',borderRadius:'50%',background:'#f59e0b'}}></span> เฝ้าระวัง</div>
-                    <div style={{display:'flex', alignItems:'center', gap:'6px', fontWeight: 'bold'}}><span style={{width:'8px',height:'8px',borderRadius:'50%',background:'#eab308'}}></span> ประกาศทั่วไป</div>
-                    <div style={{display:'flex', alignItems:'center', gap:'6px', fontWeight: 'bold'}}><span style={{width:'8px',height:'8px',borderRadius:'50%',background:'#22c55e'}}></span> ปกติ</div>
-                 </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 14 }}>
+                <button
+                  type="button"
+                  onClick={() => scrollTo(selectedItem.type === 'warning' ? alertsRef : newsRef)}
+                  style={{
+                    border: '1px solid var(--border-color)',
+                    background: 'var(--bg-secondary)',
+                    color: 'var(--text-main)',
+                    borderRadius: 14,
+                    padding: '10px 14px',
+                    fontWeight: 900,
+                    cursor: 'pointer',
+                  }}
+                >
+                  กลับไปยังรายการ
+                </button>
+                {selectedItem.url && (
+                  <button
+                    type="button"
+                    onClick={() => openExternal(selectedItem.url)}
+                    style={{
+                      border: 0,
+                      background: selectedItem.color,
+                      color: '#fff',
+                      borderRadius: 14,
+                      padding: '10px 14px',
+                      fontWeight: 900,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                    }}
+                  >
+                    เปิดต้นทาง <ExternalLink size={15} />
+                  </button>
+                )}
               </div>
+            </Panel>
+          )}
 
-              <button style={{ width: '100%', marginTop: '16px', background: 'transparent', color: '#3b82f6', border: 'none', fontSize: '0.85rem', fontWeight: 'bold', cursor: 'pointer' }}>
-                 ดูแผนที่เตือนภัยทั้งหมด →
+          <Panel ref={alertsRef} style={{ padding: 18 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+              <h2 style={{ margin: 0, fontSize: '1.08rem', fontWeight: 900 }}>รายการแจ้งเตือนล่าสุด</h2>
+              <button type="button" onClick={() => setActiveCategory('warning')} style={{ border: 0, background: 'transparent', color: '#2563eb', fontWeight: 900, cursor: 'pointer' }}>
+                ดูทั้งหมด
               </button>
-           </div>
+            </div>
 
-           {/* เตรียมพร้อมรับมือ */}
-           <div style={{ background: cardBg, borderRadius: '24px', padding: '24px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 20px rgba(0,0,0,0.03)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                 <h2 style={{ margin: 0, fontSize: '1.05rem', fontWeight: '800' }}>เตรียมพร้อมรับมือ</h2>
-                 <span style={{ fontSize: '0.75rem', color: '#0ea5e9', cursor: 'pointer' }}>ดูทั้งหมด →</span>
+            {loading ? (
+              <div style={{ color: 'var(--text-sub)' }}>กำลังโหลดรายการแจ้งเตือน...</div>
+            ) : filteredAlerts.length ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {filteredAlerts.slice(0, 5).map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => openDetail(item)}
+                    style={{
+                      border: '1px solid var(--border-color)',
+                      background: 'var(--bg-card)',
+                      borderRadius: 18,
+                      padding: '14px 16px',
+                      display: 'grid',
+                      gridTemplateColumns: isMobile ? '1fr' : '44px minmax(0, 1fr) auto 34px',
+                      gap: 12,
+                      alignItems: 'center',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {!isMobile && (
+                      <span style={{ width: 44, height: 44, borderRadius: 15, background: item.severityMeta.bg, display: 'grid', placeItems: 'center', fontSize: '1.3rem' }}>
+                        {item.icon}
+                      </span>
+                    )}
+                    <span>
+                      <span style={{ display: 'block', fontWeight: 900, color: 'var(--text-main)' }}>{item.title}</span>
+                      <span style={{ display: 'block', color: 'var(--text-sub)', fontSize: '0.78rem', marginTop: 4 }}>
+                        {item.summary}
+                      </span>
+                    </span>
+                    <span style={{ color: 'var(--text-sub)', fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{toThaiDateTime(item.publishedAt)}</span>
+                    {!isMobile && (
+                      <span style={{ width: 34, height: 34, borderRadius: 999, background: 'var(--bg-secondary)', display: 'grid', placeItems: 'center', color: '#2563eb' }}>
+                        <ChevronRight size={18} />
+                      </span>
+                    )}
+                  </button>
+                ))}
               </div>
-              
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                 {[
-                   { icon: '🥵', text: 'วิธีป้องกันเมื่อเกิดคลื่นความร้อน' },
-                   { icon: '☀️', text: 'เตรียมตัวรับมือฝนตกหนัก น้ำท่วมฉับพลัน' },
-                   { icon: '😷', text: 'วิธีป้องกันตนเองจากฝุ่น PM2.5' },
-                   { icon: '💨', text: 'ข้อควรระวังเมื่อลมแรงและคลื่นสูง' },
-                 ].map((item, i) => (
-                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: i < 3 ? `1px solid ${borderColor}` : 'none', cursor: 'pointer' }}>
-                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <div style={{ fontSize: '1.2rem' }}>{item.icon}</div>
-                          <div style={{ fontSize: '0.85rem', fontWeight: '600' }}>{item.text}</div>
-                       </div>
-                       <span style={{ color: subTextColor }}>›</span>
-                    </div>
-                 ))}
+            ) : (
+              <div style={{ color: 'var(--text-sub)' }}>ไม่พบรายการแจ้งเตือนในตัวกรองนี้</div>
+            )}
+          </Panel>
+
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(0, 1.25fr) minmax(280px, 0.8fr)', gap: 18, alignItems: 'start' }}>
+            <Panel ref={mapRef} style={{ padding: 18 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                <h2 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 900 }}>พื้นที่เสี่ยงภัยวันนี้</h2>
+                <NavLink to="/map" style={{ color: '#2563eb', textDecoration: 'none', fontWeight: 900 }}>
+                  ดูแผนที่เสี่ยงภัย
+                </NavLink>
               </div>
-           </div>
+              <div style={{ height: isMobile ? 250 : 340, borderRadius: 20, overflow: 'hidden', border: '1px solid var(--border-color)', position: 'relative' }}>
+                <MapContainer center={[13.75, 100.5]} zoom={5} zoomControl={false} style={{ width: '100%', height: '100%', background: darkMode ? '#0f172a' : '#dbeafe' }}>
+                  <TileLayer url={darkMode ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png' : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'} />
+                  {(stations || []).slice(0, 90).map((station) => {
+                    const lat = Number.parseFloat(station.lat);
+                    const lon = Number.parseFloat(station.long);
+                    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+                    const rain = Math.round(stationTemps?.[station.stationID]?.rainProb || 0);
+                    const pm25 = Math.round(station.AQILast?.PM25?.value || 0);
+                    const value = Math.max(rain, pm25);
+                    if (value < 15) return null;
+                    const color = value >= 80 ? '#ef4444' : value >= 50 ? '#f59e0b' : '#2563eb';
+                    return <CircleMarker key={station.stationID} center={[lat, lon]} radius={Math.min(26, 6 + value / 4)} fillColor={color} fillOpacity={0.45} color="#fff" weight={1.2} />;
+                  })}
+                </MapContainer>
+                <div style={{ position: 'absolute', left: 14, top: 14, zIndex: 500, background: 'rgba(255,255,255,0.92)', color: '#0f172a', borderRadius: 14, padding: '10px 12px', fontSize: '0.76rem', fontWeight: 900 }}>
+                  เรดาร์ฝนและจุดเฝ้าระวัง<br />
+                  <span style={{ color: '#64748b', fontWeight: 700 }}>{feed?.labels?.generatedAt || 'อัปเดตล่าสุด'}</span>
+                </div>
+                <div style={{ position: 'absolute', right: 14, bottom: 14, zIndex: 500 }}>
+                  <NavLink to="/map" style={{ textDecoration: 'none', background: '#2563eb', color: '#fff', borderRadius: 999, padding: '10px 14px', fontWeight: 900, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                    <MapPinned size={16} />
+                    ดูแผนที่แบบเต็ม
+                  </NavLink>
+                </div>
+              </div>
+            </Panel>
 
-           {/* ช่องทางติดตามแจ้งเตือน */}
-           <div style={{ background: cardBg, borderRadius: '24px', padding: '24px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 20px rgba(0,0,0,0.03)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                 <h2 style={{ margin: 0, fontSize: '1.05rem', fontWeight: '800' }}>ช่องทางติดตามแจ้งเตือน</h2>
-                 <span style={{ fontSize: '0.75rem', color: '#0ea5e9', cursor: 'pointer' }}>ตั้งค่าเพิ่มเติม →</span>
+            <Panel style={{ padding: 18 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                <h2 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 900 }}>พื้นที่เสี่ยงวันนี้</h2>
+                <button type="button" onClick={() => scrollTo(mapRef)} style={{ border: 0, background: 'transparent', color: '#2563eb', fontWeight: 900, cursor: 'pointer' }}>
+                  ดูแผนที่เสี่ยงภัย
+                </button>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                 
-                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', gap: '12px' }}>
-                       <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem' }}>🔔</div>
-                       <div>
-                          <div style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Push Notification</div>
-                          <div style={{ fontSize: '0.7rem', color: subTextColor }}>รับการแจ้งเตือนผ่านเบราว์เซอร์</div>
-                       </div>
-                    </div>
-                    {/* Toggle Switch (ON) */}
-                    <div style={{ width: '40px', height: '24px', background: '#3b82f6', borderRadius: '12px', position: 'relative', cursor: 'pointer' }}>
-                       <div style={{ width: '20px', height: '20px', background: '#fff', borderRadius: '50%', position: 'absolute', top: '2px', right: '2px', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}></div>
-                    </div>
-                 </div>
-
-                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', gap: '12px' }}>
-                       <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#dcfce7', color: '#22c55e', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem' }}>💬</div>
-                       <div>
-                          <div style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>LINE Alert</div>
-                          <div style={{ fontSize: '0.7rem', color: subTextColor }}>รับการแจ้งเตือนผ่าน LINE</div>
-                       </div>
-                    </div>
-                    {/* Toggle Switch (ON) */}
-                    <div style={{ width: '40px', height: '24px', background: '#3b82f6', borderRadius: '12px', position: 'relative', cursor: 'pointer' }}>
-                       <div style={{ width: '20px', height: '20px', background: '#fff', borderRadius: '50%', position: 'absolute', top: '2px', right: '2px', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}></div>
-                    </div>
-                 </div>
-
-                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', gap: '12px' }}>
-                       <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem' }}>📱</div>
-                       <div>
-                          <div style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>SMS Alert</div>
-                          <div style={{ fontSize: '0.7rem', color: subTextColor }}>รับการแจ้งเตือนผ่าน SMS</div>
-                       </div>
-                    </div>
-                    {/* Toggle Switch (OFF) */}
-                    <div style={{ width: '40px', height: '24px', background: 'var(--bg-secondary)', border: `1px solid ${borderColor}`, borderRadius: '12px', position: 'relative', cursor: 'pointer' }}>
-                       <div style={{ width: '20px', height: '20px', background: subTextColor, borderRadius: '50%', position: 'absolute', top: '1px', left: '1px', opacity: 0.5 }}></div>
-                    </div>
-                 </div>
-
-                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', gap: '12px' }}>
-                       <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem' }}>✉️</div>
-                       <div>
-                          <div style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Email Alert</div>
-                          <div style={{ fontSize: '0.7rem', color: subTextColor }}>รับการแจ้งเตือนผ่านอีเมล</div>
-                       </div>
-                    </div>
-                    {/* Toggle Switch (OFF) */}
-                    <div style={{ width: '40px', height: '24px', background: 'var(--bg-secondary)', border: `1px solid ${borderColor}`, borderRadius: '12px', position: 'relative', cursor: 'pointer' }}>
-                       <div style={{ width: '20px', height: '20px', background: subTextColor, borderRadius: '50%', position: 'absolute', top: '1px', left: '1px', opacity: 0.5 }}></div>
-                    </div>
-                 </div>
-
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {riskAreas.length ? (
+                  riskAreas.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => openDetail(item)}
+                      style={{ border: '1px solid var(--border-color)', background: 'var(--bg-card)', borderRadius: 18, padding: 12, textAlign: 'left', cursor: 'pointer' }}
+                    >
+                      <div style={{ display: 'grid', gridTemplateColumns: '96px minmax(0, 1fr)', gap: 12 }}>
+                        <div style={{ borderRadius: 14, background: item.gradient, minHeight: 70, display: 'grid', placeItems: 'center', color: '#fff', fontSize: '1.7rem', fontWeight: 900 }}>
+                          {item.icon}
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '0.9rem', fontWeight: 900 }}>{item.title}</div>
+                          <div style={{ color: 'var(--text-sub)', fontSize: '0.76rem', marginTop: 3 }}>{item.area}</div>
+                          <div style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 6, borderRadius: 999, background: item.severityMeta.bg, color: item.severityMeta.color, padding: '4px 9px', fontWeight: 900, fontSize: '0.68rem' }}>
+                            {item.severityMeta.label}
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  ))
+                ) : (
+                  <div style={{ color: 'var(--text-sub)' }}>ตอนนี้ยังไม่มีพื้นที่เสี่ยงเด่นจากข้อมูลล่าสุด</div>
+                )}
               </div>
-           </div>
+            </Panel>
+          </div>
 
+          <Panel ref={newsRef} style={{ padding: 18 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+              <h2 style={{ margin: 0, fontSize: '1.08rem', fontWeight: 900 }}>ข่าวสารล่าสุด</h2>
+              <button type="button" onClick={() => setActiveCategory('news')} style={{ border: 0, background: 'transparent', color: '#2563eb', fontWeight: 900, cursor: 'pointer' }}>
+                ดูทั้งหมด
+              </button>
+            </div>
+
+            {loading ? (
+              <div style={{ color: 'var(--text-sub)' }}>กำลังดึงข่าวสารล่าสุด...</div>
+            ) : filteredStories.length ? (
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(4, minmax(0, 1fr))', gap: 14 }}>
+                {filteredStories.slice(0, isMobile ? 4 : 8).map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => openDetail(item)}
+                    style={{
+                      border: '1px solid var(--border-color)',
+                      background: 'var(--bg-card)',
+                      borderRadius: 20,
+                      overflow: 'hidden',
+                      padding: 0,
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <div style={{ minHeight: 138, background: `${item.gradient}, radial-gradient(circle at top right, rgba(255,255,255,0.32) 0, rgba(255,255,255,0) 32%)`, position: 'relative', padding: 14, color: '#fff', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'inline-flex', alignSelf: 'flex-start', borderRadius: 999, background: 'rgba(255,255,255,0.18)', padding: '6px 10px', fontSize: '0.68rem', fontWeight: 900 }}>
+                        {item.label}
+                      </div>
+                      <div style={{ fontSize: '2rem' }}>{item.icon}</div>
+                    </div>
+                    <div style={{ padding: 14 }}>
+                      <div style={{ fontWeight: 900, lineHeight: 1.45 }}>{item.title}</div>
+                      <div style={{ color: 'var(--text-sub)', fontSize: '0.76rem', marginTop: 8, lineHeight: 1.6 }}>
+                        {item.summary}
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginTop: 12, color: 'var(--text-sub)', fontSize: '0.7rem' }}>
+                        <span>{item.source}</span>
+                        <span>{toThaiDateTime(item.publishedAt)}</span>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div style={{ color: 'var(--text-sub)' }}>ไม่พบข่าวสารในตัวกรองนี้</div>
+            )}
+          </Panel>
         </div>
 
+        <aside style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <Panel style={{ padding: 18 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+              <h2 style={{ margin: 0, fontSize: '1.03rem', fontWeight: 900 }}>ภาพรวมสถานการณ์วันนี้</h2>
+              <button type="button" onClick={() => scrollTo(newsRef)} style={{ border: 0, background: 'transparent', color: '#2563eb', fontWeight: 900, cursor: 'pointer' }}>
+                ดูข่าวล่าสุด
+              </button>
+            </div>
+
+            <div style={{ color: 'var(--text-sub)', fontSize: '0.8rem', marginBottom: 14 }}>
+              {feed?.labels?.generatedAt || 'กำลังรอข้อมูลล่าสุด'}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 10, marginBottom: 16 }}>
+              {[
+                { icon: '🚨', value: normalizedAlerts.filter((item) => item.severity === 'high').length, label: 'อันตราย', color: '#ef4444' },
+                { icon: '⚠️', value: normalizedAlerts.filter((item) => item.severity === 'medium').length, label: 'เฝ้าระวัง', color: '#f59e0b' },
+                { icon: '📰', value: normalizedStories.length, label: 'ข่าวใหม่', color: '#2563eb' },
+                { icon: '🌍', value: heroItem?.area || 'หลายพื้นที่', label: 'พื้นที่หลัก', color: '#22c55e' },
+              ].map((stat) => (
+                <div key={stat.label} style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '1.1rem', fontWeight: 900, color: stat.color }}>{stat.icon} {stat.value}</div>
+                  <div style={{ color: 'var(--text-sub)', fontSize: '0.64rem', fontWeight: 800 }}>{stat.label}</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ borderRadius: 18, background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', padding: 14 }}>
+              <div style={{ fontSize: '0.74rem', color: 'var(--text-sub)' }}>สรุปจากระบบ</div>
+              <div style={{ marginTop: 6, fontWeight: 900, lineHeight: 1.55 }}>{feed?.digest?.headline || 'กำลังสรุปภาพรวมล่าสุด'}</div>
+              {feed?.digest?.bullets?.length ? (
+                <ul style={{ margin: '10px 0 0', paddingLeft: 18, color: 'var(--text-sub)', lineHeight: 1.65 }}>
+                  {feed.digest.bullets.slice(0, 3).map((bullet) => (
+                    <li key={bullet}>{bullet}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          </Panel>
+
+          <Panel style={{ padding: 18 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+              <h2 style={{ margin: 0, fontSize: '1.03rem', fontWeight: 900 }}>ช่องทางการแจ้งเตือน</h2>
+              <Bell size={18} color="#2563eb" />
+            </div>
+
+            {[
+              ['push', 'แอปเตือนบนเว็บไซต์', 'เปิดแจ้งเตือน', '🔔'],
+              ['email', 'อีเมล', 'example@email.com', '✉️'],
+              ['line', 'LINE', 'เชื่อมต่อแล้ว', '💬'],
+              ['sms', 'SMS', '09x-xxx-xxxx', '📱'],
+            ].map(([key, title, subtitle, icon]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => togglePref(key)}
+                style={{ width: '100%', border: 0, background: 'transparent', padding: '9px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
+              >
+                <span style={{ display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left' }}>
+                  <span style={{ fontSize: '1.1rem' }}>{icon}</span>
+                  <span>
+                    <span style={{ display: 'block', fontWeight: 900 }}>{title}</span>
+                    <span style={{ display: 'block', color: 'var(--text-sub)', fontSize: '0.72rem' }}>{subtitle}</span>
+                  </span>
+                </span>
+                <span style={{ width: 42, height: 24, borderRadius: 999, background: alertPrefs[key] ? '#2563eb' : 'var(--bg-secondary)', border: '1px solid var(--border-color)', position: 'relative' }}>
+                  <span style={{ position: 'absolute', top: 2, left: alertPrefs[key] ? 20 : 2, width: 18, height: 18, borderRadius: 999, background: '#fff', boxShadow: '0 2px 5px rgba(0,0,0,0.18)', transition: 'left 0.18s ease' }} />
+                </span>
+              </button>
+            ))}
+          </Panel>
+
+          <Panel style={{ padding: 18 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+              <h2 style={{ margin: 0, fontSize: '1.03rem', fontWeight: 900 }}>หน่วยงานที่เกี่ยวข้อง</h2>
+              <button type="button" onClick={() => scrollTo(newsRef)} style={{ border: 0, background: 'transparent', color: '#2563eb', fontWeight: 900, cursor: 'pointer' }}>
+                ดูข่าวล่าสุด
+              </button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
+              {agencyCards.map((agency) => (
+                <button
+                  key={agency.key}
+                  type="button"
+                  onClick={() => openExternal(agency.url)}
+                  style={{ border: '1px solid var(--border-color)', background: 'var(--bg-card)', borderRadius: 18, padding: 14, textAlign: 'left', cursor: 'pointer' }}
+                >
+                  <div style={{ width: 48, height: 48, borderRadius: 16, background: 'rgba(37,99,235,0.12)', display: 'grid', placeItems: 'center', fontWeight: 900, color: '#2563eb' }}>
+                    {agency.short}
+                  </div>
+                  <div style={{ marginTop: 10, fontWeight: 900, lineHeight: 1.4 }}>{agency.label}</div>
+                  <div style={{ marginTop: 5, color: 'var(--text-sub)', fontSize: '0.72rem', fontWeight: 800 }}>
+                    เว็บไซต์ทางการ
+                  </div>
+                </button>
+              ))}
+            </div>
+          </Panel>
+        </aside>
       </div>
-    </div>
+    </main>
   );
 }
