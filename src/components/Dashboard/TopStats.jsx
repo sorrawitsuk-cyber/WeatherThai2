@@ -21,6 +21,7 @@ function StatListCard({ title, icon, accentColor, items, suffix, cardBg, borderC
         border: `1px solid ${borderColor}`,
         boxShadow: `inset 0 1px 0 ${accentColor}22`,
         minWidth: 0,
+        overflow: 'hidden',
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
@@ -154,7 +155,7 @@ export default function TopStats({
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: textColor, fontWeight: '900', fontSize: '0.92rem' }}>
           <span style={{ color: '#22c55e' }}>●</span> เรียลไทม์ตอนนี้
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(4, minmax(0, 1fr))', gap: '14px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(4, minmax(0, 1fr))', gap: '14px', alignItems: 'start' }}>
           {realtimeCards.map((card) => (
             <StatListCard
               key={`realtime-${card.title}`}
@@ -173,7 +174,7 @@ export default function TopStats({
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: textColor, fontWeight: '900', fontSize: '0.92rem' }}>
             <span style={{ color: '#a855f7' }}>●</span> สถิติสูงสุดของเมื่อวาน
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(4, minmax(0, 1fr))', gap: '14px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(4, minmax(0, 1fr))', gap: '14px', alignItems: 'start' }}>
             {yesterdayCards.map((card) => (
               <StatListCard
                 key={`yesterday-${card.title}`}
