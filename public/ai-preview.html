@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Page Responsive Preview</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: #eef4fb;
+        color: #0f172a;
+        font-family: Arial, sans-serif;
+        overflow: auto;
+      }
+
+      .preview-shell {
+        min-height: 100vh;
+        padding: 12px;
+      }
+
+      .preview-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 14px;
+      }
+
+      .preview-title {
+        font-size: 18px;
+        font-weight: 800;
+      }
+
+      .preview-link {
+        color: #2563eb;
+        font-size: 13px;
+        font-weight: 700;
+        text-decoration: none;
+      }
+
+      .preview-grid {
+        display: flex;
+        gap: 12px;
+        align-items: start;
+        min-width: 0;
+      }
+
+      .frame-card {
+        background: #ffffff;
+        border: 1px solid #dbe7f3;
+        border-radius: 16px;
+        box-shadow: 0 18px 45px rgba(15, 23, 42, 0.12);
+        overflow: hidden;
+        min-width: 0;
+      }
+
+      .frame-toolbar {
+        height: 44px;
+        padding: 0 14px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        border-bottom: 1px solid #e2e8f0;
+        background: #f8fafc;
+        font-size: 13px;
+        font-weight: 800;
+      }
+
+      .frame-size {
+        color: #64748b;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      iframe {
+        display: block;
+        border: 0;
+        background: #f4f8fb;
+      }
+
+      .desktop-frame {
+        flex: 1 1 auto;
+      }
+
+      .mobile-frame {
+        flex: 0 0 clamp(170px, 34vw, 430px);
+      }
+
+      .viewport-wrap {
+        width: 100%;
+        overflow: hidden;
+        background: #dbeafe;
+      }
+
+      .desktop-viewport {
+        height: min(66vw, 780px);
+      }
+
+      .mobile-viewport {
+        height: min(66vw, 780px);
+        padding: 8px;
+      }
+
+      .desktop-viewport iframe {
+        width: 1366px;
+        height: 920px;
+        transform-origin: top left;
+        transform: scale(calc((100vw - clamp(170px, 34vw, 430px) - 52px) / 1366));
+      }
+
+      .mobile-viewport iframe {
+        width: 390px;
+        height: 844px;
+        transform-origin: top left;
+        transform: scale(calc((clamp(170px, 34vw, 430px) - 18px) / 410));
+        border: 8px solid #111827;
+        border-radius: 30px;
+        box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
+      }
+
+      @media (max-width: 720px) {
+        .preview-shell {
+          padding: 8px;
+        }
+
+        .preview-header {
+          margin-bottom: 8px;
+        }
+
+        .preview-title {
+          font-size: 14px;
+        }
+
+        .frame-toolbar {
+          height: 34px;
+          padding: 0 8px;
+          font-size: 11px;
+        }
+
+        .frame-size {
+          display: none;
+        }
+
+        .desktop-viewport,
+        .mobile-viewport {
+          height: calc(100vh - 76px);
+        }
+
+        .desktop-viewport iframe {
+          transform: scale(calc((100vw - clamp(160px, 36vw, 210px) - 36px) / 1366));
+        }
+
+        .mobile-frame {
+          flex-basis: clamp(160px, 36vw, 210px);
+        }
+
+        .mobile-viewport iframe {
+          transform: scale(calc((clamp(160px, 36vw, 210px) - 16px) / 410));
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="preview-shell">
+      <header class="preview-header">
+        <div class="preview-title">AI Page Preview: PC + Mobile</div>
+        <a class="preview-link" href="/ai">Open live page</a>
+      </header>
+
+      <section class="preview-grid">
+        <div class="frame-card desktop-frame">
+          <div class="frame-toolbar">
+            <span>Desktop preview</span>
+            <span class="frame-size">fluid desktop viewport</span>
+          </div>
+          <div class="viewport-wrap desktop-viewport">
+            <iframe src="/ai" title="Desktop AI preview"></iframe>
+          </div>
+        </div>
+
+        <div class="frame-card mobile-frame">
+          <div class="frame-toolbar">
+            <span>Mobile preview</span>
+            <span class="frame-size">390 x 844</span>
+          </div>
+          <div class="viewport-wrap mobile-viewport">
+            <iframe src="/ai" title="Mobile AI preview"></iframe>
+          </div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
