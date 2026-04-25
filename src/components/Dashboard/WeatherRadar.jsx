@@ -33,6 +33,7 @@ export default function WeatherRadar({ coords, isMobile, cardBg, borderColor, te
                 src={`https://embed.windy.com/embed2.html?lat=${coords?.lat || 13.75}&lon=${coords?.lon || 100.5}&detailLat=${coords?.lat || 13.75}&detailLon=${coords?.lon || 100.5}&zoom=8&level=surface&overlay=${defaultOverlay}&product=${defaultProduct}&menu=&message=true&marker=true`} 
                 style={{ border: 'none', opacity: iframeLoaded ? 1 : 0, transition: 'opacity 0.5s ease', display: 'block', position: 'relative', zIndex: 0 }}
                 title="Radar Map"
+                loading="lazy"
                 onLoad={() => setIframeLoaded(true)}
             ></iframe>
         </div>

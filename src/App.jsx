@@ -2,6 +2,7 @@ import React, { Suspense, lazy } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout';
 import { WeatherProvider } from './context/WeatherContext';
+import LoadingScreen from './components/LoadingScreen';
 
 import Dashboard from './pages/Dashboard';
 const MapPage = lazy(() => import('./pages/MapPage'));
@@ -9,24 +10,7 @@ const AIPage = lazy(() => import('./pages/AIPage'));
 const NewsPage = lazy(() => import('./pages/NewsPage'));
 
 function RouteFallback() {
-  return (
-    <div
-      style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'var(--bg-app)',
-        color: 'var(--text-main)',
-        fontFamily: 'Kanit, sans-serif',
-      }}
-    >
-      <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: '2rem', marginBottom: '12px' }}>Loading...</div>
-        <div style={{ color: 'var(--text-sub)' }}>Preparing the latest air quality data.</div>
-      </div>
-    </div>
-  );
+  return <LoadingScreen title="กำลังเปิดหน้า" subtitle="เตรียมข้อมูลล่าสุดให้พร้อมแสดงผล" />;
 }
 
 function App() {

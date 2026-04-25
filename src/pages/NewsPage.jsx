@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 import { WeatherContext } from '../context/WeatherContext';
+import LoadingScreen from '../components/LoadingScreen';
 
 const categoryOptions = [
   { id: 'all', label: 'ทั้งหมด', icon: Search, color: '#2563eb' },
@@ -366,6 +367,10 @@ export default function NewsPage() {
   const togglePref = (key) => {
     setAlertPrefs((current) => ({ ...current, [key]: !current[key] }));
   };
+
+  if (loading && !feed) {
+    return <LoadingScreen title="กำลังโหลดข่าวสาร" subtitle="รวมข่าวอากาศและประกาศเตือนภัยล่าสุด" />;
+  }
 
   return (
     <main

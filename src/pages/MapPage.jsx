@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, GeoJSON, Marker, useMapEvents, useMap } from '
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { WeatherContext } from '../context/WeatherContext';
+import LoadingScreen from '../components/LoadingScreen';
 
 const provMap = {
   "Bangkok Metropolis": "กรุงเทพมหานคร", "Bangkok": "กรุงเทพมหานคร", "Samut Prakan": "สมุทรปราการ", "Nonthaburi": "นนทบุรี", "Pathum Thani": "ปทุมธานี",
@@ -115,7 +116,7 @@ export default function MapPage() {
   const hasAutoLocated = useRef(false);
   const flashTimeoutRef = useRef(null);
   const geoJsonRef = useRef(null);
-  const desktopViewportHeight = 'calc(100vh - 28px)';
+  const desktopViewportHeight = 'calc(100vh - 12px)';
 
   const basemapUrls = {
     dark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
@@ -775,24 +776,14 @@ export default function MapPage() {
   );
 
   if (!geoData || Object.keys(stationTemps).length === 0) return (
-    <div className="loading-container" style={{ background: appBg, color: textColor }}>
-        <div className="loading-spinner"></div>
-        <div style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>กำลังเตรียมแผนที่เฝ้าระวังภัย...</div>
-        <div style={{ fontSize: '0.85rem', color: subTextColor, marginTop: '5px' }}>ประมวลผลข้อมูลทั้ง 77 จังหวัด</div>
-    </div>
+    <LoadingScreen title="กำลังเตรียมแผนที่" subtitle="ประมวลผลข้อมูลเฝ้าระวังทั้ง 77 จังหวัด" />
   );
 
   const mapCategoryOptions = [
-    { id: 'basic', label: 'สภาพอากาศ', shortLabel: 'อากาศ', icon: '🌤️', color: '#0ea5e9', desc: 'ดูค่าปัจจุบันและพยากรณ์ เช่น PM2.5 ฝน ลม UV' },
-    { id: 'risk', label: 'แผนที่ความเสี่ยง', shortLabel: 'เสี่ยง', icon: '⚠️', color: '#8b5cf6', desc: 'ดูพื้นที่เสี่ยงต่อสุขภาพ กลางแจ้ง ไฟป่า และลมแดด' },
-    { id: 'yesterday', label: 'สถิติย้อนหลัง 1 วัน', shortLabel: 'ย้อนหลัง', icon: '🕘', color: '#f59e0b', desc: 'ดูค่าสูงสุดและค่าที่เกิดขึ้นจริงของเมื่อวาน' },
-    { id: 'gistda', label: 'ข้อมูลดาวเทียมภัยพิบัติ', shortLabel: 'ดาวเทียม', icon: '🛰️', color: '#ef4444', desc: 'ดู hotspot และข้อมูลภัยพิบัติจาก GISTDA ล่าสุด' }
-  ];
-
-  const mobileTimeOptions = [
-    { id: 'today', label: `📍 ตอนนี้ ${getDateLabel(0)}`, sub: 'ข้อมูลล่าสุด', color: '#22c55e' },
-    { id: 'tomorrow', label: `🔮 พรุ่งนี้ ${getDateLabel(1)}`, sub: 'พยากรณ์', color: '#a855f7' },
-    { id: 'avg7', label: '📊 7 วันข้างหน้า', sub: 'มองภาพรวมล่วงหน้า', color: '#0ea5e9' },
+    { id: 'basic', label: 'อากาศ', shortLabel: 'อากาศ', icon: '🌤️', color: '#0ea5e9', desc: 'PM2.5 ฝน ลม UV', useFor: 'เช็กค่าปัจจุบันและพยากรณ์' },
+    { id: 'risk', label: 'ความเสี่ยง', shortLabel: 'เสี่ยง', icon: '⚠️', color: '#8b5cf6', desc: 'สุขภาพ กลางแจ้ง ไฟป่า', useFor: 'ดูพื้นที่ที่ควรระวัง' },
+    { id: 'yesterday', label: 'ย้อนหลัง', shortLabel: 'ย้อนหลัง', icon: '🕘', color: '#f59e0b', desc: 'ค่าสูงสุด/ต่ำสุดเมื่อวาน', useFor: 'เทียบสถิติที่เกิดขึ้นจริง' },
+    { id: 'gistda', label: 'ภัยพิบัติ', shortLabel: 'ภัยพิบัติ', icon: '🛰️', color: '#ef4444', desc: 'จุดความร้อน พื้นที่ไหม้', useFor: 'ข้อมูลดาวเทียมล่าสุด' }
   ];
 
   const activeModeId = mapCategory === 'basic' ? activeBasicMode :
@@ -857,7 +848,99 @@ export default function MapPage() {
   ];
 
   const canChooseTimeMode = mapCategory === 'basic' || mapCategory === 'risk';
-  const activeTimeOption = mobileTimeOptions.find(opt => opt.id === timeMode);
+  const timeModeSections = [
+    {
+      id: 'history',
+      title: 'สถิติย้อนหลัง',
+      helper: 'ค่าที่เกิดขึ้นจริง',
+      options: [
+        { id: 'yesterday', label: `🕘 เมื่อวาน ${getDateLabel(-1)}`, sub: 'สถิติสูงสุด/ต่ำสุด', color: '#f59e0b' },
+      ],
+    },
+    {
+      id: 'now',
+      title: 'ขณะนี้',
+      helper: 'ข้อมูลล่าสุด',
+      options: [
+        { id: 'today', label: `📍 ตอนนี้ ${getDateLabel(0)}`, sub: 'ข้อมูลล่าสุด', color: '#22c55e' },
+      ],
+    },
+    {
+      id: 'forecast',
+      title: 'พยากรณ์',
+      helper: 'มองล่วงหน้า',
+      options: [
+        { id: 'tomorrow', label: `🔮 พรุ่งนี้ ${getDateLabel(1)}`, sub: 'พยากรณ์รายวัน', color: '#a855f7' },
+        { id: 'avg7', label: '📊 7 วันข้างหน้า', sub: 'แนวโน้มรวม', color: '#0ea5e9' },
+      ],
+    },
+  ];
+  const flatTimeOptions = timeModeSections.flatMap(section => section.options);
+  const activeTimeKey = mapCategory === 'yesterday' ? 'yesterday' : (canChooseTimeMode ? timeMode : 'latest');
+  const activeTimeOption = flatTimeOptions.find(opt => opt.id === activeTimeKey) || { label: '🛰️ ล่าสุด', sub: 'ข้อมูลสะสมล่าสุด', color: activeCategoryOption?.color || '#64748b' };
+  const handleTimeOptionSelect = (id) => {
+    if (id === 'yesterday') {
+      setMapCategory('yesterday');
+      setTimeMode('today');
+      return;
+    }
+
+    if (mapCategory === 'yesterday' || mapCategory === 'gistda') {
+      setMapCategory('basic');
+    }
+    setTimeMode(id);
+  };
+  const timeContextNote = mapCategory === 'gistda'
+    ? 'โหมดดาวเทียมเป็นข้อมูลสะสมล่าสุดจาก GISTDA หากเลือกช่วงเวลาอื่นจะสลับไปแผนที่อากาศ'
+    : mapCategory === 'yesterday'
+      ? `กำลังดูสถิติย้อนหลังของเมื่อวาน ${getDateLabel(-1)}`
+      : timeHelperText;
+  const timeControlCard = (
+    <div style={{ background: cardBg, padding: '7px 10px', borderRadius: '14px', border: `1px solid ${borderColor}`, marginBottom: '6px', flexShrink: 0, boxShadow: '0 4px 14px rgba(15,23,42,0.07)' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'auto minmax(0, 1fr) auto', gap: '8px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '7px', color: textColor, fontSize: '0.75rem', fontWeight: 900, whiteSpace: 'nowrap' }}>
+          <span>🗓️</span>
+          <span>3. เลือกช่วงเวลา</span>
+        </div>
+        <div className="hide-scrollbar" style={{ display: 'flex', gap: '6px', overflowX: 'auto', minWidth: 0 }}>
+          {timeModeSections.flatMap(section => section.options.map(opt => ({ ...opt, sectionTitle: section.title }))).map(opt => {
+            const active = activeTimeKey === opt.id;
+            return (
+              <button
+                key={opt.id}
+                onClick={() => handleTimeOptionSelect(opt.id)}
+                style={{
+                  padding: '6px 11px',
+                  borderRadius: '999px',
+                  border: `1px solid ${active ? opt.color : borderColor}`,
+                  background: active ? (darkMode ? `${opt.color}24` : `${opt.color}16`) : 'var(--bg-secondary)',
+                  color: active ? opt.color : textColor,
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  fontFamily: 'Kanit',
+                  fontSize: '0.72rem',
+                  transition: 'all 0.2s',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  minWidth: 0,
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
+                }}
+                title={`${opt.sectionTitle}: ${opt.sub}`}
+              >
+                <span>{opt.label}</span>
+              </button>
+            );
+          })}
+        </div>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: darkMode ? `${activeDataSourceMeta.color}22` : `${activeDataSourceMeta.color}14`, color: activeDataSourceMeta.color, border: `1px solid ${darkMode ? `${activeDataSourceMeta.color}55` : `${activeDataSourceMeta.color}35`}`, borderRadius: '999px', padding: '4px 9px', fontSize: '0.64rem', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+          <span>{activeDataSourceMeta.icon}</span>
+          <span>{activeDataSourceMeta.label}</span>
+        </span>
+      </div>
+    </div>
+  );
   const mobileDockButtons = [
     {
       id: 'category',
@@ -877,11 +960,11 @@ export default function MapPage() {
     },
     {
       id: 'time',
-      icon: activeTimeOption?.color === '#a855f7' ? '🔮' : activeTimeOption?.color === '#0ea5e9' ? '📊' : '📅',
+      icon: activeTimeKey === 'yesterday' ? '🕘' : activeTimeOption?.color === '#a855f7' ? '🔮' : activeTimeOption?.color === '#0ea5e9' ? '📊' : '📅',
       label: 'วันที่',
-      value: canChooseTimeMode ? (activeTimeOption?.sub || activeTimeOption?.label || '-') : 'คงที่',
-      color: canChooseTimeMode ? (activeTimeOption?.color || '#22c55e') : '#64748b',
-      disabled: !canChooseTimeMode,
+      value: activeTimeOption?.sub || activeTimeOption?.label || '-',
+      color: activeTimeOption?.color || '#22c55e',
+      disabled: false,
     },
     {
       id: 'rank',
@@ -899,22 +982,22 @@ export default function MapPage() {
   const mobilePanelBottom = `calc(env(safe-area-inset-bottom, 0px) + ${mobileBottomNavHeight + mobilePanelGap}px)`;
 
   return (
-    <div style={{ height: isMobile ? '100%' : desktopViewportHeight, width: '100%', background: appBg, display: 'flex', flexDirection: 'column', fontFamily: 'Kanit, sans-serif', padding: isMobile ? '0' : '12px', boxSizing: 'border-box', overflow: 'hidden' }}>
+    <div style={{ height: isMobile ? '100%' : desktopViewportHeight, width: '100%', background: appBg, display: 'flex', flexDirection: 'column', fontFamily: 'Kanit, sans-serif', padding: isMobile ? '0' : '8px', boxSizing: 'border-box', overflow: 'hidden' }}>
       
       {/* === DESKTOP HEADER (ซ่อนบนมือถือ) === */}
       {!isMobile && (
         <>
-          <div style={{ display: 'flex', flexDirection: 'row', gap: '10px', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px', flexShrink: 0 }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', minWidth: 0, flex: 1 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
+          <div style={{ display: 'flex', flexDirection: 'row', gap: '8px', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px', flexShrink: 0 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '7px', minWidth: 0, flex: 1 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0, flexWrap: 'wrap', flex: 1 }}>
                           <div>
-                              <h2 style={{ margin: 0, color: textColor, fontSize: '1.28rem', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', lineHeight: 1.15 }}>🗺️ แผนที่เฝ้าระวังภัย</h2>
+                              <h2 style={{ margin: 0, color: textColor, fontSize: '1.12rem', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', lineHeight: 1.15 }}>🗺️ แผนที่เฝ้าระวังภัย</h2>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '3px', flexWrap: 'wrap' }}>
                                   <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#22c55e', display: 'inline-block', boxShadow: '0 0 8px #22c55e', animation: 'pulse 2s infinite' }}></span>
                                   <span style={{ fontSize: '0.72rem', color: subTextColor, fontWeight: 'bold', lineHeight: 1.3 }}>ข้อมูลตามเวลาจริง {tmdAvailable && '• 📡 TMD'} • อัปเดตล่าสุด: {getLastUpdatedText()}</span>
                               </div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px', flexWrap: 'wrap' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '5px', flexWrap: 'wrap' }}>
                                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: darkMode ? `${activeDataSourceMeta.color}22` : `${activeDataSourceMeta.color}14`, color: activeDataSourceMeta.color, border: `1px solid ${darkMode ? `${activeDataSourceMeta.color}55` : `${activeDataSourceMeta.color}35`}`, borderRadius: '999px', padding: '4px 10px', fontSize: '0.72rem', fontWeight: 'bold' }}>
                                     <span>{activeDataSourceMeta.icon}</span>
                                     <span>{activeDataSourceMeta.label}</span>
@@ -922,7 +1005,8 @@ export default function MapPage() {
                                   <span style={{ fontSize: '0.72rem', color: subTextColor }}>{activeDataSourceMeta.detail}</span>
                               </div>
                           </div>
-                          <div className="hide-scrollbar" style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '2px', maxWidth: '100%' }}>
+                          <div className="hide-scrollbar" style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '2px', maxWidth: '100%', alignItems: 'center' }}>
+                              <span style={{ color: subTextColor, fontSize: '0.68rem', fontWeight: 900, whiteSpace: 'nowrap', flexShrink: 0 }}>1. เลือกมุมมอง</span>
                               {mapCategoryOptions.map(opt => (
                                 <button
                                   key={opt.id}
@@ -931,19 +1015,24 @@ export default function MapPage() {
                                     background: mapCategory === opt.id ? opt.color : 'transparent',
                                     color: mapCategory === opt.id ? '#fff' : subTextColor,
                                     border: `1px solid ${mapCategory === opt.id ? opt.color : borderColor}`,
-                                    padding: '5px 12px',
-                                    borderRadius: '999px',
-                                    fontSize: '0.78rem',
+                                    padding: '6px 10px',
+                                    borderRadius: '12px',
+                                    fontSize: '0.76rem',
                                     fontWeight: 'bold',
                                     cursor: 'pointer',
                                     transition: '0.2s',
                                     fontFamily: 'Kanit',
                                     lineHeight: 1.2,
                                     whiteSpace: 'nowrap',
-                                    flexShrink: 0
+                                    flexShrink: 0,
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
                                   }}
+                                  title={opt.useFor}
                                 >
-                                  {opt.icon} {opt.shortLabel || opt.label}
+                                  <span>{opt.icon}</span>
+                                  <span>{opt.shortLabel || opt.label}</span>
                                 </button>
                               ))}
                           </div>
@@ -955,65 +1044,28 @@ export default function MapPage() {
                           </button>
                       )}
                   </div>
-                  <div className="hide-scrollbar" style={{ display: 'flex', gap: '8px', flexWrap: 'nowrap', overflowX: 'auto', paddingBottom: '2px' }}>
+                  <div className="hide-scrollbar" style={{ display: 'flex', gap: '7px', flexWrap: 'nowrap', overflowX: 'auto', paddingBottom: '2px', alignItems: 'center' }}>
+                    <span style={{ color: subTextColor, fontSize: '0.68rem', fontWeight: 900, whiteSpace: 'nowrap', flexShrink: 0 }}>2. เลือกชั้นข้อมูล</span>
                     {mapCategory === 'basic' ? basicModes.map(m => (
-                        <button key={m.id} onClick={() => setActiveBasicMode(m.id)} style={{ padding: '6px 12px', borderRadius: '12px', border: `1px solid ${activeBasicMode === m.id ? m.color : borderColor}`, background: activeBasicMode === m.id ? (darkMode ? `${m.color}20` : `${m.color}15`) : cardBg, color: activeBasicMode === m.id ? m.color : textColor, fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'Kanit', fontSize: '0.82rem', whiteSpace: 'nowrap', flexShrink: 0 }}>{m.name}</button>
+                        <button key={m.id} onClick={() => setActiveBasicMode(m.id)} style={{ padding: '5px 10px', borderRadius: '12px', border: `1px solid ${activeBasicMode === m.id ? m.color : borderColor}`, background: activeBasicMode === m.id ? (darkMode ? `${m.color}20` : `${m.color}15`) : cardBg, color: activeBasicMode === m.id ? m.color : textColor, fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'Kanit', fontSize: '0.78rem', whiteSpace: 'nowrap', flexShrink: 0 }}>{m.name}</button>
                     )) : mapCategory === 'risk' ? riskModes.map(m => (
-                        <button key={m.id} onClick={() => setActiveRiskMode(m.id)} style={{ padding: '6px 12px', borderRadius: '12px', border: `1px solid ${activeRiskMode === m.id ? m.color : borderColor}`, background: activeRiskMode === m.id ? (darkMode ? `${m.color}20` : `${m.color}15`) : cardBg, color: activeRiskMode === m.id ? m.color : textColor, fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'Kanit', fontSize: '0.82rem', whiteSpace: 'nowrap', flexShrink: 0 }}>{m.name}</button>
+                        <button key={m.id} onClick={() => setActiveRiskMode(m.id)} style={{ padding: '5px 10px', borderRadius: '12px', border: `1px solid ${activeRiskMode === m.id ? m.color : borderColor}`, background: activeRiskMode === m.id ? (darkMode ? `${m.color}20` : `${m.color}15`) : cardBg, color: activeRiskMode === m.id ? m.color : textColor, fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'Kanit', fontSize: '0.78rem', whiteSpace: 'nowrap', flexShrink: 0 }}>{m.name}</button>
                     )) : mapCategory === 'yesterday' ? yesterdayModes.map(m => (
-                        <button key={m.id} onClick={() => setActiveYesterdayMode(m.id)} style={{ padding: '6px 12px', borderRadius: '12px', border: `1px solid ${activeYesterdayMode === m.id ? m.color : borderColor}`, background: activeYesterdayMode === m.id ? (darkMode ? `${m.color}20` : `${m.color}15`) : cardBg, color: activeYesterdayMode === m.id ? m.color : textColor, fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'Kanit', fontSize: '0.82rem', whiteSpace: 'nowrap', flexShrink: 0 }}>{m.name}</button>
+                        <button key={m.id} onClick={() => setActiveYesterdayMode(m.id)} style={{ padding: '5px 10px', borderRadius: '12px', border: `1px solid ${activeYesterdayMode === m.id ? m.color : borderColor}`, background: activeYesterdayMode === m.id ? (darkMode ? `${m.color}20` : `${m.color}15`) : cardBg, color: activeYesterdayMode === m.id ? m.color : textColor, fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'Kanit', fontSize: '0.78rem', whiteSpace: 'nowrap', flexShrink: 0 }}>{m.name}</button>
                     )) : gistdaModes.map(m => (
-                        <button key={m.id} onClick={() => setActiveGistdaMode(m.id)} style={{ padding: '6px 12px', borderRadius: '12px', border: `1px solid ${activeGistdaMode === m.id ? m.color : borderColor}`, background: activeGistdaMode === m.id ? (darkMode ? `${m.color}20` : `${m.color}15`) : cardBg, color: activeGistdaMode === m.id ? m.color : textColor, fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'Kanit', fontSize: '0.82rem', whiteSpace: 'nowrap', flexShrink: 0 }}>{m.name}</button>
+                        <button key={m.id} onClick={() => setActiveGistdaMode(m.id)} style={{ padding: '5px 10px', borderRadius: '12px', border: `1px solid ${activeGistdaMode === m.id ? m.color : borderColor}`, background: activeGistdaMode === m.id ? (darkMode ? `${m.color}20` : `${m.color}15`) : cardBg, color: activeGistdaMode === m.id ? m.color : textColor, fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'Kanit', fontSize: '0.78rem', whiteSpace: 'nowrap', flexShrink: 0 }}>{m.name}</button>
                     ))}
                   </div>
                </div>
 
-          {(mapCategory === 'basic' || mapCategory === 'risk') ? (
-              <div style={{ background: cardBg, padding: '7px 12px', borderRadius: '12px', border: `1px solid ${borderColor}`, display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', flexShrink: 0, boxShadow: '0 4px 10px rgba(0,0,0,0.05)', flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: '0.78rem', color: subTextColor, fontWeight: 'bold', whiteSpace: 'nowrap' }}>📅 ช่วงเวลา:</span>
-                  {[
-                      { id: 'today', label: `📍 ตอนนี้ ${getDateLabel(0)}`, sub: 'ข้อมูลล่าสุด', color: '#22c55e' },
-                      { id: 'tomorrow', label: `🔮 พรุ่งนี้ ${getDateLabel(1)}`, sub: 'พยากรณ์', color: '#a855f7' },
-                      { id: 'avg7', label: '📊 7 วันข้างหน้า', sub: 'พยากรณ์ล่วงหน้า', color: '#0ea5e9' },
-                  ].map(opt => (
-                      <button key={opt.id} onClick={() => setTimeMode(opt.id)} style={{ padding: '5px 12px', borderRadius: '999px', border: `1px solid ${timeMode === opt.id ? opt.color : borderColor}`, background: timeMode === opt.id ? (darkMode ? `${opt.color}22` : `${opt.color}16`) : 'var(--bg-secondary)', color: timeMode === opt.id ? opt.color : subTextColor, fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit', fontSize: '0.76rem', transition: 'all 0.2s', display: 'inline-flex', alignItems: 'center', gap: '6px', lineHeight: 1.1, whiteSpace: 'nowrap' }}>
-                          <span>{opt.label}</span>
-                          <span style={{ fontSize: '0.62rem', opacity: 0.75 }}>{opt.sub}</span>
-                      </button>
-                  ))}
-                  {mapCategory !== 'yesterday' && quickPresetOptions.map(opt => (
-                    <button
-                      key={opt.id}
-                      onClick={opt.onClick}
-                      style={{ padding: '5px 10px', borderRadius: '999px', border: `1px solid ${darkMode ? `${opt.color}55` : `${opt.color}35`}`, background: darkMode ? `${opt.color}18` : `${opt.color}10`, color: opt.color, fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit', fontSize: '0.72rem', whiteSpace: 'nowrap' }}
-                    >
-                      {opt.icon} {opt.label}
-                    </button>
-                  ))}
-                  {timeMode === 'avg7' && mapCategory === 'basic' && (
-                      <span style={{ fontSize: '0.66rem', color: '#0ea5e9', fontWeight: 'bold', background: '#0ea5e910', padding: '4px 9px', borderRadius: '999px', border: '1px solid #0ea5e940' }}>☔ ฝนสะสม | ค่าอื่นเฉลี่ย 7 วัน</span>
-                  )}
-                  {(timeMode === 'tomorrow' || timeMode === 'avg7') && mapCategory === 'risk' && (
-                      <span style={{ fontSize: '0.64rem', color: '#94a3b8', fontWeight: 'bold' }}>⚠ ความชื้นใช้ค่าประมาณ</span>
-                  )}
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: darkMode ? `${activeDataSourceMeta.color}22` : `${activeDataSourceMeta.color}14`, color: activeDataSourceMeta.color, border: `1px solid ${darkMode ? `${activeDataSourceMeta.color}55` : `${activeDataSourceMeta.color}35`}`, borderRadius: '999px', padding: '4px 10px', fontSize: '0.68rem', fontWeight: 'bold' }}>
-                    <span>{activeDataSourceMeta.icon}</span>
-                    <span>{activeDataSourceMeta.label}</span>
-                  </span>
-                  <span style={{ fontSize: '0.68rem', color: subTextColor }}>{timeHelperText}</span>
-              </div>
-          ) : (
-              <div style={{ background: cardBg, padding: '8px 12px', borderRadius: '12px', border: `1px solid ${borderColor}`, marginBottom: '10px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.72rem', color: subTextColor, fontWeight: 'bold' }}>
-                  {mapCategory === 'yesterday' ? `📋 สถิติเมื่อวาน ${getDateLabel(-1)} — ข้อมูลจากกรมอุตุนิยมวิทยา (TMD)` : 'ℹ️ ข้อมูลจากดาวเทียม GISTDA แสดงค่าสะสมล่าสุดเท่านั้น — ไม่สามารถเลือกดูย้อนหลังหรือพยากรณ์ได้'}
-              </div>
-          )}
+          {timeControlCard}
         </>
       )}
 
-      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', flex: 1, gap: isMobile ? '0' : '16px', overflow: 'hidden', minHeight: 0 }}>
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', flex: 1, gap: isMobile ? '0' : '10px', overflow: 'hidden', minHeight: 0 }}>
           
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: isMobile ? '0' : '16px', minHeight: 0 }}>
-              <div style={{ flex: 1, borderRadius: isMobile ? '0' : '20px', overflow: 'hidden', border: isMobile ? 'none' : `1px solid ${borderColor}`, position: 'relative', minHeight: isMobile ? 'calc(100vh - 120px)' : 0, background: cardBg }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: isMobile ? '0' : '10px', minHeight: 0 }}>
+              <div style={{ flex: 1, borderRadius: isMobile ? '0' : '18px', overflow: 'hidden', border: isMobile ? 'none' : `1px solid ${borderColor}`, position: 'relative', minHeight: isMobile ? 'calc(100vh - 120px)' : 0, background: cardBg }}>
 
                 <MapContainer center={[13.5, 100.5]} zoom={isMobile ? 6 : 6} style={{ height: '100%', width: '100%', background: appBg }} zoomControl={false}>
                     <TileLayer url={basemapUrls[basemapStyle]} />
@@ -1246,19 +1298,56 @@ export default function MapPage() {
                       {/* === CATEGORY PANEL dropdown === */}
                       {activePanel === 'category' && (
                         <div className="fade-in" style={{ position: 'fixed', left: '12px', right: '12px', bottom: mobilePanelBottom, background: 'var(--bg-nav-blur)', backdropFilter: 'blur(14px)', padding: '14px', borderRadius: '18px', border: `1px solid ${borderColor}`, boxShadow: '0 12px 30px rgba(0,0,0,0.25)', zIndex: 1003, maxHeight: '52vh', overflowY: 'auto' }}>
-                          <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: textColor, marginBottom: '6px' }}>🗺️ ประเภทแผนที่</div>
-                          <div style={{ fontSize: '0.66rem', color: subTextColor, marginBottom: '10px', lineHeight: 1.45 }}>เลือกตามสิ่งที่อยากดู: สภาพอากาศปัจจุบัน, พื้นที่เสี่ยง, ข้อมูลเมื่อวาน หรือข้อมูลดาวเทียม</div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            {mapCategoryOptions.map(opt => (
-                              <button
-                                key={opt.id}
-                                onClick={() => { setMapCategory(opt.id); setActivePanel(null); }}
-                                style={{ padding: '10px 10px', borderRadius: '12px', border: `1px solid ${mapCategory === opt.id ? opt.color : borderColor}`, background: mapCategory === opt.id ? (darkMode ? `${opt.color}28` : `${opt.color}18`) : 'var(--bg-secondary)', color: mapCategory === opt.id ? opt.color : textColor, fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit', fontSize: '0.72rem', lineHeight: 1.2, textAlign: 'left' }}
-                              >
-                                <div style={{ fontSize: '0.78rem', fontWeight: 'bold', marginBottom: '3px' }}>{opt.icon} {opt.label}</div>
-                                <div style={{ fontSize: '0.65rem', color: mapCategory === opt.id ? opt.color : subTextColor, fontWeight: 'normal', lineHeight: 1.35 }}>{opt.desc}</div>
-                              </button>
-                            ))}
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '10px' }}>
+                            <div>
+                              <div style={{ fontSize: '0.78rem', fontWeight: 900, color: textColor }}>🗺️ เลือกมุมมองแผนที่</div>
+                              <div style={{ fontSize: '0.62rem', color: subTextColor, marginTop: '2px', lineHeight: 1.35 }}>เลือกก่อนว่าอยากดูอะไร แล้วค่อยเลือกชั้นข้อมูล</div>
+                            </div>
+                            <span style={{ flexShrink: 0, color: activeCategoryOption?.color, background: darkMode ? `${activeCategoryOption?.color}20` : `${activeCategoryOption?.color}12`, border: `1px solid ${activeCategoryOption?.color}35`, borderRadius: '999px', padding: '4px 9px', fontSize: '0.62rem', fontWeight: 900 }}>
+                              {activeCategoryOption?.shortLabel}
+                            </span>
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '8px' }}>
+                            {mapCategoryOptions.map(opt => {
+                              const active = mapCategory === opt.id;
+                              return (
+                                <button
+                                  key={opt.id}
+                                  onClick={() => { setMapCategory(opt.id); setActivePanel(null); }}
+                                  style={{
+                                    padding: '11px 10px',
+                                    minHeight: '112px',
+                                    borderRadius: '16px',
+                                    border: `1px solid ${active ? opt.color : borderColor}`,
+                                    background: active ? (darkMode ? `${opt.color}28` : `${opt.color}16`) : 'var(--bg-secondary)',
+                                    color: active ? opt.color : textColor,
+                                    fontWeight: 'bold',
+                                    cursor: 'pointer',
+                                    fontFamily: 'Kanit',
+                                    fontSize: '0.72rem',
+                                    lineHeight: 1.2,
+                                    textAlign: 'left',
+                                    boxShadow: active ? `0 8px 20px ${opt.color}24` : 'none',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    justifyContent: 'space-between',
+                                    gap: '8px',
+                                    minWidth: 0,
+                                  }}
+                                >
+                                  <div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '0.84rem', fontWeight: 900 }}>
+                                      <span style={{ width: '28px', height: '28px', borderRadius: '11px', background: `${opt.color}18`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{opt.icon}</span>
+                                      <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{opt.label}</span>
+                                    </div>
+                                    <div style={{ color: active ? opt.color : subTextColor, fontSize: '0.62rem', fontWeight: 800, marginTop: '8px', lineHeight: 1.35 }}>{opt.useFor}</div>
+                                  </div>
+                                  <div style={{ color: active ? opt.color : subTextColor, fontSize: '0.6rem', fontWeight: 800, background: active ? `${opt.color}12` : (darkMode ? 'rgba(148,163,184,0.12)' : 'rgba(148,163,184,0.1)'), borderRadius: '999px', padding: '4px 8px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    {opt.desc}
+                                  </div>
+                                </button>
+                              );
+                            })}
                           </div>
                         </div>
                       )}
@@ -1281,18 +1370,39 @@ export default function MapPage() {
                         </div>
                       )}
 
-                      {/* === TIME PANEL dropdown (3 buttons) === */}
-                      {activePanel === 'time' && canChooseTimeMode && (
-                        <div className="fade-in" style={{ position: 'fixed', left: '12px', right: '12px', bottom: mobilePanelBottom, background: 'var(--bg-nav-blur)', backdropFilter: 'blur(14px)', padding: '14px', borderRadius: '18px', border: `1px solid ${borderColor}`, boxShadow: '0 12px 30px rgba(0,0,0,0.25)', zIndex: 1003 }}>
-                          <div style={{ fontSize: '0.75rem', fontWeight: 'bold', color: textColor, marginBottom: '8px' }}>📅 ช่วงเวลา</div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                            {mobileTimeOptions.map(opt => (
-                              <button key={opt.id} onClick={() => { setTimeMode(opt.id); setActivePanel(null); }} style={{ padding: '8px 12px', borderRadius: '10px', border: `1px solid ${timeMode === opt.id ? opt.color : borderColor}`, background: timeMode === opt.id ? (darkMode ? `${opt.color}25` : `${opt.color}18`) : 'var(--bg-secondary)', color: timeMode === opt.id ? opt.color : textColor, fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit', fontSize: '0.8rem', textAlign: 'left', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span>{opt.label}</span>
-                                <span style={{ fontSize: '0.65rem', opacity: 0.7 }}>{opt.sub}</span>
-                              </button>
+                      {/* === TIME PANEL dropdown === */}
+                      {activePanel === 'time' && (
+                        <div className="fade-in" style={{ position: 'fixed', left: '12px', right: '12px', bottom: mobilePanelBottom, background: 'var(--bg-nav-blur)', backdropFilter: 'blur(14px)', padding: '14px', borderRadius: '18px', border: `1px solid ${borderColor}`, boxShadow: '0 12px 30px rgba(0,0,0,0.25)', zIndex: 1003, maxHeight: '58vh', overflowY: 'auto' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+                            <div style={{ fontSize: '0.78rem', fontWeight: 'bold', color: textColor }}>📅 ช่วงเวลา</div>
+                            <span style={{ color: activeTimeOption?.color, fontSize: '0.66rem', fontWeight: 900 }}>{activeTimeOption?.sub}</span>
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                            {timeModeSections.map(section => (
+                              <div key={section.id} style={{ border: `1px solid ${borderColor}`, borderRadius: '14px', padding: '9px', background: 'var(--bg-secondary)' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', marginBottom: '7px' }}>
+                                  <span style={{ color: textColor, fontSize: '0.7rem', fontWeight: 900 }}>{section.title}</span>
+                                  <span style={{ color: subTextColor, fontSize: '0.6rem', fontWeight: 800 }}>{section.helper}</span>
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                  {section.options.map(opt => {
+                                    const active = activeTimeKey === opt.id;
+                                    return (
+                                      <button
+                                        key={opt.id}
+                                        onClick={() => { handleTimeOptionSelect(opt.id); setActivePanel(null); }}
+                                        style={{ padding: '9px 11px', borderRadius: '11px', border: `1px solid ${active ? opt.color : borderColor}`, background: active ? (darkMode ? `${opt.color}25` : `${opt.color}18`) : cardBg, color: active ? opt.color : textColor, fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit', fontSize: '0.78rem', textAlign: 'left', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}
+                                      >
+                                        <span>{opt.label}</span>
+                                        <span style={{ fontSize: '0.62rem', opacity: 0.75, whiteSpace: 'nowrap' }}>{opt.sub}</span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
                             ))}
                           </div>
+                          <div style={{ color: subTextColor, fontSize: '0.64rem', lineHeight: 1.5, marginTop: '10px' }}>{timeContextNote}</div>
                         </div>
                       )}
 
@@ -1337,18 +1447,16 @@ export default function MapPage() {
                       )}
                     </>
                   ) : (
-                    /* ---- DESKTOP controls (original style) ---- */
-                    <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'flex-end' }}>
-                      <button aria-label="ค้นหาตำแหน่งของฉัน" onClick={handleLocateMe} style={{ background: cardBg, color: textColor, border: `1px solid ${borderColor}`, padding: '8px 12px', borderRadius: '12px', fontWeight: 'bold', fontSize: '0.85rem', cursor: isLocating ? 'wait' : 'pointer', boxShadow: '0 4px 10px rgba(0,0,0,0.1)', fontFamily: 'Kanit', opacity: isLocating ? 0.7 : 1, transition: 'all 0.2s' }}>{isLocating ? '⏳ กำลังหา...' : '📍 พิกัดของฉัน'}</button>
-                      
-                      <div style={{ background: 'var(--bg-nav-blur)', backdropFilter: 'blur(10px)', padding: '12px', borderRadius: '16px', border: `1px solid ${borderColor}`, width: '140px', boxShadow: '0 4px 20px rgba(0,0,0,0.15)' }}>
-                          <div style={{ fontSize: '0.7rem', fontWeight: 'bold', color: textColor, marginBottom: '8px' }}>รูปแบบแผนที่</div>
-                          <select value={basemapStyle} onChange={(e) => setBasemapStyle(e.target.value)} style={{ width: '100%', background: 'var(--bg-secondary)', color: textColor, border: 'none', padding: '6px', borderRadius: '8px', fontSize: '0.75rem', outline: 'none', fontFamily: 'Kanit' }}>
-                              <option value="dark">สีเข้ม (Dark)</option><option value="light">สีสว่าง (Light)</option><option value="osm">ถนน (Street)</option><option value="satellite">ดาวเทียม</option>
-                          </select>
-                          <div style={{ fontSize: '0.7rem', fontWeight: 'bold', color: textColor, marginTop: '12px', marginBottom: '8px' }}>ความทึบเลเยอร์</div>
-                          <input type="range" min="0.1" max="1" step="0.1" value={polyOpacity} onChange={(e) => setPolyOpacity(parseFloat(e.target.value))} style={{ width: '100%', accentColor: activeModeObj?.color }} />
-                      </div>
+                    /* ---- DESKTOP compact map tools ---- */
+                    <div className="fade-in" style={{ background: 'var(--bg-nav-blur)', backdropFilter: 'blur(12px)', padding: '8px', borderRadius: '16px', border: `1px solid ${borderColor}`, boxShadow: '0 4px 20px rgba(0,0,0,0.14)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <button aria-label="ค้นหาตำแหน่งของฉัน" onClick={handleLocateMe} style={{ background: cardBg, color: textColor, border: `1px solid ${borderColor}`, padding: '7px 10px', borderRadius: '999px', fontWeight: 'bold', fontSize: '0.76rem', cursor: isLocating ? 'wait' : 'pointer', fontFamily: 'Kanit', opacity: isLocating ? 0.7 : 1, transition: 'all 0.2s', whiteSpace: 'nowrap' }}>{isLocating ? '⏳ กำลังหา...' : '📍 พิกัด'}</button>
+                      <select aria-label="รูปแบบแผนที่" value={basemapStyle} onChange={(e) => setBasemapStyle(e.target.value)} style={{ background: cardBg, color: textColor, border: `1px solid ${borderColor}`, padding: '7px 9px', borderRadius: '999px', fontSize: '0.72rem', outline: 'none', fontFamily: 'Kanit', fontWeight: 800 }}>
+                          <option value="dark">เข้ม</option><option value="light">สว่าง</option><option value="osm">ถนน</option><option value="satellite">ดาวเทียม</option>
+                      </select>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', color: subTextColor, fontSize: '0.66rem', fontWeight: 900, whiteSpace: 'nowrap' }}>
+                        เลเยอร์
+                        <input aria-label="ความทึบเลเยอร์" type="range" min="0.1" max="1" step="0.1" value={polyOpacity} onChange={(e) => setPolyOpacity(parseFloat(e.target.value))} style={{ width: '74px', accentColor: activeModeObj?.color }} />
+                      </label>
                     </div>
                   )}
                 </div>
@@ -1357,11 +1465,11 @@ export default function MapPage() {
 
           {/* === DESKTOP SIDEBAR (ซ่อนบนมือถือ — ใช้ Bottom Sheet แทน) === */}
           {!isMobile && (
-            <div style={{ width: '320px', background: cardBg, borderRadius: '24px', padding: '16px', border: `1px solid ${borderColor}`, boxShadow: '0 10px 30px rgba(0,0,0,0.08)', display: 'flex', flexDirection: 'column', zIndex: 10, flexShrink: 0, minHeight: 0 }}>
-               <h3 style={{ margin: '0 0 15px 0', fontSize: '1.1rem', color: textColor, display: 'flex', alignItems: 'center' }}>
+            <div style={{ width: '280px', background: cardBg, borderRadius: '18px', padding: '12px', border: `1px solid ${borderColor}`, boxShadow: '0 8px 24px rgba(0,0,0,0.08)', display: 'flex', flexDirection: 'column', zIndex: 10, flexShrink: 0, minHeight: 0 }}>
+               <h3 style={{ margin: '0 0 10px 0', fontSize: '1rem', color: textColor, display: 'flex', alignItems: 'center' }}>
                   📍 {mapCategory === 'risk' ? 'พื้นที่เสี่ยงสูงสุด (Top 5)' : mapCategory === 'gistda' ? 'พื้นที่วิกฤต (Top 5)' : mapCategory === 'yesterday' ? `สถิติเมื่อวาน ${getDateLabel(-1)}` : 'จังหวัดที่น่าสนใจ (Top 5)'}
                </h3>
-               <p style={{ margin: '0 0 8px 0', fontSize: '0.72rem', color: activeModeObj?.color, fontWeight: 'bold' }}>{activeModeObj?.desc}</p>
+               <p style={{ margin: '0 0 8px 0', fontSize: '0.68rem', color: activeModeObj?.color, fontWeight: 'bold', lineHeight: 1.35 }}>{activeModeObj?.desc}</p>
                {mapCategory === 'yesterday' && (
                  <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', marginBottom: '8px' }}>
                    {yesterdayModes.map(m => (
@@ -1392,15 +1500,15 @@ export default function MapPage() {
                       const name = st.areaTH.replace('จังหวัด', '').trim();
                       return name.includes(searchQuery.trim());
                   }).slice(0, 5).map((st, idx) => (
-                     <div key={st.stationID} onClick={() => handleRegionClick(st)} style={{ position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: '8px', padding: '16px', background: 'var(--bg-secondary)', borderRadius: '20px', marginBottom: '12px', cursor: 'pointer', transition: 'all 0.3s ease', border: `1px solid ${borderColor}`, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }} onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = '0 10px 20px rgba(0,0,0,0.1)'; }} onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.05)'; }}>
+                     <div key={st.stationID} onClick={() => handleRegionClick(st)} style={{ position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: '6px', padding: '12px', background: 'var(--bg-secondary)', borderRadius: '16px', marginBottom: '9px', cursor: 'pointer', transition: 'all 0.3s ease', border: `1px solid ${borderColor}`, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }} onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = '0 10px 20px rgba(0,0,0,0.1)'; }} onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.05)'; }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div style={{ fontSize: '1.2rem', fontWeight: '900', color: textColor }}>จ.{st.areaTH.replace('จังหวัด', '')}</div>
-                            <div style={{ fontSize: '1.8rem', fontWeight: '900', color: st.color }}>
+                            <div style={{ fontSize: '1.05rem', fontWeight: '900', color: textColor }}>จ.{st.areaTH.replace('จังหวัด', '')}</div>
+                            <div style={{ fontSize: '1.45rem', fontWeight: '900', color: st.color }}>
                                {st.displayVal} <span style={{fontSize:'0.8rem', color: subTextColor, fontWeight:'bold'}}>{(mapCategory==='basic' || mapCategory==='yesterday') ? activeModeObj?.unit : ''}</span>
                             </div>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div style={{ fontSize: '0.85rem', color: subTextColor, fontWeight: 'bold' }}>
+                            <div style={{ fontSize: '0.76rem', color: subTextColor, fontWeight: 'bold' }}>
                                 อันดับ {idx+1} {mapCategory === 'risk' && <span style={{ marginLeft: '5px' }}>• สถานะ: {getRiskLabel(st.displayVal)}</span>}
                             </div>
                             <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: st.color, boxShadow: `0 0 8px ${st.color}` }}></div>

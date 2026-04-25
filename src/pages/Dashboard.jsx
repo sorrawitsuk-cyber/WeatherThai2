@@ -11,6 +11,7 @@ import TopStats from '../components/Dashboard/TopStats';
 import WeatherRadar from '../components/Dashboard/WeatherRadar';
 import DisasterSummary from '../components/Dashboard/DisasterSummary';
 import dashboardSkyline from '../assets/dashboard-skyline.png';
+import LoadingScreen from '../components/LoadingScreen';
 
 function normalizeGeoData(data) {
   return Array.isArray(data) ? data : (data?.data || []);
@@ -215,26 +216,28 @@ export default function Dashboard() {
     if (!selectedProv) return [];
     // เข้า amphoeData จาก Firebase (ข้อมูล TMD)
     if (amphoeData?.provinces) {
-      const cleanProv = selectedProv.replace('จังหวัด', '').trim();
-      const provData = amphoeData.provinces[cleanProv] || amphoeData.provinces[selectedProv];
+      const cleanProv = cleanProvinceName(selectedProv);
+      const provData = amphoeData.provinces[cleanProv]
+        || amphoeData.provinces[selectedProv]
+        || Object.entries(amphoeData.provinces).find(([name]) => cleanProvinceName(name) === cleanProv)?.[1];
       if (provData?.amphoes) {
         return provData.amphoes.map((a, i) => ({
           id: i,
-          name: String(a.n || '').trim(),
-          lat: a.lat,
-          lon: a.lon,
+          name: String(a.n || a.name || '').trim(),
+          lat: Number(a.lat),
+          lon: Number(a.lon ?? a.lng ?? a.long),
           tc: a.tc,
           rh: a.rh,
           ws: a.ws,
           rain: a.rain
-        })).filter(a => a.name !== '').sort((a, b) => a.name.localeCompare(b.name, 'th'));
+        })).filter(a => a.name !== '' && Number.isFinite(a.lat) && Number.isFinite(a.lon)).sort((a, b) => a.name.localeCompare(b.name, 'th'));
       }
     }
     // Fallback: thai_geo.json (เดิม)
     if (!geoData || geoData.length === 0) return [];
-    const cleanProv = selectedProv.replace('จังหวัด', '').trim();
+    const cleanProv = cleanProvinceName(selectedProv);
     const pObj = geoData.find(p => {
-      const pName = String(p.name_th || p.nameTh || p.name || '').replace('จังหวัด', '').trim();
+      const pName = cleanProvinceName(p.name_th || p.nameTh || p.name || '');
       return pName === cleanProv || pName.includes(cleanProv);
     });
 
@@ -285,7 +288,10 @@ export default function Dashboard() {
     const fallbackToDefaultLocation = () => {
       fetchWeatherByCoords(13.75, 100.5); 
       setLocationName('กรุงเทพมหานคร');
+      setSelectedProv('กรุงเทพมหานคร');
     };
+
+    fallbackToDefaultLocation();
 
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -297,10 +303,8 @@ export default function Dashboard() {
           console.warn("Geolocation error/timeout:", err.message);
           fallbackToDefaultLocation(); 
         },
-        { enableHighAccuracy: false, timeout: 5000, maximumAge: 300000 }
+        { enableHighAccuracy: false, timeout: 2500, maximumAge: 300000 }
       );
-    } else {
-      fallbackToDefaultLocation();
     }
   }, [favoriteApplied, favoriteLocation, fetchWeatherByCoords]);
 
@@ -316,8 +320,14 @@ export default function Dashboard() {
       if (dist && prov) {
         const cleanProv = prov.startsWith('จังหวัด') ? prov : (prov === 'กรุงเทพมหานคร' ? prov : `จังหวัด${prov}`);
         setLocationName(`${dist} ${cleanProv}`);
+        setSelectedProv(cleanProv);
+        setSelectedDist(dist);
       } else {
         setLocationName(data?.locality || data?.city || 'ตำแหน่งปัจจุบัน');
+        if (data?.principalSubdivision) {
+          const cleanProv = data.principalSubdivision === 'กรุงเทพมหานคร' ? data.principalSubdivision : `จังหวัด${data.principalSubdivision.replace('จังหวัด', '')}`;
+          setSelectedProv(cleanProv);
+        }
       }
     } catch (e) { setLocationName('ตำแหน่งปัจจุบัน'); }
   };
@@ -335,12 +345,20 @@ export default function Dashboard() {
   const handleDistChange = async (e) => {
     const dName = e.target.value;
     setSelectedDist(dName);
-    if (!dName) return;
+    if (!dName) {
+      const found = stations?.find(s => s.areaTH === selectedProv);
+      if (found) {
+        fetchWeatherByCoords(found.lat, found.long);
+        setLocationName(selectedProv);
+      }
+      return;
+    }
     setLocationName(`${dName}, ${selectedProv}`);
     
     // 🆕 ถ้าอำเภอมาจาก TMD — ใช้พิกัดตรงจาก TMD ไม่ต้อง geocode
-    const amphoe = currentAmphoes.find(a => a.name === dName);
-    if (amphoe?.lat && amphoe?.lon) {
+    const targetDistrict = cleanProvinceName(dName);
+    const amphoe = currentAmphoes.find(a => cleanProvinceName(a.name) === targetDistrict || cleanProvinceName(a.name).includes(targetDistrict));
+    if (Number.isFinite(amphoe?.lat) && Number.isFinite(amphoe?.lon)) {
       fetchWeatherByCoords(amphoe.lat, amphoe.lon);
       return;
     }
@@ -386,12 +404,8 @@ export default function Dashboard() {
 
   const lastUpdateText = lastUpdated ? new Date(lastUpdated).toLocaleString('th-TH') : '-';
 
-  if (loadingWeather || !weatherData) return (
-    <div className="loading-container" style={{ background: appBg, color: textColor }}>
-        <div className="loading-spinner"></div>
-        <div style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>กำลังประมวลผลข้อมูลสภาพอากาศ...</div>
-        <div style={{ fontSize: '0.85rem', color: subTextColor, marginTop: '5px' }}>เตรียมพร้อมข้อมูลพื้นที่ของคุณ</div>
-    </div>
+  if (!weatherData) return (
+    <LoadingScreen title="กำลังโหลดภาพรวมอากาศ" subtitle="ดึงข้อมูลอากาศ ฝุ่น ฝน และพยากรณ์รายชั่วโมง" />
   );
 
   const { current, hourly, daily, coords, minutely } = weatherData;
@@ -444,6 +458,48 @@ export default function Dashboard() {
   const maxChartTemp = Math.max(...chartData.map((item) => item.temp), Math.round(current?.temp || 0));
   const chartTempRange = Math.max(maxChartTemp - minChartTemp, 4);
   const chartSlots = chartData.slice(0, isMobile ? 12 : 14);
+  const mobileHeroHourlyStrip = isMobile ? (
+    <div style={{ marginTop: '16px', position: 'relative', zIndex: 1 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+        <div style={{ color: '#0f2550', fontSize: '0.78rem', fontWeight: 900 }}>พยากรณ์รายชั่วโมง</div>
+        <div style={{ color: '#64748b', fontSize: '0.62rem', fontWeight: 800 }}>เลื่อนดู 24 ชม.</div>
+      </div>
+      <div
+        className="hide-scrollbar"
+        ref={hourlyScrollRef}
+        {...hourlyScrollEvents}
+        style={{
+          display: 'flex',
+          gap: '8px',
+          overflowX: 'auto',
+          padding: '2px 0 4px',
+          cursor: isHourlyDragging ? 'grabbing' : 'grab',
+          userSelect: 'none',
+        }}
+      >
+        {chartData.map((item, idx) => (
+          <div
+            key={`hero-hour-${item.time}-${idx}`}
+            style={{
+              minWidth: '58px',
+              padding: '9px 8px',
+              borderRadius: '18px',
+              background: 'rgba(255,255,255,0.74)',
+              border: '1px solid rgba(226,232,240,0.76)',
+              boxShadow: '0 10px 22px rgba(15,23,42,0.08)',
+              textAlign: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <div style={{ color: idx === 0 ? '#2563eb' : '#64748b', fontSize: '0.62rem', fontWeight: 900 }}>{idx === 0 ? 'ตอนนี้' : item.time}</div>
+            <div style={{ fontSize: '1.25rem', lineHeight: 1, marginTop: '7px' }}>{item.icon}</div>
+            <div style={{ color: '#0f2550', fontSize: '0.86rem', fontWeight: 900, marginTop: '7px' }}>{item.temp}°</div>
+            <div style={{ color: item.rain >= 40 ? '#2563eb' : '#60a5fa', fontSize: '0.58rem', fontWeight: 900, marginTop: '4px' }}>{item.rain}%</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  ) : null;
 
   // Date/time formatting
   const now = new Date();
@@ -758,7 +814,7 @@ export default function Dashboard() {
           <div style={{ fontSize: isMobile ? '0.82rem' : '0.92rem', color: heroSubTextColor, fontWeight: '800', marginTop: '4px' }}>รู้สึกเหมือน {Math.round(current?.feelsLike || 0)}°C</div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(4, minmax(0, 1fr))', gap: '10px', width: isMobile ? '100%' : '68%', marginTop: isMobile ? '18px' : '28px', position: 'relative', zIndex: 1 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(4, minmax(0, 1fr))', gap: '10px', width: isMobile ? '100%' : '68%', marginTop: isMobile ? '18px' : '28px', position: 'relative', zIndex: 1 }}>
           {heroForecastCards.map((item) => (
             <div key={item.label} style={{ background: heroCardSurface, border: '1px solid rgba(226,232,240,0.88)', borderRadius: '14px', padding: '11px 12px', boxShadow: '0 10px 24px rgba(15,23,42,0.06)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '7px', color: '#64748b', fontSize: '0.66rem', fontWeight: '900' }}>
@@ -770,6 +826,7 @@ export default function Dashboard() {
             </div>
           ))}
         </div>
+        {mobileHeroHourlyStrip}
       </div>
     </div>
   );
@@ -1399,7 +1456,6 @@ export default function Dashboard() {
           {highlightMetricsGrid}
         </div>
 
-        {hourlyForecastCard}
         {todayOverviewCard}
         {tomorrowOverviewCard}
         {briefingCard}

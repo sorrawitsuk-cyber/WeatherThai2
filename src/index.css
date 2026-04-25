@@ -92,7 +92,7 @@ body {
 }
 
 /* =========================================
-   🌟 CSS สำหรับหน้า Loading หมุนๆ (Global) แบบสวยงามมีมิติ (3D Ring)
+   Unified Loading Screen
    ========================================= */
 .loading-container {
   display: flex;
@@ -200,6 +200,186 @@ body {
 @keyframes floatUp {
   from { opacity: 0; transform: translateY(15px); }
   to { opacity: 0.6; transform: translateY(0); }
+}
+
+.app-loading-screen {
+  width: 100%;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 22px;
+  padding: 28px;
+  color: var(--text-main);
+  background:
+    radial-gradient(circle at 50% 36%, rgba(14,165,233,0.16), transparent 28%),
+    radial-gradient(circle at 42% 58%, rgba(139,92,246,0.12), transparent 24%),
+    linear-gradient(180deg, var(--bg-app), color-mix(in srgb, var(--bg-app) 92%, #0ea5e9));
+  overflow: hidden;
+  position: relative;
+  isolation: isolate;
+}
+
+.app-loading-screen::before {
+  content: "";
+  position: absolute;
+  inset: auto 18% 18% 18%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(14,165,233,0.42), rgba(139,92,246,0.36), transparent);
+  filter: blur(0.2px);
+  opacity: 0.9;
+}
+
+.app-loading-orbit {
+  width: 118px;
+  height: 118px;
+  border-radius: 999px;
+  position: relative;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle, rgba(255,255,255,0.94) 0 20%, rgba(255,255,255,0.18) 21% 38%, transparent 39%),
+    conic-gradient(from 90deg, rgba(14,165,233,0.08), rgba(14,165,233,0.82), rgba(139,92,246,0.7), rgba(34,197,94,0.64), rgba(14,165,233,0.08));
+  box-shadow: 0 24px 60px rgba(14,116,144,0.18);
+  animation: loadingOrbit 2.4s linear infinite;
+}
+
+.app-loading-orbit::before {
+  content: "";
+  position: absolute;
+  inset: 14px;
+  border-radius: inherit;
+  background: var(--bg-app);
+  box-shadow: inset 0 0 22px rgba(14,165,233,0.12);
+}
+
+.app-loading-core {
+  width: 38px;
+  height: 38px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #0ea5e9, #8b5cf6);
+  box-shadow: 0 12px 32px rgba(14,165,233,0.34);
+  z-index: 1;
+  animation: loadingCore 1.8s ease-in-out infinite;
+}
+
+.app-loading-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  position: absolute;
+  z-index: 2;
+  box-shadow: 0 0 18px currentColor;
+}
+
+.app-loading-dot-a {
+  top: 7px;
+  left: 52px;
+  color: #0ea5e9;
+  background: #0ea5e9;
+}
+
+.app-loading-dot-b {
+  right: 12px;
+  bottom: 28px;
+  color: #8b5cf6;
+  background: #8b5cf6;
+}
+
+.app-loading-dot-c {
+  left: 18px;
+  bottom: 20px;
+  color: #22c55e;
+  background: #22c55e;
+}
+
+.app-loading-copy {
+  text-align: center;
+  max-width: 360px;
+  position: relative;
+  z-index: 1;
+}
+
+.app-loading-kicker {
+  color: #0ea5e9;
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+}
+
+.app-loading-title {
+  margin-top: 8px;
+  color: var(--text-main);
+  font-size: clamp(1.08rem, 3.8vw, 1.45rem);
+  font-weight: 900;
+  line-height: 1.25;
+}
+
+.app-loading-subtitle {
+  margin-top: 8px;
+  color: var(--text-sub);
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1.55;
+}
+
+.app-loading-bars {
+  display: flex;
+  gap: 7px;
+  position: relative;
+  z-index: 1;
+}
+
+.app-loading-bars span {
+  width: 34px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(14,165,233,0.24);
+  overflow: hidden;
+  position: relative;
+}
+
+.app-loading-bars span::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #0ea5e9, #8b5cf6);
+  animation: loadingBar 1.25s ease-in-out infinite;
+  transform-origin: left;
+}
+
+.app-loading-bars span:nth-child(2)::after {
+  animation-delay: 0.16s;
+}
+
+.app-loading-bars span:nth-child(3)::after {
+  animation-delay: 0.32s;
+}
+
+.dark-theme .app-loading-orbit::before {
+  background: var(--bg-app);
+}
+
+.dark-theme .app-loading-screen {
+  background:
+    radial-gradient(circle at 50% 36%, rgba(14,165,233,0.2), transparent 30%),
+    radial-gradient(circle at 42% 58%, rgba(139,92,246,0.16), transparent 26%),
+    linear-gradient(180deg, var(--bg-app), #08162c);
+}
+
+@keyframes loadingOrbit {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes loadingCore {
+  0%, 100% { transform: scale(0.92) rotate(0deg); border-radius: 14px; }
+  50% { transform: scale(1.08) rotate(45deg); border-radius: 18px; }
+}
+
+@keyframes loadingBar {
+  0% { transform: scaleX(0.12); opacity: 0.55; }
+  50% { transform: scaleX(1); opacity: 1; }
+  100% { transform: scaleX(0.12); opacity: 0.55; }
 }
 
 /* =========================================
