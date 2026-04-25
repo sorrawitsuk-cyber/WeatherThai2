@@ -660,8 +660,6 @@ export default function Dashboard() {
     },
   ];
   const heroForecastCards = [
-    { icon: '🌧️', label: 'โอกาสฝนวันนี้', value: `${currentRainProb}%`, note: currentRainAmount > 0 ? `${Number(currentRainAmount).toFixed(1)} มม.` : 'ยังไม่มีฝนตก' },
-    { icon: '🕒', label: 'ฝนตกต่อช่วง', value: chartData.find((item) => item.rain >= 40)?.time || '13:00 - 18:00 น.', note: 'ช่วงเสี่ยงวันนี้' },
     { icon: '🌫️', label: 'คุณภาพอากาศ', value: `PM2.5 ${Math.round(current?.pm25 || 0)}`, note: aqiTheme.text },
     { icon: '☀️', label: 'รังสี UV', value: `${current?.uv || 0}`, note: current?.uv > 8 ? 'สูงมาก' : current?.uv > 5 ? 'สูง' : current?.uv > 2 ? 'ปานกลาง' : 'ต่ำ' },
   ];
@@ -669,18 +667,9 @@ export default function Dashboard() {
     { label: 'ลม', value: `${Math.round(current?.windSpeed || 0)}`, unit: 'km/h', note: current?.windSpeed > 15 ? 'ลมแรง' : 'ค่อนข้างเบา', icon: '💨', tone: '#3b82f6' },
     { label: 'ความชื้น', value: `${Math.round(current?.humidity || 0)}%`, note: current?.humidity > 75 ? 'ค่อนข้างชื้น' : 'กำลังดี', icon: '💧', tone: '#0ea5e9' },
     { label: 'ทัศนวิสัย', value: `${Math.round((current?.visibility || 10000) / 1000)}`, unit: 'กม.', note: (current?.visibility || 10000) < 5000 ? 'มองเห็นลดลง' : 'มองเห็นชัด', icon: '👁️', tone: '#6366f1' },
-    { label: 'ฝนสะสม', value: `${Number(currentRainAmount || 0).toFixed(1)}`, unit: 'มม.', note: currentRainAmount > 0 ? 'มีฝนแล้ว' : 'ยังไม่มีฝน', icon: '🌧️', tone: '#2563eb' },
   ];
   const quickActionItems = [
     modeSpecificAction,
-    currentRainProb >= 45 && {
-      icon: '☔',
-      title: 'พกร่ม',
-      detail: `ฝน ${currentRainProb}% วันนี้`,
-      tone: '#2563eb',
-      bg: 'rgba(37,99,235,0.1)',
-      priority: 1,
-    },
     current?.feelsLike >= 38 && {
       icon: '🥤',
       title: 'ดื่มน้ำบ่อย',
@@ -712,14 +701,6 @@ export default function Dashboard() {
       tone: '#16a34a',
       bg: 'rgba(22,163,74,0.1)',
       priority: 5,
-    },
-    {
-      icon: '🕒',
-      title: chartData.find((item) => item.rain >= 45)?.time ? 'เลี่ยงช่วงฝน' : 'เช็กช่วงบ่าย',
-      detail: chartData.find((item) => item.rain >= 45)?.time ? `เสี่ยงฝน ${chartData.find((item) => item.rain >= 45)?.time}` : 'อากาศเปลี่ยนเร็ว',
-      tone: '#8b5cf6',
-      bg: 'rgba(139,92,246,0.11)',
-      priority: 6,
     },
   ].filter(Boolean).sort((a, b) => a.priority - b.priority).slice(0, 3);
   const heroMotifLayer = (
@@ -1014,7 +995,7 @@ export default function Dashboard() {
   const highlightMetricsGrid = (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: isMobile ? '0' : '14px' }}>
       <div style={{ color: subTextColor, fontSize: '0.72rem', fontWeight: 900 }}>รายละเอียดเสริม</div>
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(4, minmax(0, 1fr))', gap: isMobile ? '10px' : '12px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, minmax(0, 1fr))' : `repeat(${highlightMetrics.length}, minmax(0, 1fr))`, gap: isMobile ? '10px' : '12px' }}>
         {highlightMetrics.map((metric) => (
           <div key={metric.label} style={{ background: 'color-mix(in srgb, var(--bg-card) 94%, white)', border: `1px solid ${borderColor}`, borderRadius: '14px', padding: isMobile ? '12px' : '13px 12px', boxShadow: '0 10px 22px rgba(15,23,42,0.08)', minHeight: isMobile ? '82px' : '88px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '7px', color: subTextColor, fontSize: '0.68rem', fontWeight: '900', minWidth: 0 }}>
@@ -1386,19 +1367,21 @@ export default function Dashboard() {
     </div>
   );
 
+  const rainRadarCard = (
+    <WeatherRadar
+      coords={coords}
+      isMobile={isMobile}
+      cardBg={cardBg}
+      borderColor={borderColor}
+      textColor={textColor}
+      frameHeightOverride={isMobile ? undefined : '520px'}
+      title="เรดาร์ฝน"
+    />
+  );
+
   const supportGrid = (
     <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(0, 1.65fr) minmax(360px, 1fr)', gap: '20px', alignItems: 'start' }}>
       <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: '20px' }}>
-        {rainNowcastCard}
-        <WeatherRadar
-          coords={coords}
-          isMobile={isMobile}
-          cardBg={cardBg}
-          borderColor={borderColor}
-          textColor={textColor}
-          frameHeightOverride={isMobile ? undefined : '520px'}
-          title="เรดาร์ฝน"
-        />
         {todayTimelineCard}
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', minWidth: 0 }}>
@@ -1431,10 +1414,11 @@ export default function Dashboard() {
         {healthAdviceBar}
         {highlightMetricsGrid}
       </div>
-      {hourlyForecastCard}
-      {todayOverviewCard}
+      {rainNowcastCard}
+      {rainRadarCard}
       {tomorrowOverviewCard}
       {briefingCard}
+      {hourlyForecastCard}
       {supportGrid}
     </div>
   );
@@ -1455,8 +1439,8 @@ export default function Dashboard() {
           {healthAdviceBar}
           {highlightMetricsGrid}
         </div>
-
-        {todayOverviewCard}
+        {rainNowcastCard}
+        {rainRadarCard}
         {tomorrowOverviewCard}
         {briefingCard}
         {supportGrid}
