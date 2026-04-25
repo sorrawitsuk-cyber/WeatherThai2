@@ -892,15 +892,93 @@ function deepFind(obj, keys, _depth = 0) {
 }
 
 function makeTmdItem(title, summary, link, category, severity = 'normal') {
+  const cleanedSummary = cleanText(summary || '');
   return enrichItem({
     title: cleanText(title || '').slice(0, 200),
-    summary: summarizeForReaders(summary || ''),
+    summary: summarizeForReaders(cleanedSummary),
+    rawSummary: cleanedSummary.slice(0, 2500),
     publishedAt: new Date().toISOString(),
     link,
+    url: link,
     severity,
     source: 'TMD',
     category,
   });
+}
+
+function extractForecastSection(plain = '', startMarkers = [], endMarkers = []) {
+  const starts = startMarkers
+    .map((marker) => ({ marker, index: plain.indexOf(marker) }))
+    .filter((entry) => entry.index >= 0)
+    .sort((a, b) => a.index - b.index);
+  if (!starts.length) return '';
+
+  const start = starts[0].index;
+  const end = endMarkers
+    .map((marker) => plain.indexOf(marker, start + starts[0].marker.length))
+    .filter((index) => index > start)
+    .sort((a, b) => a - b)[0];
+
+  return cleanText(plain.slice(start, end > start ? end : start + 2200));
+}
+
+function buildPrimaryTmdForecastItems(plain, url, type, unique = []) {
+  if (type === 'daily') {
+    const general = extractForecastSection(
+      plain,
+      ['ลักษณะอากาศทั่วไป', 'พยากรณ์อากาศ 24 ชั่วโมงข้างหน้า'],
+      ['พยากรณ์อากาศสำหรับประเทศไทย', 'ออกประกาศ'],
+    );
+    const regional = extractForecastSection(
+      plain,
+      ['พยากรณ์อากาศสำหรับประเทศไทย'],
+      ['ออกประกาศ'],
+    );
+    const fallback = unique
+      .filter((t) => /พยากรณ์อากาศ|ฝน|อุณหภูมิ|ลม|ร้อน|เย็น/.test(t))
+      .slice(0, 5)
+      .join(' ');
+    const summary = [general, regional].filter(Boolean).join(' ') || fallback;
+
+    if (summary) {
+      return [
+        makeTmdItem(
+          'พยากรณ์อากาศวันนี้จากกรมอุตุนิยมวิทยา',
+          summary,
+          url,
+          'warning',
+          severityFromText(summary),
+        ),
+      ];
+    }
+  }
+
+  if (type === 'sevenday') {
+    const sevenDay = extractForecastSection(
+      plain,
+      ['คาดหมายอากาศทั่วไป', 'คาดหมายอากาศ 7 วันข้างหน้า', 'พยากรณ์อากาศ 7 วันข้างหน้า', 'พยากรณ์อากาศ 7 วัน'],
+      ['คาดหมายอากาศรายภาค', 'ออกประกาศ'],
+    );
+    const fallback = unique
+      .filter((t) => /7 วัน|พยากรณ์อากาศ|ฝน|อุณหภูมิ|มรสุม|ความกดอากาศ/.test(t))
+      .slice(0, 5)
+      .join(' ');
+    const summary = sevenDay || fallback;
+
+    if (summary) {
+      return [
+        makeTmdItem(
+          'พยากรณ์อากาศ 7 วันจากกรมอุตุนิยมวิทยา',
+          summary,
+          url,
+          'weather',
+          'normal',
+        ),
+      ];
+    }
+  }
+
+  return [];
 }
 
 function parseTmdNextData(nextData, url, type) {
@@ -999,6 +1077,9 @@ function parseTmdHtml(html, url, type) {
       );
     }
   } else {
+    const primaryForecastItems = buildPrimaryTmdForecastItems(plain, url, type, unique);
+    if (primaryForecastItems.length) return primaryForecastItems;
+
     const REGIONS = [
       'ภาคเหนือ',
       'ภาคตะวันออกเฉียงเหนือ',
@@ -1082,14 +1163,61 @@ async function fetchTmdWebPages() {
   ]);
 
   const parsePage = (result, url, type) => {
-    if (result.status !== 'fulfilled' || !result.value) return [];
+    if (result.status !== 'fulfilled' || !result.value) {
+      if (type === 'daily') {
+        return [
+          makeTmdItem(
+            'พยากรณ์อากาศวันนี้จากกรมอุตุนิยมวิทยา',
+            'ติดตามพยากรณ์อากาศประจำวันจากหน้าพยากรณ์ทางการของกรมอุตุนิยมวิทยา เพื่อดูแนวโน้มฝนฟ้าคะนอง ลมกระโชกแรง อุณหภูมิ และข้อควรระวังรายวัน',
+            url,
+            'warning',
+            'normal',
+          ),
+        ];
+      }
+      if (type === 'sevenday') {
+        return [
+          makeTmdItem(
+            'พยากรณ์อากาศ 7 วันจากกรมอุตุนิยมวิทยา',
+            'ติดตามแนวโน้มอากาศ 7 วันข้างหน้าจากหน้าพยากรณ์ทางการของกรมอุตุนิยมวิทยา โดยใช้ประกอบการวางแผนเดินทาง กิจกรรมกลางแจ้ง และการเฝ้าระวังฝนฟ้าคะนองในช่วงหลายวันข้างหน้า',
+            url,
+            'weather',
+            'normal',
+          ),
+        ];
+      }
+      return [];
+    }
     const html = result.value;
     const nextData = extractNextData(html);
     if (nextData) {
       const parsed = parseTmdNextData(nextData, url, type);
       if (parsed.length) return parsed;
     }
-    return parseTmdHtml(html, url, type);
+    const parsed = parseTmdHtml(html, url, type);
+    if (!parsed.length && type === 'daily') {
+      return [
+        makeTmdItem(
+          'พยากรณ์อากาศวันนี้จากกรมอุตุนิยมวิทยา',
+          'ติดตามพยากรณ์อากาศประจำวันจากหน้าพยากรณ์ทางการของกรมอุตุนิยมวิทยา เพื่อดูแนวโน้มฝนฟ้าคะนอง ลมกระโชกแรง อุณหภูมิ และข้อควรระวังรายวัน',
+          url,
+          'warning',
+          'normal',
+        ),
+      ];
+    }
+    if (!parsed.length && type === 'sevenday') {
+      return [
+        makeTmdItem(
+          'พยากรณ์อากาศ 7 วันจากกรมอุตุนิยมวิทยา',
+          'ติดตามแนวโน้มอากาศ 7 วันข้างหน้าจากหน้าพยากรณ์ทางการของกรมอุตุนิยมวิทยา โดยใช้ประกอบการวางแผนเดินทาง กิจกรรมกลางแจ้ง และการเฝ้าระวังฝนฟ้าคะนองในช่วงหลายวันข้างหน้า',
+          url,
+          'weather',
+          'normal',
+        ),
+      ];
+    }
+    return parsed;
   };
 
   return {
@@ -1345,8 +1473,10 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
+  const bypassCache = req.query?._fresh || req.query?.fresh || req.headers['cache-control'] === 'no-cache';
+
   // Return cached response immediately on warm instances (dev + warm Vercel lambdas)
-  if (_newsCache && (Date.now() - _newsCacheAt) < SERVER_CACHE_TTL_MS) {
+  if (!bypassCache && _newsCache && (Date.now() - _newsCacheAt) < SERVER_CACHE_TTL_MS) {
     res.setHeader('Cache-Control', 's-maxage=600, stale-while-revalidate=300');
     res.setHeader('X-Cache', 'HIT');
     return res.status(200).json(_newsCache);
@@ -1388,9 +1518,9 @@ export default async function handler(req, res) {
 
   // Build Thai items first (no translation needed)
   const allTmdWarnings = [
-    ...tmd.warnings.map(enrichItem),
-    ...tmdWeb.regions.map(enrichItem),
     ...tmdWeb.daily.map(enrichItem),
+    ...tmd.warnings.map(enrichItem),
+    ...(tmdWeb.daily.length ? [] : tmdWeb.regions.map(enrichItem)),
   ];
   const thaiWarnings = prioritizeItems(allTmdWarnings, 10);
 
