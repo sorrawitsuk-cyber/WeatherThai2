@@ -895,6 +895,93 @@ export default function MapPage() {
     : mapCategory === 'yesterday'
       ? `กำลังดูสถิติย้อนหลังของเมื่อวาน ${getDateLabel(-1)}`
       : timeHelperText;
+
+  const exportRows = (() => {
+    const sorted = mapCategory === 'yesterday' && activeYesterdayMode === 'minTemp'
+      ? [...allMapData].sort((a, b) => a.displayVal - b.displayVal)
+      : [...allMapData].sort((a, b) => b.displayVal - a.displayVal);
+
+    return sorted.map((st, index) => {
+      const value = st.displayVal ?? '';
+      const province = st.areaTH?.replace('จังหวัด', '').trim() || st.nameTH || st.stationID;
+      const status = mapCategory === 'risk'
+        ? getRiskLabel(value)
+        : mapCategory === 'basic' && activeBasicMode === 'pm25'
+          ? getPm25QualityText(value).text
+          : mapCategory === 'basic' && activeBasicMode === 'uv'
+            ? getUvText(value)
+            : '';
+
+      return {
+        rank: index + 1,
+        province,
+        stationId: st.stationID || '',
+        category: activeCategoryOption?.shortLabel || activeCategoryOption?.label || mapCategory,
+        layer: activeModeObj?.name || activeModeId,
+        period: activeTimeOption?.label || activeTimeKey,
+        source: activeDataSourceMeta?.label || '',
+        value,
+        unit: (mapCategory === 'basic' || mapCategory === 'yesterday' || mapCategory === 'gistda') ? (activeModeObj?.unit || '') : 'score',
+        status,
+        latitude: st.lat ?? '',
+        longitude: st.long ?? '',
+        updatedAt: lastUpdated || '',
+      };
+    });
+  })();
+
+  const downloadTextFile = (filename, content, mimeType = 'text/plain;charset=utf-8') => {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportCsv = () => {
+    if (!exportRows.length) return;
+    const headers = [
+      'rank',
+      'province',
+      'stationId',
+      'category',
+      'layer',
+      'period',
+      'source',
+      'value',
+      'unit',
+      'status',
+      'latitude',
+      'longitude',
+      'updatedAt',
+    ];
+    const escapeCsv = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+    const csv = [
+      headers.join(','),
+      ...exportRows.map(row => headers.map(key => escapeCsv(row[key])).join(',')),
+    ].join('\n');
+    const dateKey = new Date().toISOString().slice(0, 10);
+    downloadTextFile(`thaiweather-map-${mapCategory}-${activeModeId}-${activeTimeKey}-${dateKey}.csv`, `\uFEFF${csv}`, 'text/csv;charset=utf-8');
+  };
+
+  const handleExportJson = () => {
+    if (!exportRows.length) return;
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      category: activeCategoryOption?.label || mapCategory,
+      layer: activeModeObj?.name || activeModeId,
+      period: activeTimeOption?.label || activeTimeKey,
+      source: activeDataSourceMeta,
+      rows: exportRows,
+    };
+    const dateKey = new Date().toISOString().slice(0, 10);
+    downloadTextFile(`thaiweather-map-${mapCategory}-${activeModeId}-${activeTimeKey}-${dateKey}.json`, JSON.stringify(payload, null, 2), 'application/json;charset=utf-8');
+  };
+
   const timeControlCard = (
     <div style={{ background: cardBg, padding: '7px 10px', borderRadius: '14px', border: `1px solid ${borderColor}`, marginBottom: '6px', flexShrink: 0, boxShadow: '0 4px 14px rgba(15,23,42,0.07)' }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'auto minmax(0, 1fr) auto', gap: '8px', alignItems: 'center' }}>
@@ -1270,6 +1357,13 @@ export default function MapPage() {
                           style={{ width: '40px', height: '40px', borderRadius: '50%', background: activePanel === 'filter' ? '#0ea5e9' : cardBg, color: activePanel === 'filter' ? '#fff' : textColor, border: `1px solid ${activePanel === 'filter' ? '#0ea5e9' : borderColor}`, fontSize: '1rem', boxShadow: '0 2px 10px rgba(0,0,0,0.3)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                         >⚙️</button>
 
+                        <button
+                          aria-label="ส่งออกข้อมูลแผนที่เป็น CSV"
+                          onClick={handleExportCsv}
+                          disabled={!exportRows.length}
+                          style={{ width: '40px', height: '40px', borderRadius: '50%', background: cardBg, color: exportRows.length ? '#0ea5e9' : subTextColor, border: `1px solid ${borderColor}`, fontSize: '1rem', boxShadow: '0 2px 10px rgba(0,0,0,0.3)', cursor: exportRows.length ? 'pointer' : 'default', opacity: exportRows.length ? 1 : 0.55, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        >⬇️</button>
+
                         {/* 📚 Reference (risk mode only) */}
                         {mapCategory === 'risk' && (
                           <button
@@ -1291,6 +1385,14 @@ export default function MapPage() {
                             </select>
                             <div style={{ fontSize: '0.7rem', fontWeight: 'bold', color: textColor, marginTop: '8px', marginBottom: '4px' }}>ความทึบ</div>
                             <input type="range" min="0.1" max="1" step="0.1" value={polyOpacity} onChange={(e) => setPolyOpacity(parseFloat(e.target.value))} style={{ width: '100%', accentColor: activeModeObj?.color }} />
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '10px' }}>
+                              <button onClick={handleExportCsv} disabled={!exportRows.length} style={{ background: '#0ea5e9', color: '#fff', border: 'none', borderRadius: '10px', padding: '9px 10px', fontSize: '0.74rem', fontWeight: 900, fontFamily: 'Kanit', cursor: exportRows.length ? 'pointer' : 'default', opacity: exportRows.length ? 1 : 0.55 }}>
+                                ⬇️ CSV
+                              </button>
+                              <button onClick={handleExportJson} disabled={!exportRows.length} style={{ background: 'var(--bg-secondary)', color: textColor, border: `1px solid ${borderColor}`, borderRadius: '10px', padding: '9px 10px', fontSize: '0.74rem', fontWeight: 900, fontFamily: 'Kanit', cursor: exportRows.length ? 'pointer' : 'default', opacity: exportRows.length ? 1 : 0.55 }}>
+                                JSON
+                              </button>
+                            </div>
                           </div>
                         </div>
                       )}
@@ -1457,6 +1559,8 @@ export default function MapPage() {
                         เลเยอร์
                         <input aria-label="ความทึบเลเยอร์" type="range" min="0.1" max="1" step="0.1" value={polyOpacity} onChange={(e) => setPolyOpacity(parseFloat(e.target.value))} style={{ width: '74px', accentColor: activeModeObj?.color }} />
                       </label>
+                      <button aria-label="ส่งออกข้อมูลแผนที่เป็น CSV" onClick={handleExportCsv} disabled={!exportRows.length} style={{ background: '#0ea5e9', color: '#fff', border: 'none', padding: '7px 11px', borderRadius: '999px', fontWeight: 'bold', fontSize: '0.76rem', cursor: exportRows.length ? 'pointer' : 'default', fontFamily: 'Kanit', opacity: exportRows.length ? 1 : 0.55, whiteSpace: 'nowrap' }}>⬇️ CSV</button>
+                      <button aria-label="ส่งออกข้อมูลแผนที่เป็น JSON" onClick={handleExportJson} disabled={!exportRows.length} style={{ background: cardBg, color: textColor, border: `1px solid ${borderColor}`, padding: '7px 11px', borderRadius: '999px', fontWeight: 'bold', fontSize: '0.76rem', cursor: exportRows.length ? 'pointer' : 'default', fontFamily: 'Kanit', opacity: exportRows.length ? 1 : 0.55, whiteSpace: 'nowrap' }}>JSON</button>
                     </div>
                   )}
                 </div>
