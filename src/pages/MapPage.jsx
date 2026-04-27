@@ -111,6 +111,8 @@ export default function MapPage() {
   const [flyToPos, setFlyToPos] = useState(null);
   const [isLocating, setIsLocating] = useState(false);
   const [activePanel, setActivePanel] = useState(null); // 'legend' | 'filter' | 'category' | 'layer' | 'time' | 'rank'
+  const [showStationMarkers, setShowStationMarkers] = useState(true);
+  const [showLayerPanel, setShowLayerPanel] = useState(false);
 
   const [flashProv, setFlashProv] = useState(null);
   const hasAutoLocated = useRef(false);
@@ -329,7 +331,7 @@ export default function MapPage() {
     if (val === null || val === undefined || val === '' || val === 0) return darkMode ? '#1a3050' : '#b8d9f5';
     if (mode === 'pm25') return val > 75 ? '#ef4444' : val >= 37.6 ? '#f97316' : val >= 25.1 ? '#eab308' : val >= 15.1 ? '#22c55e' : '#0ea5e9';
     if (mode === 'temp' || mode === 'heat' || mode === 'maxTemp' || mode === 'minTemp') return val > 39 ? '#ef4444' : val >= 35 ? '#f97316' : val >= 29 ? '#eab308' : val >= 23 ? '#22c55e' : '#3b82f6';
-    if (mode === 'rain') return val > 50 ? '#1e3a8a' : val >= 20 ? '#3b82f6' : val >= 5 ? '#60a5fa' : '#94a3b8';
+    if (mode === 'rain') return val > 70 ? '#1e3a8a' : val > 40 ? '#3b82f6' : val > 10 ? '#60a5fa' : '#94a3b8';
     if (mode === 'wind') return val > 40 ? '#ef4444' : val >= 21 ? '#f97316' : val >= 11 ? '#eab308' : '#22c55e';
     if (mode === 'uv') return val > 10 ? '#a855f7' : val >= 8 ? '#ef4444' : val >= 6 ? '#ea580c' : val >= 3 ? '#eab308' : '#22c55e';
     if (mode === 'pressure') return val > 1015 ? '#3b82f6' : val >= 1010 ? '#22c55e' : val >= 1005 ? '#eab308' : '#ef4444';
@@ -766,6 +768,53 @@ export default function MapPage() {
     }
   };
 
+  // ===== National & regional PM2.5 (must be before early returns) =====
+  const REGION_GROUPS = {
+    'เหนือ': ['เชียงใหม่','เชียงราย','แม่ฮ่องสอน','ลำปาง','ลำพูน','แพร่','น่าน','พะเยา','อุตรดิตถ์','สุโขทัย','พิษณุโลก','เพชรบูรณ์','ตาก','กำแพงเพชร','นครสวรรค์','อุทัยธานี','พิจิตร'],
+    'ตะวันออกเฉียงเหนือ': ['ขอนแก่น','อุดรธานี','หนองคาย','เลย','หนองบัวลำภู','สกลนคร','นครพนม','มุกดาหาร','บึงกาฬ','กาฬสินธุ์','มหาสารคาม','ร้อยเอ็ด','ยโสธร','อำนาจเจริญ','อุบลราชธานี','ศรีสะเกษ','สุรินทร์','บุรีรัมย์','ชัยภูมิ','นครราชสีมา'],
+    'กลาง': ['กรุงเทพมหานคร','นนทบุรี','ปทุมธานี','สมุทรปราการ','สมุทรสาคร','สมุทรสงคราม','นครปฐม','พระนครศรีอยุธยา','อ่างทอง','สิงห์บุรี','ชัยนาท','ลพบุรี','สระบุรี','นครนายก','ปราจีนบุรี','ฉะเชิงเทรา','สุพรรณบุรี','กาญจนบุรี','ราชบุรี','เพชรบุรี','ประจวบคีรีขันธ์'],
+    'ตะวันออก': ['ชลบุรี','ระยอง','จันทบุรี','ตราด','สระแก้ว'],
+    'ใต้': ['นครศรีธรรมราช','สุราษฎร์ธานี','กระบี่','พังงา','ภูเก็ต','ตรัง','พัทลุง','สตูล','สงขลา','ปัตตานี','ยะลา','นราธิวาส','ระนอง','ชุมพร'],
+  };
+  const nationalPm25 = useMemo(() => {
+    const vals = stations.map(st => st.AQILast?.PM25?.value || 0).filter(v => v > 0);
+    const avg = vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length * 10) / 10 : 0;
+    const color = avg > 150 ? '#ef4444' : avg > 100 ? '#f97316' : avg > 50 ? '#eab308' : avg > 25 ? '#84cc16' : '#22c55e';
+    const label = avg > 150 ? 'อันตราย' : avg > 100 ? 'ไม่ดีต่อสุขภาพ' : avg > 50 ? 'มีผลกระทบ' : avg > 25 ? 'ปานกลาง' : 'ดี';
+    return { avg, count: vals.length, color, label };
+  }, [stations]);
+  const regionalPm25 = useMemo(() => {
+    return Object.entries(REGION_GROUPS).map(([name, provs]) => {
+      const sts = stations.filter(st => provs.includes(st.areaTH.replace('จังหวัด', '').trim()));
+      const vals = sts.map(st => st.AQILast?.PM25?.value || 0).filter(v => v > 0);
+      const avg = vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length * 10) / 10 : 0;
+      const color = avg > 150 ? '#ef4444' : avg > 100 ? '#f97316' : avg > 50 ? '#eab308' : avg > 25 ? '#84cc16' : '#22c55e';
+      const todayVals = sts.map(st => stationDaily[st.stationID]?.pm25?.[7] || 0).filter(v => v > 0);
+      const ystdVals = sts.map(st => stationDaily[st.stationID]?.pm25?.[6] || 0).filter(v => v > 0);
+      const today = todayVals.length ? todayVals.reduce((a, b) => a + b, 0) / todayVals.length : 0;
+      const ystd = ystdVals.length ? ystdVals.reduce((a, b) => a + b, 0) / ystdVals.length : 0;
+      const trend = today && ystd ? today - ystd : 0;
+      return { name, avg, color, trend };
+    });
+  }, [stations, stationDaily]); // eslint-disable-line react-hooks/exhaustive-deps
+  const sparkline7d = useMemo(() => {
+    return Array.from({ length: 8 }, (_, i) => {
+      const vals = stations.map(st => stationDaily[st.stationID]?.pm25?.[i] || 0).filter(v => v > 0);
+      return vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : 0;
+    });
+  }, [stations, stationDaily]);
+  const forecastStId = selectedHotspot?.station?.stationID || stations.find(st => st.areaTH.includes('กรุงเทพ'))?.stationID;
+  const forecastStName = selectedHotspot?.station?.areaTH?.replace('จังหวัด', '') || 'กรุงเทพมหานคร';
+  const forecast7d = useMemo(() => {
+    if (!forecastStId) return [];
+    const daily = stationDaily[forecastStId] || {};
+    return Array.from({ length: 7 }, (_, i) => {
+      const idx = 8 + i;
+      const d = new Date(); d.setDate(d.getDate() + i + 1);
+      return { date: d, pm25: Math.round(daily.pm25?.[idx] || 0), rain: Math.round(daily.rain?.[idx] || 0), temp: Math.round(daily.temp?.[idx] || 0) };
+    });
+  }, [forecastStId, stationDaily]);
+
   if (geoError) return (
     <div className="loading-container" style={{ background: appBg, color: textColor }}>
         <div style={{ fontSize: '3rem', marginBottom: '15px' }}>⚠️</div>
@@ -1070,12 +1119,80 @@ export default function MapPage() {
 
   return (
     <div style={{ height: isMobile ? '100%' : desktopViewportHeight, width: '100%', background: appBg, display: 'flex', flexDirection: 'column', fontFamily: 'Kanit, sans-serif', padding: isMobile ? '0' : '8px', boxSizing: 'border-box', overflow: 'hidden' }}>
-      
-      {/* === DESKTOP HEADER (ซ่อนบนมือถือ) === */}
+
+      {/* === DESKTOP HEADER ROW 1: Logo + Title + Nav === */}
       {!isMobile && (
         <>
-          <div style={{ display: 'flex', flexDirection: 'row', gap: '8px', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px', flexShrink: 0 }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '7px', minWidth: 0, flex: 1 }}>
+          {/* Row 1: Logo + Title + Status + Icons */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', marginBottom: '6px', flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ width: '38px', height: '38px', borderRadius: '12px', background: 'linear-gradient(135deg, #0ea5e9, #3b82f6)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', flexShrink: 0 }}>🗺️</div>
+              <div>
+                <div style={{ fontSize: '1rem', fontWeight: '900', color: textColor, lineHeight: 1.2 }}>แผนที่เฝ้าระวังภัย</div>
+                <div style={{ fontSize: '0.65rem', color: subTextColor, fontWeight: 'bold' }}>คุณภาพอากาศประเทศไทย</div>
+              </div>
+              <div style={{ marginLeft: '4px', borderLeft: `1px solid ${borderColor}`, paddingLeft: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#22c55e', display: 'inline-block', animation: 'pulse 2s infinite' }}></span>
+                  <span style={{ fontSize: '0.7rem', color: subTextColor }}>อัปเดตล่าสุด: {getLastUpdatedText()}</span>
+                </div>
+                <div style={{ fontSize: '0.62rem', color: subTextColor, marginTop: '2px' }}>ข้อมูลจาก AIR4Thai{tmdAvailable ? ' + TMD' : ''} (PCD)</div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {mapCategory === 'risk' && (
+                <button onClick={() => setShowReferenceModal(true)} style={{ background: 'var(--bg-secondary)', color: '#8b5cf6', border: '1px solid #8b5cf6', padding: '6px 12px', borderRadius: '20px', fontSize: '0.72rem', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit', display: 'flex', alignItems: 'center', gap: '5px' }}>📚 แหล่งอ้างอิง</button>
+              )}
+              <button onClick={handleExportCsv} disabled={!exportRows.length} title="ดาวน์โหลด CSV" style={{ background: 'var(--bg-secondary)', color: exportRows.length ? '#0ea5e9' : subTextColor, border: `1px solid ${borderColor}`, width: '34px', height: '34px', borderRadius: '50%', cursor: exportRows.length ? 'pointer' : 'default', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: exportRows.length ? 1 : 0.5 }}>⬇️</button>
+              <button onClick={handleExportJson} disabled={!exportRows.length} title="ดาวน์โหลด JSON" style={{ background: 'var(--bg-secondary)', color: exportRows.length ? textColor : subTextColor, border: `1px solid ${borderColor}`, width: '34px', height: '34px', borderRadius: '50%', cursor: exportRows.length ? 'pointer' : 'default', fontSize: '0.62rem', fontWeight: 900, fontFamily: 'Kanit', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: exportRows.length ? 1 : 0.5 }}>JSON</button>
+            </div>
+          </div>
+
+          {/* Row 2: Sub-nav — Category + Data layer + Time + Mode */}
+          <div className="hide-scrollbar" style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px', flexShrink: 0, background: cardBg, padding: '6px 12px', borderRadius: '14px', border: `1px solid ${borderColor}`, overflowX: 'auto' }}>
+            <span style={{ fontSize: '0.62rem', color: subTextColor, fontWeight: 900, whiteSpace: 'nowrap', flexShrink: 0 }}>มุมมอง</span>
+            <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+              {mapCategoryOptions.map(opt => (
+                <button key={opt.id} onClick={() => setMapCategory(opt.id)} style={{ padding: '4px 10px', borderRadius: '20px', border: `1px solid ${mapCategory === opt.id ? opt.color : borderColor}`, background: mapCategory === opt.id ? opt.color : 'transparent', color: mapCategory === opt.id ? '#fff' : subTextColor, fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit', fontSize: '0.68rem', whiteSpace: 'nowrap', transition: 'all 0.2s' }}>
+                  {opt.icon} {opt.shortLabel}
+                </button>
+              ))}
+            </div>
+            <div style={{ width: '1px', height: '18px', background: borderColor, flexShrink: 0 }} />
+            <span style={{ fontSize: '0.62rem', color: subTextColor, fontWeight: 900, whiteSpace: 'nowrap', flexShrink: 0 }}>แสดงข้อมูล</span>
+            <div className="hide-scrollbar" style={{ display: 'flex', gap: '4px', overflowX: 'auto', flexShrink: 1 }}>
+              {activeModeList.map(m => (
+                <button key={m.id} onClick={() => setActiveModeByCategory(m.id)} style={{ padding: '4px 10px', borderRadius: '20px', border: `1px solid ${activeModeId === m.id ? m.color : borderColor}`, background: activeModeId === m.id ? (darkMode ? `${m.color}25` : `${m.color}18`) : 'transparent', color: activeModeId === m.id ? m.color : subTextColor, fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit', fontSize: '0.68rem', whiteSpace: 'nowrap', transition: 'all 0.2s' }}>
+                  {m.name}
+                </button>
+              ))}
+            </div>
+            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+              <div style={{ width: '1px', height: '18px', background: borderColor }} />
+              <span style={{ fontSize: '0.62rem', color: subTextColor, fontWeight: 900, whiteSpace: 'nowrap' }}>ช่วงเวลา</span>
+              <div style={{ display: 'flex', gap: '4px' }}>
+                {(canChooseTimeMode ? flatTimeOptions : []).map(opt => {
+                  const isAct = activeTimeKey === opt.id;
+                  return (
+                    <button key={opt.id} onClick={() => handleTimeOptionSelect(opt.id)} style={{ padding: '4px 10px', borderRadius: '20px', border: `1px solid ${isAct ? opt.color : borderColor}`, background: isAct ? opt.color : 'transparent', color: isAct ? '#fff' : subTextColor, fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit', fontSize: '0.68rem', whiteSpace: 'nowrap', transition: 'all 0.2s' }}>
+                      {opt.label}
+                    </button>
+                  );
+                })}
+                {!canChooseTimeMode && <span style={{ fontSize: '0.68rem', color: subTextColor, padding: '4px 6px' }}>{activeTimeOption?.sub}</span>}
+              </div>
+              <div style={{ width: '1px', height: '18px', background: borderColor }} />
+              <div style={{ display: 'flex', gap: '2px', background: 'var(--bg-secondary)', padding: '3px', borderRadius: '20px' }}>
+                <button onClick={() => { if (canChooseTimeMode) setTimeMode('today'); }} style={{ padding: '3px 10px', borderRadius: '16px', border: 'none', background: (timeMode === 'today' && canChooseTimeMode) ? '#22c55e' : 'transparent', color: (timeMode === 'today' && canChooseTimeMode) ? '#fff' : subTextColor, fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit', fontSize: '0.66rem', display: 'flex', alignItems: 'center', gap: '4px', transition: 'all 0.2s', whiteSpace: 'nowrap' }}>
+                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />Live
+                </button>
+                <button onClick={() => { setMapCategory('basic'); setTimeMode('tomorrow'); }} style={{ padding: '3px 10px', borderRadius: '16px', border: 'none', background: timeMode === 'tomorrow' ? '#a855f7' : 'transparent', color: timeMode === 'tomorrow' ? '#fff' : subTextColor, fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit', fontSize: '0.66rem', transition: 'all 0.2s', whiteSpace: 'nowrap' }}>พยากรณ์</button>
+              </div>
+            </div>
+          </div>
+
+          {/* hidden legacy controls — kept for reference, not rendered */}
+          <div style={{ display: 'none' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0, flexWrap: 'wrap', flex: 1 }}>
                           <div>
@@ -1123,7 +1240,6 @@ export default function MapPage() {
                                 </button>
                               ))}
                           </div>
-                          </div>
                       </div>
                       {mapCategory === 'risk' && (
                           <button onClick={() => setShowReferenceModal(true)} style={{ background: 'var(--bg-secondary)', color: '#8b5cf6', border: `1px solid #8b5cf6`, padding: '5px 12px', borderRadius: '50px', fontSize: '0.8rem', fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit', display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s', flexShrink: 0 }}>
@@ -1145,12 +1261,80 @@ export default function MapPage() {
                   </div>
                </div>
 
-          {timeControlCard}
         </>
       )}
 
       <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', flex: 1, gap: isMobile ? '0' : '10px', overflow: 'hidden', minHeight: 0 }}>
-          
+
+          {/* === LEFT SIDEBAR (desktop only) === */}
+          {!isMobile && (
+            <div style={{ width: '220px', display: 'flex', flexDirection: 'column', gap: '8px', flexShrink: 0, overflowY: 'auto', minHeight: 0 }} className="custom-scrollbar">
+
+              {/* National PM2.5 card */}
+              <div style={{ background: cardBg, borderRadius: '14px', border: `1px solid ${borderColor}`, padding: '12px' }}>
+                <div style={{ fontSize: '0.65rem', fontWeight: 900, color: subTextColor, marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>PM2.5 ทั่วประเทศ (เฉลี่ย)</div>
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: '6px', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '2rem', fontWeight: 900, color: nationalPm25.color, lineHeight: 1 }}>{nationalPm25.avg}</span>
+                  <span style={{ fontSize: '0.7rem', color: subTextColor, fontWeight: 'bold', marginBottom: '4px' }}>µg/m³</span>
+                  <span style={{ fontSize: '0.65rem', fontWeight: 900, background: nationalPm25.color + '22', color: nationalPm25.color, border: `1px solid ${nationalPm25.color}44`, borderRadius: '20px', padding: '2px 7px', marginBottom: '4px' }}>{nationalPm25.label}</span>
+                </div>
+                {/* 8-day sparkline */}
+                <svg width="100%" height="36" viewBox={`0 0 196 36`} preserveAspectRatio="none">
+                  {(() => {
+                    const pts = sparkline7d;
+                    const max = Math.max(...pts, 1);
+                    const xs = pts.map((_, i) => Math.round((i / (pts.length - 1)) * 196));
+                    const ys = pts.map(v => Math.round(36 - (v / max) * 30));
+                    const path = xs.map((x, i) => `${i === 0 ? 'M' : 'L'} ${x} ${ys[i]}`).join(' ');
+                    const area = `${path} L ${xs[xs.length-1]} 36 L 0 36 Z`;
+                    return (
+                      <>
+                        <defs><linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={nationalPm25.color} stopOpacity="0.4"/><stop offset="100%" stopColor={nationalPm25.color} stopOpacity="0"/></linearGradient></defs>
+                        <path d={area} fill="url(#sparkGrad)" />
+                        <path d={path} fill="none" stroke={nationalPm25.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        {xs.map((x, i) => <circle key={i} cx={x} cy={ys[i]} r="2.5" fill={nationalPm25.color} />)}
+                      </>
+                    );
+                  })()}
+                </svg>
+                <div style={{ fontSize: '0.6rem', color: subTextColor, marginTop: '4px', textAlign: 'right' }}>ย้อนหลัง 8 วัน</div>
+              </div>
+
+              {/* Regional breakdown */}
+              <div style={{ background: cardBg, borderRadius: '14px', border: `1px solid ${borderColor}`, padding: '12px', flex: 1 }}>
+                <div style={{ fontSize: '0.65rem', fontWeight: 900, color: subTextColor, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>PM2.5 รายภาค</div>
+                {regionalPm25.map(r => (
+                  <div key={r.name} style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '7px' }}>
+                    <div style={{ width: '3px', height: '28px', borderRadius: '2px', background: r.color, flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '0.68rem', fontWeight: 900, color: textColor, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.name}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '1px' }}>
+                        <div style={{ height: '4px', borderRadius: '2px', background: r.color, width: `${Math.min(100, (r.avg / 150) * 100)}%`, minWidth: '4px', transition: 'width 0.5s' }} />
+                        <span style={{ fontSize: '0.62rem', color: r.color, fontWeight: 900 }}>{r.avg}</span>
+                        <span style={{ fontSize: '0.58rem', color: r.trend > 0 ? '#ef4444' : r.trend < 0 ? '#22c55e' : subTextColor }}>
+                          {r.trend > 0 ? '▲' : r.trend < 0 ? '▼' : '–'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Legend */}
+              <div style={{ background: cardBg, borderRadius: '14px', border: `1px solid ${borderColor}`, padding: '12px' }}>
+                <div style={{ fontSize: '0.65rem', fontWeight: 900, color: subTextColor, marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>เกณฑ์ {activeModeObj?.name}</div>
+                {getDynamicLegendContent().map((item, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                    <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: item.c, flexShrink: 0 }} />
+                    <span style={{ fontSize: '0.62rem', color: textColor, fontWeight: 'bold' }}>{item.r}</span>
+                    <span style={{ fontSize: '0.58rem', color: subTextColor }}>({item.l})</span>
+                  </div>
+                ))}
+              </div>
+
+            </div>
+          )}
+
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: isMobile ? '0' : '10px', minHeight: 0 }}>
               <div style={{ flex: 1, borderRadius: isMobile ? '0' : '18px', overflow: 'hidden', border: isMobile ? 'none' : `1px solid ${borderColor}`, position: 'relative', minHeight: isMobile ? 'calc(100vh - 120px)' : 0, background: cardBg }}>
 
@@ -1565,6 +1749,31 @@ export default function MapPage() {
                   )}
                 </div>
               </div>
+
+              {/* === 7-DAY FORECAST BAR (desktop only) === */}
+              {!isMobile && forecast7d.length > 0 && (
+                <div style={{ background: cardBg, borderRadius: '14px', border: `1px solid ${borderColor}`, padding: '8px 12px', flexShrink: 0 }}>
+                  <div style={{ fontSize: '0.6rem', fontWeight: 900, color: subTextColor, marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    พยากรณ์ 7 วัน — {forecastStName}
+                  </div>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    {forecast7d.map((day, i) => {
+                      const dayName = ['อา','จ','อ','พ','พฤ','ศ','ส'][day.date.getDay()];
+                      const dd = day.date.getDate();
+                      const pm25Color = day.pm25 > 100 ? '#ef4444' : day.pm25 > 50 ? '#f97316' : day.pm25 > 25 ? '#eab308' : '#22c55e';
+                      return (
+                        <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px', background: 'var(--bg-secondary)', borderRadius: '10px', padding: '6px 4px' }}>
+                          <div style={{ fontSize: '0.6rem', fontWeight: 900, color: subTextColor }}>{dayName} {dd}</div>
+                          <div style={{ fontSize: '0.9rem' }}>{day.rain > 60 ? '⛈️' : day.rain > 30 ? '🌧️' : day.rain > 10 ? '🌦️' : '☀️'}</div>
+                          <div style={{ fontSize: '0.65rem', fontWeight: 900, color: pm25Color }}>{day.pm25 || '–'}</div>
+                          <div style={{ fontSize: '0.58rem', color: subTextColor }}>{day.temp}°</div>
+                          <div style={{ fontSize: '0.55rem', color: '#3b82f6' }}>{day.rain}%</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
           </div>
 
           {/* === DESKTOP SIDEBAR (ซ่อนบนมือถือ — ใช้ Bottom Sheet แทน) === */}
