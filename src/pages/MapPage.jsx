@@ -1199,25 +1199,7 @@ export default function MapPage() {
 
           {/* Row 2: Sub-nav — Category + Data layer + Time + Mode */}
           <div className="hide-scrollbar" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px', marginBottom: '6px', flexShrink: 0, background: cardBg, padding: '8px 12px', borderRadius: '14px', border: `1px solid ${borderColor}`, overflowX: 'auto' }}>
-            <span style={{ fontSize: '0.62rem', color: subTextColor, fontWeight: 900, whiteSpace: 'nowrap', flexShrink: 0 }}>มุมมอง</span>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', flexShrink: 0, minWidth: 0 }}>
-              {mapCategoryOptions.map(opt => (
-                <button key={opt.id} onClick={() => setMapCategory(opt.id)} style={{ padding: '4px 10px', borderRadius: '20px', border: `1px solid ${mapCategory === opt.id ? opt.color : borderColor}`, background: mapCategory === opt.id ? opt.color : 'transparent', color: mapCategory === opt.id ? '#fff' : subTextColor, fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit', fontSize: '0.68rem', whiteSpace: 'normal', transition: 'all 0.2s', lineHeight: 1.2 }}>
-                  {opt.icon} {opt.shortLabel}
-                </button>
-              ))}
-            </div>
-            <div style={{ width: '1px', height: '18px', background: borderColor, flexShrink: 0 }} />
-            <span style={{ fontSize: '0.62rem', color: subTextColor, fontWeight: 900, whiteSpace: 'nowrap', flexShrink: 0 }}>แสดงข้อมูล</span>
-            <div className="hide-scrollbar" style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', overflowX: 'auto', flexShrink: 1, minWidth: 0 }}>
-              {activeModeList.map(m => (
-                <button key={m.id} onClick={() => setActiveModeByCategory(m.id)} style={{ padding: '4px 10px', borderRadius: '20px', border: `1px solid ${activeModeId === m.id ? m.color : borderColor}`, background: activeModeId === m.id ? (darkMode ? `${m.color}25` : `${m.color}18`) : 'transparent', color: activeModeId === m.id ? m.color : subTextColor, fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit', fontSize: '0.68rem', whiteSpace: 'normal', transition: 'all 0.2s', lineHeight: 1.2 }}>
-                  {m.name}
-                </button>
-              ))}
-            </div>
-            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-              <div style={{ width: '1px', height: '18px', background: borderColor }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
               <span style={{ fontSize: '0.62rem', color: subTextColor, fontWeight: 900, whiteSpace: 'nowrap' }}>ช่วงเวลา</span>
               <div style={{ display: 'flex', gap: '4px' }}>
                 {(canChooseTimeMode ? flatTimeOptions : []).map(opt => {
@@ -1237,6 +1219,24 @@ export default function MapPage() {
                 </button>
                 <button onClick={() => { setMapCategory('basic'); setTimeMode('tomorrow'); }} style={{ padding: '3px 10px', borderRadius: '16px', border: 'none', background: timeMode === 'tomorrow' ? '#a855f7' : 'transparent', color: timeMode === 'tomorrow' ? '#fff' : subTextColor, fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit', fontSize: '0.66rem', transition: 'all 0.2s', whiteSpace: 'nowrap' }}>พยากรณ์</button>
               </div>
+            </div>
+            <div style={{ width: '1px', height: '18px', background: borderColor, flexShrink: 0 }} />
+            <span style={{ fontSize: '0.62rem', color: subTextColor, fontWeight: 900, whiteSpace: 'nowrap', flexShrink: 0 }}>มุมมอง</span>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', flexShrink: 0, minWidth: 0 }}>
+              {mapCategoryOptions.map(opt => (
+                <button key={opt.id} onClick={() => setMapCategory(opt.id)} style={{ padding: '4px 10px', borderRadius: '20px', border: `1px solid ${mapCategory === opt.id ? opt.color : borderColor}`, background: mapCategory === opt.id ? opt.color : 'transparent', color: mapCategory === opt.id ? '#fff' : subTextColor, fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit', fontSize: '0.68rem', whiteSpace: 'normal', transition: 'all 0.2s', lineHeight: 1.2 }}>
+                  {opt.icon} {opt.shortLabel}
+                </button>
+              ))}
+            </div>
+            <div style={{ width: '1px', height: '18px', background: borderColor, flexShrink: 0 }} />
+            <span style={{ fontSize: '0.62rem', color: subTextColor, fontWeight: 900, whiteSpace: 'nowrap', flexShrink: 0 }}>แสดงข้อมูล</span>
+            <div className="hide-scrollbar" style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', overflowX: 'auto', flexShrink: 1, minWidth: 0 }}>
+              {activeModeList.map(m => (
+                <button key={m.id} onClick={() => setActiveModeByCategory(m.id)} style={{ padding: '4px 10px', borderRadius: '20px', border: `1px solid ${activeModeId === m.id ? m.color : borderColor}`, background: activeModeId === m.id ? (darkMode ? `${m.color}25` : `${m.color}18`) : 'transparent', color: activeModeId === m.id ? m.color : subTextColor, fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit', fontSize: '0.68rem', whiteSpace: 'normal', transition: 'all 0.2s', lineHeight: 1.2 }}>
+                  {m.name}
+                </button>
+              ))}
             </div>
           </div>
 
