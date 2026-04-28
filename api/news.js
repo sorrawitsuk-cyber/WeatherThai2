@@ -56,7 +56,7 @@ const EONET_CATS = {
   snow:         { th: 'พายุหิมะ/หิมะหนัก',        severity: 'normal', category: 'global-disaster' },
 };
 
-const MODEL_CANDIDATES = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+const MODEL_CANDIDATES = ['gemini-2.5-flash', 'gemini-2.0-flash'];
 const AI_TIMEOUT_MS = 7000;
 const THAI_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
 

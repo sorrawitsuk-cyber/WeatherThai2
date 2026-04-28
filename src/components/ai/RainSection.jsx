@@ -12,8 +12,15 @@ export default function RainSection({
   const renderWindAnalysis = () => {
     if (windError) {
       return (
-        <div style={{ background: '#ef444415', border: '1px solid #ef444430', borderRadius: '12px', color: '#ef4444', fontSize: '0.76rem', marginBottom: '12px', padding: '10px 12px' }}>
-          ⚠️ {windError}
+        <div style={{ background: '#ef444415', border: '1px solid #ef444430', borderRadius: '12px', color: '#ef4444', fontSize: '0.82rem', marginBottom: '12px', padding: '14px 16px' }}>
+          <div style={{ fontWeight: 700, marginBottom: 4 }}>⚠️ โหลดข้อมูลการวิเคราะห์ลมไม่สำเร็จ</div>
+          <div style={{ opacity: 0.8, marginBottom: 10 }}>{windError}</div>
+          <button
+            onClick={fetchWindAnalysis}
+            style={{ background: '#ef444420', border: '1px solid #ef444450', borderRadius: 8, color: '#ef4444', cursor: 'pointer', fontSize: '0.76rem', fontWeight: 600, padding: '5px 14px' }}
+          >
+            ลองใหม่
+          </button>
         </div>
       );
     }

@@ -3,9 +3,6 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 const MODELS_TO_TRY = [
   'gemini-2.5-flash',
   'gemini-2.0-flash',
-  'gemini-1.5-flash',
-  'gemini-1.5-flash-latest',
-  'gemini-pro',
 ];
 
 export default async function handler(req, res) {
