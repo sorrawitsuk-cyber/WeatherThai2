@@ -6,8 +6,8 @@ let _cache = null;
 let _cacheAt = 0;
 
 const TMD_URL = 'http://www.marine.tmd.go.th/html/weather0.html';
-const MODEL_CANDIDATES = ['gemini-1.5-flash', 'gemini-1.5-pro'];
-const AI_TIMEOUT_MS = 25000;
+const MODEL_CANDIDATES = ['gemini-2.0-flash', 'gemini-1.5-flash'];
+const AI_TIMEOUT_MS = 12000;
 
 // Upper air analysis standard times (UTC): 00, 06, 12, 18 + supplemental 03, 09, 15, 21
 const SYNOPTIC_HOURS = [0, 3, 6, 9, 12, 15, 18, 21];
@@ -19,15 +19,17 @@ function nearestSynopticTime() {
 }
 
 async function withTimeout(promise, ms) {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), ms);
-  try { return await promise; }
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`Timed out after ${ms}ms`)), ms);
+  });
+  try { return await Promise.race([promise, timeout]); }
   finally { clearTimeout(timer); }
 }
 
 async function fetchHtml() {
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 12000);
+  const timer = setTimeout(() => ctrl.abort(), 8000);
   try {
     const res = await fetch(TMD_URL, {
       signal: ctrl.signal,
@@ -56,18 +58,17 @@ function extractImageUrls(html) {
 }
 
 function filterWindImages(urls) {
-  // Prioritize images that look like upper air charts
   const priority = urls.filter(u =>
     PRESSURE_LEVELS.some(l => u.includes(String(l))) ||
     /upper|wind|stream|front|isoba|level/i.test(u)
   );
-  return (priority.length ? priority : urls).slice(0, 6);
+  return (priority.length ? priority : urls).slice(0, 4);
 }
 
 async function fetchImageBase64(url) {
   try {
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 8000);
+    const timer = setTimeout(() => ctrl.abort(), 5000);
     const res = await fetch(url, { signal: ctrl.signal });
     clearTimeout(timer);
     if (!res.ok) return null;
@@ -152,11 +153,11 @@ export default async function handler(req, res) {
   if (!apiKey) return res.status(500).json({ error: 'GEMINI_API_KEY not configured' });
 
   try {
-    const [html] = await Promise.allSettled([fetchHtml()]);
-    const pageText = html.status === 'fulfilled' ? stripHtml(html.value) : 'ไม่สามารถโหลดข้อมูลจาก TMD ได้';
+    const htmlText = await fetchHtml().catch(() => null);
+    const pageText = htmlText ? stripHtml(htmlText) : 'ไม่สามารถโหลดข้อมูลจาก TMD ได้';
 
-    const imageUrls = html.status === 'fulfilled' ? filterWindImages(extractImageUrls(html.value)) : [];
-    const imageFetches = await Promise.all(imageUrls.slice(0, 4).map(fetchImageBase64));
+    const imageUrls = htmlText ? filterWindImages(extractImageUrls(htmlText)) : [];
+    const imageFetches = await Promise.all(imageUrls.map(fetchImageBase64));
     const imageParts = imageFetches.filter(Boolean).map(d => ({ inlineData: d }));
 
     const synopticHour = nearestSynopticTime();
@@ -195,7 +196,7 @@ export default async function handler(req, res) {
       ...data,
       model: usedModel,
       imageCount: imageParts.length,
-      tmdAvailable: html.status === 'fulfilled',
+      tmdAvailable: htmlText !== null,
       cachedAt: new Date().toISOString(),
       nextUpdateAt: new Date(Date.now() + CACHE_TTL).toISOString(),
     };

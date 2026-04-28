@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+﻿import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // Module-level cache (survives across warm Vercel invocations and local dev reloads)
 let _newsCache = null;
@@ -891,6 +891,14 @@ function deepFind(obj, keys, _depth = 0) {
   return undefined;
 }
 
+function walkTree(obj, callback, _depth = 0) {
+  if (_depth > 8 || obj == null) return;
+  callback(obj);
+  if (typeof obj !== 'object') return;
+  const entries = Array.isArray(obj) ? obj.slice(0, 50) : Object.values(obj).slice(0, 50);
+  for (const child of entries) walkTree(child, callback, _depth + 1);
+}
+
 function makeTmdItem(title, summary, link, category, severity = 'normal') {
   const cleanedSummary = cleanText(summary || '');
   return enrichItem({
@@ -1374,7 +1382,7 @@ async function fetchDdpmPage() {
     const nextData = extractNextData(html);
     if (nextData) {
       const texts = [];
-      deepFind(nextData, (v) => {
+      walkTree(nextData, (v) => {
         if (typeof v === 'string' && /[\u0E00-\u0E7F]{4,}/.test(v) && v.length > 20) texts.push(v);
       });
       if (texts.length) {
@@ -1441,7 +1449,7 @@ async function fetchTmdEqPage() {
     const nextData = extractNextData(html);
     if (nextData) {
       const eqItems = [];
-      deepFind(nextData, (v, path) => {
+      walkTree(nextData, (v) => {
         if (typeof v === 'object' && v !== null && (v.magnitude || v.mag) && (v.location || v.place || v.region)) {
           const mag = parseFloat(v.magnitude || v.mag || 0);
           const place = v.location || v.place || v.region || 'ไม่ระบุ';
