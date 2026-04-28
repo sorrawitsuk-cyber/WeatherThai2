@@ -776,44 +776,93 @@ export default function MapPage() {
     'ตะวันออก': ['ชลบุรี','ระยอง','จันทบุรี','ตราด','สระแก้ว'],
     'ใต้': ['นครศรีธรรมราช','สุราษฎร์ธานี','กระบี่','พังงา','ภูเก็ต','ตรัง','พัทลุง','สตูล','สงขลา','ปัตตานี','ยะลา','นราธิวาส','ระนอง','ชุมพร'],
   };
-  const nationalPm25 = useMemo(() => {
-    const vals = stations.map(st => st.AQILast?.PM25?.value || 0).filter(v => v > 0);
+  const nationalMetric = useMemo(() => {
+    const vals = allMapData.map(st => st.displayVal).filter(v => v != null && !Number.isNaN(v));
     const avg = vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length * 10) / 10 : 0;
-    const color = avg > 150 ? '#ef4444' : avg > 100 ? '#f97316' : avg > 50 ? '#eab308' : avg > 25 ? '#84cc16' : '#22c55e';
-    const label = avg > 150 ? 'อันตราย' : avg > 100 ? 'ไม่ดีต่อสุขภาพ' : avg > 50 ? 'มีผลกระทบ' : avg > 25 ? 'ปานกลาง' : 'ดี';
+    const color = mapCategory === 'basic'
+      ? getBasicColor(avg, activeBasicMode)
+      : mapCategory === 'risk'
+        ? getRiskColor(avg)
+        : mapCategory === 'yesterday'
+          ? getYesterdayColor(avg, activeYesterdayMode)
+          : getGistdaColor(avg, activeGistdaMode);
+    const label = mapCategory === 'basic' && activeBasicMode === 'pm25'
+      ? getPm25QualityText(avg).text
+      : mapCategory === 'basic'
+        ? activeModeObj?.name || 'ข้อมูลทั่วไป'
+        : mapCategory === 'risk'
+          ? 'คะแนนความเสี่ยงเฉลี่ย'
+          : mapCategory === 'yesterday'
+            ? `ย้อนหลัง ${activeModeObj?.name}`
+            : 'ข้อมูล GISTDA';
     return { avg, count: vals.length, color, label };
-  }, [stations]);
-  const regionalPm25 = useMemo(() => {
+  }, [allMapData, mapCategory, activeBasicMode, activeRiskMode, activeYesterdayMode, activeGistdaMode, activeModeObj, getBasicColor, getRiskColor, getYesterdayColor, getGistdaColor, getPm25QualityText]);
+  const regionalMetric = useMemo(() => {
     return Object.entries(REGION_GROUPS).map(([name, provs]) => {
-      const sts = stations.filter(st => provs.includes(st.areaTH.replace('จังหวัด', '').trim()));
-      const vals = sts.map(st => st.AQILast?.PM25?.value || 0).filter(v => v > 0);
+      const sts = allMapData.filter(st => provs.includes(st.areaTH.replace('จังหวัด', '').trim()));
+      const vals = sts.map(st => st.displayVal).filter(v => v != null && !Number.isNaN(v));
       const avg = vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length * 10) / 10 : 0;
-      const color = avg > 150 ? '#ef4444' : avg > 100 ? '#f97316' : avg > 50 ? '#eab308' : avg > 25 ? '#84cc16' : '#22c55e';
-      const todayVals = sts.map(st => stationDaily[st.stationID]?.pm25?.[7] || 0).filter(v => v > 0);
-      const ystdVals = sts.map(st => stationDaily[st.stationID]?.pm25?.[6] || 0).filter(v => v > 0);
-      const today = todayVals.length ? todayVals.reduce((a, b) => a + b, 0) / todayVals.length : 0;
-      const ystd = ystdVals.length ? ystdVals.reduce((a, b) => a + b, 0) / ystdVals.length : 0;
-      const trend = today && ystd ? today - ystd : 0;
-      return { name, avg, color, trend };
+      const color = mapCategory === 'basic'
+        ? getBasicColor(avg, activeBasicMode)
+        : mapCategory === 'risk'
+          ? getRiskColor(avg)
+          : mapCategory === 'yesterday'
+            ? getYesterdayColor(avg, activeYesterdayMode)
+            : getGistdaColor(avg, activeGistdaMode);
+      return { name, avg, color, trend: 0 };
     });
-  }, [stations, stationDaily]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [allMapData, mapCategory, activeBasicMode, activeRiskMode, activeYesterdayMode, activeGistdaMode, getBasicColor, getRiskColor, getYesterdayColor, getGistdaColor]);
   const sparkline7d = useMemo(() => {
     return Array.from({ length: 8 }, (_, i) => {
-      const vals = stations.map(st => stationDaily[st.stationID]?.pm25?.[i] || 0).filter(v => v > 0);
+      const vals = (mapCategory === 'basic'
+        ? stations.map(st => {
+            const daily = stationDaily[st.stationID] || {};
+            if (isAvg7Mode) {
+              const idxArr = [8, 9, 10, 11, 12, 13, 14];
+              const arr = idxArr.map(idx => daily[activeBasicMode]?.[idx] || 0);
+              return arr.reduce((a, b) => a + b, 0) / arr.length;
+            }
+            if (i === 7 && !isAvg7Mode) return stationTemps[st.stationID]?.[activeBasicMode === 'temp' ? 'temp' : activeBasicMode === 'heat' ? 'feelsLike' : activeBasicMode] || 0;
+            return stationDaily[st.stationID]?.[activeBasicMode]?.[i] || 0;
+          })
+        : stations.map(st => stationDaily[st.stationID]?.pm25?.[i] || 0))
+        .filter(v => v > 0);
       return vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : 0;
     });
-  }, [stations, stationDaily]);
+  }, [stations, stationDaily, stationTemps, mapCategory, activeBasicMode, isAvg7Mode]);
   const forecastStId = selectedHotspot?.station?.stationID || stations.find(st => st.areaTH.includes('กรุงเทพ'))?.stationID;
   const forecastStName = selectedHotspot?.station?.areaTH?.replace('จังหวัด', '') || 'กรุงเทพมหานคร';
   const forecast7d = useMemo(() => {
     if (!forecastStId) return [];
     const daily = stationDaily[forecastStId] || {};
+    const getValue = (mode, idx) => {
+      switch (mode) {
+        case 'pm25': return Math.round(daily.pm25?.[idx] || 0);
+        case 'temp': return Math.round(daily.temp?.[idx] || 0);
+        case 'heat': return Math.round(daily.heat?.[idx] || 0);
+        case 'rain': return Math.round(daily.rain?.[idx] || 0);
+        case 'wind': return Math.round(daily.wind?.[idx] || 0);
+        case 'uv': return Math.round(daily.uv?.[idx] || 0);
+        case 'pressure': return Math.round(daily.pressure?.[idx] || 0);
+        default: return 0;
+      }
+    };
+    const getIcon = (mode, value) => {
+      if (mode === 'rain') return value > 60 ? '⛈️' : value > 30 ? '🌧️' : value > 10 ? '🌦️' : '☀️';
+      if (mode === 'wind') return '💨';
+      if (mode === 'uv') return '☀️';
+      if (mode === 'pressure') return '🌡️';
+      if (mode === 'heat') return '🥵';
+      return '🌤️';
+    };
+    const mode = mapCategory === 'basic' ? activeBasicMode : 'pm25';
     return Array.from({ length: 7 }, (_, i) => {
       const idx = 8 + i;
       const d = new Date(); d.setDate(d.getDate() + i + 1);
-      return { date: d, pm25: Math.round(daily.pm25?.[idx] || 0), rain: Math.round(daily.rain?.[idx] || 0), temp: Math.round(daily.temp?.[idx] || 0) };
+      const value = getValue(mode, idx);
+      return { date: d, value, icon: getIcon(mode, value), unit: activeModeObj?.unit || 'µg/m³' };
     });
-  }, [forecastStId, stationDaily]);
+  }, [forecastStId, stationDaily, mapCategory, activeBasicMode, activeModeObj]);
 
   if (geoError) return (
     <div className="loading-container" style={{ background: appBg, color: textColor }}>
@@ -1149,20 +1198,20 @@ export default function MapPage() {
           </div>
 
           {/* Row 2: Sub-nav — Category + Data layer + Time + Mode */}
-          <div className="hide-scrollbar" style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px', flexShrink: 0, background: cardBg, padding: '6px 12px', borderRadius: '14px', border: `1px solid ${borderColor}`, overflowX: 'auto' }}>
+          <div className="hide-scrollbar" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px', marginBottom: '6px', flexShrink: 0, background: cardBg, padding: '8px 12px', borderRadius: '14px', border: `1px solid ${borderColor}`, overflowX: 'auto' }}>
             <span style={{ fontSize: '0.62rem', color: subTextColor, fontWeight: 900, whiteSpace: 'nowrap', flexShrink: 0 }}>มุมมอง</span>
-            <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', flexShrink: 0, minWidth: 0 }}>
               {mapCategoryOptions.map(opt => (
-                <button key={opt.id} onClick={() => setMapCategory(opt.id)} style={{ padding: '4px 10px', borderRadius: '20px', border: `1px solid ${mapCategory === opt.id ? opt.color : borderColor}`, background: mapCategory === opt.id ? opt.color : 'transparent', color: mapCategory === opt.id ? '#fff' : subTextColor, fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit', fontSize: '0.68rem', whiteSpace: 'nowrap', transition: 'all 0.2s' }}>
+                <button key={opt.id} onClick={() => setMapCategory(opt.id)} style={{ padding: '4px 10px', borderRadius: '20px', border: `1px solid ${mapCategory === opt.id ? opt.color : borderColor}`, background: mapCategory === opt.id ? opt.color : 'transparent', color: mapCategory === opt.id ? '#fff' : subTextColor, fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit', fontSize: '0.68rem', whiteSpace: 'normal', transition: 'all 0.2s', lineHeight: 1.2 }}>
                   {opt.icon} {opt.shortLabel}
                 </button>
               ))}
             </div>
             <div style={{ width: '1px', height: '18px', background: borderColor, flexShrink: 0 }} />
             <span style={{ fontSize: '0.62rem', color: subTextColor, fontWeight: 900, whiteSpace: 'nowrap', flexShrink: 0 }}>แสดงข้อมูล</span>
-            <div className="hide-scrollbar" style={{ display: 'flex', gap: '4px', overflowX: 'auto', flexShrink: 1 }}>
+            <div className="hide-scrollbar" style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', overflowX: 'auto', flexShrink: 1, minWidth: 0 }}>
               {activeModeList.map(m => (
-                <button key={m.id} onClick={() => setActiveModeByCategory(m.id)} style={{ padding: '4px 10px', borderRadius: '20px', border: `1px solid ${activeModeId === m.id ? m.color : borderColor}`, background: activeModeId === m.id ? (darkMode ? `${m.color}25` : `${m.color}18`) : 'transparent', color: activeModeId === m.id ? m.color : subTextColor, fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit', fontSize: '0.68rem', whiteSpace: 'nowrap', transition: 'all 0.2s' }}>
+                <button key={m.id} onClick={() => setActiveModeByCategory(m.id)} style={{ padding: '4px 10px', borderRadius: '20px', border: `1px solid ${activeModeId === m.id ? m.color : borderColor}`, background: activeModeId === m.id ? (darkMode ? `${m.color}25` : `${m.color}18`) : 'transparent', color: activeModeId === m.id ? m.color : subTextColor, fontWeight: 'bold', cursor: 'pointer', fontFamily: 'Kanit', fontSize: '0.68rem', whiteSpace: 'normal', transition: 'all 0.2s', lineHeight: 1.2 }}>
                   {m.name}
                 </button>
               ))}
@@ -1270,13 +1319,13 @@ export default function MapPage() {
           {!isMobile && (
             <div style={{ width: '220px', display: 'flex', flexDirection: 'column', gap: '8px', flexShrink: 0, overflowY: 'auto', minHeight: 0 }} className="custom-scrollbar">
 
-              {/* National PM2.5 card */}
+              {/* National metric card */}
               <div style={{ background: cardBg, borderRadius: '14px', border: `1px solid ${borderColor}`, padding: '12px' }}>
-                <div style={{ fontSize: '0.65rem', fontWeight: 900, color: subTextColor, marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>PM2.5 ทั่วประเทศ (เฉลี่ย)</div>
+                <div style={{ fontSize: '0.65rem', fontWeight: 900, color: subTextColor, marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{activeModeObj?.name} ทั่วประเทศ (เฉลี่ย)</div>
                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: '6px', marginBottom: '8px' }}>
-                  <span style={{ fontSize: '2rem', fontWeight: 900, color: nationalPm25.color, lineHeight: 1 }}>{nationalPm25.avg}</span>
-                  <span style={{ fontSize: '0.7rem', color: subTextColor, fontWeight: 'bold', marginBottom: '4px' }}>µg/m³</span>
-                  <span style={{ fontSize: '0.65rem', fontWeight: 900, background: nationalPm25.color + '22', color: nationalPm25.color, border: `1px solid ${nationalPm25.color}44`, borderRadius: '20px', padding: '2px 7px', marginBottom: '4px' }}>{nationalPm25.label}</span>
+                  <span style={{ fontSize: '2rem', fontWeight: 900, color: nationalMetric.color, lineHeight: 1 }}>{nationalMetric.avg}</span>
+                  <span style={{ fontSize: '0.7rem', color: subTextColor, fontWeight: 'bold', marginBottom: '4px' }}>{activeModeObj?.unit || 'หน่วย'}</span>
+                  <span style={{ fontSize: '0.65rem', fontWeight: 900, background: nationalMetric.color + '22', color: nationalMetric.color, border: `1px solid ${nationalMetric.color}44`, borderRadius: '20px', padding: '2px 7px', marginBottom: '4px' }}>{nationalMetric.label}</span>
                 </div>
                 {/* 8-day sparkline */}
                 <svg width="100%" height="36" viewBox={`0 0 196 36`} preserveAspectRatio="none">
@@ -1289,10 +1338,10 @@ export default function MapPage() {
                     const area = `${path} L ${xs[xs.length-1]} 36 L 0 36 Z`;
                     return (
                       <>
-                        <defs><linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={nationalPm25.color} stopOpacity="0.4"/><stop offset="100%" stopColor={nationalPm25.color} stopOpacity="0"/></linearGradient></defs>
+                        <defs><linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={nationalMetric.color} stopOpacity="0.4"/><stop offset="100%" stopColor={nationalMetric.color} stopOpacity="0"/></linearGradient></defs>
                         <path d={area} fill="url(#sparkGrad)" />
-                        <path d={path} fill="none" stroke={nationalPm25.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                        {xs.map((x, i) => <circle key={i} cx={x} cy={ys[i]} r="2.5" fill={nationalPm25.color} />)}
+                        <path d={path} fill="none" stroke={nationalMetric.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        {xs.map((x, i) => <circle key={i} cx={x} cy={ys[i]} r="2.5" fill={nationalMetric.color} />)}
                       </>
                     );
                   })()}
@@ -1302,8 +1351,8 @@ export default function MapPage() {
 
               {/* Regional breakdown */}
               <div style={{ background: cardBg, borderRadius: '14px', border: `1px solid ${borderColor}`, padding: '12px', flex: 1 }}>
-                <div style={{ fontSize: '0.65rem', fontWeight: 900, color: subTextColor, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>PM2.5 รายภาค</div>
-                {regionalPm25.map(r => (
+                <div style={{ fontSize: '0.65rem', fontWeight: 900, color: subTextColor, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{activeModeObj?.name} รายภาค</div>
+                {regionalMetric.map(r => (
                   <div key={r.name} style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '7px' }}>
                     <div style={{ width: '3px', height: '28px', borderRadius: '2px', background: r.color, flexShrink: 0 }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -1311,9 +1360,7 @@ export default function MapPage() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '1px' }}>
                         <div style={{ height: '4px', borderRadius: '2px', background: r.color, width: `${Math.min(100, (r.avg / 150) * 100)}%`, minWidth: '4px', transition: 'width 0.5s' }} />
                         <span style={{ fontSize: '0.62rem', color: r.color, fontWeight: 900 }}>{r.avg}</span>
-                        <span style={{ fontSize: '0.58rem', color: r.trend > 0 ? '#ef4444' : r.trend < 0 ? '#22c55e' : subTextColor }}>
-                          {r.trend > 0 ? '▲' : r.trend < 0 ? '▼' : '–'}
-                        </span>
+                        <span style={{ fontSize: '0.58rem', color: subTextColor }}>–</span>
                       </div>
                     </div>
                   </div>
@@ -1760,14 +1807,13 @@ export default function MapPage() {
                     {forecast7d.map((day, i) => {
                       const dayName = ['อา','จ','อ','พ','พฤ','ศ','ส'][day.date.getDay()];
                       const dd = day.date.getDate();
-                      const pm25Color = day.pm25 > 100 ? '#ef4444' : day.pm25 > 50 ? '#f97316' : day.pm25 > 25 ? '#eab308' : '#22c55e';
+                      const valueColor = getBasicColor(day.value, activeBasicMode);
                       return (
                         <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px', background: 'var(--bg-secondary)', borderRadius: '10px', padding: '6px 4px' }}>
                           <div style={{ fontSize: '0.6rem', fontWeight: 900, color: subTextColor }}>{dayName} {dd}</div>
-                          <div style={{ fontSize: '0.9rem' }}>{day.rain > 60 ? '⛈️' : day.rain > 30 ? '🌧️' : day.rain > 10 ? '🌦️' : '☀️'}</div>
-                          <div style={{ fontSize: '0.65rem', fontWeight: 900, color: pm25Color }}>{day.pm25 || '–'}</div>
-                          <div style={{ fontSize: '0.58rem', color: subTextColor }}>{day.temp}°</div>
-                          <div style={{ fontSize: '0.55rem', color: '#3b82f6' }}>{day.rain}%</div>
+                          <div style={{ fontSize: '0.9rem' }}>{day.icon}</div>
+                          <div style={{ fontSize: '0.65rem', fontWeight: 900, color: valueColor }}>{day.value != null ? day.value : '–'}</div>
+                          <div style={{ fontSize: '0.58rem', color: subTextColor }}>{day.unit}</div>
                         </div>
                       );
                     })}
