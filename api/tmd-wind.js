@@ -5,7 +5,8 @@ let _cache = null;
 let _cacheAt = 0;
 
 const TMD_URL = 'http://www.marine.tmd.go.th/html/weather0.html';
-const MODEL = 'gemini-2.0-flash-lite';
+const MODEL_CANDIDATES = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+const AI_TIMEOUT_MS = 25000;
 
 // Upper air analysis standard times (UTC): 00, 06, 12, 18 + supplemental 03, 09, 15, 21
 const SYNOPTIC_HOURS = [0, 3, 6, 9, 12, 15, 18, 21];
@@ -150,14 +151,25 @@ export default async function handler(req, res) {
     const prompt = buildPrompt(pageText, synopticHour);
 
     const client = new GoogleGenerativeAI(apiKey);
-    const model = client.getGenerativeModel({ model: MODEL });
+    const parts = imageParts.length ? [{ text: prompt }, ...imageParts] : prompt;
 
-    const parts = imageParts.length
-      ? [{ text: prompt }, ...imageParts]
-      : prompt;
+    let raw = null;
+    let usedModel = null;
+    for (const modelId of MODEL_CANDIDATES) {
+      try {
+        const result = await withTimeout(
+          client.getGenerativeModel({ model: modelId }).generateContent(parts),
+          AI_TIMEOUT_MS,
+        );
+        raw = result.response.text().trim();
+        usedModel = modelId;
+        break;
+      } catch (err) {
+        console.warn(`[tmd-wind] ${modelId} failed:`, err.message?.slice(0, 120));
+      }
+    }
 
-    const result = await withTimeout(model.generateContent(parts), 25000);
-    const raw = result.response.text().trim();
+    if (!raw) throw new Error('All Gemini models failed');
 
     let data;
     try {
@@ -169,7 +181,7 @@ export default async function handler(req, res) {
 
     _cache = {
       ...data,
-      model: MODEL,
+      model: usedModel,
       imageCount: imageParts.length,
       tmdAvailable: html.status === 'fulfilled',
       cachedAt: new Date().toISOString(),

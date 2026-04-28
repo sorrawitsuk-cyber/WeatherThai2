@@ -732,7 +732,7 @@ export default function AIPage() {
           <SectionTitle
             icon="🌬️"
             title="วิเคราะห์กระแสลมชั้นบนรายภูมิภาค"
-            subtitle={`ข้อมูลจาก TMD Marine ทุก 3 ชม. · วิเคราะห์ด้วย Gemini ${windAnalysis?.model || 'gemini-2.0-flash-lite'}`}
+            subtitle={`ข้อมูลจาก TMD Marine ทุก 3 ชม. · วิเคราะห์ด้วย Gemini ${windAnalysis?.model || 'gemini-2.5-flash'}`}
           />
           <button
             onClick={fetchWindAnalysis}
