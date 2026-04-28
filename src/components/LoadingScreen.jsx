@@ -8,9 +8,10 @@ export default function LoadingScreen({
   return (
     <div
       className="app-loading-screen"
-      style={{
-        minHeight: compact ? '320px' : '100vh',
-      }}
+      style={compact
+        ? { minHeight: '320px' }
+        : { position: 'fixed', inset: 0, zIndex: 9999 }
+      }
     >
       <div className="app-loading-orbit" aria-hidden="true">
         <span className="app-loading-core" />

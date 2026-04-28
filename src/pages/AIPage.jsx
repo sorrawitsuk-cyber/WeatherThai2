@@ -390,7 +390,6 @@ export default function AIPage() {
   if (loadingWeather || !weatherData) {
     return (
       <LoadingScreen
-        compact
         title="กำลังเตรียมหน้าวิเคราะห์"
         subtitle="รวมสถิติย้อนหลัง สภาพอากาศตอนนี้ แนวโน้ม และข้อมูลแผนที่"
       />
