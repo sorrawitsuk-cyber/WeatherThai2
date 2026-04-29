@@ -75,6 +75,7 @@ function buildFallbackData(pageText, synopticHour) {
   return {
     limited: false,
     isFallback: true,
+    imagePaths: [],
     quickSummary: isRainySeason
       ? 'ฤดูฝนเริ่มต้น มีโอกาสเกิดฝนกระจายหลายพื้นที่'
       : 'ท้องฟ้าส่วนใหญ่แจ่มใส แต่อาจมีฝนบางพื้นที่',
@@ -120,6 +121,22 @@ function stripHtml(html) {
     .replace(/<[^>]+>/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function parseImagePaths(html) {
+  const matches = [...html.matchAll(/<img[^>]+src=["']([^"'#?]+\.(?:gif|jpg|jpeg|png))[^"']*["']/gi)];
+  return [...new Set(
+    matches
+      .map(m => m[1])
+      .filter(src => !src.startsWith('http') || src.includes('marine.tmd.go.th'))
+      .map(src => {
+        if (src.startsWith('http')) {
+          try { return new URL(src).pathname; } catch { return null; }
+        }
+        return src.startsWith('/') ? src : `/html/${src}`;
+      })
+      .filter(Boolean),
+  )].slice(0, 8);
 }
 
 function buildPrompt(pageText, synopticHour) {
@@ -187,6 +204,7 @@ export default async function handler(req, res) {
   try {
     const htmlText = await fetchHtml().catch(() => null);
     const pageText = htmlText ? stripHtml(htmlText) : 'ไม่สามารถโหลดข้อมูลจาก TMD ได้';
+    const imagePaths = htmlText ? parseImagePaths(htmlText) : [];
 
     const synopticHour = nearestSynopticTime();
     const prompt = buildPrompt(pageText, synopticHour);
@@ -237,6 +255,7 @@ export default async function handler(req, res) {
 
     _cache = {
       ...data,
+      imagePaths,
       model: usedModel,
       tmdAvailable: htmlText !== null,
       cachedAt: new Date().toISOString(),

@@ -1,13 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Card, ExpandableDetail, SectionHeader, CustomTooltip } from './SharedUI';
 import { SectionTitle, InsightBox } from './ExtendedUI';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis, Cell, Line } from 'recharts';
+
+const TMD_URL = 'http://www.marine.tmd.go.th/html/weather0.html';
 
 export default function RainSection({
   windAnalysis, windLoading, windError, windLastFetch, fetchWindAnalysis,
   hourlyRows, isMobile, rainProb, sixHourForecast
 }) {
   const [windDetailsOpen, setWindDetailsOpen] = useState(false);
+  const [imgErrors, setImgErrors] = useState({});
+  const onImgError = useCallback((path) => setImgErrors(prev => ({ ...prev, [path]: true })), []);
 
   const renderWindAnalysis = () => {
     if (windError) {
@@ -33,20 +37,6 @@ export default function RainSection({
       );
     }
     if (!windAnalysis) return null;
-
-    if (windAnalysis.limited) {
-      return (
-        <div style={{ alignItems: 'center', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '12px', color: 'var(--text-sub)', display: 'flex', fontSize: '0.82rem', gap: '10px', justifyContent: 'center', padding: '24px 16px', flexDirection: 'column' }}>
-          <div>⏳ ระบบวิเคราะห์กำลังพักชั่วคราว</div>
-          <button
-            onClick={fetchWindAnalysis}
-            style={{ background: 'none', border: '1px solid var(--border-color)', borderRadius: 8, color: 'var(--text-sub)', cursor: 'pointer', fontSize: '0.76rem', fontWeight: 600, padding: '5px 14px' }}
-          >
-            ลองใหม่
-          </button>
-        </div>
-      );
-    }
 
     const natPct = windAnalysis.nationalRainChance ?? 0;
     const forming = windAnalysis.rainForming || 'none';
@@ -162,7 +152,7 @@ export default function RainSection({
           onClick={() => setWindDetailsOpen(o => !o)}
           style={{ alignItems: 'center', background: 'none', border: '1px solid var(--border-color)', borderRadius: '999px', color: 'var(--text-sub)', cursor: 'pointer', display: 'flex', fontSize: '0.72rem', fontWeight: 800, gap: '5px', padding: '6px 14px', width: '100%', justifyContent: 'center', marginBottom: windDetailsOpen ? '12px' : 0 }}
         >
-          {windDetailsOpen ? '▲ ซ่อน' : '▼ ดูเพิ่มเติม'}
+          {windDetailsOpen ? '▲ ซ่อน' : `▼ ดูเพิ่มเติม${windAnalysis.imagePaths?.length > 0 ? ` + แผนที่ (${windAnalysis.imagePaths.length} รูป)` : ''}`}
         </button>
 
         {windDetailsOpen && (
@@ -181,6 +171,26 @@ export default function RainSection({
                 ))}
               </div>
             )}
+            {windAnalysis.imagePaths?.filter(p => !imgErrors[p]).length > 0 && (
+              <div>
+                <div style={{ alignItems: 'center', color: 'var(--text-sub)', display: 'flex', fontSize: '0.68rem', fontWeight: 900, gap: '6px', letterSpacing: '0.05em', marginBottom: '8px', textTransform: 'uppercase' }}>
+                  🗺️ แผนที่กระแสลมชั้นบนจาก TMD
+                  <a href={TMD_URL} target="_blank" rel="noopener noreferrer" style={{ color: '#0ea5e9', fontSize: '0.64rem', fontWeight: 800, textDecoration: 'none' }}>ดูต้นฉบับ ↗</a>
+                </div>
+                <div style={{ display: 'grid', gap: '8px', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)' }}>
+                  {windAnalysis.imagePaths.map((path) => imgErrors[path] ? null : (
+                    <a key={path} href={TMD_URL} target="_blank" rel="noopener noreferrer">
+                      <img
+                        src={`/api/tmd-proxy?path=${encodeURIComponent(path)}`}
+                        alt="TMD upper air chart"
+                        onError={() => onImgError(path)}
+                        style={{ borderRadius: '10px', display: 'block', maxWidth: '100%', width: '100%' }}
+                      />
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </>
@@ -196,8 +206,11 @@ export default function RainSection({
           <div style={{ alignItems: 'center', color: 'var(--text-main)', display: 'flex', fontSize: '0.95rem', fontWeight: 900, gap: '7px' }}>
             🌬️ วิเคราะห์กระแสลมชั้นบนรายภูมิภาค
           </div>
-          <div style={{ color: 'var(--text-sub)', fontSize: '0.68rem', marginTop: '3px' }}>
-            อัปเดตอัตโนมัติทุก 3 ชั่วโมง{windLastFetch && ` · ล่าสุด ${windLastFetch.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.`}
+          <div style={{ alignItems: 'center', color: 'var(--text-sub)', display: 'flex', flexWrap: 'wrap', fontSize: '0.68rem', gap: '6px', marginTop: '3px' }}>
+            <span>อัปเดตอัตโนมัติทุก 3 ชั่วโมง{windLastFetch && ` · ล่าสุด ${windLastFetch.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.`}</span>
+            <a href={TMD_URL} target="_blank" rel="noopener noreferrer" style={{ alignItems: 'center', background: 'rgba(14,165,233,0.1)', border: '1px solid rgba(14,165,233,0.25)', borderRadius: '999px', color: '#0ea5e9', display: 'inline-flex', fontSize: '0.64rem', fontWeight: 800, gap: '3px', padding: '2px 8px', textDecoration: 'none' }}>
+              🗺️ ที่มา: TMD ↗
+            </a>
           </div>
         </div>
         <button onClick={fetchWindAnalysis} disabled={windLoading} style={{ alignItems: 'center', background: windLoading ? 'var(--bg-secondary)' : 'linear-gradient(135deg,#0ea5e9,#2563eb)', border: 'none', borderRadius: '999px', color: windLoading ? 'var(--text-sub)' : '#fff', cursor: windLoading ? 'not-allowed' : 'pointer', display: 'flex', fontSize: '0.72rem', fontWeight: 900, gap: '5px', padding: '7px 13px' }}>
