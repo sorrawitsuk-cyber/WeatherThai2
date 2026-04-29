@@ -80,7 +80,6 @@ export function useAIPageData() {
       const res = await fetch('/api/tmd-wind');
       if (!res.ok) throw new Error(`ไม่สามารถโหลดข้อมูลได้ (${res.status})`);
       const data = await res.json();
-      if (data.error) throw new Error('ระบบวิเคราะห์ลมขัดข้องชั่วคราว');
       setWindAnalysis(data);
       setWindLastFetch(new Date());
     } catch (err) {

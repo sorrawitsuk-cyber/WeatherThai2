@@ -34,6 +34,20 @@ export default function RainSection({
     }
     if (!windAnalysis) return null;
 
+    if (windAnalysis.limited) {
+      return (
+        <div style={{ alignItems: 'center', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '12px', color: 'var(--text-sub)', display: 'flex', fontSize: '0.82rem', gap: '10px', justifyContent: 'center', padding: '24px 16px', flexDirection: 'column' }}>
+          <div>⏳ ระบบวิเคราะห์กำลังพักชั่วคราว</div>
+          <button
+            onClick={fetchWindAnalysis}
+            style={{ background: 'none', border: '1px solid var(--border-color)', borderRadius: 8, color: 'var(--text-sub)', cursor: 'pointer', fontSize: '0.76rem', fontWeight: 600, padding: '5px 14px' }}
+          >
+            ลองใหม่
+          </button>
+        </div>
+      );
+    }
+
     const natPct = windAnalysis.nationalRainChance ?? 0;
     const forming = windAnalysis.rainForming || 'none';
     const formingConfig = {
